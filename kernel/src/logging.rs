@@ -7,7 +7,7 @@ const SERIAL_IO_PORT: u16 = 0x3F8;
 static WRITER: Mutex<SerialPort> = Mutex::new(unsafe { SerialPort::new(SERIAL_IO_PORT) });
 
 pub fn init() {
-  WRITER.lock().init();
+    WRITER.lock().init();
 }
 
 /// Like the `print!` macro in the standard library, but prints to the VGA text buffer.
@@ -25,6 +25,6 @@ macro_rules! println {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-  use core::fmt::Write;
-  WRITER.lock().write_fmt(args).unwrap();
+    use core::fmt::Write;
+    WRITER.lock().write_fmt(args).unwrap();
 }

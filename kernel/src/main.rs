@@ -9,12 +9,13 @@ use core::panic::PanicInfo;
 pub extern "C" fn _start() -> ! {
     logging::init();
 
-    println!("Hello World!zzz");
+    println!("Hello World!");
 
     loop {}
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
     loop {}
 }

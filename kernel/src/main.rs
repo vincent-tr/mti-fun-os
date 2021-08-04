@@ -22,9 +22,7 @@ pub extern "C" fn _start() -> ! {
 
     logging::init();
 
-    logging::write("Hello World!zzz");
-
-
+    println!("Hello World!zzz");
 
     loop {}
 }

@@ -19,9 +19,11 @@ where
 
 pub fn test_runner(tests: &[&dyn Testable]) {
     println!("Running {} tests", tests.len());
+
     for test in tests {
         test.run();
     }
+
     exit_qemu(QemuExitCode::Success);
 }
 
@@ -29,7 +31,9 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 fn test_panic_handler(info: &PanicInfo) -> ! {
     println!("[failed]\n");
     println!("Error: {}\n", info);
+    
     exit_qemu(QemuExitCode::Failed);
+
     loop {}
 }
 

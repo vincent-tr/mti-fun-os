@@ -6,17 +6,19 @@
 
 mod common;
 
-use kernel::println;
+use kernel::logging;
+use kernel::print;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    logging::init();
 
     test_main();
-    
+
     loop {}
 }
 
 #[test_case]
-fn test_println() {
-    println!("test_println output");
+fn test_print() {
+    print!("test_print output");
 }

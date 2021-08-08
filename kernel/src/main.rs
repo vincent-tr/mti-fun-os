@@ -1,7 +1,8 @@
 #![no_std]
 #![no_main]
 
-mod logging;
+use kernel::logging;
+use kernel::println;
 
 use core::panic::PanicInfo;
 

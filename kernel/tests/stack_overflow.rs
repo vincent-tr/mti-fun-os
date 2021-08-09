@@ -7,7 +7,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 mod common;
 
 use common::{exit_qemu, QemuExitCode};
-use kernel::{logging, print};
+use kernel::{logging, print, println};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
@@ -18,13 +18,17 @@ pub extern "C" fn _start() -> ! {
     kernel::gdt::init();
     init_test_idt();
 
+    stack_overflow();
+
     panic!("Execution continued after stack overflow");
 }
 
 #[allow(unconditional_recursion)]
 fn stack_overflow() {
     stack_overflow(); // for each recursion, the return address is pushed
-    volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
+
+    let value = 0;
+    volatile::Volatile::new(&value).read(); // prevent tail recursion optimizations
 }
 
 fn init_test_idt() {
@@ -35,9 +39,9 @@ fn init_test_idt() {
             .double_fault
             .set_handler_fn(test_double_fault_handler)
             .set_stack_index(kernel::gdt::DOUBLE_FAULT_IST_INDEX);
-    }
 
-    TEST_IDT.load();
+        TEST_IDT.load();
+    }
 }
 
 extern "x86-interrupt" fn test_double_fault_handler(

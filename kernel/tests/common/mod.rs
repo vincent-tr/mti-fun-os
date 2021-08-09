@@ -33,8 +33,6 @@ fn test_panic_handler(info: &PanicInfo) -> ! {
     println!("Error: {}\n", info);
 
     exit_qemu(QemuExitCode::Failed);
-
-    hlt_loop();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,11 +42,13 @@ pub enum QemuExitCode {
     Failed = 0x11,
 }
 
-pub fn exit_qemu(exit_code: QemuExitCode) {
+pub fn exit_qemu(exit_code: QemuExitCode)  -> !{
     use x86_64::instructions::port::Port;
 
     unsafe {
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
     }
+
+    hlt_loop();
 }

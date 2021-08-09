@@ -6,7 +6,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 mod common;
 
-use common::{exit_qemu, hlt_loop, QemuExitCode};
+use common::{exit_qemu, QemuExitCode};
 use kernel::{logging, print, println};
 
 #[no_mangle]
@@ -50,5 +50,4 @@ extern "x86-interrupt" fn test_double_fault_handler(
 ) -> ! {
     println!("[ok]");
     exit_qemu(QemuExitCode::Success);
-    hlt_loop();
 }

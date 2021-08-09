@@ -6,8 +6,7 @@
 
 mod common;
 
-use kernel::logging;
-use kernel::print;
+use kernel::{hlt_loop, logging, print};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
@@ -15,7 +14,7 @@ pub extern "C" fn _start() -> ! {
 
     test_main();
 
-    loop {}
+    hlt_loop();
 }
 
 #[test_case]

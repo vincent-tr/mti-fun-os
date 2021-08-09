@@ -1,6 +1,6 @@
 use core::panic::PanicInfo;
 
-use kernel::{print, println};
+use kernel::{hlt_loop, print, println};
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -31,10 +31,10 @@ pub fn test_runner(tests: &[&dyn Testable]) {
 fn test_panic_handler(info: &PanicInfo) -> ! {
     println!("[failed]\n");
     println!("Error: {}\n", info);
-    
+
     exit_qemu(QemuExitCode::Failed);
 
-    loop {}
+    hlt_loop();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

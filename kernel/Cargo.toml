@@ -3,13 +3,16 @@ name = "kernel"
 version = "0.1.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[test]]
+name = "stack_overflow"
+harness = false
 
 [dependencies]
 bootloader = "0.9.8"
 spin = "0.9.2"
 uart_16550 = "0.2.15"
 x86_64 = "0.14.4"
+volatile = "0.4.4"
 
 [package.metadata.bootimage]
 run-args = ["-serial", "stdio", "-display", "none"]

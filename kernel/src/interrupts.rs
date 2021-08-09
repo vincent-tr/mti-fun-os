@@ -1,12 +1,13 @@
-use spin::Mutex;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use crate::gdt;
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();
 
 pub fn init() {
     unsafe {
-        IDT.double_fault.set_handler_fn(double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);;
+        IDT.double_fault
+            .set_handler_fn(double_fault_handler)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
         IDT.load();
     }
 }

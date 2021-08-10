@@ -8,7 +8,7 @@ name = "stack_overflow"
 harness = false
 
 [dependencies]
-bootloader = "0.9.8"
+bootloader = { version = "0.9.8", features = ["map_physical_memory"]}
 spin = "0.9.2"
 uart_16550 = "0.2.15"
 x86_64 = "0.14.4"

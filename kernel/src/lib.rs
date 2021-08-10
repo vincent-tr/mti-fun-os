@@ -4,6 +4,7 @@
 pub mod gdt;
 pub mod interrupts;
 pub mod logging;
+pub mod memory;
 
 pub fn hlt_loop() -> ! {
     loop {

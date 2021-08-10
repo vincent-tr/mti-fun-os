@@ -1,15 +1,19 @@
 #![no_std]
 #![no_main]
 
-use kernel::{gdt, hlt_loop, interrupts, logging, println};
-
+use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 
+use kernel::{gdt, hlt_loop, interrupts, logging, memory, println};
+
+entry_point!(kernel_main);
+
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+fn kernel_main(boot_info: &'static BootInfo) -> ! {
     logging::init();
     gdt::init();
     interrupts::init();
+    memory::init(boot_info);
 
     println!("Hello World!");
 

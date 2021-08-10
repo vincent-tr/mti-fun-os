@@ -1,3 +1,4 @@
+use crate::memory::KERNEL_STACK_SIZE;
 use x86_64::instructions::segmentation::{Segment, CS};
 use x86_64::instructions::tables::load_tss;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
@@ -6,10 +7,6 @@ use x86_64::VirtAddr;
 
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
-
-// TODO: move this
-const PAGE_SIZE: usize = 4096;
-const KERNEL_STACK_SIZE: usize = PAGE_SIZE * 5;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 

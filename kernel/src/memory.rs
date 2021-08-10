@@ -15,7 +15,13 @@ pub fn init(boot_info: &'static BootInfo) {
 
     unsafe {
         let l4_page_table = active_level_4_table(physical_memory_offset);
-        MAPPER = Option::from(OffsetPageTable::new(l4_page_table, physical_memory_offset));
+        MAPPER = Some(OffsetPageTable::new(l4_page_table, physical_memory_offset));
+    }
+}
+
+fn mapper() -> &'static OffsetPageTable<'static> {
+    unsafe {
+        MAPPER.as_ref().unwrap()
     }
 }
 

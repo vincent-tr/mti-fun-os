@@ -13,8 +13,6 @@ pub extern "C" fn _start() -> ! {
 
     println!("Hello World!");
 
-    x86_64::instructions::interrupts::int3();
-
     hlt_loop();
 }
 

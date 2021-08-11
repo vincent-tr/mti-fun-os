@@ -20,9 +20,7 @@ pub fn init(boot_info: &'static BootInfo) {
 }
 
 fn mapper() -> &'static OffsetPageTable<'static> {
-    unsafe {
-        MAPPER.as_ref().unwrap()
-    }
+    unsafe { MAPPER.as_ref().unwrap() }
 }
 
 /// Returns a mutable reference to the active level 4 table.

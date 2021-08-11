@@ -1,9 +1,19 @@
+use x86_64::{
+    instructions::{
+        segmentation::{Segment, CS},
+        tables::load_tss,
+    },
+    structures::{
+        gdt::{Descriptor, GlobalDescriptorTable},
+        tss::TaskStateSegment,
+    },
+    VirtAddr,
+};
+
 use crate::memory::KERNEL_STACK_SIZE;
-use x86_64::instructions::segmentation::{Segment, CS};
-use x86_64::instructions::tables::load_tss;
-use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
-use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
+use crate::memory::KERNEL_STACK_SIZE;
+
+// static GDT = crat
 
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut TSS: TaskStateSegment = TaskStateSegment::new();

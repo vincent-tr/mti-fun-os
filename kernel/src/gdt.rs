@@ -11,9 +11,6 @@ use x86_64::{
 };
 
 use crate::memory::KERNEL_STACK_SIZE;
-use crate::memory::KERNEL_STACK_SIZE;
-
-// static GDT = crat
 
 static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 static mut TSS: TaskStateSegment = TaskStateSegment::new();

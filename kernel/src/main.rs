@@ -4,16 +4,13 @@
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 
-use kernel::{gdt, hlt_loop, interrupts, logging, memory, println};
+use kernel::{hlt_loop, init, println};
 
 entry_point!(kernel_main);
 
 #[no_mangle]
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    logging::init();
-    gdt::init();
-    interrupts::init();
-    memory::init(boot_info);
+    init(boot_info);
 
     println!("Hello World!");
 

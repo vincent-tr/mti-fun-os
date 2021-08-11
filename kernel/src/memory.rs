@@ -4,6 +4,8 @@ use x86_64::{
     VirtAddr,
 };
 
+use crate::println;
+
 pub const PAGE_SIZE: usize = Size4KiB::SIZE as usize;
 pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * 5;
 
@@ -11,6 +13,10 @@ pub const KERNEL_STACK_SIZE: usize = PAGE_SIZE * 5;
 static mut MAPPER: Option<OffsetPageTable> = Option::None;
 
 pub fn init(boot_info: &'static BootInfo) {
+    for region in boot_info.memory_map.iter() {
+        println!("Region: {:?} {:?}", region.region_type, region.range);
+    }
+
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset);
 
     unsafe {

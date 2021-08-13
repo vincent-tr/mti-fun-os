@@ -28,7 +28,7 @@ pub fn init(boot_info: &'static BootInfo) {
         let l4_page_table = active_level_4_table();
         MAPPER = Some(OffsetPageTable::new(
             l4_page_table,
-            VirtAddr::new(physical_memory_offset),
+            to_virt_view(PhysAddr::new(0)),
         ));
     }
 }

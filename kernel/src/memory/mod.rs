@@ -15,7 +15,11 @@ mod phys_view;
 
 pub fn init(boot_info: &'static BootInfo) {
     phys_view::init(boot_info);
-    frame_allocator::init(boot_info, &mut [] as &mut [u32]);
+    frame_allocator::init(
+        boot_info,
+        phys_view::physical_memory_size(),
+        phys_view::to_virt_view,
+    );
 
     for region in boot_info.memory_map.iter() {
         println!("Region: {:?} {:?}", region.region_type, region.range);
@@ -23,7 +27,8 @@ pub fn init(boot_info: &'static BootInfo) {
 
     unsafe {
         let l4_page_table = active_level_4_table();
-        let mut mapper = OffsetPageTable::new(l4_page_table, phys_view::to_virt_view(PhysAddr::new(0)));
+        let mut mapper =
+            OffsetPageTable::new(l4_page_table, phys_view::to_virt_view(PhysAddr::new(0)));
 
         let l2_entry_range: u64 = 4096 * 512;
         let l3_entry_range: u64 = l2_entry_range * 512;
@@ -39,7 +44,8 @@ pub fn init(boot_info: &'static BootInfo) {
 
             println!("Virtual L4 {:#X} -> {:#X}", l4_begin, l4_end);
 
-            let l3_page_table_ptr: *mut PageTable = phys_view::to_virt_view(l4_entry.addr()).as_mut_ptr();
+            let l3_page_table_ptr: *mut PageTable =
+                phys_view::to_virt_view(l4_entry.addr()).as_mut_ptr();
             let l3_page_table = &*l3_page_table_ptr;
 
             for (l3_index, l3_entry) in l3_page_table.iter().enumerate() {

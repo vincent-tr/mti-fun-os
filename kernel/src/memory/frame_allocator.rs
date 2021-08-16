@@ -1,24 +1,30 @@
+use bootloader::bootinfo::{BootInfo, MemoryRegionType};
+use core::{mem::size_of, slice};
 use spin::Mutex;
-use x86_64::{structures::paging::PhysFrame, PhysAddr};
-use bootloader::bootinfo::{BootInfo,MemoryRegionType, MemoryRegion};
+use x86_64::{structures::paging::PhysFrame, PhysAddr, VirtAddr};
 
 use crate::error::Error;
 use crate::memory::PAGE_SIZE;
+use crate::println;
 
 // https://wiki.osdev.org/Page_Frame_Allocation
 
 static ALLOCATOR: Mutex<Option<FrameAllocator>> = Mutex::new(Option::None);
 
-pub fn init(boot_info: &'static BootInfo, stack: &'static mut [u32]) {
+pub fn init(
+    boot_info: &'static BootInfo,
+    physical_memory_size: u64,
+    to_virt_view: fn(phys: PhysAddr) -> VirtAddr,
+) {
     let mut allocator = FrameAllocator::new();
 
-    allocator.init(boot_info, stack);
+    allocator.init(boot_info, physical_memory_size, to_virt_view);
 
     let mut locked = ALLOCATOR.lock();
     *locked = Some(allocator);
 }
 
-pub fn allocate() ->Result<PhysFrame, Error> {
+pub fn allocate() -> Result<PhysFrame, Error> {
     if let Some(allocator) = &mut *ALLOCATOR.lock() {
         allocator.allocate()
     } else {
@@ -47,20 +53,50 @@ impl<'a> FrameAllocator<'a> {
         };
     }
 
-    pub fn init(&mut self, boot_info: &'static BootInfo, stack: &'static mut [u32]) {
-        self.stack = stack;
+    pub fn init(
+        &mut self,
+        boot_info: &'static BootInfo,
+        physical_memory_size: u64,
+        to_virt_view: fn(phys: PhysAddr) -> VirtAddr,
+    ) {
+        // We iterate in reverse order because big usable range are usually at the end.
+        for region in boot_info.memory_map.iter().rev() {
+            if region.region_type != MemoryRegionType::Usable {
+                continue;
+            }
 
-        for region in boot_info.memory_map.iter() {
-            if region.region_type == MemoryRegionType::Usable {
-                self.add_region(region);
+            let range = region.range;
+
+            if self.stack.len() == 0 {
+                // We must init the stack, using part of this first free range.
+                let total_frames = physical_memory_size as usize / PAGE_SIZE;
+                let needed_frames = (total_frames * size_of::<u32>()) as u64;
+
+                // Assert the range is big enough
+                assert!(range.start_frame_number + needed_frames <= range.end_frame_number);
+
+                let address = to_virt_view(PhysAddr::new(range.start_addr()));
+                self.stack =
+                    unsafe { slice::from_raw_parts_mut(address.as_mut_ptr(), total_frames) };
+                self.stack.fill(0);
+
+                let start_frame_number = (range.start_frame_number + needed_frames) as u32;
+                let end_frame_number = range.end_frame_number as u32;
+
+                self.add_region(start_frame_number, end_frame_number);
+            } else {
+                let start_frame_number = range.start_frame_number as u32;
+                let end_frame_number = range.end_frame_number as u32;
+
+                self.add_region(start_frame_number, end_frame_number);
             }
         }
     }
 
-    fn add_region(&mut self, region: &MemoryRegion) {
-        for frame_number in region.range.start_frame_number .. region.range.end_frame_number {
+    fn add_region(&mut self, start_frame_number: u32, end_frame_number: u32) {
+        for frame_number in start_frame_number..end_frame_number {
             assert!(self.top < self.stack.len());
-            self.stack[self.top] = frame_number as u32;
+            self.stack[self.top] = frame_number;
             self.top += 1;
         }
     }
@@ -89,6 +125,9 @@ impl<'a> FrameAllocator<'a> {
     }
 
     fn frame_number_to_frame(frame_number: u32) -> PhysFrame {
-        return PhysFrame::from_start_address(PhysAddr::new(frame_number as u64 * PAGE_SIZE as u64)).unwrap();
+        return PhysFrame::from_start_address(PhysAddr::new(
+            frame_number as u64 * PAGE_SIZE as u64,
+        ))
+        .unwrap();
     }
 }

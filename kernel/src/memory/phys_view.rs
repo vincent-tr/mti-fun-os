@@ -26,9 +26,13 @@ pub fn init(boot_info: &'static BootInfo) {
 }
 
 pub fn to_phys(virt: VirtAddr) -> PhysAddr {
-    return PhysAddr::new(virt.as_u64() - unsafe { physical_memory_offset });
+    PhysAddr::new(virt.as_u64() - unsafe { physical_memory_offset })
 }
 
 pub fn to_virt_view(phys: PhysAddr) -> VirtAddr {
-    return VirtAddr::new(phys.as_u64() + unsafe { physical_memory_offset });
+    VirtAddr::new(phys.as_u64() + unsafe { physical_memory_offset })
+}
+
+pub fn physical_memory_size() -> u64 {
+    unsafe { physical_memory_max }
 }

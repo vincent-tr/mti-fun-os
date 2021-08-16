@@ -18,7 +18,7 @@ pub fn init(boot_info: &'static BootInfo) {
     }
 
     for region in boot_info.memory_map.iter() {
-        let region_end = region.range.end_frame_number;
+        let region_end = region.range.end_addr();
         if unsafe { physical_memory_max } < region_end {
             unsafe { physical_memory_max = region_end };
         }

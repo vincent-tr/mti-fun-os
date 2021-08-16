@@ -15,7 +15,7 @@ mod phys_view;
 
 pub fn init(boot_info: &'static BootInfo) {
     phys_view::init(boot_info);
-    frame_allocator::ALLOCATOR.lock().init(boot_info, &[]);
+    frame_allocator::init(boot_info, &mut [] as &mut [u32]);
 
     for region in boot_info.memory_map.iter() {
         println!("Region: {:?} {:?}", region.region_type, region.range);

@@ -7,7 +7,24 @@ use crate::memory::PAGE_SIZE;
 
 // https://wiki.osdev.org/Page_Frame_Allocation
 
-pub static ALLOCATOR: Mutex<FrameAllocator> = Mutex::new(FrameAllocator::new());
+static ALLOCATOR: Mutex<Option<FrameAllocator>> = Mutex::new(Option::None);
+
+pub fn init(boot_info: &'static BootInfo, stack: &'static mut [u32]) {
+    let mut allocator = FrameAllocator::new();
+
+    allocator.init(boot_info, stack);
+
+    let mut locked = ALLOCATOR.lock();
+    *locked = Some(allocator);
+}
+
+pub fn allocate() ->Result<PhysFrame, Error> {
+    ALLOCATOR.lock().as_ref().unwrap().allocate()
+}
+
+pub fn deallocate(frame: PhysFrame) {
+    ALLOCATOR.lock().as_ref().unwrap().deallocate(frame);
+}
 
 pub struct FrameAllocator<'a> {
     stack: &'a mut [u32],
@@ -15,9 +32,9 @@ pub struct FrameAllocator<'a> {
 }
 
 impl<'a> FrameAllocator<'a> {
-    fn new() -> FrameAllocator<'a> {
+    pub fn new() -> FrameAllocator<'a> {
         return FrameAllocator {
-            stack: &[] as &[u32],
+            stack: &mut [] as &mut [u32],
             top: usize::MAX,
         };
     }

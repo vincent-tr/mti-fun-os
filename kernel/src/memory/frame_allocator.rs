@@ -19,11 +19,19 @@ pub fn init(boot_info: &'static BootInfo, stack: &'static mut [u32]) {
 }
 
 pub fn allocate() ->Result<PhysFrame, Error> {
-    ALLOCATOR.lock().as_ref().unwrap().allocate()
+    if let Some(allocator) = &mut *ALLOCATOR.lock() {
+        allocator.allocate()
+    } else {
+        panic!("You must initialize frame allocator before using it");
+    }
 }
 
 pub fn deallocate(frame: PhysFrame) {
-    ALLOCATOR.lock().as_ref().unwrap().deallocate(frame);
+    if let Some(allocator) = &mut *ALLOCATOR.lock() {
+        allocator.deallocate(frame);
+    } else {
+        panic!("You must initialize frame allocator before using it");
+    }
 }
 
 pub struct FrameAllocator<'a> {
@@ -35,7 +43,7 @@ impl<'a> FrameAllocator<'a> {
     pub fn new() -> FrameAllocator<'a> {
         return FrameAllocator {
             stack: &mut [] as &mut [u32],
-            top: usize::MAX,
+            top: 0,
         };
     }
 
@@ -51,14 +59,14 @@ impl<'a> FrameAllocator<'a> {
 
     fn add_region(&mut self, region: &MemoryRegion) {
         for frame_number in region.range.start_frame_number .. region.range.end_frame_number {
-            self.top += 1;
             assert!(self.top < self.stack.len());
             self.stack[self.top] = frame_number as u32;
+            self.top += 1;
         }
     }
 
     pub fn allocate(&mut self) -> Result<PhysFrame, Error> {
-        if self.top == usize::MAX {
+        if self.top == 0 {
             return Err(Error::OutOfMemory);
         }
 
@@ -72,8 +80,8 @@ impl<'a> FrameAllocator<'a> {
     }
 
     pub fn deallocate(&mut self, frame: PhysFrame) {
-        self.top += 1;
         self.stack[self.top] = Self::frame_to_frame_number(frame);
+        self.top += 1;
     }
 
     fn frame_to_frame_number(frame: PhysFrame) -> u32 {

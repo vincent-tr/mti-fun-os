@@ -3,6 +3,7 @@
 
 use bootloader::BootInfo;
 
+pub mod error;
 pub mod gdt;
 pub mod interrupts;
 pub mod logging;

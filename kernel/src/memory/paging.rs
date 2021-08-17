@@ -1,7 +1,7 @@
 use spin::Mutex;
 use x86_64::{
-    structures::paging::{PageTable, PhysFrame},
-    VirtAddr,
+    structures::paging::{PageTable, PageTableFlags, PhysFrame},
+    PhysAddr, VirtAddr,
 };
 
 use super::{frame_allocator, phys_view};
@@ -11,7 +11,46 @@ pub fn init() {
     unimplemented!();
 }
 
-pub fn map(addr: VirtAddr, frame: PhysFrame) -> Result<(), Error> {
+pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
+    let p4 = active_level_4_table();
+    let e4 = &p4[addr.p4_index()];
+    if !e4.flags().contains(PageTableFlags::PRESENT) {
+        return None;
+    }
+
+    let p3 = frame_to_page_table(PhysFrame::from_start_address(e4.addr()).unwrap());
+    let e3 = &p3[addr.p3_index()];
+    if !e3.flags().contains(PageTableFlags::PRESENT) {
+        return None;
+    }
+
+    if e3.flags().contains(PageTableFlags::HUGE_PAGE) {
+        let offset = addr.as_u64() & 0o_777_777_7777;
+        return Some(e3.addr() + offset);
+    }
+
+    let p2 = frame_to_page_table(PhysFrame::from_start_address(e3.addr()).unwrap());
+    let e2 = &p2[addr.p2_index()];
+    if !e2.flags().contains(PageTableFlags::PRESENT) {
+        return None;
+    }
+
+    if e2.flags().contains(PageTableFlags::HUGE_PAGE) {
+        let offset = addr.as_u64() & 0o_777_7777;
+        return Some(e2.addr() + offset);
+    }
+
+    let p1 = frame_to_page_table(PhysFrame::from_start_address(e2.addr()).unwrap());
+    let e1 = &p1[addr.p1_index()];
+    if !e1.flags().contains(PageTableFlags::PRESENT) {
+        return None;
+    }
+
+    let offset = u64::from(addr.page_offset());
+    return Some(e1.addr() + offset);
+}
+
+pub fn map(addr: VirtAddr, frame: PhysFrame, flags: PageTableFlags) -> Result<(), Error> {
     unimplemented!();
 }
 

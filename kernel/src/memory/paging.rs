@@ -1,11 +1,76 @@
+use core::fmt;
 use spin::Mutex;
 use x86_64::{
     structures::paging::{Page, PageTable, PageTableFlags, PhysFrame},
     PhysAddr, VirtAddr,
 };
 
-use super::{frame_allocator, phys_view};
+use super::{frame_allocator, phys_view, VM_SPLIT};
 use crate::{error::Error, memory::PAGE_SIZE, println};
+
+pub struct Protection {
+    read: bool,
+    write: bool,
+    execute: bool,
+}
+
+impl Protection {
+    pub fn can_read(self) -> bool {
+        self.read
+    }
+
+    pub fn can_write(self) -> bool {
+        self.write
+    }
+
+    pub fn can_execute(self) -> bool {
+        self.execute
+    }
+
+    pub fn read_only() -> Protection {
+        Protection {
+            read: true,
+            write: false,
+            execute: false,
+        }
+    }
+
+    pub fn read_write() -> Protection {
+        Protection {
+            read: true,
+            write: true,
+            execute: false,
+        }
+    }
+
+    pub fn read_execute() -> Protection {
+        Protection {
+            read: true,
+            write: false,
+            execute: true,
+        }
+    }
+}
+
+impl fmt::Debug for Protection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut debug_tuple = f.debug_tuple("Protection");
+
+        if self.read {
+            debug_tuple.field(&format_args!("R"));
+        }
+
+        if self.write {
+            debug_tuple.field(&format_args!("W"));
+        }
+
+        if self.execute {
+            debug_tuple.field(&format_args!("X"));
+        }
+
+        debug_tuple.finish()
+    }
+}
 
 pub fn init() {
     // Nothing for now
@@ -50,12 +115,16 @@ pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
     return Some(e1.addr() + offset);
 }
 
-// Note: no huge pages for now
+/// Map a virtual page to a physical frame
+/// Notes:
+/// - no huge pages for now
+/// - if page addr > VM_SPLIT we use it for kernel, else for userland
 pub fn map(page: Page, frame: PhysFrame, flags: PageTableFlags) -> Result<(), Error> {
     unimplemented!();
 }
 
-// Note: no huge pages for now
+/// Unmap a virtual page from a physical frame
+/// Note: no huge pages for now
 pub fn unmap(page: Page) -> Result<PhysFrame, Error> {
     unimplemented!();
 }

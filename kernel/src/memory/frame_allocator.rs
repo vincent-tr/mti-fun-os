@@ -1,38 +1,25 @@
 use bootloader::bootinfo::{BootInfo, MemoryRegionType};
 use core::{mem::size_of, slice};
 use spin::Mutex;
-use x86_64::{align_up, structures::paging::PhysFrame, PhysAddr, VirtAddr};
+use x86_64::{align_up, structures::paging::PhysFrame, PhysAddr};
 
 use super::phys_view;
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
 // https://wiki.osdev.org/Page_Frame_Allocation
 
-static ALLOCATOR: Mutex<Option<FrameAllocator>> = Mutex::new(Option::None);
+static ALLOCATOR: Mutex<FrameAllocator> = Mutex::new(FrameAllocator::new());
 
 pub fn init(boot_info: &'static BootInfo) {
-    let mut allocator = FrameAllocator::new();
-
-    allocator.init(boot_info);
-
-    let mut locked = ALLOCATOR.lock();
-    *locked = Some(allocator);
+    ALLOCATOR.lock().init(boot_info);
 }
 
 pub fn allocate() -> Result<PhysFrame, Error> {
-    if let Some(allocator) = &mut *ALLOCATOR.lock() {
-        allocator.allocate()
-    } else {
-        panic!("You must initialize frame allocator before using it");
-    }
+    ALLOCATOR.lock().allocate()
 }
 
 pub fn deallocate(frame: PhysFrame) {
-    if let Some(allocator) = &mut *ALLOCATOR.lock() {
-        allocator.deallocate(frame);
-    } else {
-        panic!("You must initialize frame allocator before using it");
-    }
+    ALLOCATOR.lock().deallocate(frame);
 }
 
 pub struct FrameAllocator<'a> {
@@ -41,7 +28,7 @@ pub struct FrameAllocator<'a> {
 }
 
 impl<'a> FrameAllocator<'a> {
-    pub fn new() -> FrameAllocator<'a> {
+    pub const fn new() -> FrameAllocator<'a> {
         return FrameAllocator {
             stack: &mut [] as &mut [u32],
             top: 0,

@@ -8,18 +8,31 @@ use crate::{error::Error, memory::PAGE_SIZE, println};
 
 // https://wiki.osdev.org/Page_Frame_Allocation
 
-static ALLOCATOR: Mutex<FrameAllocator> = Mutex::new(FrameAllocator::new());
+static ALLOCATOR: Mutex<Option<FrameAllocator>> = Mutex::new(Option::None);
 
 pub fn init(boot_info: &'static BootInfo) {
-    ALLOCATOR.lock().init(boot_info);
+    let mut allocator = FrameAllocator::new();
+
+    allocator.init(boot_info);
+
+    let mut locked = ALLOCATOR.lock();
+    *locked = Some(allocator);
 }
 
 pub fn allocate() -> Result<PhysFrame, Error> {
-    ALLOCATOR.lock().allocate()
+    if let Some(allocator) = &mut *ALLOCATOR.lock() {
+        allocator.allocate()
+    } else {
+        panic!("You must initialize frame allocator before using it");
+    }
 }
 
 pub fn deallocate(frame: PhysFrame) {
-    ALLOCATOR.lock().deallocate(frame);
+    if let Some(allocator) = &mut *ALLOCATOR.lock() {
+        allocator.deallocate(frame);
+    } else {
+        panic!("You must initialize frame allocator before using it");
+    }
 }
 
 pub struct FrameAllocator<'a> {
@@ -28,7 +41,7 @@ pub struct FrameAllocator<'a> {
 }
 
 impl<'a> FrameAllocator<'a> {
-    pub const fn new() -> FrameAllocator<'a> {
+    pub fn new() -> FrameAllocator<'a> {
         return FrameAllocator {
             stack: &mut [] as &mut [u32],
             top: 0,

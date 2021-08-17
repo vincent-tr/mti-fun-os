@@ -119,7 +119,7 @@ pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
 /// Notes:
 /// - no huge pages for now
 /// - if page addr > VM_SPLIT we use it for kernel, else for userland
-pub fn map(page: Page, frame: PhysFrame, flags: PageTableFlags) -> Result<(), Error> {
+pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), Error> {
     unimplemented!();
 }
 

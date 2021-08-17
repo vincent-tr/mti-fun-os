@@ -1,6 +1,6 @@
 use spin::Mutex;
 use x86_64::{
-    structures::paging::{PageTable, PageTableFlags, PhysFrame},
+    structures::paging::{Page, PageTable, PageTableFlags, PhysFrame},
     PhysAddr, VirtAddr,
 };
 
@@ -8,7 +8,7 @@ use super::{frame_allocator, phys_view};
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
 pub fn init() {
-    unimplemented!();
+    // Nothing for now
 }
 
 pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
@@ -50,11 +50,13 @@ pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
     return Some(e1.addr() + offset);
 }
 
-pub fn map(addr: VirtAddr, frame: PhysFrame, flags: PageTableFlags) -> Result<(), Error> {
+// Note: no huge pages for now
+pub fn map(page: Page, frame: PhysFrame, flags: PageTableFlags) -> Result<(), Error> {
     unimplemented!();
 }
 
-pub fn unmap(addr: VirtAddr) -> Result<PhysFrame, Error> {
+// Note: no huge pages for now
+pub fn unmap(page: Page) -> Result<PhysFrame, Error> {
     unimplemented!();
 }
 

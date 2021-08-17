@@ -15,11 +15,7 @@ mod phys_view;
 
 pub fn init(boot_info: &'static BootInfo) {
     phys_view::init(boot_info);
-    frame_allocator::init(
-        boot_info,
-        phys_view::physical_memory_size(),
-        phys_view::to_virt_view,
-    );
+    frame_allocator::init(boot_info);
 
     for region in boot_info.memory_map.iter() {
         println!("Region: {:?} {:?}", region.region_type, region.range);

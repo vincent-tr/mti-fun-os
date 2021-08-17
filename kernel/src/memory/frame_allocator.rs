@@ -3,20 +3,17 @@ use core::{mem::size_of, slice};
 use spin::Mutex;
 use x86_64::{align_up, structures::paging::PhysFrame, PhysAddr, VirtAddr};
 
+use super::phys_view;
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
 // https://wiki.osdev.org/Page_Frame_Allocation
 
 static ALLOCATOR: Mutex<Option<FrameAllocator>> = Mutex::new(Option::None);
 
-pub fn init(
-    boot_info: &'static BootInfo,
-    physical_memory_size: u64,
-    to_virt_view: fn(phys: PhysAddr) -> VirtAddr,
-) {
+pub fn init(boot_info: &'static BootInfo) {
     let mut allocator = FrameAllocator::new();
 
-    allocator.init(boot_info, physical_memory_size, to_virt_view);
+    allocator.init(boot_info);
 
     let mut locked = ALLOCATOR.lock();
     *locked = Some(allocator);
@@ -51,12 +48,7 @@ impl<'a> FrameAllocator<'a> {
         };
     }
 
-    pub fn init(
-        &mut self,
-        boot_info: &'static BootInfo,
-        physical_memory_size: u64,
-        to_virt_view: fn(phys: PhysAddr) -> VirtAddr,
-    ) {
+    pub fn init(&mut self, boot_info: &'static BootInfo) {
         // We iterate in reverse order because big usable range are usually at the end.
         for region in boot_info.memory_map.iter().rev() {
             if region.region_type != MemoryRegionType::Usable {
@@ -67,7 +59,7 @@ impl<'a> FrameAllocator<'a> {
 
             if self.stack.len() == 0 {
                 // We must init the stack, using part of this first free range.
-                let total_frames = physical_memory_size as usize / PAGE_SIZE;
+                let total_frames = phys_view::physical_memory_size() as usize / PAGE_SIZE;
                 let needed_frames =
                     align_up((total_frames * size_of::<u32>()) as u64, PAGE_SIZE as u64)
                         / PAGE_SIZE as u64;
@@ -75,7 +67,7 @@ impl<'a> FrameAllocator<'a> {
                 // Assert the range is big enough
                 assert!(range.start_frame_number + needed_frames <= range.end_frame_number);
 
-                let address = to_virt_view(PhysAddr::new(range.start_addr()));
+                let address = phys_view::to_virt_view(PhysAddr::new(range.start_addr()));
 
                 self.stack =
                     unsafe { slice::from_raw_parts_mut(address.as_mut_ptr(), total_frames) };

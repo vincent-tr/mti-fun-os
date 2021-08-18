@@ -9,6 +9,12 @@
   "executables": true,
   "linker-flavor": "ld.lld",
   "linker": "rust-lld",
+  "pre-link-args": {
+    "ld.lld": [
+        "--script=linker.ld",
+        "--gc-sections"
+    ]
+  },
   "panic-strategy": "abort",
   "disable-redzone": true,
   "features": "-mmx,-sse,+soft-float"

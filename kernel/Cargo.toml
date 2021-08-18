@@ -18,3 +18,9 @@ volatile = "0.4.4"
 run-args = ["-serial", "stdio", "-display", "none"]
 test-args = ["-serial", "stdio", "-display", "none", "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"]
 test-success-exit-code = 33         # (0x10 << 1) | 1
+
+[package.metadata.bootloader]
+# kernel base: 0x800000000000
+kernel-stack-address = "0x800040000000"
+physical-memory-offset = "0x800100000000"
+kernel-stack-size = 5

@@ -1,7 +1,7 @@
 use core::fmt;
 use spin::Mutex;
 use x86_64::{
-    structures::paging::{Page, PageTable, page_table::PageTableEntry, PageTableFlags, PhysFrame},
+    structures::paging::{page_table::PageTableEntry, Page, PageTable, PageTableFlags, PhysFrame},
     PhysAddr, VirtAddr,
 };
 
@@ -167,7 +167,9 @@ fn map_get_or_create_page_table(
     entry: &mut PageTableEntry,
 ) -> Result<&'static mut PageTable, Error> {
     if entry.flags().contains(PageTableFlags::PRESENT) {
-        Ok(frame_to_page_table(PhysFrame::from_start_address(entry.addr()).unwrap()))
+        Ok(frame_to_page_table(
+            PhysFrame::from_start_address(entry.addr()).unwrap(),
+        ))
     } else {
         let frame = frame_allocator::allocate()?;
         let page_table = frame_to_page_table(frame);

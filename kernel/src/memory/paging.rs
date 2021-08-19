@@ -1,11 +1,11 @@
 use core::fmt;
 use spin::Mutex;
 use x86_64::{
-    structures::paging::{Page, PageTable, PageTableFlags, PhysFrame},
+    structures::paging::{Page, PageTable, page_table::PageTableEntry, PageTableFlags, PhysFrame},
     PhysAddr, VirtAddr,
 };
 
-use super::{frame_allocator, phys_view, VM_SPLIT};
+use super::{frame_allocator, phys_view, VM_SIZE, VM_SPLIT};
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
 pub struct Protection {
@@ -15,15 +15,15 @@ pub struct Protection {
 }
 
 impl Protection {
-    pub fn can_read(self) -> bool {
+    pub fn can_read(&self) -> bool {
         self.read
     }
 
-    pub fn can_write(self) -> bool {
+    pub fn can_write(&self) -> bool {
         self.write
     }
 
-    pub fn can_execute(self) -> bool {
+    pub fn can_execute(&self) -> bool {
         self.execute
     }
 
@@ -73,7 +73,22 @@ impl fmt::Debug for Protection {
 }
 
 pub fn init() {
-    // Nothing for now
+    let p4 = active_level_4_table();
+
+    for index in 0..512 {
+        if (&p4[index]).flags().contains(PageTableFlags::PRESENT) {
+            let e4_size = (VM_SIZE / 512) as usize; //0o_1_000_000_0000usize;
+            println!(
+                "Initial p4 mapping: {:X} -> {:X} (index={})",
+                index * e4_size,
+                (index + 1) * e4_size,
+                index
+            );
+        }
+    }
+
+    // TODO: unmnap framebuffer, bootloader and bootinfo (p4 index < 256)
+    // TODO: remap kernel + phys view with GLOBAL flag
 }
 
 pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
@@ -120,7 +135,49 @@ pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
 /// - no huge pages for now
 /// - if page addr > VM_SPLIT we use it for kernel, else for userland
 pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), Error> {
-    unimplemented!();
+    let address = page.start_address();
+    if address.as_u64() < VM_SPLIT {
+        unimplemented!();
+    }
+
+    let p4 = active_level_4_table();
+    let p3 = map_get_or_create_page_table(&mut p4[address.p4_index()])?;
+    let p2 = map_get_or_create_page_table(&mut p3[address.p3_index()])?;
+    let p1 = map_get_or_create_page_table(&mut p2[address.p2_index()])?;
+
+    let entry = &mut p1[address.p1_index()];
+    if entry.flags().contains(PageTableFlags::PRESENT) {
+        return Err(Error::AlreadyExists);
+    }
+
+    let mut flags = PageTableFlags::PRESENT | PageTableFlags::GLOBAL;
+    if protection.can_write() {
+        flags |= PageTableFlags::WRITABLE;
+    }
+    if !protection.can_execute() {
+        flags |= PageTableFlags::NO_EXECUTE;
+    }
+
+    entry.set_frame(frame, flags);
+    Ok(())
+}
+
+fn map_get_or_create_page_table(
+    entry: &mut PageTableEntry,
+) -> Result<&'static mut PageTable, Error> {
+    if entry.flags().contains(PageTableFlags::PRESENT) {
+        Ok(frame_to_page_table(PhysFrame::from_start_address(entry.addr()).unwrap()))
+    } else {
+        let frame = frame_allocator::allocate()?;
+        let page_table = frame_to_page_table(frame);
+
+        page_table.zero();
+
+        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::GLOBAL;
+        entry.set_frame(frame, flags);
+
+        Ok(page_table)
+    }
 }
 
 /// Unmap a virtual page from a physical frame

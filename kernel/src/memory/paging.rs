@@ -140,6 +140,7 @@ pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), E
         unimplemented!();
     }
 
+    // FIXME: should unallocate p3/p2 if allocated and cannot map p1
     let p4 = active_level_4_table();
     let p3 = map_get_or_create_page_table(&mut p4[address.p4_index()])?;
     let p2 = map_get_or_create_page_table(&mut p3[address.p3_index()])?;
@@ -199,15 +200,6 @@ fn frame_to_page_table(frame: PhysFrame) -> &'static mut PageTable {
     let address = phys_view::to_virt_view(frame.start_address());
     let page_table_ptr: *mut PageTable = address.as_mut_ptr();
     unsafe { &mut *page_table_ptr }
-}
-
-fn allocate_page_table() -> Result<&'static mut PageTable, Error> {
-    let frame = frame_allocator::allocate()?;
-    let page_table = frame_to_page_table(frame);
-
-    page_table.zero();
-
-    Ok(page_table)
 }
 
 fn deallocate_page_table(page_table: &'static mut PageTable) {

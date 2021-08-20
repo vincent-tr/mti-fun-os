@@ -142,9 +142,15 @@ pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), E
 
     // FIXME: should unallocate p3/p2 if allocated and cannot map p1
     let p4 = active_level_4_table();
-    let p3 = map_get_or_create_page_table(&mut p4[address.p4_index()])?;
-    let p2 = map_get_or_create_page_table(&mut p3[address.p3_index()])?;
-    let p1 = map_get_or_create_page_table(&mut p2[address.p2_index()])?;
+
+    let e4 = &mut p4[address.p4_index()];
+    let p3 = map_get_or_create_page_table(e4)?;
+
+    let e3 = &mut p3[address.p3_index()];
+    let p2 = map_get_or_create_page_table(e3)?;
+
+    let e2 = &mut p2[address.p2_index()];
+    let p1 = map_get_or_create_page_table(e2)?;
 
     let entry = &mut p1[address.p1_index()];
     if entry.flags().contains(PageTableFlags::PRESENT) {
@@ -186,7 +192,78 @@ fn map_get_or_create_page_table(
 /// Unmap a virtual page from a physical frame
 /// Note: no huge pages for now
 pub fn unmap(page: Page) -> Result<PhysFrame, Error> {
-    unimplemented!();
+    let address = page.start_address();
+    if address.as_u64() < VM_SPLIT {
+        unimplemented!();
+    }
+
+    let p4 = active_level_4_table();
+    let e4 = &mut p4[address.p4_index()];
+    if !e4.flags().contains(PageTableFlags::PRESENT) {
+        return Err(Error::NotFound);
+    }
+
+    let p3 = frame_to_page_table(PhysFrame::from_start_address(e4.addr()).unwrap());
+    let e3 = &mut p3[address.p3_index()];
+    if !e3.flags().contains(PageTableFlags::PRESENT) {
+        return Err(Error::NotFound);
+    }
+
+    assert!(!e3.flags().contains(PageTableFlags::HUGE_PAGE));
+
+    let p2 = frame_to_page_table(PhysFrame::from_start_address(e3.addr()).unwrap());
+    let e2 = &mut p2[address.p2_index()];
+    if !e2.flags().contains(PageTableFlags::PRESENT) {
+        return Err(Error::NotFound);
+    }
+
+    assert!(!e2.flags().contains(PageTableFlags::HUGE_PAGE));
+
+    let p1 = frame_to_page_table(PhysFrame::from_start_address(e2.addr()).unwrap());
+    let e1 = &mut p1[address.p1_index()];
+    if !e1.flags().contains(PageTableFlags::PRESENT) {
+        return Err(Error::NotFound);
+    }
+
+    let frame = e1.frame().unwrap();
+
+    e1.set_unused();
+
+    if !is_table_unused(p1) {
+        return Ok(frame);
+    }
+
+    // free p1
+    e2.set_unused();
+    deallocate_page_table(p1);
+
+    if !is_table_unused(p2) {
+        return Ok(frame);
+    }
+
+    // free p2
+    e3.set_unused();
+    deallocate_page_table(p2);
+
+    if !is_table_unused(p3) {
+        return Ok(frame);
+    }
+
+    // free p3
+    e4.set_unused();
+    deallocate_page_table(p3);
+
+    Ok(frame)
+}
+
+fn is_table_unused(table: &PageTable) -> bool {
+    for index in 0..512 {
+        if !table[index].is_unused() {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Returns a mutable reference to the active level 4 table.

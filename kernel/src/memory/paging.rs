@@ -8,6 +8,10 @@ use x86_64::{
 use super::{frame_allocator, phys_view, VM_SIZE, VM_SPLIT};
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
+pub struct Zst;
+
+static LOCK: Mutex<Zst> = Mutex::new(Zst);
+
 pub struct Protection {
     read: bool,
     write: bool,
@@ -92,6 +96,8 @@ pub fn init() {
 }
 
 pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
+    let lock = LOCK.lock();
+
     let p4 = active_level_4_table();
     let e4 = &p4[addr.p4_index()];
     if !e4.flags().contains(PageTableFlags::PRESENT) {
@@ -135,6 +141,8 @@ pub fn translate(addr: VirtAddr) -> Option<PhysAddr> {
 /// - no huge pages for now
 /// - if page addr > VM_SPLIT we use it for kernel, else for userland
 pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), Error> {
+    let lock = LOCK.lock();
+
     let address = page.start_address();
     if address.as_u64() < VM_SPLIT {
         unimplemented!();
@@ -192,6 +200,8 @@ fn map_get_or_create_page_table(
 /// Unmap a virtual page from a physical frame
 /// Note: no huge pages for now
 pub fn unmap(page: Page) -> Result<PhysFrame, Error> {
+    let lock = LOCK.lock();
+
     let address = page.start_address();
     if address.as_u64() < VM_SPLIT {
         unimplemented!();

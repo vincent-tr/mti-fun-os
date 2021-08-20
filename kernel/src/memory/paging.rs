@@ -9,7 +9,7 @@ use x86_64::{
 use super::{frame_allocator, phys_view, VM_SIZE, VM_SPLIT};
 use crate::{error::Error, memory::PAGE_SIZE, println};
 
-pub struct Zst;
+struct Zst;
 
 static LOCK: Mutex<Zst> = Mutex::new(Zst);
 

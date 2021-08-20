@@ -1,6 +1,7 @@
 use core::fmt;
 use spin::Mutex;
 use x86_64::{
+    instructions::tlb,
     structures::paging::{page_table::PageTableEntry, Page, PageTable, PageTableFlags, PhysFrame},
     PhysAddr, VirtAddr,
 };
@@ -174,6 +175,8 @@ pub fn map(page: Page, frame: PhysFrame, protection: Protection) -> Result<(), E
     }
 
     entry.set_frame(frame, flags);
+    tlb::flush(address);
+
     Ok(())
 }
 
@@ -238,6 +241,7 @@ pub fn unmap(page: Page) -> Result<PhysFrame, Error> {
     let frame = e1.frame().unwrap();
 
     e1.set_unused();
+    tlb::flush(address);
 
     if !is_table_unused(p1) {
         return Ok(frame);

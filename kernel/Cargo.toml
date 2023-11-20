@@ -5,7 +5,11 @@ edition = "2021"
 
 [dependencies]
 bootloader_api = "0.11"
-uart_16550 = "0.2.10"
+uart_16550 = "0.3.0"
+x86_64 = "0.14.11"
+log = "0.4.20"
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+spin = "0.9.8"
 
 [profile.dev]
 panic = "abort"

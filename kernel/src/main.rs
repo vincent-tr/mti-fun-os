@@ -2,26 +2,28 @@
 #![no_main]
 
 extern crate bootloader_api;
+extern crate lazy_static;
 
+mod logging;
+
+use bootloader_api::info::MemoryRegionKind;
 use bootloader_api::{entry_point, BootInfo};
-use core::fmt::Write;
 use core::panic::PanicInfo;
+use log::{error, info};
 
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    writeln!(serial(), "Entered kernel with boot info: {boot_info:?}").unwrap();
-    loop {}
+    logging::init();
+
+    info!("Entered kernel with boot info: {boot_info:?}");
+
+
+    panic!("End of main!");
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let _ = writeln!(serial(), "PANIC: {info}");
+    error!("PANIC: {info}");
     loop {}
-}
-
-fn serial() -> uart_16550::SerialPort {
-    let mut port = unsafe { uart_16550::SerialPort::new(0x3F8) };
-    port.init();
-    port
 }

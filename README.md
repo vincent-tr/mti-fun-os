@@ -19,3 +19,4 @@ to exit: `Ctrl+A X`
 
 - https://wiki.osdev.org/Rust
 - https://os.phil-opp.com/
+- https://crates.io/crates/bootloader

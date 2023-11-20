@@ -14,7 +14,6 @@ cargo run
 ```
 to exit: `Ctrl+A X`
 
-
 ## Readings
 
 - https://wiki.osdev.org/Rust

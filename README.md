@@ -16,10 +16,16 @@ to exit: `Ctrl+A X`
 
 ## Readings
 
+### Rust
+
 - https://wiki.osdev.org/Rust
 - https://os.phil-opp.com/
 - https://crates.io/crates/bootloader
 - https://github.com/redox-os/kernel
 - https://doc.redox-os.org/book/
+
+### Microkernel design
+
 - https://web.archive.org/web/20140803112320/http://i30www.ira.uka.de/~neider/edu/mkc/mkc.html
 - https://fuchsia.dev/fuchsia-src/reference/kernel_objects/objects
+

@@ -16,6 +16,8 @@ to exit: `Ctrl+A X`
 
 ## Readings
 
+- http://sos.enix.org/fr/SOSDownload
+
 ### Rust
 
 - https://wiki.osdev.org/Rust
@@ -29,3 +31,8 @@ to exit: `Ctrl+A X`
 - https://web.archive.org/web/20140803112320/http://i30www.ira.uka.de/~neider/edu/mkc/mkc.html
 - https://fuchsia.dev/fuchsia-src/reference/kernel_objects/objects
 
+### Pagination
+
+- http://sos.enix.org/wiki-fr/upload/SOSDownload/sos-texte-art4.pdf
+- https://wiki.osdev.org/Paging
+- https://os.phil-opp.com/paging-introduction/

@@ -1,10 +1,10 @@
 use core::{
-    cmp::Ordering,
     mem::size_of,
     ptr::{null_mut, slice_from_raw_parts_mut},
 };
 
-use bootloader_api::info::{MemoryRegions, MemoryRegionKind};
+use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
+use log::info;
 use spin::RwLock;
 use x86_64::{PhysAddr, VirtAddr};
 
@@ -35,6 +35,10 @@ impl Descriptor {
     fn unref(&mut self) -> bool {
         debug_assert!(self.ref_count > 0);
         self.ref_count -= 1;
+        self.ref_count > 0
+    }
+
+    fn used(&self) -> bool {
         self.ref_count > 0
     }
 }
@@ -84,7 +88,7 @@ impl List {
 
         if desc == prev {
             // if we had only one item
-            self.head == null_mut();
+            self.head = null_mut();
         } else if prev == next {
             // if we had 2 items, now 1
             let item = prev;
@@ -223,7 +227,7 @@ pub enum AllocatorError {
 
 static ALLOCATOR: RwLock<Allocator> = RwLock::new(Allocator::new());
 
-pub fn init(phys_mapping: VirtAddr, memory_regions: &'static MemoryRegions) {
+pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     // memory regions looks ordered.
     debug_assert!(memory_regions.is_sorted_by_key(|region| { region.start }));
 
@@ -232,28 +236,38 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &'static MemoryRegions) {
 
     let count = (end / PAGE_SIZE) as usize;
     let buffer_size = Allocator::needed_buffer_size(count);
+    let buffer_phys = find_usable_region(memory_regions, buffer_size);
+    let buffer_phys_end = buffer_phys + buffer_size;
+    let buffer: VirtAddr = phys_mapping + buffer_phys.as_u64();
 
-    // TODO: map an area of this size somehow
-    let buffer: VirtAddr = VirtAddr::zero();
+    info!(
+        "Using physical frame descriptors at {:?} (frame count={})",
+        buffer, count
+    );
 
-    let mut allocator = ALLOCATOR.write();
-    unsafe {
-        allocator.init_descriptors(buffer, buffer_size);
-    }
+    {
+        let mut allocator = ALLOCATOR.write();
+        unsafe {
+            allocator.init_descriptors(buffer, buffer_size);
+        }
 
-    // Note: by default all pages are created as reserved
+        // Note: by default all pages are created as reserved
 
-    for memory_region in memory_regions.iter() {
-        if memory_region.kind == MemoryRegionKind::Usable {
+        for memory_region in memory_regions.iter() {
+            if memory_region.kind != MemoryRegionKind::Usable {
+                continue;
+            }
+
             let mut frame = PhysAddr::new(memory_region.start);
             while frame < PhysAddr::new(memory_region.end) {
-                // Do not mark the zero page usable
                 if frame.is_null() {
-                    continue;
-                }
-
-                unsafe {
-                    allocator.unref(frame);
+                    // Do not mark the zero page usable
+                } else if frame >= buffer_phys && frame < buffer_phys_end {
+                    // Do not mark "buffer" physical space usable
+                } else {
+                    unsafe {
+                        allocator.unref(frame);
+                    }
                 }
 
                 frame += PAGE_SIZE;
@@ -261,8 +275,81 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &'static MemoryRegions) {
         }
     }
 
-    // TODO: mark "buffer" physical space reserved
+    let stats = stats();
+    const MEGA: usize = 1 * 1024 * 1024;
+    info!(
+        "Physical memory allocator initial stats: total={} ({}MB), free={} ({}MB)",
+        stats.total,
+        stats.total / MEGA,
+        stats.free,
+        stats.free / MEGA
+    );
+}
 
+fn find_usable_region(memory_regions: &MemoryRegions, buffer_size: usize) -> PhysAddr {
+    // Upper than 1M, and large enough to fit all memory
+    // Merge usable regions
+    const LOWER_BOUND: PhysAddr = PhysAddr::new(1 * 1024 * 1024);
+
+    let mut start: PhysAddr = PhysAddr::zero();
+    let mut size: usize = 0;
+
+    for region in memory_regions.iter() {
+        if region.kind != MemoryRegionKind::Usable {
+            continue;
+        }
+
+        let region_start = PhysAddr::new(region.start);
+        let region_size = (region.end - region.start) as usize;
+
+        if region_start < LOWER_BOUND {
+            continue;
+        }
+
+        if !start.is_null() && start + size == region_start {
+            // Contigous: merge
+            size += region_size;
+            continue;
+        }
+
+        // Check if usable
+        if size >= buffer_size {
+            return start;
+        }
+
+        start = region_start;
+        size = region_size;
+    }
+
+    // Check if usable
+    if size >= buffer_size {
+        return start;
+    }
+
+    panic!("Could not find suitable memory region for physical frame descriptors");
+}
+
+pub struct Stats {
+    pub total: usize,
+    pub free: usize,
+}
+
+pub fn stats() -> Stats {
+    let mut allocator = ALLOCATOR.read();
+
+    Stats {
+        total: allocator.descriptors.len() * PAGE_SIZE as usize,
+        free: allocator.free_list.count * PAGE_SIZE as usize,
+    }
+}
+
+pub fn used(frame: PhysAddr) -> bool {
+    let mut allocator = ALLOCATOR.read();
+
+    unsafe {
+        let desc = allocator.frame_to_desc(frame);
+        (*desc).used()
+    }
 }
 
 pub fn allocate() -> Result<FrameRef, AllocatorError> {
@@ -275,7 +362,7 @@ pub fn allocate() -> Result<FrameRef, AllocatorError> {
 }
 
 #[derive(Debug)]
-struct FrameRef {
+pub struct FrameRef {
     /// Note: since we do not use the 0 frame, 0 is used as an "empty ref"
     frame: PhysAddr,
 }

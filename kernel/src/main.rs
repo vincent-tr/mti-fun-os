@@ -51,12 +51,11 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     info!("Starting kernel with boot info v{}.{}.{}", version.version_major(), version.version_minor(), version.version_patch());
 
     let physical_memory_offset = VirtAddr::new(*boot_info.physical_memory_offset.as_ref().unwrap());
-    let framebuffer = boot_info.framebuffer.as_ref().unwrap().buffer();
 
     gdt::init();
     interrupts::init_idt();
     memory::phys::init(physical_memory_offset, &boot_info.memory_regions);
-    memory::paging::init(physical_memory_offset, framebuffer);
+    memory::paging::init(physical_memory_offset);
 
     // Note:
     // boot_info is unmapped from here.
@@ -64,6 +63,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
 /*
     let stack_var = 12;
+
+    let framebuffer = boot_info.framebuffer.as_ref().unwrap().buffer();
 
     info!("Kernel      {:?}", (&kernel_main as *const _));
     info!("Stack       {:?}", (&stack_var as *const _));

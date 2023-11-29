@@ -188,6 +188,23 @@ impl Allocator {
         Ok(self.desc_to_frame(desc_ref))
     }
 
+    unsafe fn allocate_at(&mut self, frame: PhysAddr) -> Result<(), AllocatorError> {
+        let desc = self.frame_to_desc(frame);
+        let desc_ref = &mut (*desc);
+
+        if desc_ref.used() {
+            return Err(AllocatorError::NoMemory);
+        }
+
+        self.free_list.remove(desc);
+        self.used_list.add(desc);
+        let desc_ref = &mut (*desc);
+
+        desc_ref.r#ref();
+
+        Ok(())
+    }
+
     unsafe fn r#ref(&mut self, frame: PhysAddr) {
         let desc = self.frame_to_desc(frame);
         let desc_ref = &mut (*desc);
@@ -199,6 +216,8 @@ impl Allocator {
     unsafe fn unref(&mut self, frame: PhysAddr) -> bool {
         let desc = self.frame_to_desc(frame);
         let desc_ref = &mut (*desc);
+
+        debug_assert!(desc_ref.used(), "Unref unused frame {:?}",frame);
 
         let has_ref = desc_ref.unref();
 
@@ -221,10 +240,11 @@ impl Allocator {
     }
 
     fn check_frame(&self, frame: PhysAddr) -> bool {
-        return frame.is_aligned(PAGE_SIZE) && frame > PhysAddr::zero() && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
+        return frame.is_aligned(PAGE_SIZE) && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
     }
 }
 
+#[derive(Debug)]
 pub enum AllocatorError {
     NoMemory,
 }
@@ -349,7 +369,7 @@ pub fn stats() -> Stats {
 
 pub fn used(frame: PhysAddr) -> bool {
     let allocator = ALLOCATOR.read();
-    debug_assert!(allocator.check_frame(frame));
+    debug_assert!(allocator.check_frame(frame), "Frame {:?} is not valid.", frame);
 
     unsafe {
         let desc = allocator.frame_to_desc(frame);
@@ -368,6 +388,15 @@ pub fn allocate() -> Result<FrameRef, AllocatorError> {
 
     unsafe {
         let frame = allocator.allocate()?;
+        Ok(FrameRef::new(frame))
+    }
+}
+
+pub fn allocate_at(frame: PhysAddr) -> Result<FrameRef, AllocatorError> {
+    let mut allocator = ALLOCATOR.write();
+
+    unsafe {
+        allocator.allocate_at(frame)?;
         Ok(FrameRef::new(frame))
     }
 }

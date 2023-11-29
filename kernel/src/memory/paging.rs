@@ -1,6 +1,6 @@
 use bitflags::bitflags;
-use log::{info, debug};
-use core::ptr::null_mut;
+use log::{info, warn};
+use core::{ptr::null_mut, mem};
 
 use x86_64::{
     registers::control::{Cr3, Cr3Flags},
@@ -65,7 +65,7 @@ static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
 
 static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace { page_table: null_mut() };
 
-pub fn init(phys_mapping: VirtAddr, framebuffer: &[u8]) {
+pub fn init(phys_mapping: VirtAddr) {
     unsafe {
         PHYSICAL_MAPPING_ADDRESS = phys_mapping;
         KERNEL_ADDRESS_SPACE.page_table = get_current_page_table();
@@ -91,10 +91,7 @@ pub fn init(phys_mapping: VirtAddr, framebuffer: &[u8]) {
         // Drop everything else
 
         // Note: bootloader prepare each memory component in its own l4 index so we can keep our 3 indexes and drop any other
-        // Note: framebuffer can be unmapped but its phys frames cannot be marked as free because they are linked to the video.
-        let fremebuffer_l4_index = Page::<Size4KiB>::containing_address(VirtAddr::from_ptr(framebuffer.as_ptr())).p4_index();
-        drop_mapping(&mut page_table[fremebuffer_l4_index], false);
-        
+        // Note: framebuffer is mapped with memory outside of physical memory
         for (l4_index, l4_entry) in page_table.iter_mut().enumerate() {
             if l4_index == kernel_l4_index.into() || l4_index == phys_mapping_l4_index.into() || l4_index == kernel_stack_l4_index.into() {
                 continue;
@@ -104,7 +101,7 @@ pub fn init(phys_mapping: VirtAddr, framebuffer: &[u8]) {
                 continue;
             }
 
-            drop_mapping(l4_entry, true);
+            drop_mapping(l4_entry);
         }
 
         tlb::flush_all();
@@ -178,8 +175,7 @@ fn prepare_page<S: PageSize>(l4_index: usize, l3_index: usize, l2_index: usize, 
         PageTableIndex::new(u16::try_from(l1_index).unwrap())
     ).start_address();
 
-    // Note: frame 0 is mapped by physical memory mapping
-    debug_assert!(phys::check_frame(frame) || frame.is_null(), "frame {frame:?} (address={address:?}) is not valid.");
+    debug_assert!(phys::check_frame(frame), "frame {frame:?} (address={address:?}) is not valid.");
 
     if address < *begin {
         *begin = address;
@@ -189,8 +185,11 @@ fn prepare_page<S: PageSize>(l4_index: usize, l3_index: usize, l2_index: usize, 
         *end = address + PAGE_SIZE;
     }
 
-    if check_frame_ref {
-        debug_assert!(phys::used(frame), "frame {frame:?} (address={address:?}) is not marked as used.");
+    if check_frame_ref && !phys::used(frame) {
+        warn!("Frame {:?} was not marked as used.", frame);
+        unsafe {
+            phys::allocate_at(frame).expect("Cannot use frame").borrow();
+        }
     }
 }
 
@@ -203,8 +202,47 @@ fn fix_flags(entry: &mut PageTableEntry) {
     entry.set_flags(flags);
 }
 
-unsafe fn drop_mapping(l4_entry: &mut PageTableEntry, unref_phys_frames: bool) {
-    info!("TODO: drop entry {l4_entry:?}, unref_phys_frames={unref_phys_frames}");
+unsafe fn drop_mapping(l4_entry: &mut PageTableEntry) {
+
+    for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
+        if l3_entry.is_unused() {
+            continue;
+        }
+
+        assert!(!l3_entry.flags().contains(PageTableFlags::HUGE_PAGE), "HUGE_PAGE not handled");
+
+        for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
+            if l2_entry.is_unused() {
+                continue;
+            }
+
+            assert!(!l2_entry.flags().contains(PageTableFlags::HUGE_PAGE), "HUGE_PAGE not handled");
+
+            for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
+                if l1_entry.is_unused() {
+                    continue;
+                }
+                
+                let frame = l1_entry.addr();
+                // Note: framebuffer maps memory outside physical memory
+                // ignore it.
+                if phys::check_frame(frame) && phys::used(frame) {
+                    mem::drop(FrameRef::unborrow(l1_entry.addr()));
+                }
+
+                l1_entry.set_unused();
+            }
+
+            mem::drop(FrameRef::unborrow(l2_entry.addr()));
+            l2_entry.set_unused();
+        }
+
+        mem::drop(FrameRef::unborrow(l3_entry.addr()));
+        l3_entry.set_unused();
+    }
+
+    mem::drop(FrameRef::unborrow(l4_entry.addr()));
+    l4_entry.set_unused();
 }
 
 unsafe fn get_current_page_table() -> &'static mut PageTable {

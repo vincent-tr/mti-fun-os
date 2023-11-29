@@ -523,6 +523,7 @@ checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.4.1",
  "bootloader_api",
  "lazy_static",
  "log",

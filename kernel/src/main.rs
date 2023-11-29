@@ -23,7 +23,7 @@ use x86_64::structures::paging::page_table::PageTableEntry;
 use core::panic::PanicInfo;
 use log::{error, info};
 use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{OffsetPageTable, PageTable, PageTableFlags};
+use x86_64::structures::paging::{PageTable, PageTableFlags};
 
 const CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -36,7 +36,6 @@ const CONFIG: BootloaderConfig = {
 
 INFO - Kernel      0xffff800000004883
 INFO - Phys mem    0xffff808000000000
-
 INFO - Stack       0xffff810000014b14
 INFO - Framebuffer 0xffff818000000000
 INFO - Boot info   0xffff820000000000
@@ -52,14 +51,19 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     info!("Starting kernel with boot info v{}.{}.{}", version.version_major(), version.version_minor(), version.version_patch());
 
     let physical_memory_offset = VirtAddr::new(*boot_info.physical_memory_offset.as_ref().unwrap());
+    let framebuffer = boot_info.framebuffer.as_ref().unwrap().buffer();
 
     gdt::init();
     interrupts::init_idt();
     memory::phys::init(physical_memory_offset, &boot_info.memory_regions);
+    memory::paging::init(physical_memory_offset, framebuffer);
 
+    // Note:
+    // boot_info is unmapped from here.
+    // Do not used it.
+
+/*
     let stack_var = 12;
-
-    let framebuffer = boot_info.framebuffer.as_ref().unwrap().buffer();
 
     info!("Kernel      {:?}", (&kernel_main as *const _));
     info!("Stack       {:?}", (&stack_var as *const _));
@@ -67,10 +71,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     info!("Phys mem    {:?}", physical_memory_offset.as_ptr::<u8>());
     info!("Boot info   {:?}", boot_info as *const _);
 
-    // print_mem(&boot_info);
-
+    print_mem(&boot_info);
     print_pt(physical_memory_offset);
-
+*/
     panic!("End of main!");
 }
 
@@ -140,9 +143,9 @@ fn print_pt_recurs(page_table: &PageTable, phys_offset: VirtAddr, level: usize) 
             }
 
             if level >= 2 && !entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                if !memory::phys::used(entry.addr()) {
-                    error!("Unused phsical frame : {:#X}", entry.addr().as_u64());
-                }
+                //if !memory::phys::used(entry.addr()) {
+                //    error!("Unused phsical frame : {:#X}", entry.addr().as_u64());
+                //}
     
                 let next_table_addr = phys_offset + entry.addr().as_u64();
                 let next_table_ref: &PageTable = unsafe { &(*next_table_addr.as_ptr())};
@@ -169,3 +172,28 @@ fn print_pt_entry(index: usize, entry: &PageTableEntry, level: usize) {
         _ => unimplemented!(),
     }
 }
+
+/*
+
+
+/// Performs the actual context switch.
+unsafe fn context_switch(addresses: Addresses) -> ! {
+    unsafe {
+        asm!(
+            r#"
+            xor rbp, rbp
+            mov cr3, {}
+            mov rsp, {}
+            push 0
+            jmp {}
+            "#,
+            in(reg) addresses.page_table.start_address().as_u64(),
+            in(reg) addresses.stack_top.as_u64(),
+            in(reg) addresses.entry_point.as_u64(),
+            in("rdi") addresses.boot_info as *const _ as usize,
+        );
+    }
+    unreachable!();
+}
+
+*/

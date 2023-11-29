@@ -219,6 +219,10 @@ impl Allocator {
         let index = desc.sub_ptr(self.descriptors.as_mut_ptr());
         PhysAddr::new(index as u64 * PAGE_SIZE)
     }
+
+    fn check_frame(&self, frame: PhysAddr) -> bool {
+        return frame.is_aligned(PAGE_SIZE) && frame > PhysAddr::zero() && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
+    }
 }
 
 pub enum AllocatorError {
@@ -335,7 +339,7 @@ pub struct Stats {
 }
 
 pub fn stats() -> Stats {
-    let mut allocator = ALLOCATOR.read();
+    let allocator = ALLOCATOR.read();
 
     Stats {
         total: allocator.descriptors.len() * PAGE_SIZE as usize,
@@ -344,12 +348,19 @@ pub fn stats() -> Stats {
 }
 
 pub fn used(frame: PhysAddr) -> bool {
-    let mut allocator = ALLOCATOR.read();
+    let allocator = ALLOCATOR.read();
+    debug_assert!(allocator.check_frame(frame));
 
     unsafe {
         let desc = allocator.frame_to_desc(frame);
         (*desc).used()
     }
+}
+
+
+pub fn check_frame(frame: PhysAddr) -> bool {
+    let allocator = ALLOCATOR.read();
+    allocator.check_frame(frame)
 }
 
 pub fn allocate() -> Result<FrameRef, AllocatorError> {
@@ -412,12 +423,17 @@ impl FrameRef {
         return self.frame.is_null();
     }
 
+    pub fn frame(&self) -> PhysAddr {
+        self.frame
+    }
+
     /// Use this function when you want to get back a frame previously borrowed with frame_ref.borrow()
     ///
     /// # Safety
     ///
     /// This function is unsafe because there is no way to check that `unborrow()` call matchs `borrow()` call.
     pub unsafe fn unborrow(frame: PhysAddr) -> Self {
+        debug_assert!(check_frame(frame));
         Self::new(frame)
     }
 
@@ -426,7 +442,10 @@ impl FrameRef {
     /// # Safety
     ///
     /// This function is unsafe because there is no way to check that `borrow()` call match a `unborrow()` call.
-    pub unsafe fn borrow(&mut self) {
+    pub unsafe fn borrow(&mut self) -> PhysAddr {
+        let frame = self.frame;
         self.frame = PhysAddr::zero();
+        frame
     }
+
 }

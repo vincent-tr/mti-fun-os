@@ -8,7 +8,7 @@ use log::info;
 use spin::RwLock;
 use x86_64::{PhysAddr, VirtAddr};
 
-pub const PAGE_SIZE: u64 = 4096;
+use super::PAGE_SIZE;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -217,7 +217,7 @@ impl Allocator {
         let desc = self.frame_to_desc(frame);
         let desc_ref = &mut (*desc);
 
-        debug_assert!(desc_ref.used(), "Unref unused frame {:?}",frame);
+        debug_assert!(desc_ref.used(), "Unref unused frame {:?}", frame);
 
         let has_ref = desc_ref.unref();
 
@@ -240,7 +240,8 @@ impl Allocator {
     }
 
     fn check_frame(&self, frame: PhysAddr) -> bool {
-        return frame.is_aligned(PAGE_SIZE) && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
+        return frame.is_aligned(PAGE_SIZE)
+            && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
     }
 }
 
@@ -369,14 +370,17 @@ pub fn stats() -> Stats {
 
 pub fn used(frame: PhysAddr) -> bool {
     let allocator = ALLOCATOR.read();
-    debug_assert!(allocator.check_frame(frame), "Frame {:?} is not valid.", frame);
+    debug_assert!(
+        allocator.check_frame(frame),
+        "Frame {:?} is not valid.",
+        frame
+    );
 
     unsafe {
         let desc = allocator.frame_to_desc(frame);
         (*desc).used()
     }
 }
-
 
 pub fn check_frame(frame: PhysAddr) -> bool {
     let allocator = ALLOCATOR.read();
@@ -476,5 +480,4 @@ impl FrameRef {
         self.frame = PhysAddr::zero();
         frame
     }
-
 }

@@ -1,18 +1,23 @@
 use bitflags::bitflags;
+use core::{mem, ptr::null_mut};
 use log::{info, warn};
-use core::{ptr::null_mut, mem};
 
 use x86_64::{
+    instructions::tlb,
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
         mapper::{CleanUp, FlagUpdateError, MapToError, UnmapError},
-        FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageTable,
-        PageTableFlags, PhysFrame, Size4KiB, page_table::PageTableEntry, PageTableIndex, PageSize, Size1GiB, Size2MiB,
+        page_table::PageTableEntry,
+        FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
+        PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB,
     },
-    PhysAddr, VirtAddr, instructions::tlb,
+    PhysAddr, VirtAddr,
 };
 
-use super::phys::{self, FrameRef, PAGE_SIZE};
+use super::{
+    phys::{self, FrameRef},
+    KERNEL_START, PAGE_SIZE,
+};
 
 /*
 
@@ -59,11 +64,11 @@ bitflags! {
     }
 }
 
-pub const KERNEL_START: VirtAddr = VirtAddr::new_truncate(0xFFFF_8000_0000_0000);
-
 static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
 
-static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace { page_table: null_mut() };
+pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
+    page_table: null_mut(),
+};
 
 pub fn init(phys_mapping: VirtAddr) {
     unsafe {
@@ -74,26 +79,47 @@ pub fn init(phys_mapping: VirtAddr) {
         // - Kernel
         // - Physical memory mapping
         // - Kernel stack (until we can switch context)
-        
+
         // Ensure physical memory is really marked as used for this 3 entries + set proper flags
         let stack_var = 42;
         let page_table = KERNEL_ADDRESS_SPACE.get_page_table_mut();
-        
-        let (kernel_l4_index, kernel_start, kernel_end) = prepare_mapping(page_table, KERNEL_START, true);
-        info!("Kernel: {:?} -> {:?} (size={})", kernel_start, kernel_end, kernel_end - kernel_start);
 
-        let (phys_mapping_l4_index, phys_mapping_start, phys_mapping_end) = prepare_mapping(page_table, PHYSICAL_MAPPING_ADDRESS, false);
-        info!("Physical mapping: {:?} -> {:?} (size={})", phys_mapping_start, phys_mapping_end, phys_mapping_end - phys_mapping_start);
+        let (kernel_l4_index, kernel_start, kernel_end) =
+            prepare_mapping(page_table, KERNEL_START, true);
+        info!(
+            "Kernel: {:?} -> {:?} (size={})",
+            kernel_start,
+            kernel_end,
+            kernel_end - kernel_start
+        );
 
-        let (kernel_stack_l4_index, kernel_stack_start, kernel_stack_end) = prepare_mapping(page_table, VirtAddr::from_ptr(&stack_var), true);
-        info!("Kernel stack: {:?} -> {:?} (size={})", kernel_stack_start, kernel_stack_end, kernel_stack_end - kernel_stack_start);
+        let (phys_mapping_l4_index, phys_mapping_start, phys_mapping_end) =
+            prepare_mapping(page_table, PHYSICAL_MAPPING_ADDRESS, false);
+        info!(
+            "Physical mapping: {:?} -> {:?} (size={})",
+            phys_mapping_start,
+            phys_mapping_end,
+            phys_mapping_end - phys_mapping_start
+        );
+
+        let (kernel_stack_l4_index, kernel_stack_start, kernel_stack_end) =
+            prepare_mapping(page_table, VirtAddr::from_ptr(&stack_var), true);
+        info!(
+            "Kernel stack: {:?} -> {:?} (size={})",
+            kernel_stack_start,
+            kernel_stack_end,
+            kernel_stack_end - kernel_stack_start
+        );
 
         // Drop everything else
 
         // Note: bootloader prepare each memory component in its own l4 index so we can keep our 3 indexes and drop any other
         // Note: framebuffer is mapped with memory outside of physical memory
         for (l4_index, l4_entry) in page_table.iter_mut().enumerate() {
-            if l4_index == kernel_l4_index.into() || l4_index == phys_mapping_l4_index.into() || l4_index == kernel_stack_l4_index.into() {
+            if l4_index == kernel_l4_index.into()
+                || l4_index == phys_mapping_l4_index.into()
+                || l4_index == kernel_stack_l4_index.into()
+            {
                 continue;
             }
 
@@ -111,11 +137,15 @@ pub fn init(phys_mapping: VirtAddr) {
 /// Preparation:
 /// - verify that the mapped physical pages are marked as used
 /// - add the GLOBAL flag and remove the USER_ACCESSIBLE flag on the entries
-/// 
+///
 /// Take a pointer into the region, and get its level 4 index to process
-/// 
+///
 /// Returns the begin/end of the mapped region in the level 4 index
-unsafe fn prepare_mapping(page_table: &mut PageTable, pointer: VirtAddr, check_frame_refs: bool) -> (PageTableIndex, VirtAddr, VirtAddr) {
+unsafe fn prepare_mapping(
+    page_table: &mut PageTable,
+    pointer: VirtAddr,
+    check_frame_refs: bool,
+) -> (PageTableIndex, VirtAddr, VirtAddr) {
     let l4_index = Page::<Size4KiB>::containing_address(pointer).p4_index();
     let l4_entry = &mut page_table[l4_index];
     debug_assert!(!l4_entry.is_unused());
@@ -125,8 +155,15 @@ unsafe fn prepare_mapping(page_table: &mut PageTable, pointer: VirtAddr, check_f
 
     fix_flags(l4_entry);
 
-    debug_assert!(phys::used(l4_entry.addr()), "frame {:?} used by PageTable is not marked as used.", l4_entry.addr());
-    for (l3_index, l3_entry) in phys_frame_to_page_table(l4_entry.addr()).iter_mut().enumerate() {
+    debug_assert!(
+        phys::used(l4_entry.addr()),
+        "frame {:?} used by PageTable is not marked as used.",
+        l4_entry.addr()
+    );
+    for (l3_index, l3_entry) in phys_frame_to_page_table(l4_entry.addr())
+        .iter_mut()
+        .enumerate()
+    {
         if l3_entry.is_unused() {
             continue;
         }
@@ -134,12 +171,28 @@ unsafe fn prepare_mapping(page_table: &mut PageTable, pointer: VirtAddr, check_f
         fix_flags(l3_entry);
 
         if l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-            prepare_page::<Size1GiB>(l4_index.into(), l3_index, 0, 0, l3_entry.addr(), &mut begin, &mut end, check_frame_refs);
+            prepare_page::<Size1GiB>(
+                l4_index.into(),
+                l3_index,
+                0,
+                0,
+                l3_entry.addr(),
+                &mut begin,
+                &mut end,
+                check_frame_refs,
+            );
             continue;
         }
 
-        debug_assert!(phys::used(l3_entry.addr()), "frame {:?} used by PageTable is not marked as used.", l3_entry.addr());
-        for (l2_index, l2_entry) in phys_frame_to_page_table(l3_entry.addr()).iter_mut().enumerate() {
+        debug_assert!(
+            phys::used(l3_entry.addr()),
+            "frame {:?} used by PageTable is not marked as used.",
+            l3_entry.addr()
+        );
+        for (l2_index, l2_entry) in phys_frame_to_page_table(l3_entry.addr())
+            .iter_mut()
+            .enumerate()
+        {
             if l2_entry.is_unused() {
                 continue;
             }
@@ -147,35 +200,73 @@ unsafe fn prepare_mapping(page_table: &mut PageTable, pointer: VirtAddr, check_f
             fix_flags(l2_entry);
 
             if l2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                prepare_page::<Size2MiB>(l4_index.into(), l3_index, l2_index, 0, l2_entry.addr(), &mut begin, &mut end, check_frame_refs);
+                prepare_page::<Size2MiB>(
+                    l4_index.into(),
+                    l3_index,
+                    l2_index,
+                    0,
+                    l2_entry.addr(),
+                    &mut begin,
+                    &mut end,
+                    check_frame_refs,
+                );
                 continue;
             }
 
-            debug_assert!(phys::used(l2_entry.addr()), "frame {:?} used by PageTable is not marked as used.", l2_entry.addr());
-            for (l1_index, l1_entry) in phys_frame_to_page_table(l2_entry.addr()).iter_mut().enumerate() {
+            debug_assert!(
+                phys::used(l2_entry.addr()),
+                "frame {:?} used by PageTable is not marked as used.",
+                l2_entry.addr()
+            );
+            for (l1_index, l1_entry) in phys_frame_to_page_table(l2_entry.addr())
+                .iter_mut()
+                .enumerate()
+            {
                 if l1_entry.is_unused() {
                     continue;
                 }
 
                 fix_flags(l1_entry);
 
-                prepare_page::<Size4KiB>(l4_index.into(), l3_index, l2_index, l1_index, l1_entry.addr(), &mut begin, &mut end, check_frame_refs);
+                prepare_page::<Size4KiB>(
+                    l4_index.into(),
+                    l3_index,
+                    l2_index,
+                    l1_index,
+                    l1_entry.addr(),
+                    &mut begin,
+                    &mut end,
+                    check_frame_refs,
+                );
             }
         }
     }
 
-    return (l4_index, begin, end)
+    return (l4_index, begin, end);
 }
 
-fn prepare_page<S: PageSize>(l4_index: usize, l3_index: usize, l2_index: usize, l1_index: usize, frame: PhysAddr, begin: &mut VirtAddr, end: &mut VirtAddr, check_frame_ref: bool) {
+fn prepare_page<S: PageSize>(
+    l4_index: usize,
+    l3_index: usize,
+    l2_index: usize,
+    l1_index: usize,
+    frame: PhysAddr,
+    begin: &mut VirtAddr,
+    end: &mut VirtAddr,
+    check_frame_ref: bool,
+) {
     let address = Page::from_page_table_indices(
-        PageTableIndex::new(u16::try_from(l4_index).unwrap()), 
-        PageTableIndex::new(u16::try_from(l3_index).unwrap()), 
-        PageTableIndex::new(u16::try_from(l2_index).unwrap()), 
-        PageTableIndex::new(u16::try_from(l1_index).unwrap())
-    ).start_address();
+        PageTableIndex::new(u16::try_from(l4_index).unwrap()),
+        PageTableIndex::new(u16::try_from(l3_index).unwrap()),
+        PageTableIndex::new(u16::try_from(l2_index).unwrap()),
+        PageTableIndex::new(u16::try_from(l1_index).unwrap()),
+    )
+    .start_address();
 
-    debug_assert!(phys::check_frame(frame), "frame {frame:?} (address={address:?}) is not valid.");
+    debug_assert!(
+        phys::check_frame(frame),
+        "frame {frame:?} (address={address:?}) is not valid."
+    );
 
     if address < *begin {
         *begin = address;
@@ -203,26 +294,31 @@ fn fix_flags(entry: &mut PageTableEntry) {
 }
 
 unsafe fn drop_mapping(l4_entry: &mut PageTableEntry) {
-
     for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
         if l3_entry.is_unused() {
             continue;
         }
 
-        assert!(!l3_entry.flags().contains(PageTableFlags::HUGE_PAGE), "HUGE_PAGE not handled");
+        assert!(
+            !l3_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+            "HUGE_PAGE not handled"
+        );
 
         for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
             if l2_entry.is_unused() {
                 continue;
             }
 
-            assert!(!l2_entry.flags().contains(PageTableFlags::HUGE_PAGE), "HUGE_PAGE not handled");
+            assert!(
+                !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+                "HUGE_PAGE not handled"
+            );
 
             for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
                 if l1_entry.is_unused() {
                     continue;
                 }
-                
+
                 let frame = l1_entry.addr();
                 // Note: framebuffer maps memory outside physical memory
                 // ignore it.
@@ -251,11 +347,11 @@ unsafe fn get_current_page_table() -> &'static mut PageTable {
 }
 
 /// Install the provided address space as the current one
-/// 
+///
 /// # Safety
-/// 
+///
 /// If the address space is not properly setup, we are dead.
-/// 
+///
 pub unsafe fn set_current_address_space(address_space: &AddressSpace) {
     let frame = page_table_to_phys_frame(address_space.get_page_table());
     Cr3::write(
@@ -265,7 +361,7 @@ pub unsafe fn set_current_address_space(address_space: &AddressSpace) {
 }
 
 /// Describe an address space, which is a complete 64 bits space of virtual memory.
-/// 
+///
 /// Pysical pages can be mapped into the address space, and it can be setup as the current one.
 pub struct AddressSpace {
     page_table: *mut PageTable,
@@ -280,22 +376,16 @@ impl Drop for AddressSpace {
 impl AddressSpace {
     fn get_page_table<'a>(&'a self) -> &'a PageTable {
         // We scoped the lifetime of PageTable ref to lifetime of self, so we are now safe
-        unsafe {
-            & *self.page_table
-        }
+        unsafe { &*self.page_table }
     }
 
     fn get_page_table_mut<'a>(&'a mut self) -> &'a mut PageTable {
         // We scoped the lifetime of PageTable ref to lifetime of self, so we are now safe
-        unsafe {
-            &mut *self.page_table
-        }
+        unsafe { &mut *self.page_table }
     }
 
     fn create_manager<'a>(&'a mut self) -> OffsetPageTable<'a> {
-        unsafe {
-            OffsetPageTable::new(self.get_page_table_mut(), PHYSICAL_MAPPING_ADDRESS)
-        }
+        unsafe { OffsetPageTable::new(self.get_page_table_mut(), PHYSICAL_MAPPING_ADDRESS) }
     }
 
     pub unsafe fn map(

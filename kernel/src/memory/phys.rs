@@ -354,6 +354,7 @@ fn find_usable_region(memory_regions: &MemoryRegions, buffer_size: usize) -> Phy
     panic!("Could not find suitable memory region for physical frame descriptors");
 }
 
+#[derive(Debug, Clone)]
 pub struct Stats {
     pub total: usize,
     pub free: usize,

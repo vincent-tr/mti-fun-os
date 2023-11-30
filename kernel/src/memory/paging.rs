@@ -6,10 +6,10 @@ use x86_64::{
     instructions::tlb,
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        mapper::{CleanUp, FlagUpdateError, MapToError, UnmapError},
+        mapper::{CleanUp, FlagUpdateError, MapToError, UnmapError, TranslateResult},
         page_table::PageTableEntry,
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
-        PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB,
+        PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
     },
     PhysAddr, VirtAddr,
 };
@@ -53,6 +53,9 @@ bitflags! {
     /// Possible paging permissions
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     pub struct Permissions: u64 {
+        /// No access
+        const NONE = 0;
+
         /// Page can be read
         const READ = 1 << 0;
 
@@ -481,6 +484,35 @@ impl AddressSpace {
 
         Ok(FrameRef::unborrow(unmapped_frame.start_address()))
     }
+
+    pub unsafe fn get_infos(&mut self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
+        let mut manager = self.create_manager();
+
+        match manager.translate(addr) {
+            TranslateResult::Mapped { frame, offset: _, flags } => {
+                let mut perm = Permissions::READ;
+
+                if flags.contains(PageTableFlags::WRITABLE) {
+                    perm |= Permissions::WRITE;
+                }
+
+                if !flags.contains(PageTableFlags::NO_EXECUTE) {
+                    perm |= Permissions::EXECUTE;
+                }
+
+                (Some(frame.start_address()), perm)
+            },
+            
+            TranslateResult::NotMapped => {
+                (None, Permissions::NONE)
+            },
+
+            TranslateResult::InvalidFrameAddress(frame) => {
+                panic!("Invalid phys page {frame:?} mapped at {addr:?}");
+            },
+        }
+    }
+
 }
 
 #[derive(Default)]

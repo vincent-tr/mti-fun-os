@@ -55,23 +55,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     memory::kvm::init();
 
-    let free_before = memory::phys::stats().free;
-
-    let addr1 = memory::kvm::allocate(1).unwrap();
-
-    info!("Got address {addr1:?}");
-
-    unsafe {
-        let data: *mut i64 = addr1.as_mut_ptr();
-        *data = 42;
-    }
-
-    memory::kvm::deallocate(addr1, 1);
-
-    let free_after = memory::phys::stats().free;
-
-    info!("free: before={free_before}, after={free_after}, eq={}", free_before == free_after);
-
     panic!("End of main!");
 }
 

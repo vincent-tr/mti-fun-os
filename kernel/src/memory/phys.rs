@@ -1,6 +1,6 @@
 use core::{
     mem::size_of,
-    ptr::{null_mut, slice_from_raw_parts_mut},
+    ptr::{self, slice_from_raw_parts_mut},
 };
 
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
@@ -22,8 +22,8 @@ impl Descriptor {
     const fn new() -> Self {
         Self {
             ref_count: 0,
-            prev: null_mut(),
-            next: null_mut(),
+            prev: ptr::null_mut(),
+            next: ptr::null_mut(),
         }
     }
 
@@ -51,7 +51,7 @@ struct List {
 impl List {
     const fn new() -> Self {
         Self {
-            head: null_mut(),
+            head: ptr::null_mut(),
             count: 0,
         }
     }
@@ -88,7 +88,7 @@ impl List {
 
         if desc == prev {
             // if we had only one item
-            self.head = null_mut();
+            self.head = ptr::null_mut();
         } else if prev == next {
             // if we had 2 items, now 1
             let item = prev;
@@ -104,8 +104,8 @@ impl List {
             }
         }
 
-        (*desc).prev = null_mut();
-        (*desc).next = null_mut();
+        (*desc).prev = ptr::null_mut();
+        (*desc).next = ptr::null_mut();
         self.count -= 1;
     }
 
@@ -142,7 +142,7 @@ unsafe impl Send for Allocator {}
 impl Allocator {
     pub const fn new() -> Self {
         Self {
-            descriptors: slice_from_raw_parts_mut(null_mut(), 0),
+            descriptors: slice_from_raw_parts_mut(ptr::null_mut(), 0),
             used_list: List::new(),
             free_list: List::new(),
         }

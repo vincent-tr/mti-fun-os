@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use core::{mem, ptr::null_mut};
+use core::{mem, ptr};
 use log::{info, warn};
 
 use x86_64::{
@@ -70,7 +70,7 @@ bitflags! {
 static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
 
 pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
-    page_table: null_mut(),
+    page_table: ptr::null_mut(),
 };
 
 pub fn init(phys_mapping: VirtAddr) {

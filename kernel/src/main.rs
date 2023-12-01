@@ -7,10 +7,10 @@
 #![feature(is_sorted)]
 #![feature(slice_ptr_len)]
 #![feature(allocator_api)]
+#![feature(const_mut_refs)]
 
 extern crate bootloader_api;
 extern crate lazy_static;
-extern crate alloc;
 
 mod gdt;
 mod interrupts;
@@ -21,8 +21,6 @@ use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info};
 use x86_64::VirtAddr;
-
-use crate::memory::PAGE_SIZE;
 
 const CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -50,54 +48,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_idt();
     memory::phys::init(physical_memory_offset, &boot_info.memory_regions);
     memory::paging::init(physical_memory_offset);
-
-    let free_before = memory::phys::stats().free;
-
-    let mut frame = memory::phys::allocate().unwrap();
-    let addr1 = memory::VMALLOC_START;
-    let addr2 = memory::VMALLOC_START + PAGE_SIZE * 3;
-
-    unsafe {
-        let mut frame = frame.clone();
-
-        memory::paging::KERNEL_ADDRESS_SPACE
-            .map(
-                addr1,
-                &mut frame,
-                memory::paging::Permissions::READ | memory::paging::Permissions::WRITE,
-            )
-            .unwrap();
-
-        let data: *mut i64 = addr1.as_mut_ptr();
-        *data = 42;
-
-        memory::paging::KERNEL_ADDRESS_SPACE.unmap(addr1).unwrap();
-    }
-
-    // map frame somewhere else
-    unsafe {
-        let mut frame = frame.clone();
-
-        memory::paging::KERNEL_ADDRESS_SPACE
-            .map(
-                addr2,
-                &mut frame,
-                memory::paging::Permissions::READ | memory::paging::Permissions::WRITE,
-            )
-            .unwrap();
-
-            let data: *mut i64 = addr2.as_mut_ptr();
-
-            info!("data={}", *data);
-
-        memory::paging::KERNEL_ADDRESS_SPACE.unmap(addr2).unwrap();
-    }
-
-    core::mem::drop(frame);
-
-    let free_after = memory::phys::stats().free;
-
-    info!("free: before={free_before}, after={free_after}, eq={}", free_before == free_after);
 
     // Note:
     // boot_info is unmapped from here.

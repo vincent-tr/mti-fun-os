@@ -1,5 +1,4 @@
 use core::marker::PhantomData;
-use core::ptr::null_mut;
 use core::{fmt, ptr};
 
 use x86_64::VirtAddr;
@@ -56,7 +55,7 @@ impl LinkedList {
                 let res = (*item).next;
                 assert!(!res.is_null(), "remove_after called with last node");
                 (*item).next = (*res).next;
-                (*res).next = null_mut();
+                (*res).next = ptr::null_mut();
 
                 res
             }
@@ -110,7 +109,7 @@ impl ListNode {
     /// Note: act as "hand-made" in-place constructor
     pub fn init(&mut self, value: VirtAddr) {
         self.value = value;
-        self.next = null_mut();
+        self.next = ptr::null_mut();
     }
 
     /// Returns the pointed address

@@ -2,13 +2,13 @@
 
 mod linked_list;
 
-use self::linked_list::ListNode;
+pub use self::linked_list::ListNode;
 use crate::memory::PAGE_SIZE;
 use core::{
-    alloc::{Allocator, Layout},
+    alloc::Layout,
     cmp::{max, min},
     mem::size_of,
-    ptr::{NonNull, null_mut},
+    ptr,
 };
 use x86_64::VirtAddr;
 
@@ -29,37 +29,46 @@ pub struct Stats {
     pub total: usize,
 }
 
+pub trait NodeAllocator {
+    /// Note: allocation cannot fail for now because we don't deal with failures in the middle of the algo
+    unsafe fn allocate(&mut self) -> *mut ListNode;
+    unsafe fn deallocate(&mut self, node: *mut ListNode);
+}
+
 /// buddy system with max order of `ORDER` and minimum request size of `UNIT_SIZE`
-pub struct BuddyAllocator<const ORDER: usize, const UNIT_SIZE: usize> {
+pub struct BuddyAllocator<const ORDER: usize, NodeAlloc: NodeAllocator> {
     free_list: [linked_list::LinkedList; ORDER],
+    node_allocator: NodeAlloc,
+    // Note: would like to use generic parameter but it's not possible
+    unit_size: usize,
 
     // statistics
     stats: Stats,
-
-    // Note: would like to use generic parameter but it's not possible
-    unit_size: usize,
 }
 
-unsafe impl<const ORDER: usize, const UNIT_SIZE: usize> Sync for BuddyAllocator<ORDER, UNIT_SIZE> {}
-unsafe impl<const ORDER: usize, const UNIT_SIZE: usize> Send for BuddyAllocator<ORDER, UNIT_SIZE> {}
+unsafe impl<const ORDER: usize, NodeAlloc: NodeAllocator> Sync
+    for BuddyAllocator<ORDER, NodeAlloc>
+{
+}
 
-impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE> {
+unsafe impl<const ORDER: usize, NodeAlloc: NodeAllocator> Send
+    for BuddyAllocator<ORDER, NodeAlloc>
+{
+}
+
+impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAlloc> {
     /// Create an empty heap
-    pub const fn new() -> Self {
+    pub const fn new(node_allocator: NodeAlloc, unit_size: usize) -> Self {
         BuddyAllocator {
             free_list: [linked_list::LinkedList::new(); ORDER],
+            node_allocator: node_allocator,
+            unit_size: unit_size,
             stats: Stats {
                 user: 0,
                 allocated: 0,
                 total: 0,
             },
-            unit_size: UNIT_SIZE,
         }
-    }
-
-    /// Create an empty heap
-    pub const fn empty() -> Self {
-        Self::new()
     }
 
     /// Set the area where the heap will work.
@@ -73,17 +82,15 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
         let end = end.as_u64() as usize;
         let mut current_start = begin.as_u64() as usize;
 
-        let mut total = 0;
-
         while current_start < end {
             let lowbit = current_start & (!current_start + 1);
             let size = min(lowbit, prev_power_of_two(end - current_start));
-            total += size;
+            self.stats.total += size;
 
             let addr = VirtAddr::new_truncate(current_start as u64);
 
             unsafe {
-                self.free_list[self.get_class(size)].push(alloc_node(addr));
+                self.free_list[self.get_class(size)].push(self.alloc_node(addr));
             }
 
             current_start += size;
@@ -111,7 +118,8 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
                     .pop()
                     .expect("missed block to split");
                 unsafe {
-                    let split_item = alloc_node((*item).address() + (1u64 << (cur_class - 1)));
+                    let split_item =
+                        self.alloc_node((*item).address() + (1u64 << (cur_class - 1)));
                     self.free_list[cur_class - 1].push(split_item);
                     self.free_list[cur_class - 1].push(item);
                 }
@@ -123,7 +131,7 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
 
             let address = unsafe { (*item).address() };
             unsafe {
-                dealloc_node(item);
+                self.dealloc_node(item);
             }
 
             return Ok(address);
@@ -142,7 +150,7 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
 
         unsafe {
             // Put back into free list
-            let item = alloc_node(ptr);
+            let item = self.alloc_node(ptr);
             self.free_list[class].push(item);
 
             // Merge free buddy lists
@@ -152,7 +160,7 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
                 let buddy = VirtAddr::new_truncate(current_ptr.as_u64() ^ (1 << current_class));
                 let mut found = false;
 
-                let mut prev_item: *mut ListNode = null_mut();
+                let mut prev_item: *mut ListNode = ptr::null_mut();
 
                 for item in self.free_list[current_class].iter() {
                     if (*item).address() == buddy {
@@ -168,11 +176,15 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
                 }
 
                 // Free buddy found
-                dealloc_node(self.free_list[current_class].remove_after(prev_item));
-                dealloc_node(self.free_list[current_class].pop().expect("item we just pushed not found"));
+                self.dealloc_node(self.free_list[current_class].remove_after(prev_item));
+                self.dealloc_node(
+                    self.free_list[current_class]
+                        .pop()
+                        .expect("item we just pushed not found"),
+                );
                 current_ptr = min(current_ptr, buddy);
                 current_class += 1;
-                self.free_list[current_class].push(alloc_node(current_ptr));
+                self.free_list[current_class].push(self.alloc_node(current_ptr));
             }
         }
 
@@ -185,32 +197,29 @@ impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE
         self.stats.clone()
     }
 
+    pub fn node_allocator(&self) -> &NodeAlloc {
+        &self.node_allocator
+    }
+
     fn get_class(&self, size: usize) -> usize {
         //const  UNIT_TRAILING_ZEROES: usize = UNIT_SIZE.trailing_zeros() as usize;
         // Note: cf. struct def
         size.trailing_zeros() as usize - self.unit_size.trailing_zeros() as usize
     }
+
+    unsafe fn alloc_node(&mut self, address: VirtAddr) -> *mut ListNode {
+        let item = self.node_allocator.allocate();
+
+        (*item).init(address);
+
+        item
+    }
+
+    unsafe fn dealloc_node(&mut self, node: *mut ListNode) {
+        self.node_allocator.deallocate(node);
+    }
 }
 
 fn prev_power_of_two(num: usize) -> usize {
     1 << (usize::BITS as usize - num.leading_zeros() as usize - 1)
-}
-
-unsafe fn alloc_node(address: VirtAddr) -> *mut ListNode {
-    let allocator = alloc::alloc::Global;
-    let layout = Layout::new::<ListNode>();
-    let item = allocator
-        .allocate(layout)
-        .expect("allocation failed.")
-        .as_mut_ptr() as *mut ListNode;
-
-    (*item).init(address);
-
-    item
-}
-
-unsafe fn dealloc_node(node: *mut ListNode) {
-    let allocator = alloc::alloc::Global;
-    let layout = Layout::new::<ListNode>();
-    allocator.deallocate(NonNull::new_unchecked(node as *mut u8), layout);
 }

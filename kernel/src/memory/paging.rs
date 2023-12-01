@@ -486,7 +486,7 @@ impl AddressSpace {
     }
 
     pub unsafe fn get_infos(&mut self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
-        let mut manager = self.create_manager();
+        let manager = self.create_manager();
 
         match manager.translate(addr) {
             TranslateResult::Mapped { frame, offset: _, flags } => {

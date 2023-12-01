@@ -90,7 +90,8 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
             let addr = VirtAddr::new_truncate(current_start as u64);
 
             unsafe {
-                self.free_list[self.get_class(size)].push(self.alloc_node(addr));
+                let new_node = self.alloc_node(addr);
+                self.free_list[self.get_class(size)].push(new_node);
             }
 
             current_start += size;
@@ -118,8 +119,7 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
                     .pop()
                     .expect("missed block to split");
                 unsafe {
-                    let split_item =
-                        self.alloc_node((*item).address() + (1u64 << (cur_class - 1)));
+                    let split_item = self.alloc_node((*item).address() + (1u64 << (cur_class - 1)));
                     self.free_list[cur_class - 1].push(split_item);
                     self.free_list[cur_class - 1].push(item);
                 }
@@ -176,15 +176,19 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
                 }
 
                 // Free buddy found
-                self.dealloc_node(self.free_list[current_class].remove_after(prev_item));
-                self.dealloc_node(
-                    self.free_list[current_class]
-                        .pop()
-                        .expect("item we just pushed not found"),
-                );
+                let removed_node = self.free_list[current_class].remove_after(prev_item);
+                self.dealloc_node(removed_node);
+
+                let removed_node = self.free_list[current_class]
+                    .pop()
+                    .expect("item we just pushed not found");
+                self.dealloc_node(removed_node);
+
                 current_ptr = min(current_ptr, buddy);
                 current_class += 1;
-                self.free_list[current_class].push(self.alloc_node(current_ptr));
+
+                let new_node = self.alloc_node(current_ptr);
+                self.free_list[current_class].push(new_node);
             }
         }
 

@@ -320,7 +320,7 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
 
         // Figure out which page we are on and construct a reference to it
         // TODO: The linked list will have another &mut reference
-        let slab_page: &mut P = unsafe { *page.as_mut_ptr() };
+        let slab_page: &mut P = unsafe { &mut *page.as_mut_ptr() };
         let new_layout = unsafe { Layout::from_size_align_unchecked(self.size, layout.align()) };
 
         let ret = slab_page.deallocate(ptr, new_layout);

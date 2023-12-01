@@ -397,6 +397,8 @@ impl AddressSpace {
         frame: &mut FrameRef,
         permissions: Permissions,
     ) -> Result<(), MapToError<Size4KiB>> {
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
 
@@ -422,6 +424,8 @@ impl AddressSpace {
         frame: &mut FrameRef,
         permissions: Permissions,
     ) -> Result<FrameRef, UnmapError> {
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
 
@@ -459,6 +463,8 @@ impl AddressSpace {
         addr: VirtAddr,
         permissions: Permissions,
     ) -> Result<(), FlagUpdateError> {
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+
         let mut manager = self.create_manager();
 
         let flush = manager.update_flags(
@@ -472,6 +478,8 @@ impl AddressSpace {
     }
 
     pub unsafe fn unmap(&mut self, addr: VirtAddr) -> Result<FrameRef, UnmapError> {
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
         let page = Page::<Size4KiB>::from_start_address_unchecked(addr);
@@ -486,6 +494,8 @@ impl AddressSpace {
     }
 
     pub unsafe fn get_infos(&mut self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+
         let manager = self.create_manager();
 
         match manager.translate(addr) {

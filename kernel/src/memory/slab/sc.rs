@@ -87,8 +87,13 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
     }
 
     /// Returns the maximum supported object size of this allocator.
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.size
+    }
+
+    /// Number of objects a slab can contain
+    pub const fn obj_per_slab(&self) -> usize {
+        self.obj_per_page
     }
 
     /// Return the count of empty slabs currently in this allocator.
@@ -305,7 +310,7 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
     /// May return an error in case an invalid `layout` is provided.
     /// The function may also move internal slab pages between lists partial -> empty
     /// or full -> partial lists.
-    pub fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) -> Result<(), AllocationError> {
+    pub fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         assert!(layout.size() <= self.size);
         assert!(self.size <= (P::SIZE - OBJECT_PAGE_METADATA_OVERHEAD));
         trace!(
@@ -323,8 +328,6 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
         let slab_page: &mut P = unsafe { &mut *page.as_mut_ptr() };
         let new_layout = unsafe { Layout::from_size_align_unchecked(self.size, layout.align()) };
 
-        let ret = slab_page.deallocate(ptr, new_layout);
-        debug_assert!(ret.is_ok(), "Slab page deallocate won't fail at the moment");
-        ret
+        slab_page.deallocate(ptr, new_layout);
     }
 }

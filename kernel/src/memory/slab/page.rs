@@ -212,7 +212,7 @@ pub trait AllocablePage {
     }
 
     /// Deallocates a memory object within this page.
-    fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) -> Result<(), AllocationError> {
+    fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         trace!(
             "AllocablePage deallocating ptr = {:p} with {:?}",
             ptr,
@@ -228,7 +228,6 @@ pub trait AllocablePage {
         );
 
         self.bitfield().clear_bit(idx);
-        Ok(())
     }
 }
 

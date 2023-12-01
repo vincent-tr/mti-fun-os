@@ -11,6 +11,7 @@
 
 extern crate bootloader_api;
 extern crate lazy_static;
+extern crate alloc;
 
 mod gdt;
 mod interrupts;
@@ -46,14 +47,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     gdt::init();
     interrupts::init_idt();
-    memory::phys::init(physical_memory_offset, &boot_info.memory_regions);
-    memory::paging::init(physical_memory_offset);
-
+    memory::init(physical_memory_offset, &boot_info.memory_regions);
+    
     // Note:
     // boot_info is unmapped from here.
     // Do not used it.
 
-    memory::kvm::init();
+    // From here we can use normal allocations in the kernel.
 
     panic!("End of main!");
 }

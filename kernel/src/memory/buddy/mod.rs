@@ -201,8 +201,8 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
         self.stats.clone()
     }
 
-    pub fn node_allocator(&self) -> &NodeAlloc {
-        &self.node_allocator
+    pub fn node_allocator(&mut self) -> &mut NodeAlloc {
+        &mut self.node_allocator
     }
 
     fn get_class(&self, size: usize) -> usize {

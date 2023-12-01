@@ -119,7 +119,8 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
                     .pop()
                     .expect("missed block to split");
                 unsafe {
-                    let split_item = self.alloc_node((*item).address() + (1u64 << (cur_class - 1)));
+                    let half_address = (*item).address() + self.get_size(cur_class - 1);
+                    let split_item = self.alloc_node(half_address);
                     self.free_list[cur_class - 1].push(split_item);
                     self.free_list[cur_class - 1].push(item);
                 }
@@ -157,7 +158,7 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
             let mut current_ptr = ptr;
             let mut current_class = class;
             while current_class < self.free_list.len() {
-                let buddy = VirtAddr::new_truncate(current_ptr.as_u64() ^ (1 << current_class));
+                let buddy = VirtAddr::new_truncate(current_ptr.as_u64() ^ self.get_size(current_class) as u64);
                 let mut found = false;
 
                 let mut prev_item: *mut ListNode = ptr::null_mut();
@@ -203,6 +204,12 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
 
     pub fn node_allocator(&mut self) -> &mut NodeAlloc {
         &mut self.node_allocator
+    }
+
+    fn get_size(&self, class: usize) -> usize {
+        //const  UNIT_TRAILING_ZEROES: usize = UNIT_SIZE.trailing_zeros() as usize;
+        // Note: cf. struct def
+        return 1usize << (class + self.unit_size.trailing_zeros() as usize);
     }
 
     fn get_class(&self, size: usize) -> usize {

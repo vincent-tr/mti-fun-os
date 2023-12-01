@@ -1,5 +1,6 @@
 use core::{alloc::Layout, mem, ptr::NonNull, usize};
 
+use log::{debug, info};
 use spin::RwLock;
 use x86_64::{structures::paging::mapper::MapToError, VirtAddr};
 
@@ -8,20 +9,28 @@ use super::{
     paging::{self, Permissions},
     phys,
     slab::{self, SCAllocator},
-    PAGE_SIZE, VMALLOC_END, VMALLOC_START,
+    KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START,
 };
 
 /*
 
-4096 = 1 >> 12
-4096 >> 17 = 512G
+1 >> 12 = 4096
+1 >> 39 = 512G (level 4 size)
+512G = 0x8000000000
+
+4096 >> 18 =
 
 => Buddy allocator for vm space
 => reserve 1G for kernel
 
 */
 
-const BUDDY_ORDERS: usize = 16;
+// the whole Level 4 entry, to get the right buddy shape.
+// kernel space will be removed after.
+const KERNEL_SPACE_SIZE: u64 = VMALLOC_END.as_u64() - KERNEL_START.as_u64();
+
+const BUDDY_ORDERS: usize =
+    KERNEL_SPACE_SIZE.trailing_zeros() as usize - PAGE_SIZE.trailing_zeros() as usize;
 
 #[derive(Debug)]
 pub enum AllocatorError {
@@ -29,7 +38,7 @@ pub enum AllocatorError {
     NoVirtualSpace,
 }
 
-pub struct Allocator<'a> {
+struct Allocator<'a> {
     buddy_allocator: BuddyAllocator<BUDDY_ORDERS, NodeAllocator<'a>>,
 }
 
@@ -58,9 +67,8 @@ impl<'a> Allocator<'a> {
 
         match self.map_phys_alloc(addr, page_count) {
             Ok(_) => {
-                self.buddy_allocator
-                    .node_allocator()
-                    .check_reservation(self);
+                self.check_slab_reservations();
+
                 Ok(addr)
             }
             Err(err) => {
@@ -83,9 +91,7 @@ impl<'a> Allocator<'a> {
         self.buddy_allocator
             .dealloc(addr, Self::build_layout(page_count));
 
-        self.buddy_allocator
-            .node_allocator()
-            .check_reservation(self);
+        self.check_slab_reservations();
     }
 
     // Note: if part of the allocation fails, it is properly removed
@@ -110,6 +116,7 @@ impl<'a> Allocator<'a> {
             let page_addr = addr + page_index * PAGE_SIZE;
             let mut frame = frame_res.unwrap();
             let perms = Permissions::READ | Permissions::WRITE;
+            info!("addr={addr:?}, page_addr={page_addr:?}, page_index={page_index}");
 
             if let Err(err) =
                 unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, &mut frame, perms) }
@@ -122,10 +129,10 @@ impl<'a> Allocator<'a> {
                 match err {
                     MapToError::FrameAllocationFailed => return Err(AllocatorError::NoMemory),
                     MapToError::ParentEntryHugePage => {
-                        panic!("Unexpected map error: ParentEntryHugePage")
+                        panic!("Unexpected map error: ParentEntryHugePage {page_addr:?}")
                     }
                     MapToError::PageAlreadyMapped(_) => {
-                        panic!("Unexpected map error: PageAlreadyMapped")
+                        panic!("Unexpected map error: PageAlreadyMapped {page_addr:?}")
                     }
                 }
             }
@@ -149,6 +156,20 @@ impl<'a> Allocator<'a> {
     fn build_layout(page_count: usize) -> Layout {
         unsafe { Layout::from_size_align_unchecked(page_count * PAGE_SIZE, PAGE_SIZE) }
     }
+
+    fn check_slab_reservations(&mut self) {
+        // We want to write:
+        //
+        // self.buddy_allocator
+        //     .node_allocator()
+        //     .check_reservation(self);
+        //
+        // But this break borrow checker rules.
+        // Unless better is found, let's break borrowing with raw pointers..
+        let node_allocator_ptr: *mut NodeAllocator = self.buddy_allocator.node_allocator();
+        let node_allocator = unsafe { &mut *node_allocator_ptr };
+        node_allocator.check_reservation(self);
+    }
 }
 
 static ALLOCATOR: RwLock<Allocator> = RwLock::new(Allocator::new());
@@ -156,27 +177,48 @@ static ALLOCATOR: RwLock<Allocator> = RwLock::new(Allocator::new());
 pub fn init() {
     let mut allocator = ALLOCATOR.write();
 
+    info!(
+        "Initializing KVM. (Buddy orders = {BUDDY_ORDERS}, Nodes per slab = {}, VM Start={VMALLOC_START:?}, VM End={VMALLOC_END:?})",
+        allocator
+            .buddy_allocator
+            .node_allocator()
+            .allocator
+            .obj_per_slab()
+    );
+
     // Bootstrap reservation:
     // Manually reserve one page
     // Note: the page address must match the first place where the buddy allocator will allocate
     let initial_page = VMALLOC_START;
+    assert!(initial_page.is_aligned(PAGE_SIZE as u64));
 
     allocator
         .map_phys_alloc(initial_page, 1)
         .expect("Allocator initialization failed. (physical frame mapping)");
-    allocator.buddy_allocator.node_allocator().init(initial_page);
+    allocator
+        .buddy_allocator
+        .node_allocator()
+        .init(initial_page);
 
-    // Now we can init 
-    allocator.buddy_allocator.set_area(VMALLOC_START, VMALLOC_END);
+    // Now we can init
+    allocator
+        .buddy_allocator
+        .set_area(VMALLOC_START, VMALLOC_END);
 
     // Mark `initial_page` as used
     let layout = Allocator::<'static>::build_layout(1);
-    let addr = allocator.buddy_allocator.alloc(layout).expect("Allocator initialization failed. (buddy allocator)");
+    let addr = allocator
+        .buddy_allocator
+        .alloc(layout)
+        .expect("Allocator initialization failed. (buddy allocator)");
 
     // Ensure address was right
-    assert!(initial_page == addr, "Allocator initialization failed. (initial page does not match first allocation)");
+    assert!(
+        initial_page == addr,
+        "Allocator initialization failed. (initial page does not match first allocation)"
+    );
 
-    allocator.buddy_allocator.node_allocator().check_reservation(&mut allocator);
+    allocator.check_slab_reservations();
 }
 
 pub fn allocate(page_count: usize) -> Result<VirtAddr, AllocatorError> {
@@ -214,6 +256,8 @@ impl<'a> NodeAllocator<'a> {
         // we ensure that we always have an empty page.
         match self.allocator.empty_pages_count() {
             0 => {
+                debug!("Add page to buddy node allocator reservation");
+
                 let addr = main_allocator
                     .allocate(1)
                     .expect("Cannot fail allocation for reservation");
@@ -225,12 +269,15 @@ impl<'a> NodeAllocator<'a> {
                 // Perfect.
             }
             count => {
+                let to_reclaim = count - 1;
+                debug!("Reclaim {to_reclaim} pages to buddy node allocator reservation");
+
                 let mut dealloc = |ptr: *mut _| {
                     main_allocator.deallocate(VirtAddr::from_ptr(ptr), 1);
                 };
 
-                let reclaimed = self.allocator.try_reclaim_pages(count - 1, &mut dealloc);
-                assert!(reclaimed == count - 1);
+                let reclaimed = self.allocator.try_reclaim_pages(to_reclaim, &mut dealloc);
+                assert!(reclaimed == to_reclaim);
             }
         }
     }

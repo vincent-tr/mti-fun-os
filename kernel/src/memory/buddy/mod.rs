@@ -37,6 +37,9 @@ pub struct BuddyAllocator<const ORDER: usize> {
     stats: Stats,
 }
 
+unsafe impl<const ORDER: usize> Sync for BuddyAllocator<ORDER> {}
+unsafe impl<const ORDER: usize> Send for BuddyAllocator<ORDER> {}
+
 impl<const ORDER: usize> BuddyAllocator<ORDER> {
     /// Create an empty heap
     pub const fn new() -> Self {

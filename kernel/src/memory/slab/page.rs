@@ -9,7 +9,7 @@ use log::trace;
 
 use crate::memory::PAGE_SIZE;
 
-use super::{AllocationError, OBJECT_PAGE_METADATA_OVERHEAD};
+use super::OBJECT_PAGE_METADATA_OVERHEAD;
 
 /// A trait defining bitfield operations we need for tracking allocated objects within a page.
 pub trait Bitfield {

@@ -6,6 +6,7 @@ use self::page::ObjectPage;
 
 mod page;
 mod sc;
+mod zone;
 
 pub use sc::SCAllocator;
 

@@ -53,6 +53,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     // boot_info is unmapped from here.
     // Do not used it.
 
+    memory::kvm::init();
+
+
     panic!("End of main!");
 }
 

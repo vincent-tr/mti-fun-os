@@ -135,6 +135,9 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
                 self.dealloc_node(item);
             }
 
+            self.stats.user += layout.size();
+            self.stats.allocated += size;
+    
             return Ok(address);
         }
 

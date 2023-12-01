@@ -4,6 +4,7 @@ use log::{debug, info};
 use spin::RwLock;
 use x86_64::{structures::paging::mapper::MapToError, VirtAddr};
 
+pub use super::buddy::Stats;
 use super::{
     buddy::{self, BuddyAllocator},
     paging::{self, Permissions},
@@ -66,11 +67,7 @@ impl<'a> Allocator<'a> {
         let addr = alloc_res.unwrap();
 
         match self.map_phys_alloc(addr, page_count) {
-            Ok(_) => {
-                self.check_slab_reservations();
-
-                Ok(addr)
-            }
+            Ok(_) => Ok(addr),
             Err(err) => {
                 // remove address space reservation
                 self.buddy_allocator.dealloc(addr, layout);
@@ -90,8 +87,6 @@ impl<'a> Allocator<'a> {
 
         self.buddy_allocator
             .dealloc(addr, Self::build_layout(page_count));
-
-        self.check_slab_reservations();
     }
 
     // Note: if part of the allocation fails, it is properly removed
@@ -116,7 +111,6 @@ impl<'a> Allocator<'a> {
             let page_addr = addr + page_index * PAGE_SIZE;
             let mut frame = frame_res.unwrap();
             let perms = Permissions::READ | Permissions::WRITE;
-            info!("addr={addr:?}, page_addr={page_addr:?}, page_index={page_index}");
 
             if let Err(err) =
                 unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, &mut frame, perms) }
@@ -177,15 +171,6 @@ static ALLOCATOR: RwLock<Allocator> = RwLock::new(Allocator::new());
 pub fn init() {
     let mut allocator = ALLOCATOR.write();
 
-    info!(
-        "Initializing KVM. (Buddy orders = {BUDDY_ORDERS}, Nodes per slab = {}, VM Start={VMALLOC_START:?}, VM End={VMALLOC_END:?})",
-        allocator
-            .buddy_allocator
-            .node_allocator()
-            .allocator
-            .obj_per_slab()
-    );
-
     // Bootstrap reservation:
     // Manually reserve one page
     // Note: the page address must match the first place where the buddy allocator will allocate
@@ -219,18 +204,51 @@ pub fn init() {
     );
 
     allocator.check_slab_reservations();
+
+    let obj_per_slab = allocator
+        .buddy_allocator
+        .node_allocator()
+        .allocator
+        .obj_per_slab();
+
+    mem::drop(allocator);
+
+    info!(
+        "Initialized KVM. (Buddy orders = {}, Nodes per slab = {}, VM Start={:?}, VM End={:?})",
+        BUDDY_ORDERS, obj_per_slab, VMALLOC_START, VMALLOC_END
+    );
+
+    let stats = stats();
+    info!(
+        "KVM initial stats: total={} ({:#X}), allocated={} ({:#X}), reserved={} ({:#X})",
+        stats.total, stats.total, stats.user, stats.user, stats.allocated, stats.allocated
+    );
+}
+
+pub fn stats() -> Stats {
+    let allocator = ALLOCATOR.read();
+
+    allocator.buddy_allocator.stats()
 }
 
 pub fn allocate(page_count: usize) -> Result<VirtAddr, AllocatorError> {
     let mut allocator = ALLOCATOR.write();
 
-    allocator.allocate(page_count)
+    let res = allocator.allocate(page_count);
+
+    if res.is_ok() {
+        allocator.check_slab_reservations();
+    }
+
+    res
 }
 
 pub fn deallocate(addr: VirtAddr, page_count: usize) {
     let mut allocator = ALLOCATOR.write();
 
-    allocator.deallocate(addr, page_count)
+    allocator.deallocate(addr, page_count);
+
+    allocator.check_slab_reservations();
 }
 
 /// Provide node allocator to buddy allocator

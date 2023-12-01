@@ -29,18 +29,21 @@ pub struct Stats {
     pub total: usize,
 }
 
-pub struct BuddyAllocator<const ORDER: usize> {
-    // buddy system with max order of `ORDER`
+/// buddy system with max order of `ORDER` and minimum request size of `UNIT_SIZE`
+pub struct BuddyAllocator<const ORDER: usize, const UNIT_SIZE: usize> {
     free_list: [linked_list::LinkedList; ORDER],
 
     // statistics
     stats: Stats,
+
+    // Note: would like to use generic parameter but it's not possible
+    unit_size: usize,
 }
 
-unsafe impl<const ORDER: usize> Sync for BuddyAllocator<ORDER> {}
-unsafe impl<const ORDER: usize> Send for BuddyAllocator<ORDER> {}
+unsafe impl<const ORDER: usize, const UNIT_SIZE: usize> Sync for BuddyAllocator<ORDER, UNIT_SIZE> {}
+unsafe impl<const ORDER: usize, const UNIT_SIZE: usize> Send for BuddyAllocator<ORDER, UNIT_SIZE> {}
 
-impl<const ORDER: usize> BuddyAllocator<ORDER> {
+impl<const ORDER: usize, const UNIT_SIZE: usize> BuddyAllocator<ORDER, UNIT_SIZE> {
     /// Create an empty heap
     pub const fn new() -> Self {
         BuddyAllocator {
@@ -50,6 +53,7 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
                 allocated: 0,
                 total: 0,
             },
+            unit_size: UNIT_SIZE,
         }
     }
 
@@ -79,7 +83,7 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
             let addr = VirtAddr::new_truncate(current_start as u64);
 
             unsafe {
-                self.free_list[size.trailing_zeros() as usize].push(alloc_node(addr));
+                self.free_list[self.get_class(size)].push(alloc_node(addr));
             }
 
             current_start += size;
@@ -93,7 +97,7 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
             max(layout.align(), size_of::<usize>()),
         );
 
-        let class = size.trailing_zeros() as usize;
+        let class = self.get_class(size);
 
         for cur_class in class..self.free_list.len() {
             // Find the first non-empty size class
@@ -134,7 +138,7 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
             layout.size().next_power_of_two(),
             max(layout.align(), size_of::<usize>()),
         );
-        let class = size.trailing_zeros() as usize;
+        let class = self.get_class(size);
 
         unsafe {
             // Put back into free list
@@ -179,6 +183,12 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
     /// Return allocator stats
     pub fn stats(&self) -> Stats {
         self.stats.clone()
+    }
+
+    fn get_class(&self, size: usize) -> usize {
+        //const  UNIT_TRAILING_ZEROES: usize = UNIT_SIZE.trailing_zeros() as usize;
+        // Note: cf. struct def
+        size.trailing_zeros() as usize - self.unit_size.trailing_zeros() as usize
     }
 }
 

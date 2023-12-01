@@ -6,9 +6,11 @@
 #![feature(const_slice_from_raw_parts_mut)]
 #![feature(is_sorted)]
 #![feature(slice_ptr_len)]
+#![feature(allocator_api)]
 
 extern crate bootloader_api;
 extern crate lazy_static;
+extern crate alloc;
 
 mod gdt;
 mod interrupts;

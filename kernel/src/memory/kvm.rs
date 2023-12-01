@@ -31,7 +31,7 @@ pub enum AllocatorError {
     NoVirtualSpace,
 }
 
-static ALLOCATOR: RwLock<BuddyAllocator<BUDDY_ORDERS>> = RwLock::new(BuddyAllocator::new());
+static ALLOCATOR: RwLock<BuddyAllocator<BUDDY_ORDERS, PAGE_SIZE>> = RwLock::new(BuddyAllocator::new());
 
 pub fn init() {
     let mut allocator = ALLOCATOR.write();

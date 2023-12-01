@@ -153,8 +153,8 @@ impl Allocator {
     }
 
     unsafe fn init_descriptors(&mut self, buffer: VirtAddr, buffer_size: usize) {
-        debug_assert!(buffer.is_aligned(PAGE_SIZE));
-        debug_assert!((buffer + buffer_size).is_aligned(PAGE_SIZE));
+        assert!(buffer.is_aligned(PAGE_SIZE as u64));
+        assert!((buffer + buffer_size).is_aligned(PAGE_SIZE as u64));
 
         let data: *mut Descriptor = buffer.as_mut_ptr();
         let count = buffer_size / size_of::<Descriptor>();
@@ -230,18 +230,18 @@ impl Allocator {
     }
 
     unsafe fn frame_to_desc(&self, frame: PhysAddr) -> *mut Descriptor {
-        let index = (frame.as_u64() / PAGE_SIZE) as usize;
+        let index = frame.as_u64() as usize / PAGE_SIZE;
         self.descriptors.as_mut_ptr().add(index)
     }
 
     unsafe fn desc_to_frame(&self, desc: *mut Descriptor) -> PhysAddr {
         let index = desc.sub_ptr(self.descriptors.as_mut_ptr());
-        PhysAddr::new(index as u64 * PAGE_SIZE)
+        PhysAddr::new((index * PAGE_SIZE)  as u64)
     }
 
     fn check_frame(&self, frame: PhysAddr) -> bool {
-        return frame.is_aligned(PAGE_SIZE)
-            && frame < PhysAddr::new(self.descriptors.len() as u64 * PAGE_SIZE);
+        return frame.is_aligned(PAGE_SIZE as u64)
+            && frame < PhysAddr::new((self.descriptors.len() * PAGE_SIZE)  as u64);
     }
 }
 
@@ -254,12 +254,12 @@ static ALLOCATOR: RwLock<Allocator> = RwLock::new(Allocator::new());
 
 pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     // memory regions looks ordered.
-    debug_assert!(memory_regions.is_sorted_by_key(|region| { region.start }));
+    assert!(memory_regions.is_sorted_by_key(|region| { region.start }));
 
     let end = memory_regions.last().unwrap().end;
-    debug_assert!(PhysAddr::new(end).is_aligned(PAGE_SIZE));
+    assert!(PhysAddr::new(end).is_aligned(PAGE_SIZE as u64));
 
-    let count = (end / PAGE_SIZE) as usize;
+    let count = end as usize / PAGE_SIZE;
     let buffer_size = Allocator::needed_buffer_size(count);
     let buffer_phys = find_usable_region(memory_regions, buffer_size);
     let buffer_phys_end = buffer_phys + buffer_size;
@@ -364,8 +364,8 @@ pub fn stats() -> Stats {
     let allocator = ALLOCATOR.read();
 
     Stats {
-        total: allocator.descriptors.len() * PAGE_SIZE as usize,
-        free: allocator.free_list.count * PAGE_SIZE as usize,
+        total: allocator.descriptors.len() * PAGE_SIZE,
+        free: allocator.free_list.count * PAGE_SIZE,
     }
 }
 

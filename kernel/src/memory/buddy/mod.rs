@@ -59,8 +59,8 @@ impl<const ORDER: usize> BuddyAllocator<ORDER> {
     /// Will allocate `ListNode` objects for this.
     pub fn set_area(&mut self, begin: VirtAddr, end: VirtAddr) {
         assert!(self.stats.total == 0);
-        assert!(begin.is_aligned(PAGE_SIZE));
-        assert!(end.is_aligned(PAGE_SIZE));
+        assert!(begin.is_aligned(PAGE_SIZE as u64));
+        assert!(end.is_aligned(PAGE_SIZE as u64));
         assert!(begin < end);
 
         let end = end.as_u64() as usize;

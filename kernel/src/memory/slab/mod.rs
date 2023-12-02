@@ -9,6 +9,7 @@ mod sc;
 mod zone;
 
 pub use sc::SCAllocator;
+pub use zone::ZoneAllocator;
 
 /// How many bytes in the page are used by allocator meta-data.
 pub const OBJECT_PAGE_METADATA_OVERHEAD: usize = 80;

@@ -3,7 +3,7 @@ mod phys;
 mod slab;
 mod buddy;
 mod kvm;
-//mod kalloc;
+mod kalloc;
 
 mod config;
 use bootloader_api::info::MemoryRegions;

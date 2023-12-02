@@ -45,23 +45,6 @@ impl<'a> ZoneAllocator<'a> {
         }
     }
 
-    /// Return maximum size an object of size `current_size` can use.
-    ///
-    /// Used to optimize `realloc`.
-    pub fn get_max_size(current_size: usize) -> Option<usize> {
-        match current_size {
-            0..=8 => Some(8),
-            9..=16 => Some(16),
-            17..=32 => Some(32),
-            33..=64 => Some(64),
-            65..=128 => Some(128),
-            129..=256 => Some(256),
-            257..=512 => Some(512),
-            513..=1024 => Some(1024),
-            _ => None,
-        }
-    }
-
     /// Figure out index into zone array to get the correct slab allocator for that size.
     fn get_slab_index(requested_size: usize) -> Option<usize> {
         match requested_size {

@@ -8,7 +8,7 @@ use log::info;
 use spin::RwLock;
 use x86_64::{PhysAddr, VirtAddr};
 
-use super::PAGE_SIZE;
+use super::{PAGE_SIZE, PhysStats};
 
 #[derive(Debug)]
 #[repr(C)]
@@ -299,16 +299,6 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
             }
         }
     }
-
-    let stats = stats();
-    const MEGA: usize = 1 * 1024 * 1024;
-    info!(
-        "Physical memory allocator initial stats: total={} ({}MB), free={} ({}MB)",
-        stats.total,
-        stats.total / MEGA,
-        stats.free,
-        stats.free / MEGA
-    );
 }
 
 fn find_usable_region(memory_regions: &MemoryRegions, buffer_size: usize) -> PhysAddr {
@@ -354,16 +344,10 @@ fn find_usable_region(memory_regions: &MemoryRegions, buffer_size: usize) -> Phy
     panic!("Could not find suitable memory region for physical frame descriptors");
 }
 
-#[derive(Debug, Clone)]
-pub struct Stats {
-    pub total: usize,
-    pub free: usize,
-}
-
-pub fn stats() -> Stats {
+pub fn stats() -> PhysStats {
     let allocator = ALLOCATOR.read();
 
-    Stats {
+    PhysStats {
         total: allocator.descriptors.len() * PAGE_SIZE,
         free: allocator.free_list.count * PAGE_SIZE,
     }

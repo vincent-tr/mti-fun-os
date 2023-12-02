@@ -16,7 +16,7 @@ use x86_64::{
 
 use super::{
     phys::{self, FrameRef},
-    KERNEL_START, PAGE_SIZE,
+    config::{KERNEL_START, PAGE_SIZE},
 };
 
 /*

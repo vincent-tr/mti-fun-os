@@ -4,13 +4,12 @@ use log::{debug, info};
 use spin::RwLock;
 use x86_64::{structures::paging::mapper::MapToError, VirtAddr};
 
-pub use super::buddy::Stats;
 use super::{
     buddy::{self, BuddyAllocator},
     paging::{self, Permissions},
     phys,
     slab::{self, SCAllocator},
-    KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START,
+    config::{KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START}, KvmStats,
 };
 
 /*
@@ -217,18 +216,17 @@ pub fn init() {
         "Initialized KVM. (Buddy orders = {}, Nodes per slab = {}, VM Start={:?}, VM End={:?})",
         BUDDY_ORDERS, obj_per_slab, VMALLOC_START, VMALLOC_END
     );
-
-    let stats = stats();
-    info!(
-        "KVM initial stats: total={} ({:#X}), allocated={} ({:#X}), reserved={} ({:#X})",
-        stats.total, stats.total, stats.user, stats.user, stats.allocated, stats.allocated
-    );
 }
 
-pub fn stats() -> Stats {
+pub fn stats() -> KvmStats {
     let allocator = ALLOCATOR.read();
 
-    allocator.buddy_allocator.stats()
+    let buddy_stats = allocator.buddy_allocator.stats();
+
+    KvmStats {
+        used: buddy_stats.allocated, 
+        total: buddy_stats.total,
+    }
 }
 
 pub fn allocate(page_count: usize) -> Result<VirtAddr, AllocatorError> {

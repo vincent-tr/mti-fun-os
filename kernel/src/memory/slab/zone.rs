@@ -60,6 +60,16 @@ impl<'a> ZoneAllocator<'a> {
         }
     }
 
+    pub fn get_allocation_size(&self, layout: Layout) -> Option<usize> {
+        let res = ZoneAllocator::get_slab_index(layout.size());
+        if res.is_none() {
+            return None;
+        }
+        let index = res.unwrap();
+        let slab = &self.slabs[index];
+        Some(slab.size())
+    }
+
     /// Allocate a pointer to a block of memory described by `layout`.
     pub fn allocate(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocationError> {
         let res = ZoneAllocator::get_slab_index(layout.size());

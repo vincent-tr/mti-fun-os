@@ -4,13 +4,19 @@ mod kvm;
 mod paging;
 mod phys;
 mod slab;
-
 mod config;
+
 use bootloader_api::info::MemoryRegions;
-pub use config::PAGE_SIZE;
 use log::info;
-pub use paging::{set_current_address_space, AddressSpace};
-use x86_64::VirtAddr;
+
+use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
+pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
+pub use config::PAGE_SIZE;
+pub use paging::{set_current_address_space, AddressSpace, Permissions};
+pub use phys::FrameRef;
+
+pub type MapError = MapToError<Size4KiB>;
+pub use x86_64::structures::paging::mapper::UnmapError;
 
 pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     phys::init(phys_mapping, memory_regions);
@@ -99,4 +105,52 @@ pub fn stats() -> Stats {
         kvm: kvm::stats(),
         kalloc: kalloc::ALLOC.stats(),
     }
+}
+
+pub fn phys_allocate() -> Option<FrameRef> {
+    match phys::allocate() {
+        Ok(frame) => Some(frame),
+        Err(err) => {
+            // ensure all types are matched
+            match err {
+                phys::AllocatorError::NoMemory => None,
+            }
+        }
+    }
+}
+
+/// Checks whether the address is in userspace.
+#[inline]
+pub fn is_userspace(addr: VirtAddr) -> bool {
+    return addr < config::KERNEL_START;
+}
+
+/// Checks whether the address has the demanded alignment.
+///
+/// Panics if the alignment is not a power of two.
+#[inline]
+pub fn is_aligned(addr: u64, align: u64) -> bool {
+    return align_down(addr, align) == addr;
+}
+
+/// Checks whether the address is aligned on PAGE_SIZE.
+#[inline]
+pub fn is_page_aligned(addr: usize) -> bool {
+    return align_down(addr as u64, PAGE_SIZE as u64) == addr as u64;
+}
+
+/// Align address upwards.
+///
+/// Returns the smallest `x` with PAGE_SIZE alignment so that `x >= addr`.
+#[inline]
+pub fn page_aligned_up(addr: usize) -> usize {
+    return align_up(addr as u64, PAGE_SIZE as u64) as usize;
+}
+
+/// Align address downwards on PAGE_SIZE.
+///
+/// Returns the greatest `x` with PAGE_SIZE alignment so that `x <= addr`.
+#[inline]
+pub fn page_aligned_down(addr: usize) -> usize {
+    return align_down(addr as u64, PAGE_SIZE as u64) as usize;
 }

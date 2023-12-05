@@ -8,6 +8,8 @@
 #![feature(slice_ptr_len)]
 #![feature(allocator_api)]
 #![feature(const_mut_refs)]
+#![feature(btree_cursors)]
+#![feature(let_chains)]
 
 extern crate bootloader_api;
 extern crate lazy_static;
@@ -18,7 +20,9 @@ mod interrupts;
 mod logging;
 mod memory;
 
+mod user;
 use alloc::boxed::Box;
+
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info};

@@ -1,8 +1,9 @@
 use core::ops::Bound;
+use hashbrown::HashMap;
 
 use alloc::{
     collections::BTreeMap,
-    sync::{Arc, Weak},
+    sync::{Arc, Weak}, vec::Vec,
 };
 use spin::RwLock;
 
@@ -13,17 +14,94 @@ use crate::memory::{
 
 use super::{
     error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
-    Error, MemoryObject,
+    Error, MemoryObject, id_gen::IdGen,
 };
+
+pub struct Processes {
+    id_gen: IdGen,
+    processes: RwLock<HashMap<u32, Weak<Process>>>
+}
+
+impl Processes {
+    const fn new() -> Self {
+        Self { 
+            id_gen: IdGen::new(),
+            processes: RwLock::new(HashMap::new())
+        }
+    }
+
+    /// Create a new process
+    pub fn create(&mut self) -> Arc<Process> {
+        self.clean_map();
+        
+        let id = self.id_gen.generate();
+        let process = Process::new(id);
+
+        let mut map = self.processes.write();
+        assert!(map.insert(id, Arc::downgrade(&process)).is_none(), "unepxected map overwrite");
+
+        process
+    }
+
+    /// Find a process by its pid
+    pub fn find(&self, pid: u32) -> Option<Arc<Process>> {
+        self.clean_map();
+
+        let map = self.processes.read();
+        if let Some(weak) = map.get(&pid) {
+            return weak.upgrade();
+        } else {
+            None
+        }
+    }
+
+    fn clean_map(&self) {
+        let map = self.processes.upgradeable_read();
+
+        let mut delete_list = Vec::new();
+
+        for (pid, weak) in map.iter() {
+            if weak.strong_count() == 0 {
+                delete_list.push(pid);
+            }
+        }
+
+        if delete_list.len() > 0 {
+            let mut map = map.upgrade();
+            for pid in delete_list {
+                map.remove(pid);
+            }
+        }
+    }
+}
+
+pub static PROCESSES: Processes = Processes::new();
 
 /// Process
 pub struct Process {
+    id: u32,
     address_space: AddressSpace,
     /// Note: ordered by address
     mappings: RwLock<BTreeMap<VirtAddr, Mapping>>,
 }
 
+unsafe impl Sync for Process {}
+unsafe impl Send for Process {}
+
 impl Process {
+    const fn new(id: u32) -> Arc<Self> {
+        Arc::new(Self {
+            id,
+            address_space: todo!(),
+            mappings: RwLock::new(BTreeMap::new()),
+        })
+    }
+
+    /// Get the process identifier
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
     /// Map a MemoryObject (or part of it) into the process address space, with the given permissions.
     ///
     /// Notes:

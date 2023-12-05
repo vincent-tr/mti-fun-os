@@ -3,44 +3,49 @@ use hashbrown::HashMap;
 
 use alloc::{
     collections::BTreeMap,
-    sync::{Arc, Weak}, vec::Vec,
+    sync::{Arc, Weak},
+    vec::Vec,
 };
 use spin::RwLock;
 
 use crate::memory::{
-    is_page_aligned, is_userspace, AddressSpace, MapError, Permissions, UnmapError, VirtAddr,
-    KERNEL_START, PAGE_SIZE,
+    create_adress_space, is_page_aligned, is_userspace, AddressSpace, AllocatorError, MapError,
+    Permissions, UnmapError, VirtAddr, KERNEL_START, PAGE_SIZE,
 };
 
 use super::{
     error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
-    Error, MemoryObject, id_gen::IdGen,
+    id_gen::IdGen,
+    Error, MemoryObject,
 };
 
 pub struct Processes {
     id_gen: IdGen,
-    processes: RwLock<HashMap<u32, Weak<Process>>>
+    processes: RwLock<HashMap<u32, Weak<Process>>>,
 }
 
 impl Processes {
     const fn new() -> Self {
-        Self { 
+        Self {
             id_gen: IdGen::new(),
-            processes: RwLock::new(HashMap::new())
+            processes: RwLock::new(HashMap::new()),
         }
     }
 
     /// Create a new process
-    pub fn create(&mut self) -> Arc<Process> {
+    pub fn create(&mut self) -> Result<Arc<Process>, Error> {
         self.clean_map();
-        
+
         let id = self.id_gen.generate();
-        let process = Process::new(id);
+        let process = Process::new(id)?;
 
         let mut map = self.processes.write();
-        assert!(map.insert(id, Arc::downgrade(&process)).is_none(), "unepxected map overwrite");
+        assert!(
+            map.insert(id, Arc::downgrade(&process)).is_none(),
+            "unepxected map overwrite"
+        );
 
-        process
+        Ok(process)
     }
 
     /// Find a process by its pid
@@ -89,12 +94,22 @@ unsafe impl Sync for Process {}
 unsafe impl Send for Process {}
 
 impl Process {
-    const fn new(id: u32) -> Arc<Self> {
-        Arc::new(Self {
+    fn new(id: u32) -> Result<Arc<Self>, Error> {
+        let address_space = match create_adress_space() {
+            Ok(address_space) => address_space,
+            Err(err) => {
+                // match all arms
+                match err {
+                    AllocatorError::NoMemory => Err(out_of_memory())?,
+                }
+            }
+        };
+
+        Ok(Arc::new(Self {
             id,
-            address_space: todo!(),
+            address_space,
             mappings: RwLock::new(BTreeMap::new()),
-        })
+        }))
     }
 
     /// Get the process identifier

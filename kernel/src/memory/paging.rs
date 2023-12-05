@@ -6,7 +6,7 @@ use x86_64::{
     instructions::tlb,
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        mapper::{CleanUp, FlagUpdateError, MapToError, UnmapError, TranslateResult},
+        mapper::{CleanUp, FlagUpdateError, MapToError, TranslateResult, UnmapError},
         page_table::PageTableEntry,
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
         PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
@@ -15,8 +15,8 @@ use x86_64::{
 };
 
 use super::{
-    phys::{self, FrameRef},
     config::{KERNEL_START, PAGE_SIZE},
+    phys::{self, AllocatorError, FrameRef},
 };
 
 /*
@@ -72,6 +72,29 @@ static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
 pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
     page_table: ptr::null_mut(),
 };
+
+pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
+    // Create new empty page table
+
+    unsafe {
+        let mut frame = phys::allocate()?;
+        let virt = PHYSICAL_MAPPING_ADDRESS + frame.borrow().as_u64();
+
+        let mut address_space = AddressSpace {
+            page_table: virt.as_mut_ptr(),
+        };
+
+        // Clone L4 entries from kernel address space
+        let mut page_table = address_space.get_page_table_mut();
+        for (index, entry) in KERNEL_ADDRESS_SPACE.get_page_table().iter().enumerate() {
+            if !entry.is_unused() {
+                page_table[index] = entry.clone();
+            }
+        }
+
+        Ok(address_space)
+    }
+}
 
 pub fn init(phys_mapping: VirtAddr) {
     unsafe {
@@ -499,7 +522,11 @@ impl AddressSpace {
         let manager = self.create_manager();
 
         match manager.translate(addr) {
-            TranslateResult::Mapped { frame, offset: _, flags } => {
+            TranslateResult::Mapped {
+                frame,
+                offset: _,
+                flags,
+            } => {
                 let mut perm = Permissions::READ;
 
                 if flags.contains(PageTableFlags::WRITABLE) {
@@ -511,18 +538,15 @@ impl AddressSpace {
                 }
 
                 (Some(frame.start_address()), perm)
-            },
-            
-            TranslateResult::NotMapped => {
-                (None, Permissions::NONE)
-            },
+            }
+
+            TranslateResult::NotMapped => (None, Permissions::NONE),
 
             TranslateResult::InvalidFrameAddress(frame) => {
                 panic!("Invalid phys page {frame:?} mapped at {addr:?}");
-            },
+            }
         }
     }
-
 }
 
 #[derive(Default)]

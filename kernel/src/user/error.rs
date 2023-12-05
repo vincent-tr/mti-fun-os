@@ -1,5 +1,6 @@
 use crate::memory::{is_page_aligned, is_userspace, VirtAddr};
 
+#[derive(Debug)]
 pub enum Error {
     InvalidArgument,
     OutOfMemory,

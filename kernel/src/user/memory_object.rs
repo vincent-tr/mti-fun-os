@@ -17,7 +17,7 @@ impl MemoryObject {
         check_positive(size)?;
 
         let page_count = size / PAGE_SIZE;
-        let mut object = MemoryObject { pages: Vec::new() };
+        let mut object = Self { pages: Vec::new() };
 
         for _ in 0..page_count {
             match phys_allocate() {
@@ -33,6 +33,11 @@ impl MemoryObject {
         }
 
         return Ok(Arc::new(object));
+    }
+
+    /// Create a new memory object from a list of frames
+    pub fn from_frames(frames: Vec<FrameRef>) -> Arc<Self> {
+        Arc::new(Self { pages: Vec::new() })
     }
 
     /// Get the size of the memory object

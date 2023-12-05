@@ -11,7 +11,7 @@ use log::info;
 
 use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
 pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
-pub use config::PAGE_SIZE;
+pub use config::{PAGE_SIZE, KERNEL_START};
 pub use paging::{set_current_address_space, AddressSpace, Permissions};
 pub use phys::FrameRef;
 

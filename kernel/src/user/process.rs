@@ -1,33 +1,176 @@
+use core::ops::Bound;
+
 use alloc::{
-    collections::LinkedList,
+    collections::BTreeMap,
     sync::{Arc, Weak},
 };
+use spin::RwLock;
 
-use crate::{
-    memory::{
-        is_page_aligned, is_userspace, AddressSpace, MapError, Permissions, UnmapError, VirtAddr,
-        PAGE_SIZE,
-    },
-    user::error::out_of_memory,
+use crate::memory::{
+    is_page_aligned, is_userspace, AddressSpace, MapError, Permissions, UnmapError, VirtAddr,
+    KERNEL_START, PAGE_SIZE,
 };
 
 use super::{
-    error::{check_arg, check_is_userspace, check_page_alignment},
+    error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
     Error, MemoryObject,
 };
 
 /// Process
 pub struct Process {
     address_space: AddressSpace,
-    mappings: LinkedList<Mapping>,
+    /// Note: ordered by address
+    mappings: RwLock<BTreeMap<VirtAddr, Mapping>>,
 }
 
-impl Process {}
+impl Process {
+    /// Map a MemoryObject (or part of it) into the process address space, with the given permissions.
+    ///
+    /// Notes:
+    /// - If `addr` is `null`, an address where the mapping can fit will be found.
+    /// - If `addr` is not `null`, this function cannot overwrite part of an existing mapping. Call unmap() before.
+    ///
+    pub fn map(
+        self: &Arc<Self>,
+        mut addr: VirtAddr,
+        size: usize,
+        perms: Permissions,
+        memory_object: Option<Arc<MemoryObject>>,
+        offset: usize,
+    ) -> Result<VirtAddr, Error> {
+        if !addr.is_null() {
+            check_is_userspace(addr)?;
+            check_page_alignment(addr.as_u64() as usize)?;
+            check_is_userspace(addr + size)?;
+        }
+        check_positive(size);
+        check_page_alignment(size)?;
+        check_page_alignment(offset)?;
 
-pub struct Mapping {
+        if let Some(mobj) = memory_object {
+            // Force some access on memory object, this ease checks
+            check_arg(perms != Permissions::NONE)?;
+            check_arg(size + offset <= mobj.size())?;
+        } else {
+            check_arg(perms == Permissions::NONE)?;
+        }
+
+        let mut mappings = self.mappings.write();
+
+        // Other checks are done in Mapping::new().
+        if addr.is_null() {
+            addr = Self::find_space(&mappings, size)?;
+        }
+
+        let mut mapping = Mapping::new(self, addr, size, perms, memory_object, offset)?;
+
+        // Check if we can merge with prev/next item
+        if let Some(next) = mappings.upper_bound(Bound::Excluded(&addr)).value()
+            && mapping.can_merge(next)
+        {
+            let to_merge = mappings
+                .remove(&next.address())
+                .expect("mappings access mismatch");
+            unsafe { mapping.merge(to_merge) };
+        }
+
+        if let Some(prev) = mappings.lower_bound(Bound::Excluded(&addr)).value()
+            && prev.can_merge(&mapping)
+        {
+            unsafe { prev.merge(mapping) };
+        } else {
+            assert!(
+                mappings.insert(addr, mapping).is_none(),
+                "mappings key overwrite"
+            );
+        }
+
+        Ok(addr)
+    }
+
+    fn find_space(mappings: &BTreeMap<VirtAddr, Mapping>, size: usize) -> Result<VirtAddr, Error> {
+        let mut prev_end = VirtAddr::zero() + PAGE_SIZE; // Do not put mapping at address 0
+
+        // First fit
+        for (addr, mapping) in mappings {
+            if mapping.address() > prev_end && ((mapping.address() - prev_end) as usize) < size {
+                return Ok(prev_end);
+            }
+
+            prev_end = mapping.end();
+        }
+
+        // room at the end?
+        if ((KERNEL_START - prev_end) as usize) < size {
+            return Ok(prev_end);
+        }
+
+        Err(out_of_memory())
+    }
+
+    /// Unmap the address space from addr to addr+size.
+    /// Notes:
+    /// - It may contains multiple mappings,
+    /// - addr or addr+size may be in the middle of a mapping
+    /// - part of the specified area my not be mapped. In consequence, calling unmap() on an unmapped area is a successful noop.
+    ///
+    pub fn unmap(&mut self, addr: VirtAddr, size: usize) {
+        let end = addr + size;
+        let mut mappings = self.mappings.write();
+
+        if mappings.len() == 0 {
+            return;
+        } else if let Some((_, first_mapping)) = mappings.first_key_value()
+            && end < first_mapping.address()
+        {
+            return;
+        } else if let Some((_, last_mapping)) = mappings.last_key_value()
+            && addr > last_mapping.end()
+        {
+            return;
+        }
+
+        let mut cursor = mappings.lower_bound_mut(Bound::Included(&addr));
+        // we checked that the given range may cross items
+        assert!(cursor.key().is_some());
+        // Move to the prev item if possible: addr may start in the middle of the previous mapping
+        if let Some((_, mapping)) = cursor.peek_prev()
+            && mapping.contains(addr)
+        {
+            cursor.move_prev();
+
+            // Need to split: not on a boundary
+            let new_mapping = mapping.split(addr);
+            cursor.insert_after(new_mapping.address(), new_mapping);
+
+            cursor.move_next();
+        }
+
+        // Remove full mappings
+        while let Some((_, mapping)) = cursor.key_value()
+            && mapping.end() <= end
+        {
+            cursor.remove_current().expect("unexpected empty mapping");
+        }
+
+        // Last mapping: may need split
+        cursor.move_next();
+        if let Some((_, mapping)) = cursor.key_value()
+            && mapping.address() < end
+        {
+            let new_mapping = mapping.split(end);
+            cursor.insert_after(new_mapping.address(), new_mapping);
+
+            cursor.remove_current().expect("unexpected empty mapping");
+        }
+    }
+}
+
+struct Mapping {
     process: Weak<Process>,
     addr: VirtAddr,
     size: usize,
+    /// null if perms is NONE
     memory_object: Option<Arc<MemoryObject>>,
     offset: usize,
 }
@@ -40,22 +183,9 @@ impl Mapping {
         addr: VirtAddr,
         size: usize,
         perms: Permissions,
-        memory_object: Option<Arc<MemoryObject>>, // may be null if perms is NONE
+        memory_object: Option<Arc<MemoryObject>>,
         offset: usize,
     ) -> Result<Self, Error> {
-        check_is_userspace(addr)?;
-        check_page_alignment(addr.as_u64() as usize)?;
-        check_page_alignment(size)?;
-        check_page_alignment(offset)?;
-
-        if let Some(mobj) = memory_object {
-            // Force some access on memory object, this ease checks
-            check_arg(perms != Permissions::NONE)?;
-            check_arg(size + offset <= mobj.size())?;
-        } else {
-            check_arg(perms == Permissions::NONE)?;
-        }
-
         let mut mapping = Mapping {
             process: Arc::downgrade(process),
             addr,
@@ -92,6 +222,21 @@ impl Mapping {
         self.size
     }
 
+    /// Get the exclusive end address of the mapping
+    pub fn end(&self) -> VirtAddr {
+        self.addr + self.size
+    }
+
+    /// Indicate if the given address is inside the mapping
+    pub fn contains(&self, addr: VirtAddr) -> bool {
+        addr >= self.addr && addr < self.end()
+    }
+
+    /// Indicate if the current mapping overlap the given range
+    pub fn intersect(&self, addr: VirtAddr, size: usize) -> bool {
+        addr >= self.addr && addr < self.end()
+    }
+
     /// Get the permissions of the mapping
     pub fn permissions(&self) -> Permissions {
         let mut process = self.process();
@@ -126,7 +271,7 @@ impl Mapping {
 
         // Do not allow mapping of size == 0
         assert!(addr > self.addr);
-        assert!(addr < self.addr + self.size);
+        assert!(addr < self.end());
 
         let new_size = (addr - self.addr) as usize;
         let other_size = self.size - new_size;
@@ -150,20 +295,30 @@ impl Mapping {
     /// Merge another mapping at the end of this one.
     ///
     /// # Safety
+    /// can_merge() must be true
+    pub unsafe fn merge(&mut self, mut other: Mapping) {
+        self.size += other.size;
+        other.size = 0; // Do not drop mapping on leave
+    }
+
+    /// Test if the other mapping camn be merged into self:
     /// - the other mapping have to start at the end of self.
     /// - both mapping permissions must be same
     /// - if they are referencing a MemoryObject, it must be the same, and offset must correspond
-    pub unsafe fn merge(&mut self, mut other: Mapping) {
-        assert!(other.addr == self.addr + self.size);
-        assert!(other.permissions() == self.permissions());
-
-        if let Some(&lower_mobj) = self.memory_object.as_ref() {
-            assert!(Arc::ptr_eq(&lower_mobj, &other.memory_object.unwrap()));
-            assert!(other.offset == self.offset + self.size);
+    fn can_merge(&self, other: &Mapping) -> bool {
+        if other.addr != self.end() || other.permissions() != self.permissions() {
+            return false;
         }
 
-        self.size += other.size;
-        other.size = 0; // Do not drop mapping on leave
+        if let Some(&lower_mobj) = self.memory_object.as_ref() {
+            if !(Arc::ptr_eq(&lower_mobj, &other.memory_object.unwrap()))
+                || other.offset != self.offset + self.size
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     unsafe fn map(&mut self, perms: Permissions) -> Result<(), Error> {

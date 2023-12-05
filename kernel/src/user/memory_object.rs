@@ -13,8 +13,8 @@ pub struct MemoryObject {
 impl MemoryObject {
     /// Create a new memory object of the given size
     pub fn new(size: usize) -> Result<Arc<Self>, Error> {
-        check_page_alignment(size as u64)?;
-        check_positive(size as u64)?;
+        check_page_alignment(size)?;
+        check_positive(size)?;
 
         let page_count = size / PAGE_SIZE;
         let mut object = MemoryObject { pages: Vec::new() };

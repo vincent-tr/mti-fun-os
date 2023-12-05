@@ -100,7 +100,7 @@ impl Process {
             prev_end = mapping.end();
         }
 
-        // room at the end?
+        // Is there room at the end?
         if ((KERNEL_START - prev_end) as usize) < size {
             return Ok(prev_end);
         }

@@ -12,3 +12,4 @@ lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 spin = "0.9.8"
 bitflags = "2.4.1"
 hashbrown = "0.14.3"
+xmas-elf = "0.9.1"

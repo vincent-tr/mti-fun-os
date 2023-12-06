@@ -21,7 +21,7 @@ mod logging;
 mod memory;
 
 mod user;
-use alloc::boxed::Box;
+mod init;
 
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
@@ -60,15 +60,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // From here we can use normal allocations in the kernel.
 
-    let toto = Box::new(42);
-
-    
-  let stats = memory::stats();
-  const MEGA: usize = 1 * 1024 * 1024;
-  info!("kalloc: slabs: user={} ({}MB), allocated={} ({}MB)", stats.kalloc.slabs_user, stats.kalloc.slabs_user / MEGA, stats.kalloc.slabs_allocated, stats.kalloc.slabs_allocated / MEGA);
-  info!("kalloc: kvm: user={} ({}MB), allocated={} ({}MB)", stats.kalloc.kvm_user, stats.kalloc.kvm_user / MEGA, stats.kalloc.kvm_allocated, stats.kalloc.kvm_allocated / MEGA);
-
-    core::mem::drop(toto);
+    init::load();
 
     panic!("End of main!");
 }

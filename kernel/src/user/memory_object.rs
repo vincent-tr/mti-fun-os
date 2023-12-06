@@ -1,6 +1,6 @@
-use core::slice::Iter;
+use core::{ptr::slice_from_raw_parts_mut, slice::Iter};
 
-use crate::memory::{is_page_aligned, phys_allocate, FrameRef, PAGE_SIZE};
+use crate::memory::{is_page_aligned, phys_allocate, view_phys, FrameRef, PAGE_SIZE};
 use alloc::{sync::Arc, vec::Vec};
 
 use super::{error::*, Error};
@@ -32,12 +32,25 @@ impl MemoryObject {
             }
         }
 
+        for page in object.pages.iter() {
+            Self::zero_page(page);
+        }
+
         return Ok(Arc::new(object));
     }
 
     /// Create a new memory object from a list of frames
+    ///
+    /// Note: frames will not be zeroed
+    ///
     pub fn from_frames(frames: Vec<FrameRef>) -> Arc<Self> {
         Arc::new(Self { pages: Vec::new() })
+    }
+
+    fn zero_page(page: &FrameRef) {
+        let page_ptr: *mut u8 = view_phys(page.frame()).as_mut_ptr();
+        let page_data = &mut unsafe { *slice_from_raw_parts_mut(page_ptr, PAGE_SIZE) };
+        page_data.fill(0);
     }
 
     /// Get the size of the memory object

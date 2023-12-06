@@ -1,4 +1,4 @@
-use crate::user::{Process, PROCESSES};
+use crate::user::process::{self, Process};
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::{debug, info};
@@ -14,7 +14,7 @@ pub fn load() -> VirtAddr {
     // FIXME
     let binary = include_bytes!("../../target/x86_64-mti_fun_os/debug/init");
 
-    let mut loader = Loader::new(binary);
+    let loader = Loader::new(binary);
     loader.sanity_check();
     loader.load_segments();
 
@@ -31,7 +31,7 @@ impl<'a> Loader<'a> {
     pub fn new(binary: &'a [u8]) -> Self {
         Self {
             elf_file: ElfFile::new(binary).expect("Could not read init binary"),
-            process: PROCESSES.create().expect("could not create process"),
+            process: process::create().expect("could not create process"),
         }
     }
 

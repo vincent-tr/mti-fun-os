@@ -44,12 +44,12 @@ impl MemoryObject {
     /// Note: frames will not be zeroed
     ///
     pub fn from_frames(frames: Vec<FrameRef>) -> Arc<Self> {
-        Arc::new(Self { pages: Vec::new() })
+        Arc::new(Self { pages: frames })
     }
 
     fn zero_page(page: &FrameRef) {
         let page_ptr: *mut u8 = view_phys(page.frame()).as_mut_ptr();
-        let page_data = &mut unsafe { *slice_from_raw_parts_mut(page_ptr, PAGE_SIZE) };
+        let page_data = unsafe { &mut *slice_from_raw_parts_mut(page_ptr, PAGE_SIZE) };
         page_data.fill(0);
     }
 

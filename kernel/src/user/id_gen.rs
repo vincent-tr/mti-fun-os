@@ -9,7 +9,7 @@ impl IdGen {
         IdGen { counter: AtomicU32::new(1) }
     }
 
-    pub fn generate(&mut self) -> u32 {
+    pub fn generate(&self) -> u32 {
         let id = self.counter.fetch_add(1, Ordering::Relaxed);
         assert!(id > 0, "counter wrapped");
         id

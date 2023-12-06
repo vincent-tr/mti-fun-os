@@ -80,12 +80,12 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
         let mut frame = phys::allocate()?;
         let virt = PHYSICAL_MAPPING_ADDRESS + frame.borrow().as_u64();
 
-        let mut address_space = AddressSpace {
+        let address_space = AddressSpace {
             page_table: virt.as_mut_ptr(),
         };
 
         // Clone L4 entries from kernel address space
-        let mut page_table = address_space.get_page_table_mut();
+        let page_table = address_space.get_page_table();
         for (index, entry) in KERNEL_ADDRESS_SPACE.get_page_table().iter().enumerate() {
             if !entry.is_unused() {
                 page_table[index] = entry.clone();
@@ -108,7 +108,7 @@ pub fn init(phys_mapping: VirtAddr) {
 
         // Ensure physical memory is really marked as used for this 3 entries + set proper flags
         let stack_var = 42;
-        let page_table = KERNEL_ADDRESS_SPACE.get_page_table_mut();
+        let page_table = KERNEL_ADDRESS_SPACE.get_page_table();
 
         let (kernel_l4_index, kernel_start, kernel_end) =
             prepare_mapping(page_table, KERNEL_START, true);
@@ -393,6 +393,9 @@ pub struct AddressSpace {
     page_table: *mut PageTable,
 }
 
+unsafe impl Sync for AddressSpace {}
+unsafe impl Send for AddressSpace {}
+
 impl Drop for AddressSpace {
     fn drop(&mut self) {
         todo!("TODO: drop all user entries + drop page table itself");
@@ -400,18 +403,13 @@ impl Drop for AddressSpace {
 }
 
 impl AddressSpace {
-    fn get_page_table<'a>(&'a self) -> &'a PageTable {
-        // We scoped the lifetime of PageTable ref to lifetime of self, so we are now safe
-        unsafe { &*self.page_table }
-    }
-
-    fn get_page_table_mut<'a>(&'a mut self) -> &'a mut PageTable {
+    fn get_page_table<'a>(&'a self) -> &'a mut PageTable {
         // We scoped the lifetime of PageTable ref to lifetime of self, so we are now safe
         unsafe { &mut *self.page_table }
     }
 
-    fn create_manager<'a>(&'a mut self) -> OffsetPageTable<'a> {
-        unsafe { OffsetPageTable::new(self.get_page_table_mut(), PHYSICAL_MAPPING_ADDRESS) }
+    fn create_manager<'a>(&'a self) -> OffsetPageTable<'a> {
+        unsafe { OffsetPageTable::new(self.get_page_table(), PHYSICAL_MAPPING_ADDRESS) }
     }
 
     pub unsafe fn map(
@@ -516,7 +514,7 @@ impl AddressSpace {
         Ok(FrameRef::unborrow(unmapped_frame.start_address()))
     }
 
-    pub unsafe fn get_infos(&mut self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
+    pub unsafe fn get_infos(&self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
 
         let manager = self.create_manager();

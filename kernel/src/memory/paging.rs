@@ -6,7 +6,7 @@ use x86_64::{
     instructions::tlb,
     registers::control::{Cr3, Cr3Flags},
     structures::paging::{
-        mapper::{CleanUp, FlagUpdateError, MapToError, TranslateResult, UnmapError},
+        mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
         page_table::PageTableEntry,
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
         PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
@@ -425,7 +425,7 @@ impl AddressSpace {
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
 
-        let flush = manager.map_to_with_table_flags(
+        let flusher = manager.map_to_with_table_flags(
             Page::<Size4KiB>::from_start_address_unchecked(addr),
             PhysFrame::from_start_address_unchecked(frame.frame()),
             create_flags(addr, permissions),
@@ -433,7 +433,7 @@ impl AddressSpace {
             &mut frame_allocator,
         )?;
 
-        flush.flush();
+        self.flush(addr, flusher);
 
         // only borrow on success
         frame.borrow();
@@ -452,13 +452,13 @@ impl AddressSpace {
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
 
-        let (unmapped_frame, flush) =
+        let (unmapped_frame, flusher) =
             manager.unmap(Page::<Size4KiB>::from_start_address_unchecked(addr))?;
 
         // Ignore this flush, we will apply the 'map' flush
-        flush.ignore();
+        flusher.ignore();
 
-        let flush = manager
+        let flusher = manager
             .map_to_with_table_flags(
                 Page::<Size4KiB>::from_start_address_unchecked(addr),
                 PhysFrame::from_start_address_unchecked(frame.frame()),
@@ -473,7 +473,7 @@ impl AddressSpace {
         // - ParentEntryHugePage: we just unmapped the page successfully, so not possible
         // - PageAlreadyMapped: we just unmapped the page, so cannot be mapped anymore
 
-        flush.flush();
+        self.flush(addr, flusher);
 
         // only borrow on success
         frame.borrow();
@@ -490,12 +490,12 @@ impl AddressSpace {
 
         let mut manager = self.create_manager();
 
-        let flush = manager.update_flags(
+        let flusher = manager.update_flags(
             Page::<Size4KiB>::from_start_address_unchecked(addr),
             create_flags(addr, permissions),
         )?;
 
-        flush.flush();
+        self.flush(addr, flusher);
 
         Ok(())
     }
@@ -507,9 +507,9 @@ impl AddressSpace {
         let mut frame_allocator = FrameAllocatorImpl::default();
         let page = Page::<Size4KiB>::from_start_address_unchecked(addr);
 
-        let (unmapped_frame, flush) = manager.unmap(page)?;
+        let (unmapped_frame, flusher) = manager.unmap(page)?;
 
-        flush.flush();
+        self.flush(addr, flusher);
 
         manager.clean_up_addr_range(Page::range_inclusive(page, page), &mut frame_allocator);
 
@@ -546,6 +546,20 @@ impl AddressSpace {
                 panic!("Invalid phys page {frame:?} mapped at {addr:?}");
             }
         }
+    }
+
+    fn flush(&self, addr: VirtAddr, flusher: MapperFlush<Size4KiB>) {
+        // Always flush kernel space change.
+        // Only change user space change if the address space is currently loaded.
+        if !is_user_address(addr) || self.is_active() {
+            flusher.flush();
+        } else {
+            flusher.ignore();
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        self.page_table == unsafe { get_current_page_table() }
     }
 }
 

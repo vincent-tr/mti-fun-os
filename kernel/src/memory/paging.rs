@@ -616,3 +616,10 @@ unsafe fn page_table_to_phys_frame(page_table: &PageTable) -> PhysAddr {
     let page_table_ptr: *const PageTable = page_table;
     return PhysAddr::new(VirtAddr::from_ptr(page_table_ptr) - PHYSICAL_MAPPING_ADDRESS);
 }
+
+/// Helper to permit to access a physical address.
+///
+/// Return a virtual address that corresponds to a view of the physical address
+pub fn view_phys(addr: PhysAddr) -> VirtAddr {
+    return unsafe { PHYSICAL_MAPPING_ADDRESS } + addr.as_u64();
+}

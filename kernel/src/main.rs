@@ -10,6 +10,7 @@
 #![feature(const_mut_refs)]
 #![feature(btree_cursors)]
 #![feature(let_chains)]
+#![feature(const_trait_impl)]
 
 extern crate bootloader_api;
 extern crate lazy_static;

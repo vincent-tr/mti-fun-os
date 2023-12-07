@@ -1,6 +1,5 @@
-use core::ops::Bound;
-
 use alloc::sync::Arc;
+use log::debug;
 use spin::RwLock;
 
 use crate::memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr};
@@ -39,11 +38,15 @@ impl Process {
             }
         };
 
-        Ok(Arc::new(Self {
+        let process = Arc::new(Self {
             id,
             address_space: RwLock::new(address_space),
             mappings: RwLock::new(Mappings::new()),
-        }))
+        });
+
+        debug!("Process {} created", process.id);
+
+        Ok(process)
     }
 
     /// Get the process identifier
@@ -122,8 +125,14 @@ impl Process {
 
         let mut mappings = self.mappings.write();
 
-        mappings.remove_range(addr..addr+size);
-        
+        mappings.remove_range(addr..addr + size);
+
         Ok(())
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        debug!("Process {} deleted", self.id);
     }
 }

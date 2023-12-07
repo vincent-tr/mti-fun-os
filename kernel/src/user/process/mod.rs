@@ -1,4 +1,5 @@
 mod mapping;
+mod mappings;
 mod process;
 mod processes;
 

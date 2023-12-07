@@ -60,7 +60,7 @@ impl Mapping {
 
     /// Get the size of this mapping
     pub fn size(&self) -> usize {
-        self.range.end.as_u64() as usize - self.range.start.as_u64() as usize
+        (self.range.end - self.range.start) as usize
     }
 
     /// Get the permissions of the mapping
@@ -130,7 +130,7 @@ impl Mapping {
     /// - the other mapping have to start at the end of self.
     /// - both mapping permissions must be same
     /// - if they are referencing a MemoryObject, it must be the same, and offset must correspond
-    fn can_merge(&self, other: &Mapping) -> bool {
+    pub fn can_merge(&self, other: &Mapping) -> bool {
         if self.range().end != other.range().start || other.permissions() != self.permissions() {
             return false;
         }

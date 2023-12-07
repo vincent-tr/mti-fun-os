@@ -1,21 +1,11 @@
-use core::ops::{Bound, Range};
-use hashbrown::HashMap;
-use rangemap::RangeMap;
-use lazy_static::lazy_static;
+use core::ops::Bound;
 
-use alloc::{
-    collections::BTreeMap,
-    sync::{Arc, Weak},
-    vec::Vec,
-};
+use alloc::sync::Arc;
 use spin::RwLock;
 
-use crate::memory::{
-    create_adress_space, is_page_aligned, is_userspace, AddressSpace, AllocatorError, MapError,
-    Permissions, UnmapError, VirtAddr, KERNEL_START, PAGE_SIZE,
-};
+use crate::memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr};
 
-use super::mapping::Mapping;
+use super::{mapping::Mapping, mappings::Mappings};
 
 use crate::user::{
     error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
@@ -23,20 +13,18 @@ use crate::user::{
 };
 
 /// Standalone function, so that Process::new() can remain private
-/// 
+///
 /// Note: Only Process type is exported by process module, not this function
 pub fn new(id: u32) -> Result<Arc<Process>, Error> {
     Process::new(id)
 }
-
-const USER_SPACE: Range<VirtAddr> = (VirtAddr::zero() + PAGE_SIZE)..KERNEL_START;
 
 /// Process
 pub struct Process {
     id: u32,
     address_space: RwLock<AddressSpace>,
     /// Note: ordered by address
-    mappings: RwLock<RangeMap<VirtAddr, Mapping>>,
+    mappings: RwLock<Mappings>,
 }
 
 impl Process {
@@ -54,7 +42,7 @@ impl Process {
         Ok(Arc::new(Self {
             id,
             address_space: RwLock::new(address_space),
-            mappings: RwLock::new(RangeMap::new()),
+            mappings: RwLock::new(Mappings::new()),
         }))
     }
 
@@ -65,7 +53,7 @@ impl Process {
 
     /// Get address space of the process
     pub fn address_space(&self) -> &RwLock<AddressSpace> {
-      &self.address_space
+        &self.address_space
     }
 
     /// Map a MemoryObject (or part of it) into the process address space, with the given permissions.
@@ -99,60 +87,23 @@ impl Process {
             check_arg(perms == Permissions::NONE)?;
         }
 
+        // Other checks are done in Mapping::new().
+
         let mut mappings = self.mappings.write();
 
-        // Other checks are done in Mapping::new().
-        if addr.is_null() {
-            addr = Self::find_space(&mappings, size)?;
-        }
-
-        let mut mapping = Mapping::new(self, addr, size, perms, memory_object, offset)?;
-
-        // Check if we can merge with prev/next item
-        if let Some(next) = mappings.upper_bound(Bound::Excluded(&addr)).value()
-            && mapping.can_merge(next)
-        {
-            let next_addr = next.address();
-            let to_merge = mappings
-                .remove(&next_addr)
-                .expect("mappings access mismatch");
-            unsafe { mapping.merge(to_merge) };
-        }
-
-        if let Some(prev) = mappings.lower_bound_mut(Bound::Excluded(&addr)).value_mut()
-            && prev.can_merge(&mapping)
-        {
-            unsafe { prev.merge(mapping) };
+        let range = if addr.is_null() {
+            mappings.find_space(size)?
         } else {
-            assert!(
-                mappings.insert(addr, mapping).is_none(),
-                "mappings key overwrite"
-            );
-        }
+            let range = addr..addr + size;
+            check_arg(!mappings.overlaps(&range))?;
+            range
+        };
+
+        let mut mapping = Mapping::new(self, addr..addr + size, perms, memory_object, offset)?;
+
+        mappings.add(mapping);
 
         Ok(addr)
-    }
-
-    fn find_space(mappings: &RangeMap<VirtAddr, Mapping>, size: usize) -> Result<VirtAddr, Error> {
-      mappings.gaps(USER_SPACE);
-
-        let mut prev_end = VirtAddr::zero() + PAGE_SIZE; // Do not put mapping at address 0
-
-        // First fit
-        for (addr, mapping) in mappings {
-            if mapping.address() > prev_end && ((mapping.address() - prev_end) as usize) < size {
-                return Ok(prev_end);
-            }
-
-            prev_end = mapping.end();
-        }
-
-        // Is there room at the end?
-        if ((KERNEL_START - prev_end) as usize) < size {
-            return Ok(prev_end);
-        }
-
-        Err(out_of_memory())
     }
 
     /// Unmap the address space from addr to addr+size.

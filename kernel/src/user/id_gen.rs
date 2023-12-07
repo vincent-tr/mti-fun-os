@@ -1,5 +1,6 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
+#[derive(Debug)]
 pub struct IdGen {
     counter: AtomicU32,
 }

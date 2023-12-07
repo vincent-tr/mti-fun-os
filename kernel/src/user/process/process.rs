@@ -19,6 +19,7 @@ pub fn new(id: u32) -> Result<Arc<Process>, Error> {
 }
 
 /// Process
+#[derive(Debug)]
 pub struct Process {
     id: u32,
     address_space: RwLock<AddressSpace>,

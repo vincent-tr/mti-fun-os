@@ -15,6 +15,7 @@ lazy_static! {
     pub static ref PROCESSES: Processes = Processes::new();
 }
 
+#[derive(Debug)]
 pub struct Processes {
   id_gen: IdGen,
   processes: RwLock<HashMap<u32, Weak<Process>>>,

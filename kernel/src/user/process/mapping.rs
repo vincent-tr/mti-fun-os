@@ -10,6 +10,7 @@ use crate::{memory::{
 
 use super::Process;
 
+#[derive(Debug)]
 pub struct Mapping {
     process: Weak<Process>,
     range: Range<VirtAddr>,

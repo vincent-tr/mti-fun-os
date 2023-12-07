@@ -389,6 +389,7 @@ pub unsafe fn set_current_address_space(address_space: &AddressSpace) {
 /// Describe an address space, which is a complete 64 bits space of virtual memory.
 ///
 /// Pysical pages can be mapped into the address space, and it can be setup as the current one.
+#[derive(Debug)]
 pub struct AddressSpace {
     page_table: *mut PageTable,
 }

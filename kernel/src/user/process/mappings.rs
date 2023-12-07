@@ -19,11 +19,13 @@ use super::mapping::Mapping;
 const USER_SPACE_START: VirtAddr = VirtAddr::new_truncate(PAGE_SIZE as u64);
 const USER_SPACE_END: VirtAddr = KERNEL_START;
 
+#[derive(Debug)]
 struct Area {
     range: Range<VirtAddr>,
     content: RefCell<AreaContent>,
 }
 
+#[derive(Debug)]
 enum AreaContent {
     Invalid,
     Boundary,
@@ -109,7 +111,7 @@ impl Area {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Node {
     prev: Rc<Area>,
     next: Rc<Area>,
@@ -121,6 +123,7 @@ impl Node {
     }
 }
 
+#[derive(Debug)]
 pub struct Mappings {
     nodes: BTreeMap<VirtAddr, Node>,
 }

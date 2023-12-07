@@ -6,6 +6,7 @@ use alloc::{sync::Arc, vec::Vec};
 use super::{error::*, Error};
 
 /// Represent a area in physical memory, that can be mapped into processes
+#[derive(Debug)]
 pub struct MemoryObject {
     pages: Vec<FrameRef>,
 }

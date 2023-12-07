@@ -103,9 +103,11 @@ impl Process {
             range
         };
 
-        let mapping = Mapping::new(self, range, perms, memory_object, offset)?;
+        let mapping = Mapping::new(self, range.clone(), perms, memory_object, offset)?;
 
         mappings.add(mapping);
+
+        debug!("Process {}: mapped at {:?} with perms {:?}", self.id, range, perms);
 
         Ok(addr)
     }
@@ -125,7 +127,11 @@ impl Process {
 
         let mut mappings = self.mappings.write();
 
-        mappings.remove_range(addr..addr + size);
+        let range = addr..addr + size;
+
+        mappings.remove_range(range.clone());
+
+        debug!("Process {}: unmapped at {:?}", self.id, range);
 
         Ok(())
     }

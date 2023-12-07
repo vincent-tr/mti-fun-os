@@ -6,17 +6,21 @@ mod phys;
 mod slab;
 mod config;
 
+use core::slice;
+
 use bootloader_api::info::MemoryRegions;
 use log::info;
 
 use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
 pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
 pub use config::{PAGE_SIZE, KERNEL_START};
-pub use paging::{create_adress_space, set_current_address_space, view_phys, AddressSpace, Permissions};
+pub use paging::{create_adress_space, set_current_address_space, AddressSpace, Permissions};
 pub use phys::{FrameRef, AllocatorError};
 
 pub type MapError = MapToError<Size4KiB>;
 pub use x86_64::structures::paging::mapper::UnmapError;
+
+use paging::phys_to_virt;
 
 pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     phys::init(phys_mapping, memory_regions);
@@ -153,4 +157,30 @@ pub fn page_aligned_up(addr: usize) -> usize {
 #[inline]
 pub fn page_aligned_down(addr: usize) -> usize {
     return align_down(addr as u64, PAGE_SIZE as u64) as usize;
+}
+
+/// Helper to permit to view a physical page.
+///
+/// Return a virtual address that corresponds to a view of the physical address
+#[inline]
+pub fn view_phys<'a>(frame: &'a FrameRef) -> &'a [u8] {
+    let addr = phys_to_virt(frame.frame());
+    unsafe {
+        slice::from_raw_parts(addr.as_ptr(), PAGE_SIZE)
+    }
+}
+
+/// Helper to permit to access a physical page.
+///
+/// Return a virtual address that corresponds to a view of the physical address
+/// 
+/// # Safety
+/// 
+/// Concurrent mutable accesses are not checked.
+/// 
+/// Caller must ensure that no other access or view on the page occurs at the same time.
+/// 
+pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
+    let addr = phys_to_virt(frame.frame());
+    slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE)
 }

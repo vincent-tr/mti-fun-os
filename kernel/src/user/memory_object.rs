@@ -1,6 +1,6 @@
-use core::{ptr::slice_from_raw_parts_mut, slice::Iter};
+use core::slice::Iter;
 
-use crate::memory::{is_page_aligned, phys_allocate, view_phys, FrameRef, PAGE_SIZE};
+use crate::memory::{is_page_aligned, phys_allocate, view_phys, FrameRef, PAGE_SIZE, access_phys};
 use alloc::{sync::Arc, vec::Vec};
 
 use super::{error::*, Error};
@@ -48,8 +48,7 @@ impl MemoryObject {
     }
 
     fn zero_page(page: &FrameRef) {
-        let page_ptr: *mut u8 = view_phys(page.frame()).as_mut_ptr();
-        let page_data = unsafe { &mut *slice_from_raw_parts_mut(page_ptr, PAGE_SIZE) };
+        let page_data = unsafe { access_phys(page) };
         page_data.fill(0);
     }
 

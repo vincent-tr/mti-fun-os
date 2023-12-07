@@ -581,10 +581,12 @@ impl FrameDeallocator<Size4KiB> for FrameAllocatorImpl {
     }
 }
 
+#[inline]
 fn is_user_address(addr: VirtAddr) -> bool {
     addr < KERNEL_START
 }
 
+#[inline]
 fn create_flags(addr: VirtAddr, permissions: Permissions) -> PageTableFlags {
     let mut flags = PageTableFlags::PRESENT;
 
@@ -605,6 +607,7 @@ fn create_flags(addr: VirtAddr, permissions: Permissions) -> PageTableFlags {
     return flags;
 }
 
+#[inline]
 fn create_parent_flags(addr: VirtAddr) -> PageTableFlags {
     let mut flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
@@ -617,6 +620,7 @@ fn create_parent_flags(addr: VirtAddr) -> PageTableFlags {
     return flags;
 }
 
+#[inline]
 unsafe fn phys_frame_to_page_table(frame: PhysAddr) -> &'static mut PageTable {
     let virt = PHYSICAL_MAPPING_ADDRESS + frame.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
@@ -624,14 +628,16 @@ unsafe fn phys_frame_to_page_table(frame: PhysAddr) -> &'static mut PageTable {
     &mut *page_table_ptr
 }
 
+#[inline]
 unsafe fn page_table_to_phys_frame(page_table: &PageTable) -> PhysAddr {
     let page_table_ptr: *const PageTable = page_table;
     return PhysAddr::new(VirtAddr::from_ptr(page_table_ptr) - PHYSICAL_MAPPING_ADDRESS);
 }
 
-/// Helper to permit to access a physical address.
+/// Helper to get a virtual address from physical one.
 ///
-/// Return a virtual address that corresponds to a view of the physical address
-pub fn view_phys(addr: PhysAddr) -> VirtAddr {
+/// Return a virtual address that corresponds to a view of the physical address, using the physical memory mapping
+#[inline]
+pub fn phys_to_virt(addr: PhysAddr) -> VirtAddr {
     return unsafe { PHYSICAL_MAPPING_ADDRESS } + addr.as_u64();
 }

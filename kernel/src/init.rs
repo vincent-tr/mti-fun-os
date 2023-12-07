@@ -8,11 +8,23 @@ use xmas_elf::{
     ElfFile,
 };
 
+// https://docs.rs/include_bytes_aligned/latest/src/include_bytes_aligned/lib.rs.html#1-37
+macro_rules! include_bytes_aligned {
+    ($align_to:expr, $path:expr) => {{
+        #[repr(C, align($align_to))]
+        struct __Aligned<T: ?Sized>(T);
+
+        static __DATA: &'static __Aligned<[u8]> = &__Aligned(*include_bytes!($path));
+
+        &__DATA.0
+    }};
+}
+
 pub fn load() -> VirtAddr {
     info!("Loading init binary");
 
     // FIXME
-    let binary = include_bytes!("../../target/x86_64-mti_fun_os/debug/init");
+    let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
 
     let loader = Loader::new(binary);
     loader.sanity_check();

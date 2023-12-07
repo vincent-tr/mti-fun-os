@@ -61,7 +61,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // From here we can use normal allocations in the kernel.
 
-    init::load();
+    let entry_point = init::load();
+    info!("init entry point = {entry_point:?}");
 
     panic!("End of main!");
 }

@@ -16,7 +16,7 @@ use x86_64::{
 
 use super::{
     config::{KERNEL_START, PAGE_SIZE},
-    phys::{self, AllocatorError, FrameRef},
+    phys::{self, AllocatorError, FrameRef}, access_phys,
 };
 
 /*
@@ -78,6 +78,8 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
 
     unsafe {
         let mut frame = phys::allocate()?;
+        access_phys(&frame).fill(0);
+
         let virt = PHYSICAL_MAPPING_ADDRESS + frame.borrow().as_u64();
 
         let address_space = AddressSpace {

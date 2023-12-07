@@ -1,13 +1,12 @@
 use core::{
+    borrow::BorrowMut,
+    cell::{Ref, RefCell},
     mem::swap,
     ops::{Bound, Range},
-    panic, cell::{RefCell, Ref}, borrow::BorrowMut,
+    panic,
 };
 
-use alloc::{
-    collections::{btree_map, BTreeMap},
-    rc::Rc,
-};
+use alloc::{collections::BTreeMap, rc::Rc};
 
 use crate::{
     memory::{VirtAddr, KERNEL_START, PAGE_SIZE},
@@ -209,7 +208,6 @@ impl Mappings {
     }
 
     pub fn remove_range(&mut self, range: Range<VirtAddr>) {
-
         // Make entries fit perfectly on boundaries
         let mut start_area = self.get(range.start);
         if start_area.range.start < range.start {
@@ -369,5 +367,4 @@ impl Mappings {
         assert!(area.range.contains(&addr));
         area
     }
-
 }

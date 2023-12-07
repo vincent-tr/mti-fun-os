@@ -114,7 +114,7 @@ impl Process {
     /// - part of the specified area my not be mapped. In consequence, calling unmap() on an unmapped area is a successful noop.
     ///
     pub fn unmap(&mut self, addr: VirtAddr, size: usize) -> Result<(), Error> {
-        check_positive(size);
+        check_positive(size)?;
         check_page_alignment(size)?;
         check_is_userspace(addr)?;
         check_page_alignment(addr.as_u64() as usize)?;

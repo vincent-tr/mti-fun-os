@@ -178,7 +178,8 @@ impl Mappings {
     }
 
     pub fn find_space(&self, size: usize) -> Result<Range<VirtAddr>, Error> {
-        for area in self.overlapping(USER_SPACE_START..USER_SPACE_END) {
+        for node in self.nodes.values() {
+            let area = &node.next;
             if area.is_empty() && area.size() >= size {
                 let addr = area.range.start;
                 return Ok(addr..addr + size);
@@ -208,46 +209,55 @@ impl Mappings {
     }
 
     pub fn remove_range(&mut self, range: Range<VirtAddr>) {
-        todo!();
-        /////////// TODO
-        /*
-        let entries: Vec<_> = self.overlapping(range).collect();
-        debug_assert!(entries.len() > 0);
-
-        if entries.len() == 1 && entries[0].is_empty() {
-            return;
-        }
 
         // Make entries fit perfectly on boundaries
-        let first = entries.first().unwrap();
-        if entries.first().unwrap().range.start < range.start {
-            let prev = first;
-            if let Some(prev_mapping) = prev.is_used() {
-                let first_mapping = prev_mapping.split(range.start);
+        let mut start_area = self.get(range.start);
+        if start_area.range.start < range.start {
+            // need to split
+            self.split(start_area, range.start);
+            start_area = self.get(range.start);
+        }
+
+        let mut end_area = self.get(range.end - PAGE_SIZE);
+        if end_area.range.end > range.end {
+            // need to split
+            self.split(end_area, range.end);
+            end_area = self.get(range.end - PAGE_SIZE);
+        }
+
+        // Replace all ranges inside
+        let mut addr = range.start;
+        loop {
+            let area = self.nodes.get(&addr).expect("missing area").next.clone();
+            self.replace(Area::empty(area.range.clone()));
+
+            addr = area.range.end;
+            if addr == range.end {
+                break;
             }
-
-            first.content = AreaContent::Used(first_mapping)
         }
 
+        // Merge all empty area inside
+        let mut addr = range.start;
+        loop {
+            let area = self.nodes.get(&addr).expect("missing area").next.clone();
 
+            self.merge(addr);
 
-        // 2 cases:
-        // - One area that is a superset of range (or perfectly fit)
-        // - Multiple areas fit in the range. Areas may be larger than range (range voundaries)
-
-
-        if entries.len() == 1 {
-            let entry = entries[0];
-            if entry.is_empty() {
-                return;
+            addr = area.range.end;
+            if addr == range.end {
+                break;
             }
+        }
 
-            if entry.range.start <
+        // Check if we can merge with prev/next area
+        if self.can_merge(range.start) {
+            self.merge(range.start);
         }
-        for area in self.overlapping(range) {
-            //if
+
+        if self.can_merge(range.end) {
+            self.merge(range.end);
         }
-        */
     }
 
     fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {
@@ -360,50 +370,4 @@ impl Mappings {
         area
     }
 
-    fn overlapping(&self, range: Range<VirtAddr>) -> AreaIterator {
-        AreaIterator {
-            query_start: range.start,
-            started: false,
-            next_item: None,
-            range: self.nodes.range(range),
-        }
-    }
-}
-
-struct AreaIterator<'a> {
-    query_start: VirtAddr,
-    started: bool,
-    next_item: Option<&'a Rc<Area>>,
-    range: btree_map::Range<'a, VirtAddr, Node>,
-}
-
-impl<'a> Iterator for AreaIterator<'a> {
-    type Item = &'a Rc<Area>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(item) = self.next_item {
-            return Some(item);
-        }
-
-        if !self.started {
-            self.started = true;
-            if let Some((&addr, node)) = self.range.next() {
-                if self.query_start == addr {
-                    // Forget the previous area
-                    return Some(&node.next);
-                }
-
-                // On first item, if prev area is inside the range, we return it.
-                // We return `prev` and store `next` for next iteration
-                self.next_item = Some(&node.next);
-                return Some(&node.prev);
-            }
-        } else {
-            if let Some((addr, node)) = self.range.next() {
-                Some(&node.next);
-            }
-        }
-
-        None
-    }
 }

@@ -64,13 +64,13 @@ impl Process {
     ///
     pub fn map(
         self: &Arc<Self>,
-        mut addr: VirtAddr,
+        addr: VirtAddr,
         size: usize,
         perms: Permissions,
         memory_object: Option<Arc<MemoryObject>>,
         offset: usize,
     ) -> Result<VirtAddr, Error> {
-        check_positive(size);
+        check_positive(size)?;
         check_page_alignment(size)?;
         check_page_alignment(offset)?;
 
@@ -100,7 +100,7 @@ impl Process {
             range
         };
 
-        let mut mapping = Mapping::new(self, addr..addr + size, perms, memory_object, offset)?;
+        let mapping = Mapping::new(self, range, perms, memory_object, offset)?;
 
         mappings.add(mapping);
 

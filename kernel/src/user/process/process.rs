@@ -70,14 +70,15 @@ impl Process {
         memory_object: Option<Arc<MemoryObject>>,
         offset: usize,
     ) -> Result<VirtAddr, Error> {
+        check_positive(size);
+        check_page_alignment(size)?;
+        check_page_alignment(offset)?;
+
         if !addr.is_null() {
             check_is_userspace(addr)?;
             check_page_alignment(addr.as_u64() as usize)?;
             check_is_userspace(addr + size)?;
         }
-        check_positive(size);
-        check_page_alignment(size)?;
-        check_page_alignment(offset)?;
 
         if let Some(ref mobj) = memory_object {
             // Force some access on memory object, this ease checks
@@ -112,9 +113,27 @@ impl Process {
     /// - addr or addr+size may be in the middle of a mapping
     /// - part of the specified area my not be mapped. In consequence, calling unmap() on an unmapped area is a successful noop.
     ///
-    pub fn unmap(&mut self, addr: VirtAddr, size: usize) {
-        let end = addr + size;
+    pub fn unmap(&mut self, addr: VirtAddr, size: usize) -> Result<(), Error> {
+        check_positive(size);
+        check_page_alignment(size)?;
+        check_is_userspace(addr)?;
+        check_page_alignment(addr.as_u64() as usize)?;
+        check_is_userspace(addr + size)?;
+
         let mut mappings = self.mappings.write();
+
+        mappings.remove_range(addr..addr+size);
+        
+        Ok(())
+/*
+        for area in 
+
+        let mut cur_addr = addr;
+        let mut cur_size = size;
+
+        loop {
+            mappings.overlapping(range)
+        }
 
         if mappings.len() == 0 {
             return;
@@ -161,5 +180,6 @@ impl Process {
 
             cursor.remove_current().expect("unexpected empty mapping");
         }
+        */
     }
 }

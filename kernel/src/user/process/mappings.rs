@@ -1,10 +1,11 @@
 use core::{
+    mem::swap,
     ops::{Bound, Range},
-    panic,
+    panic, cell::{RefCell, Ref}, borrow::BorrowMut,
 };
 
 use alloc::{
-    collections::{btree_map::Iter, BTreeMap},
+    collections::{btree_map, BTreeMap},
     rc::Rc,
 };
 
@@ -16,15 +17,16 @@ use crate::{
 use super::mapping::Mapping;
 
 // Forbid use of NULL as valid address
-const USER_SPACE_START: VirtAddr = VirtAddr::zero() + PAGE_SIZE;
+const USER_SPACE_START: VirtAddr = VirtAddr::new_truncate(PAGE_SIZE as u64);
 const USER_SPACE_END: VirtAddr = KERNEL_START;
 
 struct Area {
     range: Range<VirtAddr>,
-    content: AreaContent,
+    content: RefCell<AreaContent>,
 }
 
 enum AreaContent {
+    Invalid,
     Boundary,
     Empty,
     Used(Mapping),
@@ -34,21 +36,21 @@ impl Area {
     pub fn from_mapping(mapping: Mapping) -> Rc<Self> {
         Rc::new(Self {
             range: mapping.range().clone(),
-            content: AreaContent::Used(mapping),
+            content: RefCell::new(AreaContent::Used(mapping)),
         })
     }
 
     pub fn empty(range: Range<VirtAddr>) -> Rc<Self> {
         Rc::new(Self {
             range,
-            content: AreaContent::Empty,
+            content: RefCell::new(AreaContent::Empty),
         })
     }
 
     pub fn boundary(addr: VirtAddr) -> Rc<Self> {
         Rc::new(Self {
             range: addr..addr,
-            content: AreaContent::Boundary,
+            content: RefCell::new(AreaContent::Boundary),
         })
     }
 
@@ -57,7 +59,8 @@ impl Area {
     }
 
     pub fn is_empty(&self) -> bool {
-        if let AreaContent::Empty = self.content {
+        let content = self.content.borrow();
+        if let AreaContent::Empty = *content {
             true
         } else {
             false
@@ -65,23 +68,41 @@ impl Area {
     }
 
     pub fn is_bounary(&self) -> bool {
-        if let AreaContent::Boundary = self.content {
+        let content = self.content.borrow();
+        if let AreaContent::Boundary = *content {
             true
         } else {
             false
         }
     }
 
-    pub fn is_used(&self) -> Option<&Mapping> {
-        if let AreaContent::Used(mapping) = &self.content {
-            Some(mapping)
+    pub fn is_used(&self) -> Option<Ref<Mapping>> {
+        let content = self.content.borrow();
+        if let AreaContent::Used(_) = &*content {
+            let mapping_ref = Ref::map(content, |content| {
+                if let AreaContent::Used(mapping) = content {
+                    mapping
+                } else {
+                    panic!("unexpected enum value");
+                }
+            });
+
+            Some(mapping_ref)
         } else {
             None
         }
     }
 
-    pub fn take_mapping(self) -> Mapping {
-        if let AreaContent::Used(mapping) = self.content {
+    pub fn invalidate(&self) {
+        *self.content.borrow_mut() = AreaContent::Invalid;
+    }
+
+    pub fn take_mapping(&self) -> Mapping {
+        let mut content = self.content.borrow_mut();
+        let mut swapped_content = AreaContent::Invalid;
+        swap(&mut swapped_content, &mut *content.borrow_mut());
+
+        if let AreaContent::Used(mapping) = swapped_content {
             mapping
         } else {
             panic!("invalid area type");
@@ -123,31 +144,41 @@ impl Mappings {
     }
 
     pub fn add(&mut self, mut mapping: Mapping) {
-        let prev = self.get(mapping.range().start - PAGE_SIZE);
-        if let Some(prev_mapping) = prev.is_used()
-            && prev_mapping.can_merge(&mapping)
-        {
-            self.remove(&prev);
+        let new_area = Area::from_mapping(mapping);
 
-            let mut new_mapping = prev.take_mapping();
-            unsafe { new_mapping.merge(mapping) };
-            mapping = new_mapping;
+        if let Some(node) = self.nodes.get(&new_area.range.start) {
+            // exactly on node
+            assert!(node.next.is_empty());
+        } else {
+            // need to split prev area
+            let prev_area = self.get(new_area.range.start);
+            assert!(prev_area.is_empty());
+            self.split(prev_area, new_area.range.start);
         }
 
-        let next = self.get(mapping.range().end);
-        if let Some(next_mapping) = next.is_used()
-            && mapping.can_merge(next_mapping)
-        {
-            self.remove(&next);
-
-            unsafe { mapping.merge(next.take_mapping()) };
+        if let Some(node) = self.nodes.get(&new_area.range.end) {
+            // exactly on node
+            assert!(node.next.is_empty());
+        } else {
+            // need to split next area
+            let next_area = self.get(new_area.range.end);
+            assert!(next_area.is_empty());
+            self.split(next_area, new_area.range.end);
         }
 
-        self.insert(Area::from_mapping(mapping));
+        self.replace(new_area.clone());
+
+        if self.can_merge(new_area.range.start) {
+            self.merge(new_area.range.start);
+        }
+
+        if self.can_merge(new_area.range.end) {
+            self.merge(new_area.range.end);
+        }
     }
 
     pub fn find_space(&self, size: usize) -> Result<Range<VirtAddr>, Error> {
-        for area in self.area_iter() {
+        for area in self.overlapping(USER_SPACE_START..USER_SPACE_END) {
             if area.is_empty() && area.size() >= size {
                 let addr = area.range.start;
                 return Ok(addr..addr + size);
@@ -176,65 +207,144 @@ impl Mappings {
         }
     }
 
-    fn insert(&mut self, area: Rc<Area>) {
-        // Get the gap around
-        let mut prev = self
-            .nodes
-            .upper_bound(Bound::Included(&area.range.start))
-            .value()
-            .expect("area out of bounds")
-            .clone();
-        let mut next = self
-            .nodes
-            .lower_bound(Bound::Included(&area.range.end))
-            .value()
-            .expect("area out of bounds")
-            .clone();
+    pub fn remove_range(&mut self, range: Range<VirtAddr>) {
+        todo!();
+        /////////// TODO
+        /*
+        let entries: Vec<_> = self.overlapping(range).collect();
+        debug_assert!(entries.len() > 0);
 
-        assert!(Rc::ptr_eq(&prev.next, &next.prev), "area cross boundaries");
-        let empty_area = prev.next.clone();
-        assert!(area.is_empty());
-
-        // Recreate prev empty area
-        if empty_area.range.start < area.range.start {
-            let new_area = Area::empty(empty_area.range.start..area.range.start);
-            prev.next = new_area;
-            self.nodes.insert(empty_area.range.start, prev);
-
-            let new_node = Node::new(new_area.clone(), area.clone());
-            self.nodes.insert(area.range.start, new_node);
-        } else {
-            prev.next = area.clone();
-            self.nodes.insert(area.range.start, prev);
+        if entries.len() == 1 && entries[0].is_empty() {
+            return;
         }
 
-        // Recreate next empty area
-        if empty_area.range.end > area.range.end {
-            let new_area = Area::empty(area.range.end..empty_area.range.end);
-            let new_node = Node::new(area.clone(), new_area.clone());
-            self.nodes.insert(area.range.end, new_node);
+        // Make entries fit perfectly on boundaries
+        let first = entries.first().unwrap();
+        if entries.first().unwrap().range.start < range.start {
+            let prev = first;
+            if let Some(prev_mapping) = prev.is_used() {
+                let first_mapping = prev_mapping.split(range.start);
+            }
 
-            next.prev = new_area;
-            self.nodes.insert(empty_area.range.end, next);
-        } else {
-            next.prev = area.clone();
-            self.nodes.insert(area.range.end, next);
+            first.content = AreaContent::Used(first_mapping)
         }
+
+
+
+        // 2 cases:
+        // - One area that is a superset of range (or perfectly fit)
+        // - Multiple areas fit in the range. Areas may be larger than range (range voundaries)
+
+
+        if entries.len() == 1 {
+            let entry = entries[0];
+            if entry.is_empty() {
+                return;
+            }
+
+            if entry.range.start <
+        }
+        for area in self.overlapping(range) {
+            //if
+        }
+        */
     }
 
-    fn remove(&mut self, area: &Rc<Area>) {
-        let new_area = Area::empty(area.range);
+    fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {
+        assert!(area.range.start < addr);
+        assert!(addr < area.range.end);
 
-        let mut start = self.nodes.get_mut(&area.range.start).expect("bad area");
-        assert!(Rc::ptr_eq(area, &start.next));
+        let (left_area, right_area) = match &*area.content.borrow() {
+            AreaContent::Invalid => panic!("invalid area"),
+            AreaContent::Boundary => panic!("Cannot split area boundary"),
+            AreaContent::Empty => (
+                Area::empty(area.range.start..addr),
+                Area::empty(addr..area.range.end),
+            ),
+            AreaContent::Used(_) => {
+                let mut left_mapping = area.take_mapping();
+                let right_mapping = left_mapping.split(addr);
+                (
+                    Area::from_mapping(left_mapping),
+                    Area::from_mapping(right_mapping),
+                )
+            }
+        };
+
+        area.invalidate();
+
+        let start = self.nodes.get_mut(&area.range.start).expect("bad area");
+        start.next = left_area.clone();
+
+        let middle = Node::new(left_area, right_area.clone());
+        self.nodes.insert(addr, middle);
+
+        let end = self.nodes.get_mut(&area.range.end).expect("bad area");
+        end.prev = right_area;
+    }
+
+    fn can_merge(&mut self, addr: VirtAddr) -> bool {
+        let node = self.nodes.get_mut(&addr).expect("bad address");
+
+        let left_area = node.prev.clone();
+        let right_area = node.next.clone();
+
+        let res = match &*left_area.content.borrow() {
+            AreaContent::Invalid => panic!("invalid area"),
+            AreaContent::Boundary => false,
+            AreaContent::Empty => right_area.is_empty(),
+            AreaContent::Used(left_mapping) => {
+                if let Some(right_mapping) = right_area.is_used() {
+                    left_mapping.can_merge(&*right_mapping)
+                } else {
+                    false
+                }
+            }
+        };
+
+        res
+    }
+
+    fn merge(&mut self, addr: VirtAddr) {
+        let node = self.nodes.get(&addr).expect("bad address");
+
+        let left_area = node.prev.clone();
+        let right_area = node.next.clone();
+
+        self.nodes.remove(&addr);
+
+        let new_area = match &*left_area.content.borrow() {
+            AreaContent::Invalid => panic!("invalid area"),
+            AreaContent::Boundary => panic!("Cannot merge area boundary"),
+            AreaContent::Empty => {
+                assert!(right_area.is_empty(), "area types mismatch");
+                Area::empty(left_area.range.start..right_area.range.end)
+            }
+            AreaContent::Used(_) => {
+                let mut left_mapping = left_area.take_mapping();
+                let right_mapping = right_area.take_mapping();
+                assert!(left_mapping.can_merge(&right_mapping));
+                unsafe {
+                    left_mapping.merge(right_mapping);
+                }
+                Area::from_mapping(left_mapping)
+            }
+        };
+
+        let start = self.nodes.get_mut(&new_area.range.start).expect("bad area");
         start.next = new_area.clone();
 
-        let mut end = self
-            .nodes
-            .get_mut(&area.range.end)
-            .expect("bad area")
-            .clone();
-        assert!(Rc::ptr_eq(area, &end.prev));
+        let end = self.nodes.get_mut(&new_area.range.end).expect("bad area");
+        end.prev = new_area;
+    }
+
+    fn replace(&mut self, new_area: Rc<Area>) {
+        let start = self.nodes.get_mut(&new_area.range.start).expect("bad area");
+        assert!(start.next.range == new_area.range);
+        start.next = new_area.clone();
+
+        let end = self.nodes.get_mut(&new_area.range.end).expect("bad area");
+        assert!(end.prev.range == new_area.range);
         end.prev = new_area;
     }
 
@@ -250,26 +360,47 @@ impl Mappings {
         area
     }
 
-    fn area_iter(&self) -> AreaIterator {
+    fn overlapping(&self, range: Range<VirtAddr>) -> AreaIterator {
         AreaIterator {
-            map_iter: self.nodes.iter(),
+            query_start: range.start,
+            started: false,
+            next_item: None,
+            range: self.nodes.range(range),
         }
     }
 }
 
 struct AreaIterator<'a> {
-    map_iter: Iter<'a, VirtAddr, Node>,
+    query_start: VirtAddr,
+    started: bool,
+    next_item: Option<&'a Rc<Area>>,
+    range: btree_map::Range<'a, VirtAddr, Node>,
 }
 
 impl<'a> Iterator for AreaIterator<'a> {
     type Item = &'a Rc<Area>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((_, node)) = self.map_iter.next() {
-            let area = &node.next;
-            // Do not iter over boundaries
-            if !area.is_bounary() {
-                return Some(area);
+        if let Some(item) = self.next_item {
+            return Some(item);
+        }
+
+        if !self.started {
+            self.started = true;
+            if let Some((&addr, node)) = self.range.next() {
+                if self.query_start == addr {
+                    // Forget the previous area
+                    return Some(&node.next);
+                }
+
+                // On first item, if prev area is inside the range, we return it.
+                // We return `prev` and store `next` for next iteration
+                self.next_item = Some(&node.next);
+                return Some(&node.prev);
+            }
+        } else {
+            if let Some((addr, node)) = self.range.next() {
+                Some(&node.next);
             }
         }
 

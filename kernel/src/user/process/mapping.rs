@@ -110,9 +110,9 @@ impl Mapping {
         };
 
         Mapping {
-            process: self.process,
+            process: self.process.clone(),
             range: addr..range.end,
-            memory_object: self.memory_object,
+            memory_object: self.memory_object.clone(),
             offset: other_offset,
         }
     }
@@ -135,8 +135,8 @@ impl Mapping {
             return false;
         }
 
-        if let Some(&lower_mobj) = self.memory_object.as_ref() {
-            if !(Arc::ptr_eq(&lower_mobj, &other.memory_object.unwrap()))
+        if let Some(lower_mobj) = self.memory_object.as_ref() {
+            if !(Arc::ptr_eq(&lower_mobj, other.memory_object.as_ref().unwrap()))
                 || other.offset != self.offset + self.size()
             {
                 return false;
@@ -152,7 +152,7 @@ impl Mapping {
 
         let process = self.process();
         let mut address_space = process.address_space().write();
-        let mobj = self.memory_object.unwrap();
+        let mobj = self.memory_object.as_ref().unwrap();
 
         while virt_addr < self.range.end {
             let mut frame = mobj.frame(phys_offset).clone();

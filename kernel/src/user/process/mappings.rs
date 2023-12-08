@@ -137,7 +137,7 @@ impl Mappings {
 
         let initial_area = Area::empty(USER_SPACE_START..USER_SPACE_END);
         let start = Node::new(Area::boundary(USER_SPACE_START), initial_area.clone());
-        let end = Node::new(Area::boundary(USER_SPACE_END), initial_area);
+        let end = Node::new(initial_area, Area::boundary(USER_SPACE_END));
 
         nodes.insert(USER_SPACE_START, start);
         nodes.insert(USER_SPACE_END, end);
@@ -150,7 +150,7 @@ impl Mappings {
         mappings
     }
 
-    pub fn add(&mut self, mut mapping: Mapping) {
+    pub fn add(&mut self, mapping: Mapping) {
         let new_area = Area::from_mapping(mapping);
 
         if let Some(node) = self.nodes.get(&new_area.range.start) {
@@ -307,8 +307,8 @@ impl Mappings {
         end.prev = right_area;
     }
 
-    fn can_merge(&mut self, addr: VirtAddr) -> bool {
-        let node = self.nodes.get_mut(&addr).expect("bad address");
+    fn can_merge(&self, addr: VirtAddr) -> bool {
+        let node = self.nodes.get(&addr).expect("bad address");
 
         let left_area = node.prev.clone();
         let right_area = node.next.clone();

@@ -1,7 +1,7 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::{self, NonNull};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use log::debug;
+use log::trace;
 use spin::Mutex;
 use x86_64::{align_up, VirtAddr};
 
@@ -57,7 +57,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
                 panic!("Got zero-sized allocation request.");
             },
             1..=ZoneAllocator::MAX_ALLOC_SIZE => {
-                debug!("Serving alloc request with slabs allocator {layout:?}");
+                trace!("Serving alloc request with slabs allocator {layout:?}");
                 let mut slabs_allocator = self.slabs_allocator.lock();
                 match slabs_allocator.allocate(layout) {
                     Ok(ptr) => {
@@ -79,7 +79,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             },
             _ => {
                 let page_count = Self::get_page_count(layout);
-                debug!("Serving alloc request with kvm allocator {layout:?} (page count = {page_count})");
+                trace!("Serving alloc request with kvm allocator {layout:?} (page count = {page_count})");
                 match kvm::allocate(page_count) {
                     Ok(addr) => {
                         self.kvm_user.fetch_add(layout.size(), Ordering::Relaxed);
@@ -107,7 +107,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
                 panic!("Got zero-sized deallocation request.");
             },
             1..=ZoneAllocator::MAX_ALLOC_SIZE => {
-                debug!("Serving dealloc request with slabs allocator {layout:?}");
+                trace!("Serving dealloc request with slabs allocator {layout:?}");
                 let mut slabs_allocator = self.slabs_allocator.lock();
                 slabs_allocator.deallocate(NonNull::new_unchecked(ptr), layout);
 
@@ -116,7 +116,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             },
             _ => {
                 let page_count = Self::get_page_count(layout);
-                debug!("Serving dealloc request with kvm allocator {layout:?} (page count = {page_count})");
+                trace!("Serving dealloc request with kvm allocator {layout:?} (page count = {page_count})");
                 kvm::deallocate(VirtAddr::from_ptr(ptr), page_count);
 
                 self.kvm_user.fetch_sub(layout.size(), Ordering::Relaxed);

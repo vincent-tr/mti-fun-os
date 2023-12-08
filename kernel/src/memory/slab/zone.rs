@@ -4,7 +4,7 @@
 
 use core::{alloc::Layout, ptr::NonNull, panic};
 
-use log::debug;
+use log::trace;
 use x86_64::VirtAddr;
 
 use crate::memory::kvm;
@@ -107,7 +107,7 @@ impl<'a> ZoneAllocator<'a> {
         match to_reclaim {
             0 => {},
             1 => {
-                debug!("Reclaim 1 page to slab allocator {}", slab.size());
+                trace!("Reclaim 1 page to slab allocator {}", slab.size());
 
                 let mut dealloc = |ptr: *mut _| {
                     kvm::deallocate(VirtAddr::from_ptr(ptr), 1);
@@ -125,7 +125,7 @@ impl<'a> ZoneAllocator<'a> {
     }
 
     fn refill(slab: &mut SCAllocator) -> Result<(), AllocationError> {
-        debug!("Refill 1 page to slab allocator {}", slab.size());
+        trace!("Refill 1 page to slab allocator {}", slab.size());
         
         match kvm::allocate(1) {
             Ok(addr) => {

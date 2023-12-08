@@ -142,7 +142,12 @@ impl Mappings {
         nodes.insert(USER_SPACE_START, start);
         nodes.insert(USER_SPACE_END, end);
 
-        Self { nodes }
+        let mappings = Self { nodes };
+
+        #[cfg(debug_assertions)]
+        mappings.check_consistency();
+
+        mappings
     }
 
     pub fn add(&mut self, mut mapping: Mapping) {
@@ -177,6 +182,9 @@ impl Mappings {
         if self.can_merge(new_area.range.end) {
             self.merge(new_area.range.end);
         }
+
+        #[cfg(debug_assertions)]
+        self.check_consistency();
     }
 
     pub fn find_space(&self, size: usize) -> Result<Range<VirtAddr>, Error> {
@@ -193,7 +201,7 @@ impl Mappings {
 
     pub fn overlaps(&self, range: &Range<VirtAddr>) -> bool {
         // Get a cursor starting from the node before our range
-        let cursor = self.nodes.upper_bound(Bound::Included(&range.start));
+        let mut cursor = self.nodes.upper_bound(Bound::Included(&range.start));
         loop {
             if cursor.value().is_none() {
                 return false;
@@ -207,6 +215,8 @@ impl Mappings {
             if !area.is_empty() {
                 return true;
             }
+
+            cursor.move_next()
         }
     }
 
@@ -259,6 +269,9 @@ impl Mappings {
         if self.can_merge(range.end) {
             self.merge(range.end);
         }
+
+        #[cfg(debug_assertions)]
+        self.check_consistency();
     }
 
     fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {
@@ -369,5 +382,51 @@ impl Mappings {
             .clone();
         assert!(area.range.contains(&addr));
         area
+    }
+
+    #[cfg(debug_assertions)]
+    fn check_consistency(&self) {
+        // Check that first and last are boundaries
+        let (&first_addr, first_node) = self
+            .nodes
+            .first_key_value()
+            .expect("first boundary missing");
+        assert!(first_addr == USER_SPACE_START);
+        assert!(first_node.prev.is_bounary());
+        assert!(first_node.prev.size() == 0);
+
+        let (&last_addr, last_node) = self.nodes.last_key_value().expect("last boundary missing");
+        assert!(last_addr == USER_SPACE_END);
+        assert!(last_node.next.is_bounary());
+        assert!(last_node.next.size() == 0);
+
+        // Check that each node and areas address matches, and no merge are possible
+        for (&addr, node) in self.nodes.iter() {
+            let prev = &node.prev;
+            assert!(prev.range.end == addr);
+
+            let next = &node.next;
+            assert!(next.range.start == addr);
+
+            if addr != last_addr {
+                assert!(next.size() > 0);
+                assert!(!next.is_bounary());
+
+                let is_invalid = {
+                    let content = next.content.borrow();
+                    if let AreaContent::Invalid = *content {
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                assert!(!is_invalid);
+            }
+        }
+
+        for &addr in self.nodes.keys() {
+            assert!(!self.can_merge(addr));
+        }
     }
 }

@@ -1,7 +1,7 @@
-use core::cmp::min;
+use core::cmp::{min, max};
 use core::ops::Range;
 
-use crate::memory::{PAGE_SIZE, page_aligned_up, self, Permissions};
+use crate::memory::{PAGE_SIZE, page_aligned_up, self, Permissions, page_aligned_down};
 use crate::user::process::{self, Process};
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
@@ -24,16 +24,17 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
-pub fn load() -> VirtAddr {
+pub fn load() -> (Arc<Process>, VirtAddr) {
     info!("Loading init binary");
 
-    // FIXME
+    // TODO: try to make it part of the build
     let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
 
     let loader = Loader::new(binary);
     loader.sanity_check();
     loader.load_segments();
-    loader.entry_point()
+    let entry_point = loader.entry_point();
+    (loader.process, entry_point)
 }
 
 struct Loader<'a> {
@@ -102,17 +103,15 @@ impl<'a> Loader<'a> {
         assert!(segment.align() as usize == PAGE_SIZE, "wrong alignment");
 
         let mem_size = page_aligned_up(segment.mem_size() as usize);
+        let mem_start = VirtAddr::new(page_aligned_down(segment.virtual_addr() as usize) as u64);
         
         let mobj =
             MemoryObject::new(mem_size).expect("Could not create MemoryObject");
 
-        self.load_data(&mobj, segment.offset() as usize..(segment.offset() + segment.file_size()) as usize);
+        let mobj_start = (segment.virtual_addr()-mem_start.as_u64()) as usize;
+        let mobj_range = mobj_start..mobj_start+segment.file_size() as usize;
 
-        if segment.mem_size() > segment.file_size() {
-            // .bss section (or similar), which needs to be mapped and zeroed
-            todo!("handle bss section");
-            //self.handle_bss_section(&segment, segment_flags)?;
-        }
+        self.load_data(&mobj, mobj_range, segment.offset() as usize..(segment.offset() + segment.file_size()) as usize);
 
         let mut perms = Permissions::NONE;
 
@@ -128,21 +127,22 @@ impl<'a> Loader<'a> {
             perms |= Permissions::EXECUTE;
         }
 
-        self.process.map(VirtAddr::new(segment.virtual_addr()), mem_size, perms, Some(mobj), 0).expect("map failed");
+        self.process.map(mem_start, mem_size, perms, Some(mobj), 0).expect("map failed");
     }
 
-    fn load_data(&self, mobj: &Arc<MemoryObject>, mut range: Range<usize>) {
-        for frame in mobj.frames_iter() {
-            let frame_data = unsafe { memory::access_phys(frame) };
-            let copy_size = min(range.len(), PAGE_SIZE);
-            let source_data = &self.elf_file.input[range.start..range.start + copy_size];
-            frame_data[..copy_size].copy_from_slice(source_data);
+    fn load_data(&self, mobj: &Arc<MemoryObject>, mut mobj_range: Range<usize>, mut binary_range: Range<usize>) {
+        let mobj_range_aligned = page_aligned_down(mobj_range.start)..page_aligned_up(mobj_range.end);
 
-            range.start += copy_size;
+        for frame_offset in mobj_range_aligned.step_by(PAGE_SIZE) {
 
-            if range.len() == 0 {
-                break;
-            }
+            let frame_data = unsafe { memory::access_phys(mobj.frame(frame_offset)) };
+            let frame_range = max(frame_offset, mobj_range.start)..min(frame_offset + PAGE_SIZE, mobj_range.end);
+            let source_range = binary_range.start..binary_range.start + frame_range.len();
+
+            assert!(binary_range.len() >= frame_range.len());
+            binary_range.start += frame_range.len();
+
+            frame_data[frame_range].copy_from_slice(&self.elf_file.input[source_range]);
         }
     }
 
@@ -150,93 +150,3 @@ impl<'a> Loader<'a> {
         VirtAddr::new(self.elf_file.header.pt2.entry_point())
     }
 }
-/*
-fn handle_bss_section(segment: &ProgramHeader, segment_flags: Flags) -> Result<(), &'static str> {
-    log::info!("Mapping bss section");
-
-    let virt_start_addr = VirtAddr::new(self.virtual_address_offset + segment.virtual_addr());
-    let mem_size = segment.mem_size();
-    let file_size = segment.file_size();
-
-    // calculate virtual memory region that must be zeroed
-    let zero_start = virt_start_addr + file_size;
-    let zero_end = virt_start_addr + mem_size;
-
-    // a type alias that helps in efficiently clearing a page
-    type PageArray = [u64; Size4KiB::SIZE as usize / 8];
-    const ZERO_ARRAY: PageArray = [0; Size4KiB::SIZE as usize / 8];
-
-    // In some cases, `zero_start` might not be page-aligned. This requires some
-    // special treatment because we can't safely zero a frame of the original file.
-    let data_bytes_before_zero = zero_start.as_u64() & 0xfff;
-    if data_bytes_before_zero != 0 {
-        // The last non-bss frame of the segment consists partly of data and partly of bss
-        // memory, which must be zeroed. Unfortunately, the file representation might have
-        // reused the part of the frame that should be zeroed to store the next segment. This
-        // means that we can't simply overwrite that part with zeroes, as we might overwrite
-        // other data this way.
-        //
-        // Example:
-        //
-        //   XXXXXXXXXXXXXXX000000YYYYYYY000ZZZZZZZZZZZ     virtual memory (XYZ are data)
-        //   |·············|     /·····/   /·········/
-        //   |·············| ___/·····/   /·········/
-        //   |·············|/·····/‾‾‾   /·········/
-        //   |·············||·····|/·̅·̅·̅·̅·̅·····/‾‾‾‾
-        //   XXXXXXXXXXXXXXXYYYYYYYZZZZZZZZZZZ              file memory (zeros are not saved)
-        //   '       '       '       '        '
-        //   The areas filled with dots (`·`) indicate a mapping between virtual and file
-        //   memory. We see that the data regions `X`, `Y`, `Z` have a valid mapping, while
-        //   the regions that are initialized with 0 have not.
-        //
-        //   The ticks (`'`) below the file memory line indicate the start of a new frame. We
-        //   see that the last frames of the `X` and `Y` regions in the file are followed
-        //   by the bytes of the next region. So we can't zero these parts of the frame
-        //   because they are needed by other memory regions.
-        //
-        // To solve this problem, we need to allocate a new frame for the last segment page
-        // and copy all data content of the original frame over. Afterwards, we can zero
-        // the remaining part of the frame since the frame is no longer shared with other
-        // segments now.
-
-        let last_page = Page::containing_address(virt_start_addr + file_size - 1u64);
-        let new_frame = unsafe { self.make_mut(last_page) };
-        let new_bytes_ptr = new_frame.start_address().as_u64() as *mut u8;
-        unsafe {
-            core::ptr::write_bytes(
-                new_bytes_ptr.add(data_bytes_before_zero as usize),
-                0,
-                (Size4KiB::SIZE - data_bytes_before_zero) as usize,
-            );
-        }
-    }
-
-    // map additional frames for `.bss` memory that is not present in source file
-    let start_page: Page =
-        Page::containing_address(VirtAddr::new(align_up(zero_start.as_u64(), Size4KiB::SIZE)));
-    let end_page = Page::containing_address(zero_end - 1u64);
-    for page in Page::range_inclusive(start_page, end_page) {
-        // allocate a new unused frame
-        let frame = self.frame_allocator.allocate_frame().unwrap();
-
-        // zero frame, utilizing identity-mapping
-        let frame_ptr = frame.start_address().as_u64() as *mut PageArray;
-        unsafe { frame_ptr.write(ZERO_ARRAY) };
-
-        // map frame
-        let flusher = unsafe {
-            self.page_table
-                .map_to(page, frame, segment_flags, self.frame_allocator)
-                .map_err(|_err| "Failed to map new frame for bss memory")?
-        };
-        // we operate on an inactive page table, so we don't need to flush our changes
-        flusher.ignore();
-    }
-
-    Ok(())
-}
-
-fn entry_point() -> VirtAddr {
-    VirtAddr::new(self.inner.virtual_address_offset + elf_file.header.pt2.entry_point())
-}
-*/

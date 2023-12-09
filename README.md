@@ -46,7 +46,7 @@ to exit: `Ctrl+A X`
 - https://wiki.osdev.org/Global_Descriptor_Table
 - https://wiki.osdev.org/GDT_Tutorial
 - https://wiki.osdev.org/System_Calls
--:https://wiki.osdev.org/Getting_to_Ring_3
+- https://wiki.osdev.org/Getting_to_Ring_3
 - https://wiki.osdev.org/SYSENTER
 - https://wiki.osdev.org/Segmentation
 - https://github.com/jasonwhite/syscalls

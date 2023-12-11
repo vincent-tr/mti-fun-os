@@ -50,6 +50,8 @@ to exit: `Ctrl+A X`
 - https://wiki.osdev.org/SYSENTER
 - https://wiki.osdev.org/Segmentation
 - https://github.com/jasonwhite/syscalls
+- https://nfil.dev/kernel/rust/coding/rust-kernel-to-userspace-and-back/#syscall-and-sysret
+- https://nfil.dev/kernel/rust/coding/rust-kernel-task-scheduler/#building-a-task-struct
 
 ### Context switch
 

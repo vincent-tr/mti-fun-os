@@ -41,6 +41,10 @@ entry_point!(kernel_main, config = &CONFIG);
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     logging::init();
 
+    let efer_flags = Efer::read();
+    assert!(efer_flags.contains(EferFlags::LONG_MODE_ENABLE));
+    assert!(efer_flags.contains(EferFlags::LONG_MODE_ACTIVE));
+
     let version = &boot_info.api_version;
     info!(
         "Starting kernel with boot info v{}.{}.{}",

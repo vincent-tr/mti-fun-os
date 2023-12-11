@@ -4,7 +4,7 @@ use log::{info, warn};
 
 use x86_64::{
     instructions::tlb,
-    registers::control::{Cr3, Cr3Flags},
+    registers::{control::{Cr3, Cr3Flags}, model_specific::{Efer, EferFlags}},
     structures::paging::{
         mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
         page_table::PageTableEntry,
@@ -100,6 +100,10 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
 
 pub fn init(phys_mapping: VirtAddr) {
     unsafe {
+        Efer::update(|flags| {
+            *flags |= EferFlags::NO_EXECUTE_ENABLE;
+        });
+
         PHYSICAL_MAPPING_ADDRESS = phys_mapping;
         KERNEL_ADDRESS_SPACE.page_table = get_current_page_table();
 

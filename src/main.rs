@@ -13,7 +13,7 @@ fn main() {
   } else {
       cmd.arg("-drive").arg(format!("format=raw,file={bios_path}"));
   }
-  cmd.arg("-display").arg("none").arg("-nographic");
+  cmd.arg("-display").arg("none").arg("-nographic").arg("-monitor").arg("stdio").arg("-serial").arg("file:serial.log");
   let mut child = cmd.spawn().unwrap();
   child.wait().unwrap();
 }

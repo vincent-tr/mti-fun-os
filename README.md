@@ -15,11 +15,22 @@ cargo build
 
 ## Run kernel in QEmu
 
+### Setup
 ```shell
 pacman -S extra/qemu-base
+```
+
+### Shell 1
+
+```shell
 cargo run
 ```
-to exit: `Ctrl+A X`
+
+### Shell 2
+
+```shell
+tail -f serial.log
+```
 
 ## Readings
 

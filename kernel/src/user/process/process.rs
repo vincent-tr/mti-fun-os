@@ -105,6 +105,7 @@ impl Process {
         };
 
         let mapping = Mapping::new(self, range.clone(), perms, memory_object, offset)?;
+        let addr = mapping.range().start;
 
         mappings.add(mapping);
 

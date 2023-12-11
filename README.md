@@ -1,5 +1,12 @@
 # mti-fun-os
 
+## Build init
+
+```shell
+cd init
+cargo build
+```
+
 ## Build kernel
 
 ```shell

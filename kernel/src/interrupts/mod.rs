@@ -16,6 +16,9 @@ lazy_static! {
 
         // TODO: setup proper kernel stack
         idt.page_fault.set_handler_fn(exceptions::page_fault_handler);
+        idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler);
+        idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler);
+
 
         idt
     };

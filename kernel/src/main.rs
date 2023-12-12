@@ -32,6 +32,7 @@ use crate::{
     user::MemoryObject,
 };
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
+use core::mem;
 use core::panic::PanicInfo;
 use log::{error, info};
 use x86_64::registers::model_specific::{Efer, EferFlags};
@@ -98,8 +99,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         memory::set_current_address_space(&*as_ptr);
     }
 
+    // TODO: manage current thread/process properly
+    user::temp_set_process(process.clone());
+
     info!("init entry point = {entry_point:?}");
     info!("init stack = {user_stack:?} -> {user_stack_top:?}");
+
+    mem::drop(process);
 
     // TODO: clean initial kernel stack
     switch_to_userland(entry_point, user_stack_top);

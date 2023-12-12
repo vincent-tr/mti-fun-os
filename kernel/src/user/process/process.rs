@@ -1,10 +1,12 @@
+use core::ops::Range;
+
 use alloc::sync::Arc;
 use log::debug;
 use spin::RwLock;
 
 use crate::memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr};
 
-use super::{mapping::Mapping, mappings::Mappings};
+use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};
 
 use crate::user::{
     error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
@@ -109,7 +111,10 @@ impl Process {
 
         mappings.add(mapping);
 
-        debug!("Process {}: mapped at {:?} with perms {:?}", self.id, range, perms);
+        debug!(
+            "Process {}: mapped at {:?} with perms {:?}",
+            self.id, range, perms
+        );
 
         Ok(addr)
     }
@@ -136,6 +141,23 @@ impl Process {
         debug!("Process {}: unmapped at {:?}", self.id, range);
 
         Ok(())
+    }
+
+    /// Create a new memory access to a part of the process VM
+    ///
+    ///
+    /// permissions are the at least excepted permission in address space.
+    ///
+    /// eg: if READ is set, then the range must be mapped in the address space with at least READ permission
+    /// 
+    /// Note that the kernel access itself it always READ/WRITE
+    pub fn vm_access(
+        self: &Arc<Self>,
+        range: Range<VirtAddr>,
+        perms: Permissions,
+    ) -> Result<MemoryAccess, Error> {
+        let address_space = self.address_space().read();
+        memory_access::create(&address_space, range, perms)
     }
 }
 

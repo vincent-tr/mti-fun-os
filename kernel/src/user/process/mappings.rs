@@ -222,18 +222,18 @@ impl Mappings {
 
     pub fn remove_range(&mut self, range: Range<VirtAddr>) {
         // Make entries fit perfectly on boundaries
-        let mut start_area = self.get(range.start);
+        let start_area = self.get(range.start);
         if start_area.range.start < range.start {
             // need to split
             self.split(start_area, range.start);
-            start_area = self.get(range.start);
+            //start_area = self.get(range.start);
         }
 
-        let mut end_area = self.get(range.end - PAGE_SIZE);
+        let end_area = self.get(range.end - PAGE_SIZE);
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
-            end_area = self.get(range.end - PAGE_SIZE);
+            //end_area = self.get(range.end - PAGE_SIZE);
         }
 
         // Replace all ranges inside

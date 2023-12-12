@@ -2,11 +2,13 @@ mod mapping;
 mod mappings;
 mod process;
 mod processes;
+mod memory_access;
 
 use alloc::sync::Arc;
 
 use self::processes::PROCESSES;
 pub use self::process::Process;
+pub use self::memory_access::MemoryAccess;
 
 use super::Error;
 

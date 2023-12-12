@@ -6,10 +6,11 @@ use x86_64::{structures::paging::mapper::MapToError, VirtAddr};
 
 use super::{
     buddy::{self, BuddyAllocator},
+    config::{KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START},
     paging::{self, Permissions},
     phys,
     slab::{self, SCAllocator},
-    config::{KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START}, KvmStats,
+    FrameRef, KvmStats,
 };
 
 /*
@@ -51,25 +52,30 @@ impl<'a> Allocator<'a> {
 
     pub fn allocate(&mut self, page_count: usize) -> Result<VirtAddr, AllocatorError> {
         assert!(page_count > 0);
-        let layout = Self::build_layout(page_count);
 
-        let alloc_res = self.buddy_allocator.alloc(layout);
-        if let Err(err) = alloc_res {
-            // Ensure we matched all types
-            match err {
-                buddy::AllocatorError::NoMemory => {}
-            }
-
-            return Err(AllocatorError::NoVirtualSpace);
-        }
-
-        let addr = alloc_res.unwrap();
+        let addr = self.reserve(page_count)?;
 
         match self.map_phys_alloc(addr, page_count) {
             Ok(_) => Ok(addr),
             Err(err) => {
                 // remove address space reservation
-                self.buddy_allocator.dealloc(addr, layout);
+                self.unreserve(addr, page_count);
+
+                Err(err)
+            }
+        }
+    }
+
+    pub fn allocate_with_frames(&mut self, frames: &[FrameRef]) -> Result<VirtAddr, AllocatorError> {
+        assert!(frames.len() > 0);
+
+        let addr = self.reserve(frames.len())?;
+
+        match self.map_phys_frames(addr, frames) {
+            Ok(_) => Ok(addr),
+            Err(err) => {
+                // remove address space reservation
+                self.unreserve(addr, frames.len());
 
                 Err(err)
             }
@@ -82,8 +88,28 @@ impl<'a> Allocator<'a> {
         assert!(addr >= VMALLOC_START);
         assert!(addr < VMALLOC_END);
 
-        self.unmap_phys_alloc(addr, page_count);
+        self.unmap_phys(addr, page_count);
 
+        self.unreserve(addr, page_count);
+    }
+
+    fn reserve(&mut self, page_count: usize) -> Result<VirtAddr, AllocatorError> {
+        let layout = Self::build_layout(page_count);
+
+        match self.buddy_allocator.alloc(layout) {
+            Ok(addr) => Ok(addr),
+            Err(err) => {
+                // Ensure we matched all types
+                match err {
+                    buddy::AllocatorError::NoMemory => {}
+                }
+
+                return Err(AllocatorError::NoVirtualSpace);
+            }
+        }
+    }
+
+    fn unreserve(&mut self, addr: VirtAddr, page_count: usize) {
         self.buddy_allocator
             .dealloc(addr, Self::build_layout(page_count));
     }
@@ -101,7 +127,7 @@ impl<'a> Allocator<'a> {
 
                 // Remove pages allocated so far
                 if page_index > 0 {
-                    self.unmap_phys_alloc(addr, page_index);
+                    self.unmap_phys(addr, page_index);
                 }
 
                 return Err(AllocatorError::NoMemory);
@@ -116,7 +142,7 @@ impl<'a> Allocator<'a> {
             {
                 // Remove pages allocated so far
                 if page_index > 0 {
-                    self.unmap_phys_alloc(addr, page_index);
+                    self.unmap_phys(addr, page_index);
                 }
 
                 match err {
@@ -134,7 +160,37 @@ impl<'a> Allocator<'a> {
         Ok(())
     }
 
-    fn unmap_phys_alloc(&mut self, addr: VirtAddr, page_count: usize) {
+    fn map_phys_frames(&mut self, addr: VirtAddr, frames: &[FrameRef]) -> Result<(), AllocatorError> {
+        for (page_index, frame_ref) in frames.iter().enumerate() {
+            let page_addr = addr + page_index * PAGE_SIZE;
+            let mut frame = frame_ref.clone();
+            let perms = Permissions::READ | Permissions::WRITE;
+
+            if let Err(err) =
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, &mut frame, perms) }
+            {
+                // Remove pages allocated so far
+                if page_index > 0 {
+                    self.unmap_phys(addr, page_index);
+                }
+
+                match err {
+                    MapToError::FrameAllocationFailed => return Err(AllocatorError::NoMemory),
+                    MapToError::ParentEntryHugePage => {
+                        panic!("Unexpected map error: ParentEntryHugePage {page_addr:?}")
+                    }
+                    MapToError::PageAlreadyMapped(_) => {
+                        panic!("Unexpected map error: PageAlreadyMapped {page_addr:?}")
+                    }
+                }
+            }
+        }
+
+        Ok(())
+
+    }
+
+    fn unmap_phys(&mut self, addr: VirtAddr, page_count: usize) {
         for page_index in 0..page_count {
             let page_addr = addr + page_index * PAGE_SIZE;
             let frame = unsafe {
@@ -224,7 +280,7 @@ pub fn stats() -> KvmStats {
     let buddy_stats = allocator.buddy_allocator.stats();
 
     KvmStats {
-        used: buddy_stats.allocated, 
+        used: buddy_stats.allocated,
         total: buddy_stats.total,
     }
 }
@@ -241,6 +297,21 @@ pub fn allocate(page_count: usize) -> Result<VirtAddr, AllocatorError> {
     res
 }
 
+/// Map only some already-allocated phys frames into kvm space
+///
+/// ### Note
+/// The frames are cloned then borrowed.
+pub fn allocate_with_frames(frames: &[FrameRef]) -> Result<VirtAddr, AllocatorError> {
+    let mut allocator = ALLOCATOR.write();
+
+    let res = allocator.allocate_with_frames(frames);
+
+    if res.is_ok() {
+        allocator.check_slab_reservations();
+    }
+
+    res
+}
 pub fn deallocate(addr: VirtAddr, page_count: usize) {
     let mut allocator = ALLOCATOR.write();
 

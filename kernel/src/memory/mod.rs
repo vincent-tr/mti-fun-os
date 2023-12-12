@@ -182,6 +182,36 @@ pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
     slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE)
 }
 
+/// Helper to permit map a set of physical pages into kernel space.
+/// 
+/// This is different from `access_phys` because this create a contigous kernel VM space with all phys frames.
+/// 
+/// This permits to access structures which can be laid out across a page boundary.
+/// 
+/// Return a virtual address that corresponds to the start of the mapping.
+///
+/// # Safety
+/// - Concurrent mutable accesses are not checked.
+/// - Must be freed with unmap_phys
+///
+pub unsafe fn map_phys(frames: &[FrameRef]) -> Option<VirtAddr> {
+    match kvm::allocate_with_frames(frames) {
+        Ok(addr) => Some(addr),
+        Err(err) => {
+            // Ensure all arms are matched
+            match err {
+                kvm::AllocatorError::NoMemory => None,
+                kvm::AllocatorError::NoVirtualSpace => None,
+            }
+        },
+    }
+}
+
+/// unmap kernel VM space previously mapped with `map_phys`
+pub fn unmap_phys(addr: VirtAddr, frame_count: usize) {
+    kvm::deallocate(addr, frame_count);
+}
+
 /// Structure that defines a kernel stack
 ///
 /// TODO: guards

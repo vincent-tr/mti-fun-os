@@ -130,7 +130,7 @@ impl<'a> Loader<'a> {
         self.process.map(mem_start, mem_size, perms, Some(mobj), 0).expect("map failed");
     }
 
-    fn load_data(&self, mobj: &Arc<MemoryObject>, mut mobj_range: Range<usize>, mut binary_range: Range<usize>) {
+    fn load_data(&self, mobj: &Arc<MemoryObject>, mobj_range: Range<usize>, mut binary_range: Range<usize>) {
         let mobj_range_aligned = page_aligned_down(mobj_range.start)..page_aligned_up(mobj_range.end);
 
         for frame_offset in mobj_range_aligned.step_by(PAGE_SIZE) {

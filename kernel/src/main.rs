@@ -11,23 +11,30 @@
 #![feature(btree_cursors)]
 #![feature(let_chains)]
 #![feature(const_trait_impl)]
+#![feature(naked_functions)]
+#![feature(asm_const)]
 
+extern crate alloc;
 extern crate bootloader_api;
 extern crate lazy_static;
-extern crate alloc;
 
 mod gdt;
 mod interrupts;
 mod logging;
 mod memory;
 
-mod user;
 mod init;
+mod user;
 
+use crate::{interrupts::switch_to_userland, memory::VirtAddr};
+use crate::{
+    memory::{Permissions, PAGE_SIZE},
+    user::MemoryObject,
+};
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info};
-use x86_64::VirtAddr;
+use x86_64::registers::model_specific::{Efer, EferFlags};
 
 const CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -56,19 +63,45 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let physical_memory_offset = VirtAddr::new(*boot_info.physical_memory_offset.as_ref().unwrap());
 
     gdt::init();
-    interrupts::init_idt();
+    interrupts::init_base();
     memory::init(physical_memory_offset, &boot_info.memory_regions);
-    
+
     // Note:
     // boot_info is unmapped from here.
     // Do not used it.
 
     // From here we can use normal allocations in the kernel.
 
-    let (process, entry_point) = init::load();
-    info!("init entry point = {entry_point:?}");
+    interrupts::init_userland();
 
-    panic!("End of main!");
+    let (process, entry_point) = init::load();
+
+    const INIT_STACK_SIZE: usize = 5 * PAGE_SIZE;
+
+    let user_stack_mobj =
+        MemoryObject::new(INIT_STACK_SIZE).expect("Failed to allocate user stack");
+    let user_stack = process
+        .map(
+            VirtAddr::zero(),
+            user_stack_mobj.size(),
+            Permissions::READ | Permissions::WRITE,
+            Some(user_stack_mobj),
+            0,
+        )
+        .expect("Failed to map user stack");
+    let user_stack_top = user_stack + INIT_STACK_SIZE;
+
+    unsafe {
+        let as_ptr = process.address_space().as_mut_ptr();
+        // Note: should keep ref on process since it's installed
+        memory::set_current_address_space(&*as_ptr);
+    }
+
+    info!("init entry point = {entry_point:?}");
+    info!("init stack = {user_stack:?} -> {user_stack_top:?}");
+
+    // TODO: clean initial kernel stack
+    switch_to_userland(entry_point, user_stack_top);
 }
 
 #[panic_handler]
@@ -82,28 +115,3 @@ fn halt() -> ! {
         x86_64::instructions::hlt();
     }
 }
-
-/*
-
-
-/// Performs the actual context switch.
-unsafe fn context_switch(addresses: Addresses) -> ! {
-    unsafe {
-        asm!(
-            r#"
-            xor rbp, rbp
-            mov cr3, {}
-            mov rsp, {}
-            push 0
-            jmp {}
-            "#,
-            in(reg) addresses.page_table.start_address().as_u64(),
-            in(reg) addresses.stack_top.as_u64(),
-            in(reg) addresses.entry_point.as_u64(),
-            in("rdi") addresses.boot_info as *const _ as usize,
-        );
-    }
-    unreachable!();
-}
-
-*/

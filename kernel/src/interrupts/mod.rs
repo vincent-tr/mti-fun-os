@@ -1,9 +1,22 @@
 #[macro_use]
+mod handler;
 mod exceptions;
+mod syscalls;
 
-use crate::gdt;
+use core::arch::asm;
+
+use crate::gdt::{self, user_data_selector};
 use lazy_static::lazy_static;
-use x86_64::structures::idt::InterruptDescriptorTable;
+use x86_64::{structures::idt::InterruptDescriptorTable, registers::rflags::RFlags};
+use crate::memory::VirtAddr;
+
+use self::handler::init_process_control_region;
+
+const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
+
+// Note:
+// If kernel is entered with INT exception or irq, it should return to userland with IRET.
+// If kernel is entered with SYSCALL, it should return to userland with SYSRET.
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -24,6 +37,34 @@ lazy_static! {
     };
 }
 
-pub fn init_idt() {
+pub fn init_base() {
     IDT.load();
+}
+
+pub fn init_userland() {
+    init_process_control_region();
+
+    syscalls::init();
+}
+
+pub fn switch_to_userland(user_code: VirtAddr, user_stack_top: VirtAddr) -> ! {
+    // Initial switch to userland using sysretq
+
+    unsafe {
+        asm!(concat!(
+            "mov ds, {user_data_seg:x};",     // Set userland data segment
+            "mov es, {user_data_seg:x};",     // Set userland data segment
+            "mov fs, {user_data_seg:x};",     // Set userland data segment
+            "mov gs, {user_data_seg:x};",     // Set userland data segment
+            "mov rsp, {user_stack};",         // Set userland stack pointer
+            "sysretq;",                       // Return into userland; RCX=>RIP,R11=>RFLAGS
+        ),
+
+        user_data_seg = in(reg) user_data_selector().0,
+        user_stack = in(reg) user_stack_top.as_u64(),
+        in("rcx") user_code.as_u64(), // Set userland return pointer
+        in("r11")USERLAND_RFLAGS.bits(), // Set rflags
+
+        options(noreturn));
+    }
 }

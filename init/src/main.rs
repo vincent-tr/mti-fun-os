@@ -13,6 +13,7 @@ const SYSCALL_EXIT: usize = 1;
 pub extern "C" fn _start() -> ! {
     unsafe {
         syscall0(SYSCALL_EXIT);
+        syscall0(2);
     }
     loop {}
 }

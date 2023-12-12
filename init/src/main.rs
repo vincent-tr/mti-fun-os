@@ -7,12 +7,10 @@ use core::panic::PanicInfo;
 
 use syscalls::syscall0;
 
-const SYSCALL_EXIT: usize = 1;
-
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     unsafe {
-        syscall0(SYSCALL_EXIT);
+        syscall0(1);
         syscall0(2);
     }
     loop {}

@@ -1,10 +1,10 @@
 use super::handler::InterruptStack;
 use core::arch::asm;
-use log::info;
 use memoffset::offset_of;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::memory::VirtAddr;
+use crate::user::execute_syscall;
 use x86_64::registers::model_specific::{Efer, EferFlags};
 use x86_64::registers::{
     model_specific::{LStar, SFMask, Star},
@@ -81,10 +81,16 @@ unsafe fn syscall_native_handler() {
 unsafe extern "C" fn syscall_handler() {
     let stack = InterruptStack::current();
 
-    // TODO
-    info!("SYSCALL {}", stack.scratch.rax);
+    let n = stack.scratch.rax;
 
-    if stack.scratch.rax == 2 {
-        panic!("end");
-    }
+    let arg1 = stack.scratch.rdi;
+    let arg2 = stack.scratch.rsi;
+    let arg3 = stack.scratch.rdx;
+    let arg4 = stack.scratch.r10;
+    let arg5 = stack.scratch.r8;
+    let arg6 = stack.scratch.r9;
+
+    let ret = execute_syscall(n, arg1, arg2, arg3, arg4, arg5, arg6);
+
+    stack.scratch.rax = ret;
 }

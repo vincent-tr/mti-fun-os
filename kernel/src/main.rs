@@ -73,6 +73,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     // From here we can use normal allocations in the kernel.
 
     interrupts::init_userland();
+    user::init();
 
     let (process, entry_point) = init::load();
 

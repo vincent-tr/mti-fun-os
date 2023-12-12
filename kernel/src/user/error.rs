@@ -1,9 +1,11 @@
 use crate::memory::{is_page_aligned, is_userspace, VirtAddr};
 
 #[derive(Debug)]
+#[repr(usize)]
 pub enum Error {
-    InvalidArgument,
+    InvalidArgument = 1,
     OutOfMemory,
+    NotSupported,
 }
 
 pub fn check_arg(condition: bool) -> Result<(), Error> {
@@ -28,4 +30,8 @@ pub fn check_positive(value: usize) -> Result<(), Error> {
 
 pub fn out_of_memory() -> Error {
     Error::OutOfMemory
+}
+
+pub fn not_supported() -> Error {
+    Error::NotSupported
 }

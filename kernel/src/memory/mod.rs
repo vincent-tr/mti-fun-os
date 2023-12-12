@@ -1,25 +1,26 @@
 mod buddy;
+mod config;
 mod kalloc;
 mod kvm;
 mod paging;
 mod phys;
 mod slab;
-mod config;
 
 use core::slice;
 
 use bootloader_api::info::MemoryRegions;
 use log::info;
 
-use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
-pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
-pub use config::{PAGE_SIZE, KERNEL_START, KERNEL_STACK_SIZE};
+pub use config::{KERNEL_START, PAGE_SIZE};
 pub use paging::{create_adress_space, set_current_address_space, AddressSpace, Permissions};
-pub use phys::{FrameRef, AllocatorError};
+pub use phys::{AllocatorError, FrameRef};
+use x86_64::structures::paging::{mapper::MapToError, Size4KiB};
+pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
 
 pub type MapError = MapToError<Size4KiB>;
 pub use x86_64::structures::paging::mapper::UnmapError;
 
+use config::KERNEL_STACK_SIZE;
 use paging::phys_to_virt;
 
 pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
@@ -165,22 +166,45 @@ pub fn page_aligned_down(addr: usize) -> usize {
 #[inline]
 pub fn view_phys<'a>(frame: &'a FrameRef) -> &'a [u8] {
     let addr = phys_to_virt(frame.frame());
-    unsafe {
-        slice::from_raw_parts(addr.as_ptr(), PAGE_SIZE)
-    }
+    unsafe { slice::from_raw_parts(addr.as_ptr(), PAGE_SIZE) }
 }
 
 /// Helper to permit to access a physical page.
 ///
 /// Return a virtual address that corresponds to a view of the physical address
-/// 
+///
 /// # Safety
-/// 
-/// Concurrent mutable accesses are not checked.
-/// 
-/// Caller must ensure that no other access or view on the page occurs at the same time.
-/// 
+/// - Concurrent mutable accesses are not checked.
+/// - Caller must ensure that no other access or view on the page occurs at the same time.
+///
 pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
     let addr = phys_to_virt(frame.frame());
     slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE)
+}
+
+/// Structure that defines a kernel stack
+///
+/// TODO: guards
+#[repr(align(8))]
+#[derive(Debug)]
+pub struct KernelStack {
+    data: [u8; KERNEL_STACK_SIZE],
+    end: [u8; 0],
+}
+
+impl KernelStack {
+    pub const fn new() -> Self {
+        Self {
+            data: [0; KERNEL_STACK_SIZE],
+            end: [0; 0],
+        }
+    }
+
+    pub fn address(&self) -> VirtAddr {
+        return VirtAddr::new_truncate(self.data.as_ptr() as u64);
+    }
+
+    pub fn stack_top(&self) -> VirtAddr {
+        return VirtAddr::new_truncate(self.end.as_ptr() as u64);
+    }
 }

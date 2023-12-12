@@ -14,6 +14,7 @@ lazy_static! {
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
+            // Special stack for double fault, so that we cannot stack overflow to print to correct info
             static mut STACK: KernelStack = KernelStack::new();
             unsafe { STACK.stack_top() }
         };

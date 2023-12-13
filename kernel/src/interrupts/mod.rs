@@ -12,7 +12,8 @@ use crate::memory::VirtAddr;
 
 use self::handler::init_process_control_region;
 
-const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
+pub const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
+pub use self::handler::InterruptStack;
 
 // Note:
 // If kernel is entered with INT exception or irq, it should return to userland with IRET.

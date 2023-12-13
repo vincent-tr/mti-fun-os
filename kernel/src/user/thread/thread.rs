@@ -1,7 +1,9 @@
+use core::fmt;
+
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
-use crate::interrupts::{USERLAND_RFLAGS, InterruptStack};
+use crate::interrupts::{InterruptStack, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
 
 pub struct Thread {}
@@ -102,5 +104,33 @@ impl ThreadContext {
 
         interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR_INDEX);
         interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR_INDEX);
+    }
+}
+
+impl fmt::Debug for ThreadContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ThreadContext")
+            .field("rax", &format_args!("{0:?} (0x{0:016X})", self.rax))
+            .field("rcx", &format_args!("{0:?} (0x{0:016X})", self.rcx))
+            .field("rdx", &format_args!("{0:?} (0x{0:016X})", self.rdx))
+            .field("rbx", &format_args!("{0:?} (0x{0:016X})", self.rbx))
+            .field("rsi", &format_args!("{0:?} (0x{0:016X})", self.rsi))
+            .field("rdi", &format_args!("{0:?} (0x{0:016X})", self.rdi))
+            .field("rsp", &format_args!("{0:?}) - stack pointer", self.rsp))
+            .field("rbp", &format_args!("{0:?} (0x{0:016X})", self.rbp))
+            .field("r8", &format_args!("{0:?} (0x{0:016X})", self.r8))
+            .field("r9", &format_args!("{0:?} (0x{0:016X})", self.r9))
+            .field("r10", &format_args!("{0:?} (0x{0:016X})", self.r10))
+            .field("r11", &format_args!("{0:?} (0x{0:016X})", self.r11))
+            .field("r12", &format_args!("{0:?} (0x{0:016X})", self.r12))
+            .field("r13", &format_args!("{0:?} (0x{0:016X})", self.r13))
+            .field("r14", &format_args!("{0:?} (0x{0:016X})", self.r14))
+            .field("r15", &format_args!("{0:?} (0x{0:016X})", self.r15))
+            .field(
+                "instruction pointer",
+                &format_args!("{0:?}", self.instruction_pointer),
+            )
+            .field("CPU flags pointer", &format_args!("{:?}", self.cpu_flags))
+            .finish()
     }
 }

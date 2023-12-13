@@ -1,12 +1,68 @@
 use core::fmt;
 
+use alloc::sync::Arc;
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::interrupts::{InterruptStack, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
 
-pub struct Thread {}
+/// Standalone function, so that Thread::new() can remain private
+///
+/// Note: Only Thread type is exported by thread module, not this function
+pub fn new(id: u32, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Thread> {
+    Thread::new(id, thread_start, stack_top)
+}
+
+/// Thread of execution
+pub struct Thread {
+    id: u32,
+    state: ThreadState,
+    context: ThreadContext,
+}
+
+impl Thread {
+    fn new(id: u32, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Self> {
+        Arc::new(Self { 
+            id, 
+            state: ThreadState::Ready, // a thread is ready by default
+            context: ThreadContext::new(thread_start, stack_top)
+        })
+    }
+
+    /// Get the thread (global) identifier
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
+    /// Get the state of the thread
+    pub fn state(&self) -> ThreadState {
+        self.state
+    }
+}
+
+/// State of a thread
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThreadState {
+    /// The thread is currently executing.
+    /// 
+    /// When in kernel mode, this is the one that is currently configured as current, and on the interrupt stack
+    Executing,
+
+    /// This thread is ready to be scheduled
+    Ready,
+
+    /// This thread is sleeping, waiting for something
+    Waiting,
+
+    /// This thread got an error (eg: page fault).
+    /// 
+    /// It can be resumed after the error has been solved.
+    Error,
+
+    /// This thread has been terminated
+    Terminated,
+}
 
 /// Saved context of the thread.
 struct ThreadContext {

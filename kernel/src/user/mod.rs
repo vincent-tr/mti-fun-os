@@ -3,6 +3,7 @@ mod id_gen;
 mod memory_object;
 pub mod process;
 mod syscalls;
+pub mod thread;
 
 use crate::{memory::{Permissions, VirtAddr}, user::error::{check_arg_res, invalid_argument}};
 use alloc::{sync::Arc, str};

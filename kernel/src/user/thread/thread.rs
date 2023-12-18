@@ -3,6 +3,7 @@ use core::hash::{Hash, Hasher};
 
 use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
+use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
 use x86_64::registers::rflags::RFlags;
 
@@ -69,12 +70,16 @@ impl Thread {
         thread_start: VirtAddr,
         stack_top: VirtAddr,
     ) -> Arc<Self> {
-        Arc::new(Self {
+        let thread = Arc::new(Self {
             id,
             process,
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
             context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
-        })
+        });
+
+        debug!("Thread {} created (pid={})", thread.id, thread.process.id());
+
+        thread
     }
 
     /// Get the thread (global) identifier
@@ -90,6 +95,12 @@ impl Thread {
     /// Get the state of the thread
     pub fn state(&self) -> RwLockReadGuard<ThreadState> {
         self.state.read()
+    }
+}
+
+impl Drop for Thread {
+    fn drop(&mut self) {
+        debug!("Thread {} deleted (pid={})", self.id, self.process.id());
     }
 }
 

@@ -75,3 +75,8 @@ tail -f serial.log
 ### Context switch
 
 - https://wiki.osdev.org/Kernel_Multitasking
+
+### APIC/Timer
+
+- https://wiki.osdev.org/APIC
+- https://wiki.osdev.org/APIC_Timer

@@ -80,3 +80,7 @@ tail -f serial.log
 
 - https://wiki.osdev.org/APIC
 - https://wiki.osdev.org/APIC_Timer
+
+### The holy bible
+
+- https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf

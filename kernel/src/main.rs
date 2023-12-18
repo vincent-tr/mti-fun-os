@@ -28,10 +28,6 @@ mod init;
 mod user;
 
 use crate::memory::VirtAddr;
-use crate::{
-    memory::{Permissions, PAGE_SIZE},
-    user::MemoryObject,
-};
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info};
@@ -77,7 +73,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     user::init();
 
     // TODO: clean initial kernel stack
-    
+
     init::run();
 }
 

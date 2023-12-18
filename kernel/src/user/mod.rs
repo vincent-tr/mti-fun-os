@@ -1,5 +1,6 @@
 mod error;
 mod id_gen;
+mod weak_map;
 mod memory_object;
 pub mod process;
 mod syscalls;

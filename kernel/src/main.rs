@@ -76,28 +76,9 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    let (process, entry_point) = init::load();
-
-
-    const INIT_STACK_SIZE: usize = 5 * PAGE_SIZE;
-
-    let user_stack_mobj =
-        MemoryObject::new(INIT_STACK_SIZE).expect("Failed to allocate user stack");
-    let user_stack = process
-        .map(
-            VirtAddr::zero(),
-            user_stack_mobj.size(),
-            Permissions::READ | Permissions::WRITE,
-            Some(user_stack_mobj),
-            0,
-        )
-        .expect("Failed to map user stack");
-    let user_stack_top = user_stack + INIT_STACK_SIZE;
-
-    let thread = user::thread::create(process.clone(), entry_point, user_stack_top);
-
     // TODO: clean initial kernel stack
-    unsafe { user::thread::initial_setup_thread(thread) };
+    
+    init::run();
 }
 
 #[panic_handler]

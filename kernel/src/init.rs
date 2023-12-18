@@ -1,8 +1,10 @@
-use core::cmp::{min, max};
+use core::cmp::{max, min};
 use core::ops::Range;
 
-use crate::memory::{PAGE_SIZE, page_aligned_up, self, Permissions, page_aligned_down};
+use crate::memory::{self, page_aligned_down, page_aligned_up, Permissions, PAGE_SIZE};
+use crate::user;
 use crate::user::process::{self, Process};
+use crate::user::thread::Thread;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::{debug, info};
@@ -24,9 +26,18 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
-pub fn load() -> (Arc<Process>, VirtAddr) {
+pub fn run() -> ! {
     info!("Loading init binary");
+    let (process, entry_point) = load();
 
+    info!("Starting init binary");
+    let thread = create_thread(process, entry_point);
+
+    // Note: all locals must be dropped here
+    unsafe { user::thread::initial_setup_thread(thread) };
+}
+
+fn load() -> (Arc<Process>, VirtAddr) {
     // TODO: try to make it part of the build
     let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
 
@@ -35,6 +46,25 @@ pub fn load() -> (Arc<Process>, VirtAddr) {
     loader.load_segments();
     let entry_point = loader.entry_point();
     (loader.process, entry_point)
+}
+
+fn create_thread(process: Arc<Process>, entry_point: VirtAddr) -> Arc<Thread> {
+    const INIT_STACK_SIZE: usize = 5 * PAGE_SIZE;
+
+    let user_stack_mobj =
+        MemoryObject::new(INIT_STACK_SIZE).expect("Failed to allocate user stack");
+    let user_stack = process
+        .map(
+            VirtAddr::zero(),
+            user_stack_mobj.size(),
+            Permissions::READ | Permissions::WRITE,
+            Some(user_stack_mobj),
+            0,
+        )
+        .expect("Failed to map user stack");
+    let user_stack_top = user_stack + INIT_STACK_SIZE;
+
+    user::thread::create(process.clone(), entry_point, user_stack_top)
 }
 
 struct Loader<'a> {
@@ -104,14 +134,17 @@ impl<'a> Loader<'a> {
 
         let mem_size = page_aligned_up(segment.mem_size() as usize);
         let mem_start = VirtAddr::new(page_aligned_down(segment.virtual_addr() as usize) as u64);
-        
-        let mobj =
-            MemoryObject::new(mem_size).expect("Could not create MemoryObject");
 
-        let mobj_start = (segment.virtual_addr()-mem_start.as_u64()) as usize;
-        let mobj_range = mobj_start..mobj_start+segment.file_size() as usize;
+        let mobj = MemoryObject::new(mem_size).expect("Could not create MemoryObject");
 
-        self.load_data(&mobj, mobj_range, segment.offset() as usize..(segment.offset() + segment.file_size()) as usize);
+        let mobj_start = (segment.virtual_addr() - mem_start.as_u64()) as usize;
+        let mobj_range = mobj_start..mobj_start + segment.file_size() as usize;
+
+        self.load_data(
+            &mobj,
+            mobj_range,
+            segment.offset() as usize..(segment.offset() + segment.file_size()) as usize,
+        );
 
         let mut perms = Permissions::NONE;
 
@@ -127,16 +160,24 @@ impl<'a> Loader<'a> {
             perms |= Permissions::EXECUTE;
         }
 
-        self.process.map(mem_start, mem_size, perms, Some(mobj), 0).expect("map failed");
+        self.process
+            .map(mem_start, mem_size, perms, Some(mobj), 0)
+            .expect("map failed");
     }
 
-    fn load_data(&self, mobj: &Arc<MemoryObject>, mobj_range: Range<usize>, mut binary_range: Range<usize>) {
-        let mobj_range_aligned = page_aligned_down(mobj_range.start)..page_aligned_up(mobj_range.end);
+    fn load_data(
+        &self,
+        mobj: &Arc<MemoryObject>,
+        mobj_range: Range<usize>,
+        mut binary_range: Range<usize>,
+    ) {
+        let mobj_range_aligned =
+            page_aligned_down(mobj_range.start)..page_aligned_up(mobj_range.end);
 
         for frame_offset in mobj_range_aligned.step_by(PAGE_SIZE) {
-
             let frame_data = unsafe { memory::access_phys(mobj.frame(frame_offset)) };
-            let frame_range = max(frame_offset, mobj_range.start)..min(frame_offset + PAGE_SIZE, mobj_range.end);
+            let frame_range =
+                max(frame_offset, mobj_range.start)..min(frame_offset + PAGE_SIZE, mobj_range.end);
             let source_range = binary_range.start..binary_range.start + frame_range.len();
 
             assert!(binary_range.len() >= frame_range.len());

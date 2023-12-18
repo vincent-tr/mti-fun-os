@@ -1,32 +1,66 @@
 use core::fmt;
+use core::hash::{Hash, Hasher};
 
-use alloc::sync::Arc;
+use alloc::sync::{Arc, Weak};
+use hashbrown::HashSet;
+use spin::{Mutex, RwLock, RwLockReadGuard};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::interrupts::{InterruptStack, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
+use crate::user::process::Process;
+
+use super::wait_queue::WaitQueue;
 
 /// Standalone function, so that Thread::new() can remain private
 ///
 /// Note: Only Thread type is exported by thread module, not this function
-pub fn new(id: u32, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Thread> {
-    Thread::new(id, thread_start, stack_top)
+pub fn new(
+    id: u32,
+    process: Arc<Process>,
+    thread_start: VirtAddr,
+    stack_top: VirtAddr,
+) -> Arc<Thread> {
+    Thread::new(id, process, thread_start, stack_top)
+}
+
+pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
+    let mut state = thread.state.write();
+    *state = new_state;
+}
+
+pub unsafe fn save(thread: &Arc<Thread>) {
+    let mut context = thread.context.lock();
+    context.save(InterruptStack::current());
+}
+
+pub unsafe fn load(thread: &Arc<Thread>) {
+    let mut context = thread.context.lock();
+    context.load(InterruptStack::current());
 }
 
 /// Thread of execution
+#[derive(Debug)]
 pub struct Thread {
     id: u32,
-    state: ThreadState,
-    context: ThreadContext,
+    process: Arc<Process>,
+    state: RwLock<ThreadState>,
+    context: Mutex<ThreadContext>,
 }
 
 impl Thread {
-    fn new(id: u32, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Self> {
-        Arc::new(Self { 
-            id, 
-            state: ThreadState::Ready, // a thread is ready by default
-            context: ThreadContext::new(thread_start, stack_top)
+    fn new(
+        id: u32,
+        process: Arc<Process>,
+        thread_start: VirtAddr,
+        stack_top: VirtAddr,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            id,
+            process,
+            state: RwLock::new(ThreadState::Ready), // a thread is ready by default
+            context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
         })
     }
 
@@ -35,17 +69,22 @@ impl Thread {
         self.id
     }
 
+    /// Get the process the threaad belong to
+    pub fn process(&self) -> &Arc<Process> {
+        &self.process
+    }
+
     /// Get the state of the thread
-    pub fn state(&self) -> ThreadState {
-        self.state
+    pub fn state(&self) -> RwLockReadGuard<ThreadState> {
+        self.state.read()
     }
 }
 
 /// State of a thread
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ThreadState {
     /// The thread is currently executing.
-    /// 
+    ///
     /// When in kernel mode, this is the one that is currently configured as current, and on the interrupt stack
     Executing,
 
@@ -53,15 +92,106 @@ pub enum ThreadState {
     Ready,
 
     /// This thread is sleeping, waiting for something
-    Waiting,
+    Waiting(HashSet<WaitQueueRef>),
 
     /// This thread got an error (eg: page fault).
-    /// 
+    ///
     /// It can be resumed after the error has been solved.
-    Error,
+    Error(ThreadError),
 
     /// This thread has been terminated
     Terminated,
+}
+
+#[derive(Debug, Clone)]
+pub struct WaitQueueRef(Weak<WaitQueue>);
+
+impl WaitQueueRef {
+    pub fn upgrade(&self) -> Option<Arc<WaitQueue>> {
+        self.0.upgrade()
+    }
+
+    pub fn weak(&self) -> &Weak<WaitQueue> {
+        &self.0
+    }
+
+    pub fn as_ptr(&self) -> *const WaitQueue {
+        self.0.as_ptr()
+    }
+}
+
+impl PartialEq for WaitQueueRef {
+    fn eq(&self, other: &WaitQueueRef) -> bool {
+        self.0.as_ptr() == other.0.as_ptr()
+    }
+}
+
+impl Eq for WaitQueueRef {}
+
+impl Hash for WaitQueueRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.as_ptr().hash(state);
+    }
+}
+
+impl From<&Arc<WaitQueue>> for WaitQueueRef {
+    fn from(value: &Arc<WaitQueue>) -> Self {
+        Self(Arc::downgrade(value))
+    }
+}
+
+impl From<Weak<WaitQueue>> for WaitQueueRef {
+    fn from(value: Weak<WaitQueue>) -> Self {
+        Self(value)
+    }
+}
+
+/// Error occured on a thread
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThreadError {
+    PageFault,
+}
+
+impl ThreadState {
+    pub fn is_executing(&self) -> bool {
+        if let ThreadState::Executing = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_ready(&self) -> bool {
+        if let ThreadState::Ready = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_waiting(&self) -> Option<&HashSet<WaitQueueRef>> {
+        if let ThreadState::Waiting(wait_queues) = self {
+            Some(wait_queues)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_error(&self) -> Option<ThreadError> {
+        if let ThreadState::Error(error) = self {
+            Some(*error)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_terminated(&self) -> bool {
+        if let ThreadState::Terminated = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Saved context of the thread.

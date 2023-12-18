@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use log::debug;
 use spin::RwLock;
 
-use crate::memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr};
+use crate::{memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr}, user::{weak_map::WeakMap, thread::Thread}};
 
 use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};
 
@@ -27,6 +27,7 @@ pub struct Process {
     address_space: RwLock<AddressSpace>,
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
+    threads: WeakMap<u32, Thread>,
 }
 
 impl Process {
@@ -45,6 +46,7 @@ impl Process {
             id,
             address_space: RwLock::new(address_space),
             mappings: RwLock::new(Mappings::new()),
+            threads: WeakMap::new(),
         });
 
         debug!("Process {} created", process.id);
@@ -158,6 +160,11 @@ impl Process {
     ) -> Result<MemoryAccess, Error> {
         let address_space = self.address_space().read();
         memory_access::create(&address_space, range, perms)
+    }
+
+    /// Add a thread to the process
+    pub fn add_thread( &self,thread: &Arc<Thread>) {
+        self.threads.insert(thread.id(), thread);
     }
 }
 

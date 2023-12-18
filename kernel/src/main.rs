@@ -27,13 +27,12 @@ mod memory;
 mod init;
 mod user;
 
-use crate::{interrupts::switch_to_userland, memory::VirtAddr};
+use crate::memory::VirtAddr;
 use crate::{
     memory::{Permissions, PAGE_SIZE},
     user::MemoryObject,
 };
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
-use core::mem;
 use core::panic::PanicInfo;
 use log::{error, info};
 use x86_64::registers::model_specific::{Efer, EferFlags};
@@ -79,6 +78,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     let (process, entry_point) = init::load();
 
+
     const INIT_STACK_SIZE: usize = 5 * PAGE_SIZE;
 
     let user_stack_mobj =
@@ -94,22 +94,10 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         .expect("Failed to map user stack");
     let user_stack_top = user_stack + INIT_STACK_SIZE;
 
-    unsafe {
-        let as_ptr = process.address_space().as_mut_ptr();
-        // Note: should keep ref on process since it's installed
-        memory::set_current_address_space(&*as_ptr);
-    }
-
-    // TODO: manage current thread/process properly
-    user::temp_set_process(process.clone());
-
-    info!("init entry point = {entry_point:?}");
-    info!("init stack = {user_stack:?} -> {user_stack_top:?}");
-
-    mem::drop(process);
+    let thread = user::thread::create(process.clone(), entry_point, user_stack_top);
 
     // TODO: clean initial kernel stack
-    switch_to_userland(entry_point, user_stack_top);
+    unsafe { user::thread::initial_setup_thread(thread) };
 }
 
 #[panic_handler]

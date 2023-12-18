@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, mem};
 use core::hash::{Hash, Hasher};
 
 use alloc::sync::{Arc, Weak};
@@ -7,7 +7,7 @@ use spin::{Mutex, RwLock, RwLockReadGuard};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
-use crate::interrupts::{InterruptStack, USERLAND_RFLAGS};
+use crate::interrupts::{InterruptStack, USERLAND_RFLAGS, switch_to_userland};
 use crate::memory::VirtAddr;
 use crate::user::process::Process;
 
@@ -36,8 +36,21 @@ pub unsafe fn save(thread: &Arc<Thread>) {
 }
 
 pub unsafe fn load(thread: &Arc<Thread>) {
-    let mut context = thread.context.lock();
+    let context = thread.context.lock();
     context.load(InterruptStack::current());
+}
+
+pub unsafe fn initial_run_thread(thread: Arc<Thread>) -> ! {
+    let context = thread.context.lock();
+
+    let user_code =  context.instruction_pointer;
+    let user_stack_top = context.rsp;
+
+    // drop it here since we won't return
+    mem::drop(context);
+    mem::drop(thread);
+
+    switch_to_userland(user_code, user_stack_top);
 }
 
 /// Thread of execution

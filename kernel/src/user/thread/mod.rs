@@ -8,10 +8,11 @@ use hashbrown::HashSet;
 use spin::RwLock;
 
 pub use self::thread::{Thread, ThreadError, ThreadState};
-use self::{threads::THREADS, wait_queue::WaitQueue};
+use self::{thread::initial_run_thread, threads::THREADS, wait_queue::WaitQueue};
 
 use super::process::Process;
 use crate::{
+    interrupts::switch_to_userland,
     memory::VirtAddr,
     user::thread::{
         scheduler::SCHEDULER,
@@ -30,6 +31,23 @@ pub fn create(process: Arc<Process>, thread_start: VirtAddr, stack_top: VirtAddr
 
 pub fn find(pid: u32) -> Option<Arc<Thread>> {
     THREADS.find(pid)
+}
+
+/// Setup initial thread
+pub unsafe fn initial_setup_thread(new_thread: Arc<Thread>) -> ! {
+    {
+        let new_process = new_thread.process();
+        let address_space = new_process.address_space().write();
+        unsafe { crate::memory::set_current_address_space(&address_space) };
+        
+        // initial task setup will be handled by initial_run_thread/switch_to_userland below
+        let mut current = CURRENT_THREAD.write();
+        update_state(&new_thread, ThreadState::Executing);
+        *current = Some(new_thread.clone());
+    }
+
+    // be sure to drop any locals before
+    initial_run_thread(new_thread);
 }
 
 // Note: null before init

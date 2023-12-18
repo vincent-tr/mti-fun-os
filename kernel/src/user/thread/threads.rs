@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 
 use alloc::sync::Arc;
 
-use crate::user::{id_gen::IdGen, weak_map::WeakMap, Error, process::Process};
+use crate::user::{id_gen::IdGen, weak_map::WeakMap, process::Process};
 
 use crate::memory::VirtAddr;
 

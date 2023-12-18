@@ -21,6 +21,8 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
 
     /// Insert item
     pub fn insert(&self, id: Key, value: &Arc<Value>) {
+        self.clean_map();
+
         let mut map = self.map.write();
         assert!(
             map.insert(id, Arc::downgrade(&value)).is_none(),

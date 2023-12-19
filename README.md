@@ -80,6 +80,7 @@ tail -f serial.log
 
 - https://wiki.osdev.org/APIC
 - https://wiki.osdev.org/APIC_Timer
+- https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/arch/x86_64/device/local_apic.rs
 
 ### The holy bible
 

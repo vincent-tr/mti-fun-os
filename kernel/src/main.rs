@@ -23,6 +23,7 @@ mod gdt;
 mod interrupts;
 mod logging;
 mod memory;
+mod devices;
 
 mod init;
 mod user;
@@ -30,7 +31,7 @@ mod user;
 use crate::memory::VirtAddr;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
-use log::{error, info};
+use log::{error, info, debug};
 use x86_64::registers::model_specific::{Efer, EferFlags};
 
 const CONFIG: BootloaderConfig = {
@@ -72,9 +73,25 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
+    let local_apic = unsafe { devices::LocalApic::init() };
+    debug!("local apic id: {:?}", local_apic.id());
+    let version = local_apic.version();
+    debug!("local apic version: version={}, max lvt={}, suppress eoi broadcast={}", version.version(), version.max_lvt_entries(), version.suppress_eoi_broadcasts());
+
     // TODO: clean initial kernel stack
 
     init::run();
+
+    /*
+    
+    Next:
+    - Timer interrupt for context switch
+    - Handle
+    - IPC
+    - Exceptions in userland
+    
+     */
+
 }
 
 #[panic_handler]

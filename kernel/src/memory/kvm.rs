@@ -2,7 +2,7 @@ use core::{alloc::Layout, mem, ptr::NonNull, usize};
 
 use log::{debug, info};
 use spin::RwLock;
-use x86_64::{structures::paging::mapper::MapToError, VirtAddr};
+use x86_64::{structures::paging::mapper::MapToError, VirtAddr, PhysAddr};
 
 use super::{
     buddy::{self, BuddyAllocator},
@@ -82,6 +82,25 @@ impl<'a> Allocator<'a> {
         }
     }
 
+    pub fn allocate_iomem(&mut self, phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<VirtAddr, AllocatorError> {
+        assert!(page_count > 0);
+        assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
+        // Only accept read or write (or both)
+        assert!(perms.intersects(Permissions::READ | Permissions::WRITE) && !perms.intersects(Permissions::EXECUTE));
+
+        let addr = self.reserve(page_count)?;
+
+        match self.map_iomem(addr, phys_addr, page_count, perms) {
+            Ok(_) => Ok(addr),
+            Err(err) => {
+                // remove address space reservation
+                self.unreserve(addr, page_count);
+
+                Err(err)
+            }
+        }    
+    }
+
     pub fn deallocate(&mut self, addr: VirtAddr, page_count: usize) {
         assert!(page_count > 0);
         assert!(addr.is_aligned(PAGE_SIZE as u64));
@@ -89,6 +108,17 @@ impl<'a> Allocator<'a> {
         assert!(addr < VMALLOC_END);
 
         self.unmap_phys(addr, page_count);
+
+        self.unreserve(addr, page_count);
+    }
+
+    pub fn deallocate_iomem(&mut self, addr: VirtAddr, page_count: usize) {
+        assert!(page_count > 0);
+        assert!(addr.is_aligned(PAGE_SIZE as u64));
+        assert!(addr >= VMALLOC_START);
+        assert!(addr < VMALLOC_END);
+
+        self.unmap_iomem(addr, page_count);
 
         self.unreserve(addr, page_count);
     }
@@ -138,7 +168,7 @@ impl<'a> Allocator<'a> {
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, &mut frame, perms) }
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms) }
             {
                 // Remove pages allocated so far
                 if page_index > 0 {
@@ -155,6 +185,9 @@ impl<'a> Allocator<'a> {
                     }
                 }
             }
+
+            // Mark the mapped frame as borrowed
+            unsafe { frame.borrow() };
         }
 
         Ok(())
@@ -167,11 +200,42 @@ impl<'a> Allocator<'a> {
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, &mut frame, perms) }
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms) }
             {
                 // Remove pages allocated so far
                 if page_index > 0 {
                     self.unmap_phys(addr, page_index);
+                }
+
+                match err {
+                    MapToError::FrameAllocationFailed => return Err(AllocatorError::NoMemory),
+                    MapToError::ParentEntryHugePage => {
+                        panic!("Unexpected map error: ParentEntryHugePage {page_addr:?}")
+                    }
+                    MapToError::PageAlreadyMapped(_) => {
+                        panic!("Unexpected map error: PageAlreadyMapped {page_addr:?}")
+                    }
+                }
+            }
+
+            // Mark the mapped frame as borrowed
+            unsafe { frame.borrow() };
+        }
+
+        Ok(())
+
+    }
+    fn map_iomem(&mut self, addr: VirtAddr, phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<(), AllocatorError> {
+        for page_index in 0..page_count {
+            let page_addr = addr + page_index * PAGE_SIZE;
+            let frame_addr = phys_addr + page_index * PAGE_SIZE;
+
+            if let Err(err) =
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame_addr, perms) }
+            {
+                // Remove pages allocated so far
+                if page_index > 0 {
+                    self.unmap_iomem(addr, page_index);
                 }
 
                 match err {
@@ -193,12 +257,26 @@ impl<'a> Allocator<'a> {
     fn unmap_phys(&mut self, addr: VirtAddr, page_count: usize) {
         for page_index in 0..page_count {
             let page_addr = addr + page_index * PAGE_SIZE;
-            let frame = unsafe {
+            let phys_addr = unsafe {
                 paging::KERNEL_ADDRESS_SPACE
                     .unmap(page_addr)
                     .expect("could not unmap page")
             };
+
+            // Unborrowed and drop the frame
+            let frame = unsafe { FrameRef::unborrow(phys_addr) };
             mem::drop(frame);
+        }
+    }
+
+    fn unmap_iomem(&mut self, addr: VirtAddr, page_count: usize) {
+        for page_index in 0..page_count {
+            let page_addr = addr + page_index * PAGE_SIZE;
+            let phys_addr = unsafe {
+                paging::KERNEL_ADDRESS_SPACE
+                    .unmap(page_addr)
+                    .expect("could not unmap page")
+            };
         }
     }
 
@@ -316,6 +394,30 @@ pub fn deallocate(addr: VirtAddr, page_count: usize) {
     let mut allocator = ALLOCATOR.write();
 
     allocator.deallocate(addr, page_count);
+
+    allocator.check_slab_reservations();
+}
+
+/// Map iomem (ie: physical area not managed by phys_allocator) into kvm space.
+///
+/// # Safety
+/// The iomem has currently no allocator, it is unchecked.
+pub unsafe fn allocate_iomem(phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<VirtAddr, AllocatorError> {
+    let mut allocator = ALLOCATOR.write();
+
+    let res = allocator.allocate_iomem(phys_addr, page_count, perms);
+
+    if res.is_ok() {
+        allocator.check_slab_reservations();
+    }
+
+    res
+}
+
+pub fn deallocate_iomem(addr: VirtAddr, page_count: usize) {
+    let mut allocator = ALLOCATOR.write();
+
+    allocator.deallocate_iomem(addr, page_count);
 
     allocator.check_slab_reservations();
 }

@@ -422,17 +422,18 @@ impl AddressSpace {
     pub unsafe fn map(
         &mut self,
         addr: VirtAddr,
-        frame: &mut FrameRef,
+        phys_addr: PhysAddr,
         permissions: Permissions,
     ) -> Result<(), MapToError<Size4KiB>> {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
+        assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
 
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
 
         let flusher = manager.map_to_with_table_flags(
             Page::<Size4KiB>::from_start_address_unchecked(addr),
-            PhysFrame::from_start_address_unchecked(frame.frame()),
+            PhysFrame::from_start_address_unchecked(phys_addr),
             create_flags(addr, permissions),
             create_parent_flags(addr),
             &mut frame_allocator,
@@ -440,19 +441,17 @@ impl AddressSpace {
 
         self.flush(addr, flusher);
 
-        // only borrow on success
-        frame.borrow();
-
         Ok(())
     }
 
     pub unsafe fn remap(
         &mut self,
         addr: VirtAddr,
-        frame: &mut FrameRef,
+        phys_addr: PhysAddr,
         permissions: Permissions,
     ) -> Result<FrameRef, UnmapError> {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
+        assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
 
         let mut manager = self.create_manager();
         let mut frame_allocator = FrameAllocatorImpl::default();
@@ -466,7 +465,7 @@ impl AddressSpace {
         let flusher = manager
             .map_to_with_table_flags(
                 Page::<Size4KiB>::from_start_address_unchecked(addr),
-                PhysFrame::from_start_address_unchecked(frame.frame()),
+                PhysFrame::from_start_address_unchecked(phys_addr),
                 create_flags(addr, permissions),
                 create_parent_flags(addr),
                 &mut frame_allocator,
@@ -479,9 +478,6 @@ impl AddressSpace {
         // - PageAlreadyMapped: we just unmapped the page, so cannot be mapped anymore
 
         self.flush(addr, flusher);
-
-        // only borrow on success
-        frame.borrow();
 
         Ok(FrameRef::unborrow(unmapped_frame.start_address()))
     }
@@ -505,7 +501,7 @@ impl AddressSpace {
         Ok(())
     }
 
-    pub unsafe fn unmap(&mut self, addr: VirtAddr) -> Result<FrameRef, UnmapError> {
+    pub unsafe fn unmap(&mut self, addr: VirtAddr) -> Result<PhysAddr, UnmapError> {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
 
         let mut manager = self.create_manager();
@@ -518,7 +514,7 @@ impl AddressSpace {
 
         manager.clean_up_addr_range(Page::range_inclusive(page, page), &mut frame_allocator);
 
-        Ok(FrameRef::unborrow(unmapped_frame.start_address()))
+        Ok(unmapped_frame.start_address())
     }
 
     pub unsafe fn get_infos(&self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {

@@ -1,11 +1,11 @@
 
-use core::ops::Range;
+use core::{ops::Range, mem};
 
 use alloc::sync::{Arc, Weak};
 
 use crate::{memory::{
     is_page_aligned, is_userspace, MapError,
-    Permissions, UnmapError, VirtAddr, PAGE_SIZE,
+    Permissions, UnmapError, VirtAddr, PAGE_SIZE, FrameRef,
 }, user::{MemoryObject, Error, error::out_of_memory}};
 
 use super::Process;
@@ -159,8 +159,11 @@ impl Mapping {
         while virt_addr < self.range.end {
             let mut frame = mobj.frame(phys_offset).clone();
 
-            match address_space.map(virt_addr, &mut frame, perms) {
-                Ok(_) => {}
+            match address_space.map(virt_addr, frame.frame(), perms) {
+                Ok(_) => {
+                    // Mark it as used
+                    frame.borrow();
+                }
                 Err(err) => {
                     // match all arms
                     match err {
@@ -196,7 +199,11 @@ impl Mapping {
 
         while virt_addr < self.range.end {
             match address_space.unmap(virt_addr) {
-                Ok(_) => {}
+                Ok(phys_addr) => {
+                    // Unborrow
+                    let frame = FrameRef::unborrow(phys_addr);
+                    mem::drop(frame);
+                }
                 Err(err) => {
                     // match all arms
                     match err {

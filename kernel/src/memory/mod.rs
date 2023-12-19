@@ -6,6 +6,7 @@ mod paging;
 mod phys;
 mod slab;
 
+use core::ops::Range;
 use core::slice;
 
 use bootloader_api::info::MemoryRegions;
@@ -210,6 +211,34 @@ pub unsafe fn map_phys(frames: &[FrameRef]) -> Option<VirtAddr> {
 /// unmap kernel VM space previously mapped with `map_phys`
 pub fn unmap_phys(addr: VirtAddr, frame_count: usize) {
     kvm::deallocate(addr, frame_count);
+}
+
+/// Helper to permit to map a set of physical iomem pages into kernel space
+/// 
+/// iomem is the area of physical address space that is not backup by RAM, and not managed by the physical memory allocator.
+/// 
+/// # Safety
+/// The iomem has currently no allocator, no concurrent reservations are unchecked.
+pub unsafe fn map_iomem(phys_frames: Range<PhysAddr>, perms: Permissions) -> Option<VirtAddr> {
+    assert!(phys_frames.start.is_aligned(PAGE_SIZE as u64));
+    let len = (phys_frames.end - phys_frames.start) as usize;
+    assert!(is_page_aligned(len));
+
+    match kvm::allocate_iomem(phys_frames.start, len / PAGE_SIZE, perms) {
+        Ok(addr) => Some(addr),
+        Err(err) => {
+            // Ensure all arms are matched
+            match err {
+                kvm::AllocatorError::NoMemory => None,
+                kvm::AllocatorError::NoVirtualSpace => None,
+            }
+        },
+    }
+}
+
+/// unmap kernel VM space previously mapped with `map_iomem`
+pub fn unmap_iomem(addr: VirtAddr, frame_count: usize) {
+    kvm::deallocate_iomem(addr, frame_count);
 }
 
 /// Structure that defines a kernel stack

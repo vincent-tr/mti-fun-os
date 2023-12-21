@@ -2,10 +2,11 @@
 mod handler;
 mod exceptions;
 mod syscalls;
+mod irqs;
 
 use core::arch::asm;
 
-use crate::gdt::{self, user_data_selector};
+use crate::{gdt::{self, user_data_selector}, devices};
 use lazy_static::lazy_static;
 use x86_64::{structures::idt::InterruptDescriptorTable, registers::rflags::RFlags};
 use crate::memory::VirtAddr;
@@ -33,6 +34,7 @@ lazy_static! {
         idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler);
         idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler);
 
+        idt[devices::IRQ0].set_handler_fn(irqs::timer_interrupt_handler);
 
         idt
     };

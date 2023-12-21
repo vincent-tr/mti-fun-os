@@ -76,11 +76,16 @@ tail -f serial.log
 
 - https://wiki.osdev.org/Kernel_Multitasking
 
+### PIT
+
+- https://wiki.osdev.org/Programmable_Interval_Timer
+
 ### APIC/Timer
 
 - https://wiki.osdev.org/APIC
 - https://wiki.osdev.org/APIC_Timer
 - https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/arch/x86_64/device/local_apic.rs
+- https://github.com/rust-osdev/apic
 
 ### The holy bible
 

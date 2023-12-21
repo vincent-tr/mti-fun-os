@@ -2,6 +2,8 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::memory::{map_iomem, unmap_phys, Permissions, VirtAddr, PAGE_SIZE};
 
+use super::CPUID;
+
 use bit_field::BitField;
 
 mod registers {
@@ -124,6 +126,10 @@ pub struct LocalApic {
 
 impl LocalApic {
     pub unsafe fn init() -> Self {
+        let features = CPUID.get_feature_info().expect("cpuid: no feature info");
+        assert!(features.has_apic());
+        assert!(features.has_tsc_deadline());
+
         let reg_value = registers::ApicBase::read();
         assert!(reg_value.enabled);
 
@@ -207,7 +213,9 @@ impl LocalApic {
     }
 
     pub fn lvt_performance_counters(&self) -> LocalApicLVTWithDeliveryMode {
-        LocalApicLVTWithDeliveryMode(unsafe { self.read(registers::LVT_PERFORMANCE_MONITORING_COUNTERS) })
+        LocalApicLVTWithDeliveryMode(unsafe {
+            self.read(registers::LVT_PERFORMANCE_MONITORING_COUNTERS)
+        })
     }
 
     pub fn set_lvt_performance_counters(&self, value: LocalApicLVTWithDeliveryMode) {
@@ -312,16 +320,17 @@ pub enum LocalApicLVTDeliveryMode {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum LocalApicLVTtimerMode {
-    OneShot,
-    Period,
-    TscDeadline,
+    OneShot = 0b00,
+    Period = 0b01,
+    TscDeadline = 0b10,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct LocalApicLVTTimer(u32);
 
-impl LocalApicLVTTimer{
+impl LocalApicLVTTimer {
     pub fn vector(&self) -> u8 {
         self.0.get_bits(0..8) as u8
     }
@@ -351,12 +360,7 @@ impl LocalApicLVTTimer{
     }
 
     pub fn timer_mode(&self) -> LocalApicLVTtimerMode {
-        match self.0.get_bits(17..18) {
-            0b00 => LocalApicLVTtimerMode::OneShot,
-            0b01 => LocalApicLVTtimerMode::Period,
-            0b10 => LocalApicLVTtimerMode::TscDeadline,
-            _ => panic!("unexpected timer mode")
-        }
+        self.0.get_bits(17..18) as LocalApicLVTtimerMode
     }
 
     pub fn set_timer_mode(&mut self, value: LocalApicLVTtimerMode) {
@@ -368,7 +372,6 @@ impl LocalApicLVTTimer{
 
         self.0.set_bits(17..18, raw);
     }
-
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -390,7 +393,7 @@ impl LocalApicLVTWithDeliveryMode {
             0b100 => LocalApicLVTDeliveryMode::NMI,
             0b111 => LocalApicLVTDeliveryMode::ExtINT,
             0b101 => LocalApicLVTDeliveryMode::INIT,
-            _ => panic!("unexpected delivery mode")
+            _ => panic!("unexpected delivery mode"),
         }
     }
 

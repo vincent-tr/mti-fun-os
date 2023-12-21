@@ -28,7 +28,7 @@ mod devices;
 mod init;
 mod user;
 
-use crate::memory::VirtAddr;
+use crate::{memory::VirtAddr, devices::CPUID};
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info, debug};
@@ -70,13 +70,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     // From here we can use normal allocations in the kernel.
 
+    devices::init();
     interrupts::init_userland();
     user::init();
 
-    let local_apic = unsafe { devices::LocalApic::init() };
-    debug!("local apic id: {:?}", local_apic.id());
-    let version = local_apic.version();
-    debug!("local apic version: version={}, max lvt={}, suppress eoi broadcast={}", version.version(), version.max_lvt_entries(), version.suppress_eoi_broadcasts());
+    info!("loop");
+    x86_64::instructions::interrupts::enable();
+    loop{}
 
     // TODO: clean initial kernel stack
 
@@ -96,6 +96,8 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    x86_64::instructions::interrupts::disable();
+    
     error!("PANIC: {info}");
     halt()
 }

@@ -36,7 +36,7 @@ pub extern "C" fn _start() -> ! {
     unsafe {
         syscall0(SYSCALL_NOOP);
         log(Level::Info, "test");
-        syscall0(SYSCALL_PANIC);
+        //syscall0(SYSCALL_PANIC);
     }
     loop {}
 }

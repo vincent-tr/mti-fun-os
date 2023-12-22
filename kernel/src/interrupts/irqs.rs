@@ -1,6 +1,6 @@
-use log::{error, info};
+use log::error;
 
-use crate::{devices, interrupts::InterruptStack};
+use crate::{devices, interrupts::InterruptStack, user::thread};
 
 pub const IRQ0: u8 = 32;
 
@@ -12,7 +12,8 @@ pub enum Irq {
 }
 
 pub fn lapic_timer_interrupt_handler(_stack: &mut InterruptStack) {
-    info!(".");
+
+    thread::thread_next();
 
     devices::local_apic::end_of_interrupt();
 }

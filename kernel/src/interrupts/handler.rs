@@ -149,7 +149,45 @@ macro_rules! pop_preserved {
     " };
 }
 
-// Used in asm code at syscall/interrupt handling to access data without registers
+#[macro_export]
+macro_rules! native_handler {
+    ($handler:ident) => {
+        {
+            #[naked]
+            #[allow(undefined_naked_function_abi)]
+            unsafe fn native_handler() {
+                unsafe {
+                    asm!(concat!(
+                        push_scratch!(),
+                        push_preserved!(),
+
+                        // Call inner funtion
+                        "call {interrupt_handler};",
+
+                        pop_preserved!(),
+                        pop_scratch!(),
+
+                        "iretq;",
+                    ), 
+
+                    interrupt_handler = sym wrapper,
+
+                    options(noreturn));
+                }
+            }
+
+            unsafe extern "C" fn wrapper() {
+                let stack = InterruptStack::current();
+
+                $handler(stack)
+            }
+
+            VirtAddr::new(native_handler as u64)
+        }
+    }
+}
+
+// Used in asm code at syscall handling to access data without registers
 #[repr(align(4096))]
 pub struct ProcessorControlRegion {
     pub userland_stack_ptr_tmp: usize,

@@ -17,12 +17,15 @@ pub const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
 pub use self::handler::InterruptStack;
 pub use self::irqs::Irq;
 
+use irqs::*;
+
 // Note:
 // If kernel is entered with INT exception or irq, it should return to userland with IRET.
 // If kernel is entered with SYSCALL, it should return to userland with SYSRET.
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
+
         let mut idt = InterruptDescriptorTable::new();
         unsafe {
             idt.double_fault.set_handler_fn(exceptions::double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
@@ -32,8 +35,8 @@ lazy_static! {
             idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
             idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
 
-            idt[Irq::LocalApicTimer as usize].set_handler_fn(irqs::lapic_timer_interrupt_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
-            idt[Irq::LocalApicError as usize].set_handler_fn(irqs::lapic_error_interrupt_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt[Irq::LocalApicTimer as usize].set_handler_addr(native_handler!(lapic_timer_interrupt_handler)).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt[Irq::LocalApicError as usize].set_handler_addr(native_handler!(lapic_error_interrupt_handler)).set_stack_index(gdt::INTERRUPT_IST_INDEX);
         }
 
         idt

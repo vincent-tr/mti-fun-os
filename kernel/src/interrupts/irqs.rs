@@ -1,7 +1,6 @@
-use log::{info, error};
-use x86_64::structures::idt::InterruptStackFrame;
+use log::{error, info};
 
-use crate::devices;
+use crate::{devices, interrupts::InterruptStack};
 
 pub const IRQ0: u8 = 32;
 
@@ -12,16 +11,17 @@ pub enum Irq {
     LocalApicError,
 }
 
-// TODO: Properly push context
-pub extern "x86-interrupt" fn lapic_timer_interrupt_handler(stack_frame: InterruptStackFrame) {
+pub fn lapic_timer_interrupt_handler(_stack: &mut InterruptStack) {
     info!(".");
 
     devices::local_apic::end_of_interrupt();
 }
 
-// TODO: Properly push context
-pub extern "x86-interrupt" fn lapic_error_interrupt_handler(stack_frame: InterruptStackFrame) {
-    error!("Local APIC internal error: {:?}", devices::local_apic::current_errors());
+pub fn lapic_error_interrupt_handler(_stack: &mut InterruptStack) {
+    error!(
+        "Local APIC internal error: {:?}",
+        devices::local_apic::current_errors()
+    );
 
     devices::local_apic::end_of_interrupt();
 }

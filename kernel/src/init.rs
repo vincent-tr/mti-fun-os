@@ -112,7 +112,7 @@ impl<'a> Loader<'a> {
                     panic!("Init binary TLS not supported");
                 }
                 program::Type::Dynamic | program::Type::GnuRelro => {
-                    panic!("Init binary Relactions not supported");
+                    panic!("Init binary Relocations not supported");
                 }
                 program::Type::Null
                 | program::Type::Interp

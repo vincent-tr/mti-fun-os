@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![allow(dead_code)]
 #![feature(abi_x86_interrupt)]
 #![feature(ptr_sub_ptr)]
 #![feature(slice_ptr_get)]
@@ -28,10 +29,10 @@ mod devices;
 mod init;
 mod user;
 
-use crate::{memory::VirtAddr, devices::CPUID};
+use crate::memory::VirtAddr;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
-use log::{error, info, debug};
+use log::{error, info};
 use x86_64::registers::model_specific::{Efer, EferFlags};
 
 const CONFIG: BootloaderConfig = {

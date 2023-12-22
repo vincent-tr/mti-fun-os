@@ -75,7 +75,7 @@ impl Mapping {
     }
 
     /// Set the permissions of the mapping
-    pub fn set_permissions(&mut self, perms: Permissions) -> Result<(), Error> {
+    pub fn set_permissions(&mut self, _perms: Permissions) -> Result<(), Error> {
         todo!();
     }
 

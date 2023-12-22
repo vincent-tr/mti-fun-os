@@ -12,7 +12,6 @@ use self::{thread::initial_run_thread, threads::THREADS, wait_queue::WaitQueue};
 
 use super::process::Process;
 use crate::{
-    interrupts::switch_to_userland,
     memory::VirtAddr,
     user::thread::{
         scheduler::SCHEDULER,

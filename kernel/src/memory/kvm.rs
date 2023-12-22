@@ -272,7 +272,7 @@ impl<'a> Allocator<'a> {
     fn unmap_iomem(&mut self, addr: VirtAddr, page_count: usize) {
         for page_index in 0..page_count {
             let page_addr = addr + page_index * PAGE_SIZE;
-            let phys_addr = unsafe {
+            unsafe {
                 paging::KERNEL_ADDRESS_SPACE
                     .unmap(page_addr)
                     .expect("could not unmap page")

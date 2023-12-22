@@ -4,20 +4,30 @@ use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector
 use x86_64::structures::tss::TaskStateSegment;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
+pub const INTERRUPT_IST_INDEX: u16 = 1;
 
 pub const KERNEL_CODE_SELECTOR_INDEX: u16 = 1;
 pub const KERNEL_DATA_SELECTOR_INDEX: u16 = 2;
 pub const USER_DATA_SELECTOR_INDEX: u16 = 3; // Note: to configure STAR syscall register properly
 pub const USER_CODE_SELECTOR_INDEX: u16 = 4;
 
+static mut DOUBLE_FAULT_STACK: KernelStack = KernelStack::new();
+static mut INTERRUPT_STACK: KernelStack = KernelStack::new();
+
 lazy_static! {
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
+
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
             // Special stack for double fault, so that we cannot stack overflow to print to correct info
-            static mut STACK: KernelStack = KernelStack::new();
-            unsafe { STACK.stack_top() }
+            unsafe { DOUBLE_FAULT_STACK.stack_top() }
         };
+
+        tss.interrupt_stack_table[INTERRUPT_IST_INDEX as usize] = {
+            // Stack for normal interrupt handling
+            unsafe { INTERRUPT_STACK.stack_top() }
+        };
+
         tss
     };
 }

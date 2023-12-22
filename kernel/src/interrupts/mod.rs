@@ -1,15 +1,15 @@
 #[macro_use]
 mod handler;
 mod exceptions;
-mod syscalls;
 mod irqs;
+mod syscalls;
 
 use core::arch::asm;
 
 use crate::gdt::{self, user_data_selector};
-use lazy_static::lazy_static;
-use x86_64::{structures::idt::InterruptDescriptorTable, registers::rflags::RFlags};
 use crate::memory::VirtAddr;
+use lazy_static::lazy_static;
+use x86_64::{registers::rflags::RFlags, structures::idt::InterruptDescriptorTable};
 
 use self::handler::init_process_control_region;
 
@@ -25,19 +25,16 @@ lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         unsafe {
-            idt.double_fault
-                .set_handler_fn(exceptions::double_fault_handler)
-                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+            idt.double_fault.set_handler_fn(exceptions::double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+
+            // TODO: fill all exceptions
+            idt.page_fault.set_handler_fn(exceptions::page_fault_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+
+            idt[Irq::LocalApicTimer as usize].set_handler_fn(irqs::lapic_timer_interrupt_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt[Irq::LocalApicError as usize].set_handler_fn(irqs::lapic_error_interrupt_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
         }
-
-        // TODO: setup proper kernel stack
-        // TODO: fill all exceptions
-        idt.page_fault.set_handler_fn(exceptions::page_fault_handler);
-        idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler);
-        idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler);
-
-        idt[Irq::LocalApicTimer as usize].set_handler_fn(irqs::lapic_timer_interrupt_handler);
-        idt[Irq::LocalApicError as usize].set_handler_fn(irqs::lapic_error_interrupt_handler);
 
         idt
     };

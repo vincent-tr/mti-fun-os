@@ -35,7 +35,12 @@ impl InterruptStack {
     /// # Safety
     /// - No access are checked
     pub unsafe fn interrupt_stack_top() -> VirtAddr {
-        KERNEL_STACK.stack_top()
+        let top = KERNEL_STACK.stack_top();
+
+        // Interrupt stacks must be 16 bytes aligned, or the processor will change rsp to align on enter
+        assert!(top.is_aligned(16u16));
+
+        top
     }
 }
 

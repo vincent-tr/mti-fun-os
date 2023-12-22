@@ -244,9 +244,12 @@ pub fn unmap_iomem(addr: VirtAddr, frame_count: usize) {
 }
 
 /// Structure that defines a kernel stack
+/// 
+/// Note:
+/// - align(16) to be able to use it as interrupt stack
 ///
 /// TODO: guards
-#[repr(align(8))]
+#[repr(align(16))]
 pub struct KernelStack {
     data: [u8; KERNEL_STACK_SIZE],
     end: [u8; 0],
@@ -261,11 +264,11 @@ impl KernelStack {
     }
 
     pub fn address(&self) -> VirtAddr {
-        return VirtAddr::new_truncate(self.data.as_ptr() as u64);
+        VirtAddr::new_truncate(self.data.as_ptr() as u64)
     }
 
     pub fn stack_top(&self) -> VirtAddr {
-        return VirtAddr::new_truncate(self.end.as_ptr() as u64);
+        VirtAddr::new_truncate(self.end.as_ptr() as u64)
     }
 }
 

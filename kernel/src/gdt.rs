@@ -1,3 +1,4 @@
+use crate::interrupts::InterruptStack;
 use crate::memory::KernelStack;
 use lazy_static::lazy_static;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
@@ -12,7 +13,6 @@ pub const USER_DATA_SELECTOR_INDEX: u16 = 3; // Note: to configure STAR syscall 
 pub const USER_CODE_SELECTOR_INDEX: u16 = 4;
 
 static mut DOUBLE_FAULT_STACK: KernelStack = KernelStack::new();
-static mut INTERRUPT_STACK: KernelStack = KernelStack::new();
 
 lazy_static! {
     static ref TSS: TaskStateSegment = {
@@ -25,7 +25,7 @@ lazy_static! {
 
         tss.interrupt_stack_table[INTERRUPT_IST_INDEX as usize] = {
             // Stack for normal interrupt handling
-            unsafe { INTERRUPT_STACK.stack_top() }
+            unsafe { InterruptStack::interrupt_stack_top() }
         };
 
         tss

@@ -25,9 +25,17 @@ impl InterruptStack {
     /// - Returned data is only valid during the current interrupt handler/syscall handler
     pub unsafe fn current() -> &'static mut Self {
         // InterruptStack is on top of kernel stack
-        let stack_addr = KERNEL_STACK.stack_top() - size_of::<InterruptStack>();
+        let stack_addr = Self::interrupt_stack_top() - size_of::<InterruptStack>();
         let stack_ptr: *mut InterruptStack = stack_addr.as_mut_ptr();
         &mut *stack_ptr
+    }
+
+    /// Get the current interrupt kernel stack top
+    /// 
+    /// # Safety
+    /// - No access are checked
+    pub unsafe fn interrupt_stack_top() -> VirtAddr {
+        KERNEL_STACK.stack_top()
     }
 }
 

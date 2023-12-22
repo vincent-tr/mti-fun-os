@@ -31,6 +31,7 @@ pub extern "x86-interrupt" fn invalid_opcode_handler(stack_frame: InterruptStack
     panic!("EXCEPTION: INVALID OPCODE\n{:#?}", stack_frame);
 }
 
+// Note: keep x86-interrupt since we never return from this one
 pub extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
     _error_code: u64,

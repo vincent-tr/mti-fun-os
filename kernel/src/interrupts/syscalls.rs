@@ -50,6 +50,9 @@ unsafe fn syscall_native_handler() {
             "push r11;",                  // Push userland rflags
             "push QWORD PTR {cs_sel};",   // Push fake userland CS (resembling iret stack frame)
             "push rcx;",                  // Push userland return pointer
+            "push 0;",                    // Fake error code
+
+            "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
             push_scratch!(),
             push_preserved!(),
@@ -61,6 +64,7 @@ unsafe fn syscall_native_handler() {
             pop_scratch!(),
 
             "swapgs;",                  // Restore user GSBASE by swapping GSBASE and KGSBASE.
+            "add rsp,8;",               // Error code
             "pop rcx;",                 // Pop userland return pointer
             "add rsp, 8;",              // Pop fake userspace CS
             "pop r11;",                 // Pop rflags

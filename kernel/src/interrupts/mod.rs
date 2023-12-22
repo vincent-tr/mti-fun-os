@@ -26,15 +26,33 @@ lazy_static! {
 
         let mut idt = InterruptDescriptorTable::new();
         unsafe {
-            idt.double_fault.set_handler_fn(exceptions::double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+            idt.double_fault
+                .set_handler_addr(native_error_handler!(exceptions::double_fault_handler))
+                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             // TODO: fill all exceptions
-            idt.page_fault.set_handler_fn(exceptions::page_fault_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
-            idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
-            idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt.page_fault
+                .set_handler_addr(native_error_handler!(exceptions::page_fault_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+            idt.general_protection_fault
+                .set_handler_addr(native_error_handler!(exceptions::general_protection_fault_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+            idt.invalid_opcode
+            .set_handler_addr(native_handler!(exceptions::invalid_opcode_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
-            idt[Irq::LocalApicTimer as usize].set_handler_addr(native_handler!(irqs::lapic_timer_interrupt_handler)).set_stack_index(gdt::INTERRUPT_IST_INDEX);
-            idt[Irq::LocalApicError as usize].set_handler_addr(native_handler!(irqs::lapic_error_interrupt_handler)).set_stack_index(gdt::INTERRUPT_IST_INDEX);
+            idt[Irq::LocalApicTimer as usize]
+                .set_handler_addr(native_handler!(irqs::lapic_timer_interrupt_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+            idt[Irq::LocalApicError as usize]
+                .set_handler_addr(native_handler!(irqs::lapic_error_interrupt_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
         }
 
         idt

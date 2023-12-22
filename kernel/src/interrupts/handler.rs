@@ -14,6 +14,7 @@ use crate::memory::{KernelStack, VirtAddr};
 pub struct InterruptStack {
     pub preserved: PreservedRegisters,
     pub scratch: ScratchRegisters,
+    pub error_code: usize,
     pub iret: InterruptStackFrameValue,
 }
 
@@ -61,15 +62,15 @@ pub struct ScratchRegisters {
 impl fmt::Debug for ScratchRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ScratchRegisters")
-         .field("rax", &format_args!("{0:?} (0x{0:016X})", self.rax))
-         .field("rcx", &format_args!("{0:?} (0x{0:016X})", self.rcx))
-         .field("rdx", &format_args!("{0:?} (0x{0:016X})", self.rdx))
-         .field("rdi", &format_args!("{0:?} (0x{0:016X})", self.rdi))
-         .field("rsi", &format_args!("{0:?} (0x{0:016X})", self.rsi))
-         .field("r8", &format_args!("{0:?} (0x{0:016X})", self.r8))
-         .field("r9", &format_args!("{0:?} (0x{0:016X})", self.r9))
-         .field("r10", &format_args!("{0:?} (0x{0:016X})", self.r10))
-         .field("r11", &format_args!("{0:?} (0x{0:016X})", self.r11))
+         .field("rax", &format_args!("{0:?} ({:#016X})", self.rax))
+         .field("rcx", &format_args!("{0:?} ({:#016X})", self.rcx))
+         .field("rdx", &format_args!("{0:?} ({:#016X})", self.rdx))
+         .field("rdi", &format_args!("{0:?} ({:#016X})", self.rdi))
+         .field("rsi", &format_args!("{0:?} ({:#016X})", self.rsi))
+         .field("r8", &format_args!("{0:?} ({:#016X})", self.r8))
+         .field("r9", &format_args!("{0:?} ({:#016X})", self.r9))
+         .field("r10", &format_args!("{0:?} ({:#016X})", self.r10))
+         .field("r11", &format_args!("{0:?} ({:#016X})", self.r11))
          .finish()
     }
 }
@@ -119,12 +120,12 @@ pub struct PreservedRegisters {
 impl fmt::Debug for PreservedRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PreservedRegisters")
-         .field("rbx", &format_args!("{0:?} (0x{0:016X})", self.rbx))
-         .field("rbp", &format_args!("{0:?} (0x{0:016X})", self.rbp))
-         .field("r12", &format_args!("{0:?} (0x{0:016X})", self.r12))
-         .field("r13", &format_args!("{0:?} (0x{0:016X})", self.r13))
-         .field("r14", &format_args!("{0:?} (0x{0:016X})", self.r14))
-         .field("r15", &format_args!("{0:?} (0x{0:016X})", self.r15))
+         .field("rbx", &format_args!("{0:?} ({:#016X})", self.rbx))
+         .field("rbp", &format_args!("{0:?} ({:#016X})", self.rbp))
+         .field("r12", &format_args!("{0:?} ({:#016X})", self.r12))
+         .field("r13", &format_args!("{0:?} ({:#016X})", self.r13))
+         .field("r14", &format_args!("{0:?} ({:#016X})", self.r14))
+         .field("r15", &format_args!("{0:?} ({:#016X})", self.r15))
          .finish()
     }
 }
@@ -154,15 +155,20 @@ macro_rules! pop_preserved {
     " };
 }
 
+/// Implement a native error handler, to handle an interrupt without an error code
 #[macro_export]
 macro_rules! native_handler {
     ($handler:expr) => {
         {
             #[naked]
             #[allow(undefined_naked_function_abi)]
-            unsafe fn native_handler() {
+            unsafe fn handler() {
                 unsafe {
                     asm!(concat!(
+                        "push 0;",                    // Fake error code
+
+                        "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
+
                         push_scratch!(),
                         push_preserved!(),
 
@@ -172,7 +178,8 @@ macro_rules! native_handler {
                         pop_preserved!(),
                         pop_scratch!(),
 
-                        "iretq;",
+                        "add rsp,8;",               // Error code
+                        "iretq;",                   // Back to userland
                     ), 
 
                     interrupt_handler = sym wrapper,
@@ -187,7 +194,49 @@ macro_rules! native_handler {
                 $handler(stack)
             }
 
-            VirtAddr::new(native_handler as u64)
+            VirtAddr::new(handler as u64)
+        }
+    }
+}
+
+/// Implement a native error handler, to handle an interrupt with an error code
+#[macro_export]
+macro_rules! native_error_handler {
+    ($handler:expr) => {
+        {
+            #[naked]
+            #[allow(undefined_naked_function_abi)]
+            unsafe fn handler() {
+                unsafe {
+                    asm!(concat!(
+                        "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
+
+                        push_scratch!(),
+                        push_preserved!(),
+
+                        // Call inner funtion
+                        "call {interrupt_handler};",
+
+                        pop_preserved!(),
+                        pop_scratch!(),
+
+                        "add rsp,8;",               // Error code
+                        "iretq;",                   // Back to userland
+                    ), 
+
+                    interrupt_handler = sym wrapper,
+
+                    options(noreturn));
+                }
+            }
+
+            unsafe extern "C" fn wrapper() {
+                let stack = InterruptStack::current();
+
+                $handler(stack)
+            }
+
+            VirtAddr::new(handler as u64)
         }
     }
 }
@@ -209,6 +258,7 @@ impl ProcessorControlRegion {
 }
 
 // Kernel stack used when entering kernel from userland (syscall, exception, irq)
+// remove pub
 pub static mut KERNEL_STACK: KernelStack = KernelStack::new();
 
 // Structure will be setup so that it's easily addressable durign syscalls

@@ -1,40 +1,33 @@
-use x86_64::structures::idt::{InterruptStackFrame, PageFaultErrorCode};
+use x86_64::structures::idt::PageFaultErrorCode;
 
-// TODO: Properly push context
-pub extern "x86-interrupt" fn page_fault_handler(
-    stack_frame: InterruptStackFrame,
-    error_code: PageFaultErrorCode,
-) {
+use super::InterruptStack;
+
+pub fn page_fault_handler(stack: &mut InterruptStack) {
     use x86_64::registers::control::Cr2;
 
+    let accessed_address = Cr2::read();
+    let error_code = PageFaultErrorCode::from_bits_retain(stack.error_code as u64);
+    let instruction_ptr = stack.iret.instruction_pointer;
+
     panic!(
-        "EXCEPTION: PAGE FAULT\nAccessed Address: {:?}\nError Code: {:?}\n{:#?}",
-        Cr2::read(),
+        "EXCEPTION: PAGE FAULT\n  Error Code: {:?}\n  Accessed Address: {:#016X}\n  Instruction pointer: {:#016X}",
         error_code,
-        stack_frame
+        accessed_address,
+        instruction_ptr
     );
 }
 
-// TODO: Properly push context
-pub extern "x86-interrupt" fn general_protection_fault_handler(
-    stack_frame: InterruptStackFrame,
-    error_code: u64,
-) {
+pub fn general_protection_fault_handler(stack: &mut InterruptStack) {
     panic!(
-        "EXCEPTION: GENERAL PROTECTION FAULT\nSegment index: {}\n{:#?}",
-        error_code, stack_frame
+        "EXCEPTION: GENERAL PROTECTION FAULT\n  Segment index: {}\n{:#?}",
+        stack.error_code, stack
     );
 }
 
-// TODO: Properly push context
-pub extern "x86-interrupt" fn invalid_opcode_handler(stack_frame: InterruptStackFrame) {
-    panic!("EXCEPTION: INVALID OPCODE\n{:#?}", stack_frame);
+pub fn invalid_opcode_handler(stack: &mut InterruptStack) {
+    panic!("EXCEPTION: INVALID OPCODE\n{:#?}", stack);
 }
 
-// Note: keep x86-interrupt since we never return from this one
-pub extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: InterruptStackFrame,
-    _error_code: u64,
-) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
+pub fn double_fault_handler(stack: &mut InterruptStack) -> ! {
+    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack);
 }

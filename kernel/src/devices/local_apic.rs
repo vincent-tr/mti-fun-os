@@ -572,7 +572,7 @@ impl LocalApicSpuriousInterruptVector {
     ///
     /// Not supported on all processors
     pub unsafe fn set_focus_processor_checking(&mut self, value: bool) {
-        self.0.set_bit(9, true);
+        self.0.set_bit(9, value);
     }
 
     pub fn eoi_broadcast_suppression(&self) -> bool {
@@ -583,7 +583,7 @@ impl LocalApicSpuriousInterruptVector {
     ///
     /// Not supported on all processors
     pub unsafe fn set_eoi_broadcast_suppression(&mut self, value: bool) {
-        self.0.set_bit(12, true);
+        self.0.set_bit(12, value);
     }
 }
 

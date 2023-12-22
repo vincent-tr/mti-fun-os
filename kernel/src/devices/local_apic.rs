@@ -1,7 +1,7 @@
 use core::{
+    fmt::Debug,
     mem,
     ptr::{read_volatile, write_volatile},
-    fmt::Debug,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use super::cpu::CPUID;
 
 use super::pit;
 use bit_field::BitField;
-use log::{info, debug};
+use log::{debug, info};
 use spin::Mutex;
 
 const FS_IN_SEC: usize = 1_000_000_000_000_000;
@@ -190,7 +190,9 @@ impl LocalApic {
     }
 
     pub fn spurious_interrupt_vector(&self) -> LocalApicSpuriousInterruptVector {
-        LocalApicSpuriousInterruptVector(unsafe { self.read(registers::SPURIOUS_INTERRUPT_VECTOR_REGISTER) })
+        LocalApicSpuriousInterruptVector(unsafe {
+            self.read(registers::SPURIOUS_INTERRUPT_VECTOR_REGISTER)
+        })
     }
 
     pub fn set_spurious_interrupt_vector(&self, value: LocalApicSpuriousInterruptVector) {
@@ -340,27 +342,27 @@ impl Debug for LocalApicErrors {
         if self.receive_checksum_error() {
             set.field(&"receive_checksum_error");
         }
-    
+
         if self.send_accept_error() {
             set.field(&"send_accept_error");
         }
-    
+
         if self.receive_accept_error() {
             set.field(&"receive_accept_error");
         }
-    
+
         if self.redirectable_ipi() {
             set.field(&"redirectable_ipi");
         }
-    
+
         if self.send_illegal_vector() {
             set.field(&"send_illegal_vector");
         }
-    
+
         if self.received_illegal_vector() {
             set.field(&"received_illegal_vector");
         }
-    
+
         if self.illegal_register_address() {
             set.field(&"illegal_register_address");
         }
@@ -544,7 +546,7 @@ impl LocalApicSpuriousInterruptVector {
     }
 
     /// # Safety
-    /// 
+    ///
     /// Bits 0 through 3 may be unsupported
     pub fn set_vector(&mut self, value: u8) {
         self.0.set_bits(0..8, value as u32);
@@ -567,9 +569,9 @@ impl LocalApicSpuriousInterruptVector {
     }
 
     /// # Safety
-    /// 
+    ///
     /// Not supported on all processors
-    pub unsafe  fn set_focus_processor_checking(&mut self, value: bool) {
+    pub unsafe fn set_focus_processor_checking(&mut self, value: bool) {
         self.0.set_bit(9, true);
     }
 
@@ -578,7 +580,7 @@ impl LocalApicSpuriousInterruptVector {
     }
 
     /// # Safety
-    /// 
+    ///
     /// Not supported on all processors
     pub unsafe fn set_eoi_broadcast_suppression(&mut self, value: bool) {
         self.0.set_bit(12, true);
@@ -661,7 +663,11 @@ impl Timer<'_> {
 
         *self.apic.timer_period_fs.lock() = period_fs;
 
-        info!("APIC Timer frequency: {}Mhz, period={}fs", timer_freq / 1_000_000, period_fs);
+        info!(
+            "APIC Timer frequency: {}Mhz, period={}fs",
+            timer_freq / 1_000_000,
+            period_fs
+        );
     }
 
     fn calibrate_once(&self) -> usize {

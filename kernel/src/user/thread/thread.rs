@@ -7,7 +7,7 @@ use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
 use x86_64::registers::rflags::RFlags;
 
-use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
+use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
 use crate::interrupts::{InterruptStack, USERLAND_RFLAGS, switch_to_userland};
 use crate::memory::VirtAddr;
 use crate::user::process::Process;
@@ -312,8 +312,8 @@ impl ThreadContext {
         interrupt_stack.error_code = 0;
         interrupt_stack.iret.instruction_pointer = self.instruction_pointer;
         interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
-        interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR_INDEX);
-        interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR_INDEX);
+        interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR.0);
+        interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR.0);
     }
 }
 

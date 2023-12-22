@@ -66,16 +66,16 @@ fn context_switch(new_thread: Arc<Thread>) {
     let mut current = CURRENT_THREAD.write();
     let old_thread = current.as_ref().expect("no current thread");
 
-    if !Arc::ptr_eq(old_thread, &new_thread) {
+    if Arc::ptr_eq(old_thread, &new_thread) {
         // Same thread, nothing to do
         return;
     }
 
-    unsafe { thread::save(&old_thread) };
+    unsafe { thread::save(old_thread) };
 
     let new_process = new_thread.process();
     if !Arc::ptr_eq(old_thread.process(), new_process) {
-        let address_space = new_process.address_space().write();
+        let address_space = new_process.address_space().read();
         unsafe { crate::memory::set_current_address_space(&address_space) };
     }
 

@@ -151,7 +151,7 @@ macro_rules! pop_preserved {
 
 #[macro_export]
 macro_rules! native_handler {
-    ($handler:ident) => {
+    ($handler:expr) => {
         {
             #[naked]
             #[allow(undefined_naked_function_abi)]

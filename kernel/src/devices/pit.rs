@@ -4,10 +4,6 @@ use bit_field::BitField;
 use spin::Mutex;
 use x86_64::instructions::port::Port;
 
-use super::pic8259::{set_irq_masked, IRQ0};
-
-pub const TIMER_INTERRUPT_INDEX: usize = IRQ0;
-
 /*
 from http://www.brokenthorn.com/Resources/OSDevPit.html
 
@@ -96,12 +92,11 @@ pub enum Channel {
     Channel2 = 2,
 }
 
-
 #[derive(Debug, Clone, Copy)]
 struct Command(u8);
 
 impl Command {
-    pub const fn new() -> Self{
+    pub const fn new() -> Self {
         Self(0)
     }
 
@@ -155,35 +150,29 @@ impl Pit {
     pub const fn new() -> Self {
         Self {
             command: Port::new(0x43),
-            channels: [
-                Port::new(0x40),
-                Port::new(0x41),
-                Port::new(0x42),
-            ]
+            channels: [Port::new(0x40), Port::new(0x41), Port::new(0x42)],
         }
     }
 
-    /// # Safety
-    /// Command must match read operation
-    unsafe fn read(&mut self, command: Command, channel: Channel) -> u16 {
+    unsafe fn command(&mut self, command: Command) {
+        self.command.write(command.0);
+    }
+
+    unsafe fn read(&mut self, channel: Channel) -> u16 {
         let channel = &mut self.channels[channel as usize];
 
-        self.command.write(command.0);
         let lsb = channel.read();
         let msb = channel.read();
 
         (msb as u16) << 8 | lsb as u16
     }
 
-    /// # Safety
-    /// Command must match write operation
-    unsafe fn write(&mut self, command: Command, channel: Channel, value: u16) {
-        let lsb = (value & (u8::MAX as u16)) as u8;
-        let msb = (value >> 8) as u8;
-
+    unsafe fn write(&mut self, channel: Channel, value: u16) {
         let channel = &mut self.channels[channel as usize];
 
-        self.command.write(command.0);
+        let lsb = (value & 0xFF) as u8;
+        let msb = ((value & 0xFF00) >> 8) as u8;
+
         channel.write(lsb);
         channel.write(msb);
     }
@@ -192,13 +181,43 @@ impl Pit {
 // from https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/arch/x86_64/device/pit.rs
 
 // 1 / (1.193182 MHz) = 838,095,110 femtoseconds ~= 838.095 ns
-const PERIOD_FS: u128 = 838_095_110;
+const PERIOD_FS: usize = 838_095_110;
 
-// 4847 / (1.193182 MHz) = 4,062,247 ns ~= 4.1 ms or 246 Hz
-const CHAN0_DIVISOR: u16 = 4847;
+// Time = 10ms => 10,000,000,000,000 femtoseconds
+pub const DIVISOR_10MS: u16 = (10_000_000_000_000 / PERIOD_FS) as u16;
 
 static PIT: Mutex<Pit> = Mutex::new(Pit::new());
 
+pub fn start(initial_value: u16) {
+    let mut command = Command::new();
+    command.set_channel(Channel::Channel0);
+    command.set_operating_mode(OperatingMode::Mode2);
+    command.set_read_load_mode(ReadLoadMode::LsbThenMsB);
+
+    let mut pit = PIT.lock();
+
+    unsafe {
+        // Setup
+        pit.command(command);
+
+        // Write initial count
+        pit.write(Channel::Channel0, initial_value);
+    };
+}
+
+pub fn read() -> u16 {
+    let mut command = Command::new();
+    command.set_channel(Channel::Channel0);
+    command.set_read_load_mode(ReadLoadMode::Latch);
+
+    let mut pit = PIT.lock();
+    unsafe {
+        pit.command(command);
+        pit.read(Channel::Channel0)
+    }
+}
+
+/*
 pub fn init() {
     set_irq_masked(TIMER_INTERRUPT_INDEX, false);
 
@@ -210,3 +229,4 @@ pub fn init() {
     let mut pit = PIT.lock();
     unsafe { pit.write(command, Channel::Channel0, CHAN0_DIVISOR) };
 }
+*/

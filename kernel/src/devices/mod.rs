@@ -1,14 +1,12 @@
-// Not used for now
-//mod local_apic;
-mod cpu;
-mod pic8259;
-mod pit;
-
-//pub use local_apic::*;
-pub use cpu::CPUID;
-pub use pic8259::{notify_end_of_interrupt, IRQ0};
+pub mod local_apic;
+pub mod cpu;
+pub mod pic8259;
+pub mod pit;
 
 pub fn init() {
     pic8259::init();
-    pit::init();
+    pic8259::disable();
+
+    local_apic::init();
+    local_apic::configure_timer();
 }

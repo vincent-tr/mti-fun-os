@@ -6,7 +6,7 @@ mod irqs;
 
 use core::arch::asm;
 
-use crate::{gdt::{self, user_data_selector}, devices};
+use crate::gdt::{self, user_data_selector};
 use lazy_static::lazy_static;
 use x86_64::{structures::idt::InterruptDescriptorTable, registers::rflags::RFlags};
 use crate::memory::VirtAddr;
@@ -15,6 +15,7 @@ use self::handler::init_process_control_region;
 
 pub const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
 pub use self::handler::InterruptStack;
+pub use self::irqs::Irq;
 
 // Note:
 // If kernel is entered with INT exception or irq, it should return to userland with IRET.
@@ -30,11 +31,12 @@ lazy_static! {
         }
 
         // TODO: setup proper kernel stack
+        // TODO: fill all exceptions
         idt.page_fault.set_handler_fn(exceptions::page_fault_handler);
         idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler);
         idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler);
 
-        idt[devices::IRQ0].set_handler_fn(irqs::timer_interrupt_handler);
+        idt[Irq::Timer as usize].set_handler_fn(irqs::timer_interrupt_handler);
 
         idt
     };

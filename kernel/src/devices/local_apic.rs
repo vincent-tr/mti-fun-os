@@ -1,10 +1,21 @@
-use core::ptr::{read_volatile, write_volatile};
+use core::{
+    mem,
+    ptr::{read_volatile, write_volatile},
+};
 
-use crate::memory::{map_iomem, unmap_phys, Permissions, VirtAddr, PAGE_SIZE};
+use crate::{
+    interrupts::Irq,
+    memory::{map_iomem, unmap_phys, Permissions, VirtAddr, PAGE_SIZE},
+};
 
-use super::CPUID;
+use super::cpu::CPUID;
 
+use super::pit;
 use bit_field::BitField;
+use log::{info, debug};
+use spin::Mutex;
+
+const FS_IN_SEC: usize = 1_000_000_000_000_000;
 
 mod registers {
     use crate::memory::{is_page_aligned, PhysAddr, PAGE_SIZE};
@@ -120,26 +131,31 @@ mod registers {
 
 /// Local APIC
 #[derive(Debug)]
-pub struct LocalApic {
+struct LocalApic {
     base_addr: VirtAddr,
+    timer_period_fs: Mutex<usize>,
 }
 
 impl LocalApic {
-    pub unsafe fn init() -> Self {
+    pub const fn new() -> Self {
+        Self {
+            base_addr: VirtAddr::zero(),
+            timer_period_fs: Mutex::new(0),
+        }
+    }
+
+    pub unsafe fn init(&mut self) {
         let features = CPUID.get_feature_info().expect("cpuid: no feature info");
         assert!(features.has_apic());
-        assert!(features.has_tsc_deadline());
 
         let reg_value = registers::ApicBase::read();
         assert!(reg_value.enabled);
 
-        let base_addr = map_iomem(
+        self.base_addr = map_iomem(
             reg_value.address..reg_value.address + PAGE_SIZE,
             Permissions::READ | Permissions::WRITE,
         )
         .expect("could not map page into kernel space");
-
-        Self { base_addr }
     }
 
     unsafe fn read(&self, reg: usize) -> u32 {
@@ -331,6 +347,10 @@ pub enum LocalApicLVTtimerMode {
 pub struct LocalApicLVTTimer(u32);
 
 impl LocalApicLVTTimer {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn vector(&self) -> u8 {
         self.0.get_bits(0..8) as u8
     }
@@ -360,17 +380,12 @@ impl LocalApicLVTTimer {
     }
 
     pub fn timer_mode(&self) -> LocalApicLVTtimerMode {
-        self.0.get_bits(17..18) as LocalApicLVTtimerMode
+        let ivalue = self.0.get_bits(17..18) as u8;
+        unsafe { mem::transmute(ivalue) }
     }
 
     pub fn set_timer_mode(&mut self, value: LocalApicLVTtimerMode) {
-        let raw = match value {
-            LocalApicLVTtimerMode::OneShot => 0b00,
-            LocalApicLVTtimerMode::Period => 0b01,
-            LocalApicLVTtimerMode::TscDeadline => 0b10,
-        };
-
-        self.0.set_bits(17..18, raw);
+        self.0.set_bits(17..18, value as u8 as u32);
     }
 }
 
@@ -378,6 +393,10 @@ impl LocalApicLVTTimer {
 pub struct LocalApicLVTWithDeliveryMode(u32);
 
 impl LocalApicLVTWithDeliveryMode {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn vector(&self) -> u8 {
         self.0.get_bits(0..8) as u8
     }
@@ -434,6 +453,10 @@ impl LocalApicLVTWithDeliveryMode {
 pub struct LocalApicLVTError(u32);
 
 impl LocalApicLVTError {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn vector(&self) -> u8 {
         self.0.get_bits(0..8) as u8
     }
@@ -524,4 +547,94 @@ impl Timer<'_> {
     pub fn current_count(&self) -> u32 {
         unsafe { self.apic.read(registers::TIMER_CURRENT_COUNT) }
     }
+
+    pub fn calibrate(&self) {
+        // Do it 5 times to be consistent
+        let mut freq_array: [usize; 5] = [0; 5];
+
+        for freq in freq_array.iter_mut() {
+            *freq = self.calibrate_once();
+        }
+
+        let timer_freq = freq_array.iter().sum::<usize>() / freq_array.len();
+
+        let period_fs = FS_IN_SEC / timer_freq; // Hz -> fs
+
+        *self.apic.timer_period_fs.lock() = period_fs;
+
+        info!("APIC Timer frequency: {}Mhz, period={}fs", timer_freq / 1_000_000, period_fs);
+    }
+
+    fn calibrate_once(&self) -> usize {
+        // Use the PIT to calibrate APIC timer
+        const DIVIDER: u32 = 16;
+        const INITIAL_COUNT: u32 = 0xFFFFFFFF;
+
+        self.set_divider(16);
+
+        pit::start(pit::DIVISOR_10MS);
+        self.set_initial_count(INITIAL_COUNT);
+
+        let mut value = pit::read();
+        let mut prev = value;
+
+        // Else we wrapped around
+        while prev >= value {
+            prev = value;
+            value = pit::read();
+        }
+
+        let ticks_in_10ms = INITIAL_COUNT - self.current_count();
+
+        ticks_in_10ms as usize * 100 * DIVIDER as usize
+    }
+
+    pub fn configure(&self, delay_fs: usize) {
+        let period_fs = *self.apic.timer_period_fs.lock();
+        info!("period_fs = {period_fs}");
+        assert!(period_fs > 0);
+        assert!(delay_fs >= period_fs);
+
+        let mut divider = 1;
+        let mut init_count = delay_fs / period_fs;
+
+        while init_count > u32::MAX as usize {
+            divider *= 2;
+            init_count /= 2;
+        }
+
+        debug!("Configure Local APIC timer: timer period={period_fs}fs delay={delay_fs}fs, initial count={init_count}, divider={divider}");
+
+        self.set_divider(divider as u32);
+        self.set_initial_count(init_count as u32);
+    }
+}
+
+static LOCAL_APIC: Mutex<LocalApic> = Mutex::new(LocalApic::new());
+
+pub fn init() {
+    let mut apic = LOCAL_APIC.lock();
+
+    unsafe { apic.init() };
+    apic.timer().calibrate();
+}
+
+pub fn configure_timer() {
+    let apic = LOCAL_APIC.lock();
+
+    // Configure timer
+    let mut lvt = LocalApicLVTTimer::new();
+    lvt.set_timer_mode(LocalApicLVTtimerMode::Period);
+    lvt.set_vector(Irq::Timer as u8);
+    apic.set_lvt_timer(lvt);
+
+    // Interrupt period=10ms
+    apic.timer().configure(FS_IN_SEC / 100);
+}
+
+/// Signal end of interrupt for local APIC
+pub fn end_of_interrupt() {
+    let apic = LOCAL_APIC.lock();
+
+    apic.end_of_interrupt();
 }

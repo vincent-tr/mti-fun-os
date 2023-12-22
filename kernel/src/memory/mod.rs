@@ -280,7 +280,7 @@ impl Debug for KernelStack {
             let addr = self.stack_top() - ((counter + 1) * mem::size_of::<u64>());
             let value = unsafe { *addr.as_ptr::<u64>() };
 
-            writer.field(&format!("{counter}"), &format_args!("{value:#016X}"));
+            writer.field(&format!("{counter}"), &format_args!("{value:#016x}"));
         }
 
         writer.finish()

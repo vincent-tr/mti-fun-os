@@ -62,15 +62,15 @@ pub struct ScratchRegisters {
 impl fmt::Debug for ScratchRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ScratchRegisters")
-         .field("rax", &format_args!("{0:?} ({:#016X})", self.rax))
-         .field("rcx", &format_args!("{0:?} ({:#016X})", self.rcx))
-         .field("rdx", &format_args!("{0:?} ({:#016X})", self.rdx))
-         .field("rdi", &format_args!("{0:?} ({:#016X})", self.rdi))
-         .field("rsi", &format_args!("{0:?} ({:#016X})", self.rsi))
-         .field("r8", &format_args!("{0:?} ({:#016X})", self.r8))
-         .field("r9", &format_args!("{0:?} ({:#016X})", self.r9))
-         .field("r10", &format_args!("{0:?} ({:#016X})", self.r10))
-         .field("r11", &format_args!("{0:?} ({:#016X})", self.r11))
+         .field("rax", &format_args!("{0:?} ({:#016x})", self.rax))
+         .field("rcx", &format_args!("{0:?} ({:#016x})", self.rcx))
+         .field("rdx", &format_args!("{0:?} ({:#016x})", self.rdx))
+         .field("rdi", &format_args!("{0:?} ({:#016x})", self.rdi))
+         .field("rsi", &format_args!("{0:?} ({:#016x})", self.rsi))
+         .field("r8", &format_args!("{0:?} ({:#016x})", self.r8))
+         .field("r9", &format_args!("{0:?} ({:#016x})", self.r9))
+         .field("r10", &format_args!("{0:?} ({:#016x})", self.r10))
+         .field("r11", &format_args!("{0:?} ({:#016x})", self.r11))
          .finish()
     }
 }
@@ -120,12 +120,12 @@ pub struct PreservedRegisters {
 impl fmt::Debug for PreservedRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PreservedRegisters")
-         .field("rbx", &format_args!("{0:?} ({:#016X})", self.rbx))
-         .field("rbp", &format_args!("{0:?} ({:#016X})", self.rbp))
-         .field("r12", &format_args!("{0:?} ({:#016X})", self.r12))
-         .field("r13", &format_args!("{0:?} ({:#016X})", self.r13))
-         .field("r14", &format_args!("{0:?} ({:#016X})", self.r14))
-         .field("r15", &format_args!("{0:?} ({:#016X})", self.r15))
+         .field("rbx", &format_args!("{0:?} ({:#016x})", self.rbx))
+         .field("rbp", &format_args!("{0:?} ({:#016x})", self.rbp))
+         .field("r12", &format_args!("{0:?} ({:#016x})", self.r12))
+         .field("r13", &format_args!("{0:?} ({:#016x})", self.r13))
+         .field("r14", &format_args!("{0:?} ({:#016x})", self.r14))
+         .field("r15", &format_args!("{0:?} ({:#016x})", self.r15))
          .finish()
     }
 }

@@ -10,7 +10,7 @@ pub fn page_fault_handler(stack: &mut InterruptStack) {
     let instruction_ptr = stack.iret.instruction_pointer;
 
     panic!(
-        "EXCEPTION: PAGE FAULT\n  Error Code: {:?}\n  Accessed Address: {:#016X}\n  Instruction pointer: {:#016X}",
+        "EXCEPTION: PAGE FAULT\n  Error Code: {:?}\n  Accessed Address: {:#016x}\n  Instruction pointer: {:#016x}",
         error_code,
         accessed_address,
         instruction_ptr

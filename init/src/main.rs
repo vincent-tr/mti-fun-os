@@ -3,7 +3,7 @@
 
 mod syscalls;
 
-use core::panic::PanicInfo;
+use core::{panic::PanicInfo, arch::asm};
 
 use syscalls::{syscall0, syscall3};
 
@@ -38,7 +38,28 @@ pub extern "C" fn _start() -> ! {
         log(Level::Info, "test");
         //syscall0(SYSCALL_PANIC);
     }
+
     loop {}
+}
+
+#[inline]
+fn debugbreak() {
+    unsafe {
+        asm!("int3", options(nomem, nostack));
+    }
+}
+
+#[inline]
+fn page_fault() {
+    let ptr = 0x42 as *mut u8;
+    unsafe { *ptr = 42 };
+}
+
+#[allow(unconditional_panic)]
+#[inline]
+fn div0() {
+    // div / 0
+    let _ = 42 / 0;
 }
 
 #[panic_handler]

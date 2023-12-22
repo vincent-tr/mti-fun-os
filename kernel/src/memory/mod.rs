@@ -6,9 +6,11 @@ mod paging;
 mod phys;
 mod slab;
 
+use core::fmt::{self, Debug};
 use core::ops::Range;
-use core::slice;
+use core::{mem, slice};
 
+use alloc::format;
 use bootloader_api::info::MemoryRegions;
 use log::info;
 
@@ -184,11 +186,11 @@ pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
 }
 
 /// Helper to permit map a set of physical pages into kernel space.
-/// 
+///
 /// This is different from `access_phys` because this create a contigous kernel VM space with all phys frames.
-/// 
+///
 /// This permits to access structures which can be laid out across a page boundary.
-/// 
+///
 /// Return a virtual address that corresponds to the start of the mapping.
 ///
 /// # Safety
@@ -204,7 +206,7 @@ pub unsafe fn map_phys(frames: &[FrameRef]) -> Option<VirtAddr> {
                 kvm::AllocatorError::NoMemory => None,
                 kvm::AllocatorError::NoVirtualSpace => None,
             }
-        },
+        }
     }
 }
 
@@ -214,9 +216,9 @@ pub fn unmap_phys(addr: VirtAddr, frame_count: usize) {
 }
 
 /// Helper to permit to map a set of physical iomem pages into kernel space
-/// 
+///
 /// iomem is the area of physical address space that is not backup by RAM, and not managed by the physical memory allocator.
-/// 
+///
 /// # Safety
 /// The iomem has currently no allocator, no concurrent reservations are unchecked.
 pub unsafe fn map_iomem(phys_frames: Range<PhysAddr>, perms: Permissions) -> Option<VirtAddr> {
@@ -232,7 +234,7 @@ pub unsafe fn map_iomem(phys_frames: Range<PhysAddr>, perms: Permissions) -> Opt
                 kvm::AllocatorError::NoMemory => None,
                 kvm::AllocatorError::NoVirtualSpace => None,
             }
-        },
+        }
     }
 }
 
@@ -245,7 +247,6 @@ pub fn unmap_iomem(addr: VirtAddr, frame_count: usize) {
 ///
 /// TODO: guards
 #[repr(align(8))]
-#[derive(Debug)]
 pub struct KernelStack {
     data: [u8; KERNEL_STACK_SIZE],
     end: [u8; 0],
@@ -265,5 +266,20 @@ impl KernelStack {
 
     pub fn stack_top(&self) -> VirtAddr {
         return VirtAddr::new_truncate(self.end.as_ptr() as u64);
+    }
+}
+
+impl Debug for KernelStack {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut writer = f.debug_struct("KernelStack");
+
+        for counter in 0..50 {
+            let addr = self.stack_top() - ((counter + 1) * mem::size_of::<u64>());
+            let value = unsafe { *addr.as_ptr::<u64>() };
+
+            writer.field(&format!("{counter}"), &format_args!("{value:#016X}"));
+        }
+
+        writer.finish()
     }
 }

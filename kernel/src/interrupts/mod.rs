@@ -36,7 +36,8 @@ lazy_static! {
         idt.general_protection_fault.set_handler_fn(exceptions::general_protection_fault_handler);
         idt.invalid_opcode.set_handler_fn(exceptions::invalid_opcode_handler);
 
-        idt[Irq::Timer as usize].set_handler_fn(irqs::timer_interrupt_handler);
+        idt[Irq::LocalApicTimer as usize].set_handler_fn(irqs::lapic_timer_interrupt_handler);
+        idt[Irq::LocalApicError as usize].set_handler_fn(irqs::lapic_error_interrupt_handler);
 
         idt
     };

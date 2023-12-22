@@ -1,6 +1,7 @@
 use core::{
     mem,
     ptr::{read_volatile, write_volatile},
+    fmt::Debug,
 };
 
 use crate::{
@@ -188,6 +189,14 @@ impl LocalApic {
         }
     }
 
+    pub fn spurious_interrupt_vector(&self) -> LocalApicSpuriousInterruptVector {
+        LocalApicSpuriousInterruptVector(unsafe { self.read(registers::SPURIOUS_INTERRUPT_VECTOR_REGISTER) })
+    }
+
+    pub fn set_spurious_interrupt_vector(&self, value: LocalApicSpuriousInterruptVector) {
+        unsafe { self.write(registers::SPURIOUS_INTERRUPT_VECTOR_REGISTER, value.0) };
+    }
+
     pub fn lvt_timer(&self) -> LocalApicLVTTimer {
         LocalApicLVTTimer(unsafe { self.read(registers::LVT_TIMER) })
     }
@@ -258,7 +267,7 @@ impl Drop for LocalApic {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalApicId(u32);
+struct LocalApicId(u32);
 
 impl LocalApicId {
     pub fn value(&self) -> usize {
@@ -267,7 +276,7 @@ impl LocalApicId {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalApicVersion(u32);
+struct LocalApicVersion(u32);
 
 impl LocalApicVersion {
     pub fn version(&self) -> usize {
@@ -283,7 +292,7 @@ impl LocalApicVersion {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct LocalApicErrors(u32);
 
 impl LocalApicErrors {
@@ -320,6 +329,46 @@ impl LocalApicErrors {
     }
 }
 
+impl Debug for LocalApicErrors {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut set = f.debug_tuple("LocalApicErrors");
+
+        if self.send_checksum_error() {
+            set.field(&"send_checksum_error");
+        }
+
+        if self.receive_checksum_error() {
+            set.field(&"receive_checksum_error");
+        }
+    
+        if self.send_accept_error() {
+            set.field(&"send_accept_error");
+        }
+    
+        if self.receive_accept_error() {
+            set.field(&"receive_accept_error");
+        }
+    
+        if self.redirectable_ipi() {
+            set.field(&"redirectable_ipi");
+        }
+    
+        if self.send_illegal_vector() {
+            set.field(&"send_illegal_vector");
+        }
+    
+        if self.received_illegal_vector() {
+            set.field(&"received_illegal_vector");
+        }
+    
+        if self.illegal_register_address() {
+            set.field(&"illegal_register_address");
+        }
+
+        set.finish()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum LocalApicLVTDeliveryStatus {
     Idle,
@@ -344,7 +393,7 @@ pub enum LocalApicLVTtimerMode {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalApicLVTTimer(u32);
+struct LocalApicLVTTimer(u32);
 
 impl LocalApicLVTTimer {
     pub const fn new() -> Self {
@@ -390,7 +439,7 @@ impl LocalApicLVTTimer {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalApicLVTWithDeliveryMode(u32);
+struct LocalApicLVTWithDeliveryMode(u32);
 
 impl LocalApicLVTWithDeliveryMode {
     pub const fn new() -> Self {
@@ -450,7 +499,7 @@ impl LocalApicLVTWithDeliveryMode {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalApicLVTError(u32);
+struct LocalApicLVTError(u32);
 
 impl LocalApicLVTError {
     pub const fn new() -> Self {
@@ -486,8 +535,58 @@ impl LocalApicLVTError {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct LocalApicSpuriousInterruptVector(u32);
+
+impl LocalApicSpuriousInterruptVector {
+    pub fn vector(&self) -> u8 {
+        self.0.get_bits(0..8) as u8
+    }
+
+    /// # Safety
+    /// 
+    /// Bits 0 through 3 may be unsupported
+    pub fn set_vector(&mut self, value: u8) {
+        self.0.set_bits(0..8, value as u32);
+    }
+
+    pub fn software_enabled(&self) -> bool {
+        self.0.get_bit(8)
+    }
+
+    pub fn software_enable(&mut self) {
+        self.0.set_bit(8, true);
+    }
+
+    pub fn software_disable(&mut self) {
+        self.0.set_bit(8, false);
+    }
+
+    pub fn focus_processor_checking(&self) -> bool {
+        self.0.get_bit(9)
+    }
+
+    /// # Safety
+    /// 
+    /// Not supported on all processors
+    pub unsafe  fn set_focus_processor_checking(&mut self, value: bool) {
+        self.0.set_bit(9, true);
+    }
+
+    pub fn eoi_broadcast_suppression(&self) -> bool {
+        self.0.get_bit(12)
+    }
+
+    /// # Safety
+    /// 
+    /// Not supported on all processors
+    pub unsafe fn set_eoi_broadcast_suppression(&mut self, value: bool) {
+        self.0.set_bit(12, true);
+    }
+}
+
 #[derive(Debug)]
-pub struct Timer<'a> {
+struct Timer<'a> {
     apic: &'a LocalApic,
 }
 
@@ -617,6 +716,16 @@ pub fn init() {
 
     unsafe { apic.init() };
     apic.timer().calibrate();
+
+    // Enable Local APIC
+    let mut siv = apic.spurious_interrupt_vector();
+    siv.software_enable();
+    apic.set_spurious_interrupt_vector(siv);
+
+    // Set error interrupt
+    let mut lvt = LocalApicLVTError::new();
+    lvt.set_vector(Irq::LocalApicError as u8);
+    apic.set_lvt_error(lvt)
 }
 
 pub fn configure_timer() {
@@ -625,16 +734,23 @@ pub fn configure_timer() {
     // Configure timer
     let mut lvt = LocalApicLVTTimer::new();
     lvt.set_timer_mode(LocalApicLVTtimerMode::Period);
-    lvt.set_vector(Irq::Timer as u8);
+    lvt.set_vector(Irq::LocalApicTimer as u8);
     apic.set_lvt_timer(lvt);
 
     // Interrupt period=10ms
     apic.timer().configure(FS_IN_SEC / 100);
 }
 
-/// Signal end of interrupt for local APIC
+/// Signal end of interrupt for Local APIC
 pub fn end_of_interrupt() {
     let apic = LOCAL_APIC.lock();
 
     apic.end_of_interrupt();
+}
+
+/// Get the current errors on Local APIC
+pub fn current_errors() -> LocalApicErrors {
+    let apic = LOCAL_APIC.lock();
+
+    apic.current_errors()
 }

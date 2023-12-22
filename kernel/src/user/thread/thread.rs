@@ -309,9 +309,9 @@ impl ThreadContext {
         interrupt_stack.preserved.r13 = self.r13;
         interrupt_stack.preserved.r14 = self.r14;
         interrupt_stack.preserved.r15 = self.r15;
+        interrupt_stack.error_code = 0;
         interrupt_stack.iret.instruction_pointer = self.instruction_pointer;
         interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
-
         interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR_INDEX);
         interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR_INDEX);
     }

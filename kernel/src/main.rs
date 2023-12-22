@@ -75,12 +75,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    info!("loop");
-    x86_64::instructions::interrupts::enable();
-    loop{}
-
-    // TODO: clean initial kernel stack
-
     init::run();
 
     /*

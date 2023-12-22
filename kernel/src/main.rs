@@ -80,7 +80,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     /*
     
     Next:
-    - Timer interrupt for context switch
     - Handle
     - IPC
     - Exceptions in userland

@@ -115,6 +115,8 @@ pub extern "C" fn _start() -> ! {
         syscall1(SyscallNumber::ProcessOpenSelf, out_ptr(&mut handle));
         
         log(Level::Info, format_args!("handle value={handle:?}"));
+
+        syscall1(SyscallNumber::Close, handle.0 as usize);
     }
 
     loop {}

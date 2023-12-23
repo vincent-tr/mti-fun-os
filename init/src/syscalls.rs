@@ -15,6 +15,14 @@
 // option is specified.
 use core::arch::asm;
 
+/// List of syscall numbers
+/// 
+/// TODO: share with kernel
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyscallNumber {
+    Log = 1,
+}
+
 /// Issues a raw system call with 0 arguments.
 ///
 /// # Safety
@@ -22,7 +30,7 @@ use core::arch::asm;
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall0(n: usize) -> usize {
+pub unsafe fn syscall0(n: SyscallNumber) -> usize {
     let mut ret: usize;
     asm!(
         "syscall",
@@ -41,7 +49,7 @@ pub unsafe fn syscall0(n: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall1(n: usize, arg1: usize) -> usize {
+pub unsafe fn syscall1(n: SyscallNumber, arg1: usize) -> usize {
     let mut ret: usize;
     asm!(
         "syscall",
@@ -61,7 +69,7 @@ pub unsafe fn syscall1(n: usize, arg1: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
+pub unsafe fn syscall2(n: SyscallNumber, arg1: usize, arg2: usize) -> usize {
     let mut ret: usize;
     asm!(
         "syscall",
@@ -83,7 +91,7 @@ pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
 /// responsibility to ensure safety.
 #[inline]
 pub unsafe fn syscall3(
-    n: usize,
+    n: SyscallNumber,
     arg1: usize,
     arg2: usize,
     arg3: usize,
@@ -110,7 +118,7 @@ pub unsafe fn syscall3(
 /// responsibility to ensure safety.
 #[inline]
 pub unsafe fn syscall4(
-    n: usize,
+    n: SyscallNumber,
     arg1: usize,
     arg2: usize,
     arg3: usize,
@@ -139,7 +147,7 @@ pub unsafe fn syscall4(
 /// responsibility to ensure safety.
 #[inline]
 pub unsafe fn syscall5(
-    n: usize,
+    n: SyscallNumber,
     arg1: usize,
     arg2: usize,
     arg3: usize,
@@ -170,7 +178,7 @@ pub unsafe fn syscall5(
 /// responsibility to ensure safety.
 #[inline]
 pub unsafe fn syscall6(
-    n: usize,
+    n: SyscallNumber,
     arg1: usize,
     arg2: usize,
     arg3: usize,

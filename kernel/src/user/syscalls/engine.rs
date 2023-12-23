@@ -1,3 +1,5 @@
+use core::mem;
+
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use log::debug;
@@ -5,13 +7,15 @@ use spin::RwLock;
 
 use crate::user::error::{not_supported, Error};
 
+use super::SyscallNumber;
+
 /// Type of a syscal; handler
 pub type SyscallHandler = fn(usize, usize, usize, usize, usize, usize) -> Result<(), Error>;
 
 const SUCCESS: usize = 0;
 
 struct Handlers {
-    handlers: HashMap<usize, SyscallHandler>,
+    handlers: HashMap<SyscallNumber, SyscallHandler>,
 }
 
 impl Handlers {
@@ -21,13 +25,13 @@ impl Handlers {
         }
     }
 
-    pub fn register(&mut self, n: usize, handler: SyscallHandler) {
-        assert!(self.handlers.insert(n, handler).is_none());
+    pub fn register(&mut self, syscall_number: SyscallNumber, handler: SyscallHandler) {
+        assert!(self.handlers.insert(syscall_number, handler).is_none());
     }
 
     pub fn execute(
         &self,
-        n: usize,
+        syscall_number: SyscallNumber,
         arg1: usize,
         arg2: usize,
         arg3: usize,
@@ -35,7 +39,7 @@ impl Handlers {
         arg5: usize,
         arg6: usize,
     ) -> Result<(), Error> {
-        if let Some(handler) = self.handlers.get(&n) {
+        if let Some(handler) = self.handlers.get(&syscall_number) {
             handler(arg1, arg2, arg3, arg4, arg5, arg6)
         } else {
             Err(not_supported())
@@ -57,11 +61,14 @@ pub fn execute_syscall(
     arg5: usize,
     arg6: usize,
 ) -> usize {
-    debug!("Syscall {n} (arg1={arg1} (0x{arg1:016X}), arg2={arg2} (0x{arg2:016X}), arg3={arg3} (0x{arg3:016X}), arg4={arg4} (0x{arg4:016X}), arg5={arg5} (0x{arg5:016X}), arg6={arg6} (0x{arg6:016X}))");
+    // If the number is not in struct we just won't get the key
+    let syscall_number: SyscallNumber = unsafe { mem::transmute(n) };
+
+    debug!("Syscall {syscall_number:?} (arg1={arg1} (0x{arg1:016X}), arg2={arg2} (0x{arg2:016X}), arg3={arg3} (0x{arg3:016X}), arg4={arg4} (0x{arg4:016X}), arg5={arg5} (0x{arg5:016X}), arg6={arg6} (0x{arg6:016X}))");
 
     let handler = HANDLERS.read();
 
-    let ret = match handler.execute(n, arg1, arg2, arg3, arg4, arg5, arg6) {
+    let ret = match handler.execute(syscall_number, arg1, arg2, arg3, arg4, arg5, arg6) {
         Ok(_) => SUCCESS,
         Err(err) => err as usize,
     };
@@ -72,8 +79,8 @@ pub fn execute_syscall(
 }
 
 /// Register a new syscall handler
-pub fn register_syscall(n: usize, handler: SyscallHandler) {
-    debug!("Add syscall {n}");
+pub fn register_syscall(syscall_number: SyscallNumber, handler: SyscallHandler) {
+    debug!("Add syscall {syscall_number:?}");
     let mut handlers = HANDLERS.write();
-    handlers.register(n, handler);
+    handlers.register(syscall_number, handler);
 }

@@ -5,15 +5,11 @@ mod syscalls;
 
 use core::{panic::PanicInfo, arch::asm};
 
-use syscalls::{syscall0, syscall3};
-
-const SYSCALL_NOOP: usize = 1;
-const SYSCALL_PANIC: usize = 2;
-const SYSCALL_KLOG: usize = 3;
+use syscalls::{SyscallNumber, syscall3};
 
 #[repr(usize)]
 enum Level {
-    Error,
+    Error = 1,
     Warn,
     Info,
     Debug,
@@ -23,7 +19,7 @@ enum Level {
 fn log(level: Level, message: &str) {
     unsafe {
         syscall3(
-            SYSCALL_KLOG,
+            SyscallNumber::Log,
             level as usize,
             message.as_ptr() as usize,
             message.len(),
@@ -34,9 +30,7 @@ fn log(level: Level, message: &str) {
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     unsafe {
-        syscall0(SYSCALL_NOOP);
         log(Level::Info, "test");
-        //syscall0(SYSCALL_PANIC);
     }
 
     loop {}

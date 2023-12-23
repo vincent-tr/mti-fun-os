@@ -152,8 +152,7 @@ impl Process {
 
     /// Create a new memory access to a part of the process VM
     ///
-    ///
-    /// permissions are the at least excepted permission in address space.
+    /// permissions are at least expected permission in address space.
     ///
     /// eg: if READ is set, then the range must be mapped in the address space with at least READ permission
     ///

@@ -1,10 +1,11 @@
-mod error;
 mod id_gen;
+mod weak_map;
+mod error;
 mod memory_object;
 pub mod process;
-mod syscalls;
 pub mod thread;
-mod weak_map;
+mod handle;
+mod syscalls;
 
 use crate::{
     memory::{Permissions, VirtAddr},

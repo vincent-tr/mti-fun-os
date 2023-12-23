@@ -25,6 +25,10 @@ pub fn check_arg_res<T, E>(res: Result<T, E>) -> Result<T, Error> {
     res.map_err(|_| invalid_argument())
 }
 
+pub fn check_arg_opt<T>(value: Option<T>) -> Result<T, Error> {
+    value.ok_or(invalid_argument())
+}
+
 pub fn check_is_userspace(addr: VirtAddr) -> Result<(), Error> {
     check_arg(is_userspace(addr))
 }

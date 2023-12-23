@@ -6,7 +6,7 @@ use spin::RwLock;
 
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
-    user::{thread::Thread, weak_map::WeakMap},
+    user::{thread::Thread, weak_map::WeakMap, handle::Handles},
 };
 
 use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};
@@ -31,6 +31,7 @@ pub struct Process {
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
     threads: WeakMap<u64, Thread>,
+    handles: Handles,
 }
 
 impl Process {
@@ -50,6 +51,7 @@ impl Process {
             address_space: RwLock::new(address_space),
             mappings: RwLock::new(Mappings::new()),
             threads: WeakMap::new(),
+            handles: Handles::new(),
         });
 
         debug!("Process {} created", process.id);
@@ -168,6 +170,11 @@ impl Process {
     /// Add a thread to the process
     pub fn add_thread(&self, thread: &Arc<Thread>) {
         self.threads.insert(thread.id(), thread);
+    }
+
+    /// Get the handle manager of the process
+    pub fn handles(&self) -> &Handles {
+        &self.handles
     }
 }
 

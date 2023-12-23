@@ -132,13 +132,12 @@ impl<'a> Loader<'a> {
 
         assert!(segment.align() as usize == PAGE_SIZE, "wrong alignment");
 
-        let mem_size = page_aligned_up(segment.mem_size() as usize);
         let mem_start = VirtAddr::new(page_aligned_down(segment.virtual_addr() as usize) as u64);
+        let mobj_start = (segment.virtual_addr() - mem_start.as_u64()) as usize;
+        let mem_size = page_aligned_up(mobj_start + segment.mem_size() as usize);
+        let mobj_range = mobj_start..mobj_start + segment.file_size() as usize;
 
         let mobj = MemoryObject::new(mem_size).expect("Could not create MemoryObject");
-
-        let mobj_start = (segment.virtual_addr() - mem_start.as_u64()) as usize;
-        let mobj_range = mobj_start..mobj_start + segment.file_size() as usize;
 
         self.load_data(
             &mobj,
@@ -175,14 +174,19 @@ impl<'a> Loader<'a> {
             page_aligned_down(mobj_range.start)..page_aligned_up(mobj_range.end);
 
         for frame_offset in mobj_range_aligned.step_by(PAGE_SIZE) {
-            let frame_data = unsafe { memory::access_phys(mobj.frame(frame_offset)) };
-            let frame_range =
+            if mobj_range.start >= frame_offset + PAGE_SIZE {
+                continue;
+            }
+
+            let dest_range =
                 max(frame_offset, mobj_range.start)..min(frame_offset + PAGE_SIZE, mobj_range.end);
+            let frame_range = dest_range.start - frame_offset..dest_range.end - frame_offset;
             let source_range = binary_range.start..binary_range.start + frame_range.len();
 
             assert!(binary_range.len() >= frame_range.len());
             binary_range.start += frame_range.len();
 
+            let frame_data = unsafe { memory::access_phys(mobj.frame(frame_offset)) };
             frame_data[frame_range].copy_from_slice(&self.elf_file.input[source_range]);
         }
     }

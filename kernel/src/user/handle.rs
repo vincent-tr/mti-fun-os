@@ -10,6 +10,18 @@ use super::{MemoryObject, process::Process, thread::Thread, id_gen::IdGen, Error
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Handle(u64);
 
+impl From<u64> for Handle {
+    fn from(value: u64) -> Self {
+        Handle(value)
+    }
+}
+
+impl From<usize> for Handle {
+    fn from(value: usize) -> Self {
+        Handle(value as u64)
+    }
+}
+
 #[derive(Debug)]
 enum HandleImpl {
     MemoryObjectHandle(Arc<MemoryObject>),

@@ -4,7 +4,10 @@ use alloc::sync::Arc;
 use log::debug;
 use spin::RwLock;
 
-use crate::{memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr}, user::{weak_map::WeakMap, thread::Thread}};
+use crate::{
+    memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
+    user::{thread::Thread, weak_map::WeakMap},
+};
 
 use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};
 
@@ -16,22 +19,22 @@ use crate::user::{
 /// Standalone function, so that Process::new() can remain private
 ///
 /// Note: Only Process type is exported by process module, not this function
-pub fn new(id: u32) -> Result<Arc<Process>, Error> {
+pub fn new(id: u64) -> Result<Arc<Process>, Error> {
     Process::new(id)
 }
 
 /// Process
 #[derive(Debug)]
 pub struct Process {
-    id: u32,
+    id: u64,
     address_space: RwLock<AddressSpace>,
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
-    threads: WeakMap<u32, Thread>,
+    threads: WeakMap<u64, Thread>,
 }
 
 impl Process {
-    fn new(id: u32) -> Result<Arc<Self>, Error> {
+    fn new(id: u64) -> Result<Arc<Self>, Error> {
         let address_space = match create_adress_space() {
             Ok(address_space) => address_space,
             Err(err) => {
@@ -55,7 +58,7 @@ impl Process {
     }
 
     /// Get the process identifier
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> u64 {
         self.id
     }
 
@@ -151,7 +154,7 @@ impl Process {
     /// permissions are the at least excepted permission in address space.
     ///
     /// eg: if READ is set, then the range must be mapped in the address space with at least READ permission
-    /// 
+    ///
     /// Note that the kernel access itself it always READ/WRITE
     pub fn vm_access(
         &self,
@@ -163,7 +166,7 @@ impl Process {
     }
 
     /// Add a thread to the process
-    pub fn add_thread( &self,thread: &Arc<Thread>) {
+    pub fn add_thread(&self, thread: &Arc<Thread>) {
         self.threads.insert(thread.id(), thread);
     }
 }

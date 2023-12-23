@@ -28,7 +28,7 @@ pub fn create(process: Arc<Process>, thread_start: VirtAddr, stack_top: VirtAddr
     thread
 }
 
-pub fn find(pid: u32) -> Option<Arc<Thread>> {
+pub fn find(pid: u64) -> Option<Arc<Thread>> {
     THREADS.find(pid)
 }
 

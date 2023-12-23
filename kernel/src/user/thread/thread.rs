@@ -18,7 +18,7 @@ use super::wait_queue::WaitQueue;
 ///
 /// Note: Only Thread type is exported by thread module, not this function
 pub fn new(
-    id: u32,
+    id: u64,
     process: Arc<Process>,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
@@ -57,7 +57,7 @@ pub unsafe fn initial_run_thread(thread: Arc<Thread>) -> ! {
 /// Thread of execution
 #[derive(Debug)]
 pub struct Thread {
-    id: u32,
+    id: u64,
     process: Arc<Process>,
     state: RwLock<ThreadState>,
     context: Mutex<ThreadContext>,
@@ -65,7 +65,7 @@ pub struct Thread {
 
 impl Thread {
     fn new(
-        id: u32,
+        id: u64,
         process: Arc<Process>,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
@@ -83,7 +83,7 @@ impl Thread {
     }
 
     /// Get the thread (global) identifier
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> u64 {
         self.id
     }
 

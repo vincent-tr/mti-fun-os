@@ -15,7 +15,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct Threads {
     id_gen: IdGen,
-    threads: WeakMap<u32, Thread>,
+    threads: WeakMap<u64, Thread>,
 }
 
 impl Threads {
@@ -39,7 +39,7 @@ impl Threads {
     }
 
     /// Find a thread by its pid
-    pub fn find(&self, pid: u32) -> Option<Arc<Thread>> {
+    pub fn find(&self, pid: u64) -> Option<Arc<Thread>> {
         self.threads.find(pid)
     }
 }

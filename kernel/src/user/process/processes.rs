@@ -13,7 +13,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct Processes {
     id_gen: IdGen,
-    processes: WeakMap<u32, Process>,
+    processes: WeakMap<u64, Process>,
 }
 
 impl Processes {
@@ -35,7 +35,7 @@ impl Processes {
     }
 
     /// Find a process by its pid
-    pub fn find(&self, pid: u32) -> Option<Arc<Process>> {
+    pub fn find(&self, pid: u64) -> Option<Arc<Process>> {
         self.processes.find(pid)
     }
 }

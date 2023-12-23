@@ -16,6 +16,6 @@ pub fn create() -> Result<Arc<Process>, Error> {
     PROCESSES.create()
 }
 
-pub fn find(pid: u32) -> Option<Arc<Process>> {
+pub fn find(pid: u64) -> Option<Arc<Process>> {
     PROCESSES.find(pid)
 }

@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+extern crate rlibc;
+
 mod syscalls;
 
 use core::{panic::PanicInfo, arch::asm};

@@ -197,7 +197,7 @@ pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
 /// - Concurrent mutable accesses are not checked.
 /// - Must be freed with unmap_phys
 ///
-pub unsafe fn map_phys(frames: &[FrameRef]) -> Option<VirtAddr> {
+pub unsafe fn map_phys(frames: &mut [FrameRef]) -> Option<VirtAddr> {
     match kvm::allocate_with_frames(frames) {
         Ok(addr) => Some(addr),
         Err(err) => {
@@ -244,7 +244,7 @@ pub fn unmap_iomem(addr: VirtAddr, frame_count: usize) {
 }
 
 /// Structure that defines a kernel stack
-/// 
+///
 /// Note:
 /// - align(16) to be able to use it as interrupt stack
 ///

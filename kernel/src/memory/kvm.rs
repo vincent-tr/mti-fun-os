@@ -2,7 +2,7 @@ use core::{alloc::Layout, mem, ptr::NonNull, usize};
 
 use log::{debug, info};
 use spin::RwLock;
-use x86_64::{structures::paging::mapper::MapToError, VirtAddr, PhysAddr};
+use x86_64::{structures::paging::mapper::MapToError, PhysAddr, VirtAddr};
 
 use super::{
     buddy::{self, BuddyAllocator},
@@ -66,7 +66,10 @@ impl<'a> Allocator<'a> {
         }
     }
 
-    pub fn allocate_with_frames(&mut self, frames: &[FrameRef]) -> Result<VirtAddr, AllocatorError> {
+    pub fn allocate_with_frames(
+        &mut self,
+        frames: &mut [FrameRef],
+    ) -> Result<VirtAddr, AllocatorError> {
         assert!(frames.len() > 0);
 
         let addr = self.reserve(frames.len())?;
@@ -82,11 +85,19 @@ impl<'a> Allocator<'a> {
         }
     }
 
-    pub fn allocate_iomem(&mut self, phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<VirtAddr, AllocatorError> {
+    pub fn allocate_iomem(
+        &mut self,
+        phys_addr: PhysAddr,
+        page_count: usize,
+        perms: Permissions,
+    ) -> Result<VirtAddr, AllocatorError> {
         assert!(page_count > 0);
         assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
         // Only accept read or write (or both)
-        assert!(perms.intersects(Permissions::READ | Permissions::WRITE) && !perms.intersects(Permissions::EXECUTE));
+        assert!(
+            perms.intersects(Permissions::READ | Permissions::WRITE)
+                && !perms.intersects(Permissions::EXECUTE)
+        );
 
         let addr = self.reserve(page_count)?;
 
@@ -98,7 +109,7 @@ impl<'a> Allocator<'a> {
 
                 Err(err)
             }
-        }    
+        }
     }
 
     pub fn deallocate(&mut self, addr: VirtAddr, page_count: usize) {
@@ -193,10 +204,13 @@ impl<'a> Allocator<'a> {
         Ok(())
     }
 
-    fn map_phys_frames(&mut self, addr: VirtAddr, frames: &[FrameRef]) -> Result<(), AllocatorError> {
-        for (page_index, frame_ref) in frames.iter().enumerate() {
+    fn map_phys_frames(
+        &mut self,
+        addr: VirtAddr,
+        frames: &mut [FrameRef],
+    ) -> Result<(), AllocatorError> {
+        for (page_index, frame) in frames.iter_mut().enumerate() {
             let page_addr = addr + page_index * PAGE_SIZE;
-            let mut frame = frame_ref.clone();
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
@@ -223,9 +237,14 @@ impl<'a> Allocator<'a> {
         }
 
         Ok(())
-
     }
-    fn map_iomem(&mut self, addr: VirtAddr, phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<(), AllocatorError> {
+    fn map_iomem(
+        &mut self,
+        addr: VirtAddr,
+        phys_addr: PhysAddr,
+        page_count: usize,
+        perms: Permissions,
+    ) -> Result<(), AllocatorError> {
         for page_index in 0..page_count {
             let page_addr = addr + page_index * PAGE_SIZE;
             let frame_addr = phys_addr + page_index * PAGE_SIZE;
@@ -251,7 +270,6 @@ impl<'a> Allocator<'a> {
         }
 
         Ok(())
-
     }
 
     fn unmap_phys(&mut self, addr: VirtAddr, page_count: usize) {
@@ -379,7 +397,7 @@ pub fn allocate(page_count: usize) -> Result<VirtAddr, AllocatorError> {
 ///
 /// ### Note
 /// The frames are cloned then borrowed.
-pub fn allocate_with_frames(frames: &[FrameRef]) -> Result<VirtAddr, AllocatorError> {
+pub fn allocate_with_frames(frames: &mut [FrameRef]) -> Result<VirtAddr, AllocatorError> {
     let mut allocator = ALLOCATOR.write();
 
     let res = allocator.allocate_with_frames(frames);
@@ -402,7 +420,11 @@ pub fn deallocate(addr: VirtAddr, page_count: usize) {
 ///
 /// # Safety
 /// The iomem has currently no allocator, it is unchecked.
-pub unsafe fn allocate_iomem(phys_addr: PhysAddr, page_count: usize, perms: Permissions) -> Result<VirtAddr, AllocatorError> {
+pub unsafe fn allocate_iomem(
+    phys_addr: PhysAddr,
+    page_count: usize,
+    perms: Permissions,
+) -> Result<VirtAddr, AllocatorError> {
     let mut allocator = ALLOCATOR.write();
 
     let res = allocator.allocate_iomem(phys_addr, page_count, perms);

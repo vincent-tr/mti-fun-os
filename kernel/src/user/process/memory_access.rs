@@ -1,14 +1,15 @@
 use core::{
     mem::{align_of, size_of},
-    ops::Range, slice::{from_raw_parts, from_raw_parts_mut},
+    ops::Range,
+    slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 use alloc::vec::Vec;
 
 use crate::{
     memory::{
-        self, page_aligned_down, page_aligned_up, AddressSpace, FrameRef, Permissions, VirtAddr,
-        PAGE_SIZE,
+        self, page_aligned_down, page_aligned_up, AddressSpace, FrameRef, Permissions, PhysAddr,
+        VirtAddr, PAGE_SIZE,
     },
     user::{
         error::{check_permissions, out_of_memory},
@@ -41,17 +42,19 @@ impl MemoryAccess {
         for process_addr in process_range.step_by(PAGE_SIZE) {
             let (phys_addr, actual_perms) = unsafe { address_space.get_infos(process_addr) };
             check_permissions(actual_perms, perms)?;
+            let phys_addr = phys_addr.expect("Unexpected missing frame");
 
-            frames
-                .push(unsafe { FrameRef::unborrow(phys_addr.expect("Unexpected missing frame")) });
+            // Get a new ref from the phys addr
+            let frame = unsafe { ref_frame(phys_addr) };
+
+            frames.push(frame);
         }
 
-        let alloc = if let Some(alloc) = unsafe { memory::map_phys(&frames) } {
+        let alloc = if let Some(alloc) = unsafe { memory::map_phys(&mut frames) } {
             alloc
         } else {
             return Err(out_of_memory());
         };
-
 
         Ok(Self {
             alloc,
@@ -111,7 +114,7 @@ impl Drop for MemoryAccess {
 }
 
 /// Standalone function, so that MemoryAccess::create() can remain private
-/// 
+///
 /// Create a new memory access
 ///
 /// permissions are the at least excepted permission in address space.
@@ -123,4 +126,23 @@ pub fn create(
     perms: Permissions,
 ) -> Result<MemoryAccess, Error> {
     MemoryAccess::create(address_space, range, perms)
+}
+
+/// Get a frame ref directly from a physical address
+///
+/// # Safety
+///
+/// The physical address must have been borrowed from a FrameRef earlier
+///
+unsafe fn ref_frame(phys_addr: PhysAddr) -> FrameRef {
+    // Temp unborrow the frame from phys addr
+    let mut borrowed_frame = FrameRef::unborrow(phys_addr);
+
+    // Add new ref
+    let frame_new_ref = borrowed_frame.clone();
+
+    // Borrow it back
+    borrowed_frame.borrow();
+
+    frame_new_ref
 }

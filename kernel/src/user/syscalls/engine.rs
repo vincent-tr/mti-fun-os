@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use log::debug;
 use spin::RwLock;
 
-use super::{error::not_supported, Error};
+use crate::user::error::{not_supported, Error};
 
 /// Type of a syscal; handler
 pub type SyscallHandler = fn(usize, usize, usize, usize, usize, usize) -> Result<(), Error>;

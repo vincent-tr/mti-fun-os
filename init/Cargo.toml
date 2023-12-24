@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 rlibc = "1.0.0"
+syscalls = { path = "../syscalls" }

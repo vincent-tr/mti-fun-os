@@ -15,16 +15,7 @@
 // option is specified.
 use core::arch::asm;
 
-/// List of syscall numbers
-/// 
-/// TODO: share with kernel
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SyscallNumber {
-    Log = 1,
-    Close,
-    ProcessOpenSelf,
-    ProcessCreate,
-}
+pub use syscalls::SyscallNumber;
 
 /// Issues a raw system call with 0 arguments.
 ///

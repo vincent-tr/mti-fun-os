@@ -1,13 +1,6 @@
 use crate::memory::{is_page_aligned, is_userspace, VirtAddr, Permissions};
 
-#[derive(Debug)]
-#[repr(usize)]
-pub enum Error {
-    InvalidArgument = 1,
-    OutOfMemory,
-    NotSupported,
-    MemoryAccessDenied,
-}
+pub use syscalls::Error;
 
 pub fn invalid_argument() -> Error {
     Error::InvalidArgument

@@ -526,6 +526,7 @@ name = "init"
 version = "0.1.0"
 dependencies = [
  "rlibc",
+ "syscalls",
 ]
 
 [[package]]
@@ -567,6 +568,7 @@ dependencies = [
  "memoffset",
  "raw-cpuid 11.0.1",
  "spin 0.9.8",
+ "syscalls",
  "uart_16550",
  "x86_64",
  "xmas-elf",
@@ -950,6 +952,10 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "syscalls"
+version = "0.1.0"
 
 [[package]]
 name = "tap"

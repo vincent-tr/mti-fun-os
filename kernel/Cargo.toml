@@ -16,3 +16,4 @@ xmas-elf = "0.9.1"
 memoffset = "0.9.0"
 bit_field = "0.10.2"
 raw-cpuid = "11.0.1"
+syscalls = { path = "../syscalls" }

@@ -279,6 +279,13 @@ fn div0() {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
     //error!("PANIC: {info}");
+    log(
+        Level::Error,
+        format_args!(
+            "PANIC: {info}"
+        ),
+    );
+
+    loop {}
 }

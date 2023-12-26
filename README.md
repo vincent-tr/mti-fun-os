@@ -1,29 +1,25 @@
 # mti-fun-os
 
-## Build init
+## Setup
 
 ```shell
-cd init
-cargo build
+cargo install cargo-make
+pacman -S extra/qemu-base
 ```
 
-## Build kernel
+## Build image
 
 ```shell
-cargo build
+cargo make build
 ```
 
 ## Run kernel in QEmu
 
-### Setup
-```shell
-pacman -S extra/qemu-base
-```
-
 ### Shell 1
 
 ```shell
-cargo run
+cargo make run
+# or cargo make
 ```
 
 ### Shell 2

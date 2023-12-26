@@ -11,7 +11,7 @@ args = ["fmt", "--", "--emit=files"]
 
 [tasks.build]
 workspace = false
-dependencies = ["format, image-build"]
+dependencies = ["format", "image-build"]
 
 # also build kernel
 [tasks.image-build]

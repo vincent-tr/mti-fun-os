@@ -1,5 +1,5 @@
-use core::{fmt, mem};
 use core::hash::{Hash, Hasher};
+use core::{fmt, mem};
 
 use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
@@ -8,7 +8,7 @@ use spin::{Mutex, RwLock, RwLockReadGuard};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
-use crate::interrupts::{InterruptStack, USERLAND_RFLAGS, switch_to_userland};
+use crate::interrupts::{switch_to_userland, InterruptStack, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
 use crate::user::process::Process;
 
@@ -44,7 +44,7 @@ pub unsafe fn load(thread: &Arc<Thread>) {
 pub unsafe fn initial_run_thread(thread: Arc<Thread>) -> ! {
     let context = thread.context.lock();
 
-    let user_code =  context.instruction_pointer;
+    let user_code = context.instruction_pointer;
     let user_stack_top = context.rsp;
 
     // drop it here since we won't return
@@ -77,7 +77,13 @@ impl Thread {
             context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
         });
 
-        debug!("Thread {} created (pid={})", thread.id, thread.process.id());
+        debug!(
+            "Thread {} created (pid={}, thread_start={:?}, stack_top={:?})",
+            thread.id,
+            thread.process.id(),
+            thread_start,
+            stack_top,
+        );
 
         thread
     }

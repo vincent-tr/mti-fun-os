@@ -2,7 +2,7 @@ use core::mem;
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use log::debug;
+use log::{debug, trace};
 use spin::RwLock;
 
 use crate::user::error::{not_supported, Error};
@@ -64,7 +64,7 @@ pub fn execute_syscall(
     // If the number is not in struct we just won't get the key
     let syscall_number: SyscallNumber = unsafe { mem::transmute(n) };
 
-    debug!("Syscall {syscall_number:?} (arg1={arg1} (0x{arg1:016X}), arg2={arg2} (0x{arg2:016X}), arg3={arg3} (0x{arg3:016X}), arg4={arg4} (0x{arg4:016X}), arg5={arg5} (0x{arg5:016X}), arg6={arg6} (0x{arg6:016X}))");
+    trace!("Syscall {syscall_number:?} (arg1={arg1} (0x{arg1:016X}), arg2={arg2} (0x{arg2:016X}), arg3={arg3} (0x{arg3:016X}), arg4={arg4} (0x{arg4:016X}), arg5={arg5} (0x{arg5:016X}), arg6={arg6} (0x{arg6:016X}))");
 
     let handler = HANDLERS.read();
 
@@ -73,7 +73,7 @@ pub fn execute_syscall(
         Err(err) => err as usize,
     };
 
-    debug!("Syscall ret={ret}");
+    trace!("Syscall ret={ret}");
 
     ret
 }

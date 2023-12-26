@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 
 use alloc::sync::Arc;
 
-use crate::user::{id_gen::IdGen, weak_map::WeakMap, process::Process};
+use crate::user::{id_gen::IdGen, process::Process, weak_map::WeakMap};
 
 use crate::memory::VirtAddr;
 
@@ -27,7 +27,12 @@ impl Threads {
     }
 
     /// Create a new thread
-    pub fn create(&self, process: Arc<Process>, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Thread> {
+    pub fn create(
+        &self,
+        process: Arc<Process>,
+        thread_start: VirtAddr,
+        stack_top: VirtAddr,
+    ) -> Arc<Thread> {
         let id = self.id_gen.generate();
         let thread = thread::new(id, process.clone(), thread_start, stack_top);
 

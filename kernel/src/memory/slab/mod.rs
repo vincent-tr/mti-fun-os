@@ -1,6 +1,6 @@
 // from https://github.com/gz/rust-slabmalloc
 
-use core::{ptr::NonNull, alloc::Layout};
+use core::{alloc::Layout, ptr::NonNull};
 
 use self::page::ObjectPage;
 

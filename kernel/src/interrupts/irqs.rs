@@ -12,7 +12,6 @@ pub enum Irq {
 }
 
 pub fn lapic_timer_interrupt_handler(_stack: &mut InterruptStack) {
-
     thread::thread_next();
 
     devices::local_apic::end_of_interrupt();

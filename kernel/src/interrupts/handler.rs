@@ -5,7 +5,7 @@
 use core::{fmt, mem::size_of};
 
 use log::debug;
-use x86_64::{structures::idt::InterruptStackFrameValue, registers::model_specific::KernelGsBase};
+use x86_64::{registers::model_specific::KernelGsBase, structures::idt::InterruptStackFrameValue};
 
 use crate::memory::{KernelStack, VirtAddr};
 
@@ -20,7 +20,7 @@ pub struct InterruptStack {
 
 impl InterruptStack {
     /// Get the InterruptStack object on current kernel stack
-    /// 
+    ///
     /// # Safety
     /// - No access are checked
     /// - Returned data is only valid during the current interrupt handler/syscall handler
@@ -32,7 +32,7 @@ impl InterruptStack {
     }
 
     /// Get the current interrupt kernel stack top
-    /// 
+    ///
     /// # Safety
     /// - No access are checked
     pub unsafe fn interrupt_stack_top() -> VirtAddr {
@@ -62,22 +62,23 @@ pub struct ScratchRegisters {
 impl fmt::Debug for ScratchRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ScratchRegisters")
-         .field("rax", &format_args!("{0:?} ({:#016x})", self.rax))
-         .field("rcx", &format_args!("{0:?} ({:#016x})", self.rcx))
-         .field("rdx", &format_args!("{0:?} ({:#016x})", self.rdx))
-         .field("rdi", &format_args!("{0:?} ({:#016x})", self.rdi))
-         .field("rsi", &format_args!("{0:?} ({:#016x})", self.rsi))
-         .field("r8", &format_args!("{0:?} ({:#016x})", self.r8))
-         .field("r9", &format_args!("{0:?} ({:#016x})", self.r9))
-         .field("r10", &format_args!("{0:?} ({:#016x})", self.r10))
-         .field("r11", &format_args!("{0:?} ({:#016x})", self.r11))
-         .finish()
+            .field("rax", &format_args!("{0:?} ({:#016x})", self.rax))
+            .field("rcx", &format_args!("{0:?} ({:#016x})", self.rcx))
+            .field("rdx", &format_args!("{0:?} ({:#016x})", self.rdx))
+            .field("rdi", &format_args!("{0:?} ({:#016x})", self.rdi))
+            .field("rsi", &format_args!("{0:?} ({:#016x})", self.rsi))
+            .field("r8", &format_args!("{0:?} ({:#016x})", self.r8))
+            .field("r9", &format_args!("{0:?} ({:#016x})", self.r9))
+            .field("r10", &format_args!("{0:?} ({:#016x})", self.r10))
+            .field("r11", &format_args!("{0:?} ({:#016x})", self.r11))
+            .finish()
     }
 }
 
 #[macro_export]
 macro_rules! push_scratch {
-    () => { "
+    () => {
+        "
         // Push scratch registers
         push rax
         push rcx
@@ -88,11 +89,13 @@ macro_rules! push_scratch {
         push r9
         push r10
         push r11
-    " };
+    "
+    };
 }
 #[macro_export]
 macro_rules! pop_scratch {
-    () => { "
+    () => {
+        "
         // Pop scratch registers
         pop r11
         pop r10
@@ -103,7 +106,8 @@ macro_rules! pop_scratch {
         pop rdx
         pop rcx
         pop rax
-    " };
+    "
+    };
 }
 
 #[derive(Clone, Copy)]
@@ -120,19 +124,20 @@ pub struct PreservedRegisters {
 impl fmt::Debug for PreservedRegisters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PreservedRegisters")
-         .field("rbx", &format_args!("{0:?} ({:#016x})", self.rbx))
-         .field("rbp", &format_args!("{0:?} ({:#016x})", self.rbp))
-         .field("r12", &format_args!("{0:?} ({:#016x})", self.r12))
-         .field("r13", &format_args!("{0:?} ({:#016x})", self.r13))
-         .field("r14", &format_args!("{0:?} ({:#016x})", self.r14))
-         .field("r15", &format_args!("{0:?} ({:#016x})", self.r15))
-         .finish()
+            .field("rbx", &format_args!("{0:?} ({:#016x})", self.rbx))
+            .field("rbp", &format_args!("{0:?} ({:#016x})", self.rbp))
+            .field("r12", &format_args!("{0:?} ({:#016x})", self.r12))
+            .field("r13", &format_args!("{0:?} ({:#016x})", self.r13))
+            .field("r14", &format_args!("{0:?} ({:#016x})", self.r14))
+            .field("r15", &format_args!("{0:?} ({:#016x})", self.r15))
+            .finish()
     }
 }
 
 #[macro_export]
 macro_rules! push_preserved {
-    () => { "
+    () => {
+        "
         // Push preserved registers
         push rbx
         push rbp
@@ -140,11 +145,13 @@ macro_rules! push_preserved {
         push r13
         push r14
         push r15
-    " };
+    "
+    };
 }
 #[macro_export]
 macro_rules! pop_preserved {
-    () => { "
+    () => {
+        "
         // Pop preserved registers
         pop r15
         pop r14
@@ -152,7 +159,8 @@ macro_rules! pop_preserved {
         pop r12
         pop rbp
         pop rbx
-    " };
+    "
+    };
 }
 
 /// Implement a native error handler, to handle an interrupt without an error code
@@ -180,7 +188,7 @@ macro_rules! native_handler {
 
                         "add rsp,8;",               // Error code
                         "iretq;",                   // Back to userland
-                    ), 
+                    ),
 
                     interrupt_handler = sym wrapper,
 
@@ -222,7 +230,7 @@ macro_rules! native_error_handler {
 
                         "add rsp,8;",               // Error code
                         "iretq;",                   // Back to userland
-                    ), 
+                    ),
 
                     interrupt_handler = sym wrapper,
 

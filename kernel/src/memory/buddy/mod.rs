@@ -137,7 +137,7 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
 
             self.stats.user += layout.size();
             self.stats.allocated += size;
-    
+
             return Ok(address);
         }
 
@@ -161,7 +161,9 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
             let mut current_ptr = ptr;
             let mut current_class = class;
             while current_class < self.free_list.len() {
-                let buddy = VirtAddr::new_truncate(current_ptr.as_u64() ^ self.get_size(current_class) as u64);
+                let buddy = VirtAddr::new_truncate(
+                    current_ptr.as_u64() ^ self.get_size(current_class) as u64,
+                );
                 let mut found = false;
 
                 let mut prev_item: *mut ListNode = ptr::null_mut();

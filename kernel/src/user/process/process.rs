@@ -6,7 +6,7 @@ use spin::RwLock;
 
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
-    user::{thread::Thread, weak_map::WeakMap, handle::Handles},
+    user::{handle::Handles, thread::Thread, weak_map::WeakMap},
 };
 
 use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};

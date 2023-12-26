@@ -155,7 +155,6 @@ mod offsets {
     }
 }
 
-
 #[naked]
 #[no_mangle]
 #[link_section = ".text_entry"]
@@ -174,7 +173,6 @@ pub unsafe extern "C" fn user_start() {
         options(noreturn),
     );
 }
-
 
 // Force at least one data, so that it is laid out after bss in linker script
 // This force bss allocation in binary file
@@ -253,12 +251,7 @@ fn div0() {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     //error!("PANIC: {info}");
-    log(
-        Level::Error,
-        format_args!(
-            "PANIC: {info}"
-        ),
-    );
+    log(Level::Error, format_args!("PANIC: {info}"));
 
     loop {}
 }

@@ -25,7 +25,7 @@ macro_rules! include_bytes_aligned {
 
 pub fn run() -> ! {
     info!("Loading init binary");
-    let process= load();
+    let process = load();
 
     info!("Starting init binary");
     let thread = create_thread(process);
@@ -44,9 +44,22 @@ fn load() -> Arc<Process> {
 
     let process = process::create().expect("Failed to create init process");
 
-    process.map(BASE_ADDRESS, mem_size, Permissions::READ | Permissions::WRITE | Permissions::EXECUTE, Some(memory_object), 0).expect("Failed to map in init process");
+    process
+        .map(
+            BASE_ADDRESS,
+            mem_size,
+            Permissions::READ | Permissions::WRITE | Permissions::EXECUTE,
+            Some(memory_object),
+            0,
+        )
+        .expect("Failed to map in init process");
 
-    let mut access = process.vm_access(BASE_ADDRESS..BASE_ADDRESS+binary.len(), Permissions::READ | Permissions::WRITE).expect("Failed to access mapping");
+    let mut access = process
+        .vm_access(
+            BASE_ADDRESS..BASE_ADDRESS + binary.len(),
+            Permissions::READ | Permissions::WRITE,
+        )
+        .expect("Failed to access mapping");
 
     let dest = access.get_slice_mut::<u8>();
     dest.copy_from_slice(binary);

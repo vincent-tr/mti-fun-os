@@ -2,14 +2,14 @@
 //!
 //! The ZoneAllocator achieves this by having many `SCAllocator`
 
-use core::{alloc::Layout, ptr::NonNull, panic};
+use core::{alloc::Layout, panic, ptr::NonNull};
 
 use log::trace;
 use x86_64::VirtAddr;
 
 use crate::memory::kvm;
 
-use super::{ObjectPage, SCAllocator, AllocationError};
+use super::{AllocationError, ObjectPage, SCAllocator};
 
 /// A zone allocator for arbitrary sized allocations.
 ///
@@ -86,7 +86,7 @@ impl<'a> ZoneAllocator<'a> {
                 // refill and re-try
                 ZoneAllocator::refill(slab)?;
                 slab.allocate(layout)
-            },
+            }
             Err(err) => Err(err),
         }
     }
@@ -105,28 +105,28 @@ impl<'a> ZoneAllocator<'a> {
 
         let to_reclaim = slab.empty_pages_count();
         match to_reclaim {
-            0 => {},
+            0 => {}
             1 => {
                 trace!("Reclaim 1 page to slab allocator {}", slab.size());
 
                 let mut dealloc = |ptr: *mut _| {
                     kvm::deallocate(VirtAddr::from_ptr(ptr), 1);
                 };
-    
+
                 let reclaimed = slab.try_reclaim_pages(1, &mut dealloc);
 
                 assert!(reclaimed == 1);
-            },
-    
+            }
+
             many => {
                 panic!("Unexpected to_reclaim={}", many);
-            },
+            }
         };
     }
 
     fn refill(slab: &mut SCAllocator) -> Result<(), AllocationError> {
         trace!("Refill 1 page to slab allocator {}", slab.size());
-        
+
         match kvm::allocate(1) {
             Ok(addr) => {
                 unsafe {
@@ -134,14 +134,14 @@ impl<'a> ZoneAllocator<'a> {
                 }
 
                 Ok(())
-            },
+            }
             Err(err) => {
                 // ensure we matched all values
                 match err {
                     kvm::AllocatorError::NoMemory => Err(AllocationError::OutOfMemory),
                     kvm::AllocatorError::NoVirtualSpace => Err(AllocationError::OutOfMemory),
                 }
-            },
+            }
         }
     }
 }

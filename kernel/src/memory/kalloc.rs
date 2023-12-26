@@ -7,8 +7,8 @@ use x86_64::{align_up, VirtAddr};
 
 use crate::memory::PAGE_SIZE;
 
-use super::{kvm, KallocStats};
 use super::slab::ZoneAllocator;
+use super::{kvm, KallocStats};
 
 #[global_allocator]
 pub static ALLOC: GlobalAllocator = GlobalAllocator::new();
@@ -25,12 +25,12 @@ pub struct GlobalAllocator {
 
 impl GlobalAllocator {
     pub const fn new() -> Self {
-        Self { 
+        Self {
             slabs_allocator: Mutex::new(ZoneAllocator::new()),
             slabs_user: AtomicUsize::new(0),
             slabs_allocated: AtomicUsize::new(0),
             kvm_user: AtomicUsize::new(0),
-            kvm_allocated: AtomicUsize::new(0)
+            kvm_allocated: AtomicUsize::new(0),
         }
     }
 
@@ -55,38 +55,44 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         match layout.size() {
             0 => {
                 panic!("Got zero-sized allocation request.");
-            },
+            }
             1..=ZoneAllocator::MAX_ALLOC_SIZE => {
                 trace!("Serving alloc request with slabs allocator {layout:?}");
                 let mut slabs_allocator = self.slabs_allocator.lock();
                 match slabs_allocator.allocate(layout) {
                     Ok(ptr) => {
                         self.slabs_user.fetch_add(layout.size(), Ordering::Relaxed);
-                        self.slabs_allocated.fetch_add(slabs_allocator.get_allocation_size(layout).expect("Unexpected layout error."), Ordering::Relaxed);
+                        self.slabs_allocated.fetch_add(
+                            slabs_allocator
+                                .get_allocation_size(layout)
+                                .expect("Unexpected layout error."),
+                            Ordering::Relaxed,
+                        );
 
                         ptr.as_ptr()
-                    },
+                    }
                     Err(err) => {
                         // match all errors
                         match err {
                             super::slab::AllocationError::OutOfMemory => ptr::null_mut(),
                             super::slab::AllocationError::InvalidLayout => {
                                 panic!("Invalid layout for slab allocation {layout:?}")
-                            },
+                            }
                         }
                     }
                 }
-            },
+            }
             _ => {
                 let page_count = Self::get_page_count(layout);
                 trace!("Serving alloc request with kvm allocator {layout:?} (page count = {page_count})");
                 match kvm::allocate(page_count) {
                     Ok(addr) => {
                         self.kvm_user.fetch_add(layout.size(), Ordering::Relaxed);
-                        self.kvm_allocated.fetch_add(page_count * PAGE_SIZE, Ordering::Relaxed);
-                        
+                        self.kvm_allocated
+                            .fetch_add(page_count * PAGE_SIZE, Ordering::Relaxed);
+
                         addr.as_mut_ptr()
-                    },
+                    }
                     Err(err) => {
                         // match all errors
                         match err {
@@ -95,7 +101,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
                         }
                     }
                 }
-            },
+            }
         }
     }
 
@@ -105,23 +111,29 @@ unsafe impl GlobalAlloc for GlobalAllocator {
         match layout.size() {
             0 => {
                 panic!("Got zero-sized deallocation request.");
-            },
+            }
             1..=ZoneAllocator::MAX_ALLOC_SIZE => {
                 trace!("Serving dealloc request with slabs allocator {layout:?}");
                 let mut slabs_allocator = self.slabs_allocator.lock();
                 slabs_allocator.deallocate(NonNull::new_unchecked(ptr), layout);
 
                 self.slabs_user.fetch_sub(layout.size(), Ordering::Relaxed);
-                self.slabs_allocated.fetch_sub(slabs_allocator.get_allocation_size(layout).expect("Unexpected layout error."), Ordering::Relaxed);
-            },
+                self.slabs_allocated.fetch_sub(
+                    slabs_allocator
+                        .get_allocation_size(layout)
+                        .expect("Unexpected layout error."),
+                    Ordering::Relaxed,
+                );
+            }
             _ => {
                 let page_count = Self::get_page_count(layout);
                 trace!("Serving dealloc request with kvm allocator {layout:?} (page count = {page_count})");
                 kvm::deallocate(VirtAddr::from_ptr(ptr), page_count);
 
                 self.kvm_user.fetch_sub(layout.size(), Ordering::Relaxed);
-                self.kvm_allocated.fetch_sub(page_count * PAGE_SIZE, Ordering::Relaxed);
-            },
+                self.kvm_allocated
+                    .fetch_sub(page_count * PAGE_SIZE, Ordering::Relaxed);
+            }
         }
     }
 }

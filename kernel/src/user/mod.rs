@@ -1,11 +1,11 @@
-mod id_gen;
-mod weak_map;
 mod error;
+mod handle;
+mod id_gen;
 mod memory_object;
 pub mod process;
-pub mod thread;
-mod handle;
 mod syscalls;
+pub mod thread;
+mod weak_map;
 
 pub use error::Error;
 pub use memory_object::MemoryObject;

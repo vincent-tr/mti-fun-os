@@ -38,7 +38,7 @@ pub unsafe fn initial_setup_thread(new_thread: Arc<Thread>) -> ! {
         let new_process = new_thread.process();
         let address_space = new_process.address_space().write();
         unsafe { crate::memory::set_current_address_space(&address_space) };
-        
+
         // initial task setup will be handled by initial_run_thread/switch_to_userland below
         let mut current = CURRENT_THREAD.write();
         update_state(&new_thread, ThreadState::Executing);

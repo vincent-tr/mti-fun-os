@@ -1,6 +1,6 @@
 use core::slice::Iter;
 
-use crate::memory::{is_page_aligned, phys_allocate, FrameRef, PAGE_SIZE, access_phys};
+use crate::memory::{access_phys, is_page_aligned, phys_allocate, FrameRef, PAGE_SIZE};
 use alloc::{sync::Arc, vec::Vec};
 
 use super::{error::*, Error};

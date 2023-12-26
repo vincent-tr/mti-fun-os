@@ -4,7 +4,10 @@ use log::{info, warn};
 
 use x86_64::{
     instructions::tlb,
-    registers::{control::{Cr3, Cr3Flags}, model_specific::{Efer, EferFlags}},
+    registers::{
+        control::{Cr3, Cr3Flags},
+        model_specific::{Efer, EferFlags},
+    },
     structures::paging::{
         mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
         page_table::PageTableEntry,
@@ -15,8 +18,9 @@ use x86_64::{
 };
 
 use super::{
+    access_phys,
     config::{KERNEL_START, PAGE_SIZE},
-    phys::{self, AllocatorError, FrameRef}, access_phys,
+    phys::{self, AllocatorError, FrameRef},
 };
 
 /*

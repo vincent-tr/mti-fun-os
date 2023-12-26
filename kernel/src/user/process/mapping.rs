@@ -1,12 +1,14 @@
-
-use core::{ops::Range, mem};
+use core::{mem, ops::Range};
 
 use alloc::sync::{Arc, Weak};
 
-use crate::{memory::{
-    is_page_aligned, is_userspace, MapError,
-    Permissions, UnmapError, VirtAddr, PAGE_SIZE, FrameRef,
-}, user::{MemoryObject, Error, error::out_of_memory}};
+use crate::{
+    memory::{
+        is_page_aligned, is_userspace, FrameRef, MapError, Permissions, UnmapError, VirtAddr,
+        PAGE_SIZE,
+    },
+    user::{error::out_of_memory, Error, MemoryObject},
+};
 
 use super::Process;
 

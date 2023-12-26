@@ -1,5 +1,5 @@
-pub mod local_apic;
 pub mod cpu;
+pub mod local_apic;
 pub mod pic8259;
 pub mod pit;
 

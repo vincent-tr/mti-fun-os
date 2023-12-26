@@ -7,7 +7,9 @@ pub struct IdGen {
 
 impl IdGen {
     pub const fn new() -> Self {
-        IdGen { counter: AtomicU64::new(1) }
+        IdGen {
+            counter: AtomicU64::new(1),
+        }
     }
 
     pub fn generate(&self) -> u64 {

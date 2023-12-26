@@ -4,7 +4,13 @@ use alloc::sync::Arc;
 use hashbrown::HashMap;
 use spin::RwLock;
 
-use super::{MemoryObject, process::Process, thread::Thread, id_gen::IdGen, Error, error::{check_arg_opt, invalid_argument}};
+use super::{
+    error::{check_arg_opt, invalid_argument},
+    id_gen::IdGen,
+    process::Process,
+    thread::Thread,
+    Error, MemoryObject,
+};
 
 /// Handle: Pointer to kernel object, usable from userland
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -93,7 +99,7 @@ impl Handles {
             Err(invalid_argument())
         }
     }
-    
+
     /// Retrieve the thread from the handle
     pub fn get_thread(&self, handle: Handle) -> Result<Arc<Thread>, Error> {
         let handles = self.handles.read();
@@ -106,7 +112,7 @@ impl Handles {
             Err(invalid_argument())
         }
     }
-    
+
     /// Close the handle
     pub fn close(&self, handle: Handle) -> Result<(), Error> {
         let mut handles = self.handles.write();
@@ -118,5 +124,4 @@ impl Handles {
 
         Ok(())
     }
-
 }

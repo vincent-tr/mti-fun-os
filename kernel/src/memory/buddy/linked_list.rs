@@ -43,7 +43,7 @@ impl LinkedList {
     }
 
     /// Remove the node after the given node.
-    /// 
+    ///
     /// If the given node is null, remove the first node.
     pub fn remove_after(&mut self, item: *mut ListNode) -> *mut ListNode {
         assert!(!self.is_empty());
@@ -69,7 +69,6 @@ impl LinkedList {
             list: PhantomData,
         }
     }
-
 }
 
 impl fmt::Debug for LinkedList {

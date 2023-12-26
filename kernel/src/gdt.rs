@@ -12,8 +12,10 @@ pub const KERNEL_DATA_SELECTOR_INDEX: u16 = 2;
 pub const USER_DATA_SELECTOR_INDEX: u16 = 3; // Note: to configure STAR syscall register properly
 pub const USER_CODE_SELECTOR_INDEX: u16 = 4;
 
-pub const USER_DATA_SELECTOR: SegmentSelector = SegmentSelector::new(USER_DATA_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
-pub const USER_CODE_SELECTOR: SegmentSelector = SegmentSelector::new(USER_CODE_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
+pub const USER_DATA_SELECTOR: SegmentSelector =
+    SegmentSelector::new(USER_DATA_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
+pub const USER_CODE_SELECTOR: SegmentSelector =
+    SegmentSelector::new(USER_CODE_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
 
 static mut DOUBLE_FAULT_STACK: KernelStack = KernelStack::new();
 

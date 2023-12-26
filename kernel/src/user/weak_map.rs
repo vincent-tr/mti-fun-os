@@ -4,8 +4,8 @@ use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
 };
-use spin::RwLock;
 use core::hash::Hash;
+use spin::RwLock;
 
 #[derive(Debug)]
 pub struct WeakMap<Key: Copy + Eq + Hash, Value> {

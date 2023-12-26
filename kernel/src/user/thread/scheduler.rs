@@ -25,7 +25,7 @@ impl Scheduler {
     /// Add a new thread to the ready list
     pub fn add(&self, thread: Arc<Thread>) {
         assert!(thread.state().is_ready());
-        
+
         let mut ready_list = self.ready_list.write();
         ready_list.push_back(thread);
     }

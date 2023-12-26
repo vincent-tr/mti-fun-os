@@ -8,7 +8,7 @@ use log::info;
 use spin::RwLock;
 use x86_64::{PhysAddr, VirtAddr};
 
-use super::{PAGE_SIZE, PhysStats};
+use super::{PhysStats, PAGE_SIZE};
 
 #[derive(Debug)]
 #[repr(C)]
@@ -236,12 +236,12 @@ impl Allocator {
 
     unsafe fn desc_to_frame(&self, desc: *mut Descriptor) -> PhysAddr {
         let index = desc.sub_ptr(self.descriptors.as_mut_ptr());
-        PhysAddr::new((index * PAGE_SIZE)  as u64)
+        PhysAddr::new((index * PAGE_SIZE) as u64)
     }
 
     fn check_frame(&self, frame: PhysAddr) -> bool {
         return frame.is_aligned(PAGE_SIZE as u64)
-            && frame < PhysAddr::new((self.descriptors.len() * PAGE_SIZE)  as u64);
+            && frame < PhysAddr::new((self.descriptors.len() * PAGE_SIZE) as u64);
     }
 }
 

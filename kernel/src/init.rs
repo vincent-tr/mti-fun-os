@@ -35,7 +35,7 @@ pub fn run() -> ! {
 }
 
 fn load() -> Arc<Process> {
-    // TODO: try to make it part of the build
+    // TODO: make path less static
     let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
 
     // Load init binary at fixed address

@@ -1,0 +1,30 @@
+[tasks.run]
+workspace = false
+command = "cargo"
+args = ["run"]
+dependencies = ["build"]
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.build]
+workspace = false
+dependencies = ["format, image-build"]
+
+# also build kernel
+[tasks.image-build]
+workspace = false
+command = "cargo"
+args = ["build"]
+dependencies = ["init-build"]
+
+[tasks.init-build]
+workspace = false
+cwd = "./init"
+command = "cargo"
+args = ["build"]
+
+[tasks.default]
+alias = "run"

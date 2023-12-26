@@ -1,11 +1,13 @@
 #![no_std]
 #![no_main]
+#![feature(naked_functions)]
+#![feature(used_with_arg)]
 
 mod syscalls;
 
-use core::{panic::PanicInfo, arch::asm, fmt, mem};
+use core::{arch::asm, fmt, mem, panic::PanicInfo};
 
-use syscalls::{SyscallNumber, syscall3, syscall1};
+use syscalls::{syscall1, syscall3, SyscallNumber};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Handle(u64);
@@ -81,10 +83,7 @@ pub mod write_to {
 fn log(level: Level, args: fmt::Arguments) {
     let mut buf: [u8; 1024] = [0u8; 1024];
 
-    let message: &str = write_to::show(
-        &mut buf,
-        args,
-    ).unwrap();
+    let message: &str = write_to::show(&mut buf, args).unwrap();
 
     unsafe {
         syscall3(
@@ -97,21 +96,159 @@ fn log(level: Level, args: fmt::Arguments) {
 }
 
 /// # Safety
-/// 
+///
 /// Borrowing rules unchecked. Do right before syscalls only.
 unsafe fn out_ptr<T>(value: &mut T) -> usize {
     let ptr: *mut T = value;
     mem::transmute(ptr)
 }
 
+mod offsets {
+    use core::ops::Range;
+
+    extern "C" {
+        // text (R-X)
+        static __text_start: u8;
+        static __text_end: u8;
+        // rodata (R--)
+        static __rodata_start: u8;
+        static __rodata_end: u8;
+        // data+bss (RW-)
+        static __data_start: u8;
+        static __data_end: u8;
+        static __bss_start: u8;
+        static __bss_end: u8;
+
+        static __end: u8;
+
+        // stack in RW data
+        static __init_stack_start: u8;
+        static __init_stack_end: u8;
+    }
+
+    pub fn text() -> Range<usize> {
+        unsafe {
+            let start = &__text_start as *const u8 as usize;
+            let end = &__text_end as *const u8 as usize;
+            start..end
+        }
+    }
+
+    pub fn rodata() -> Range<usize> {
+        unsafe {
+            let start = &__rodata_start as *const u8 as usize;
+            let end = &__rodata_end as *const u8 as usize;
+            start..end
+        }
+    }
+
+    pub fn data_and_bss() -> Range<usize> {
+        unsafe {
+            let start = &__data_start as *const u8 as usize;
+            let end = &__bss_end as *const u8 as usize;
+            start..end
+        }
+    }
+
+    // temp
+    pub fn data() -> Range<usize> {
+        unsafe {
+            let start = &__data_start as *const u8 as usize;
+            let end = &__data_end as *const u8 as usize;
+            start..end
+        }
+    }
+
+    // temp
+    pub fn bss() -> Range<usize> {
+        unsafe {
+            let start = &__bss_start as *const u8 as usize;
+            let end = &__bss_end as *const u8 as usize;
+            start..end
+        }
+    }
+
+    pub fn stack_top() -> usize {
+        unsafe { &__init_stack_end as *const u8 as usize }
+    }
+}
+
+/*
+#[naked]
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+pub unsafe extern "C" fn user_start() {
+    core::arch::asm!(
+        "
+        mov rsp, __init_stack_end
+        mov rbp, rsp
+
+        call {main}
+        # `start` must never return.
+        ud2
+        ",
+        //stack = sym offsets::__init_stack_end,
+        main = sym main,
+        options(noreturn),
+    );
+}
+*/
+
+// Force at least one data, so that it is laid out after bss in linker script
+// This force bss allocation in binary file
+#[used(linker)]
+static mut FORCE_DATA_SECTION: u8 = 0x42;
+
+#[no_mangle]
+pub extern "C" fn main() -> ! {
+    // TODO: protection
+
+    log(
+        Level::Info,
+        format_args!(
+            "text: {:016X} -> {:016X} (size={})",
+            offsets::text().start,
+            offsets::text().end,
+            offsets::text().end - offsets::text().start
+        ),
+    );
+    log(
+        Level::Info,
+        format_args!(
+            "rodata: {:016X} -> {:016X} (size={})",
+            offsets::rodata().start,
+            offsets::rodata().end,
+            offsets::rodata().end - offsets::rodata().start
+        ),
+    );
+    log(
+        Level::Info,
+        format_args!(
+            "data: {:016X} -> {:016X} (size={})",
+            offsets::data().start,
+            offsets::data().end,
+            offsets::data().end - offsets::data().start
+        ),
+    );
+    log(
+        Level::Info,
+        format_args!(
+            "bss: {:016X} -> {:016X} (size={})",
+            offsets::bss().start,
+            offsets::bss().end,
+            offsets::bss().end - offsets::bss().start
+        ),
+    );
+    log(
+        Level::Info,
+        format_args!("stack_top: {:016X}", offsets::stack_top()),
+    );
+
     log(Level::Info, format_args!("test"));
 
     unsafe {
         let mut handle = Handle::invalid();
         syscall1(SyscallNumber::ProcessOpenSelf, out_ptr(&mut handle));
-        
+
         log(Level::Info, format_args!("handle value={handle:?}"));
 
         syscall1(SyscallNumber::Close, handle.0 as usize);

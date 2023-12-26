@@ -1,5 +1,6 @@
 [build]
 target="x86_64-mti_fun_os.json"
+rustflags = ["-C", "link-args=-T../../../init/linker.ld"]
 
 [unstable]
 build-std = ["core", "compiler_builtins"]

@@ -49,6 +49,7 @@ fn load() -> (Arc<Process>, VirtAddr) {
 }
 
 fn create_thread(process: Arc<Process>, entry_point: VirtAddr) -> Arc<Thread> {
+/*
     const INIT_STACK_SIZE: usize = 5 * PAGE_SIZE;
 
     let user_stack_mobj =
@@ -63,8 +64,8 @@ fn create_thread(process: Arc<Process>, entry_point: VirtAddr) -> Arc<Thread> {
         )
         .expect("Failed to map user stack");
     let user_stack_top = user_stack + INIT_STACK_SIZE;
-
-    user::thread::create(process.clone(), entry_point, user_stack_top)
+*/
+    user::thread::create(process.clone(), entry_point, VirtAddr::zero())
 }
 
 struct Loader<'a> {

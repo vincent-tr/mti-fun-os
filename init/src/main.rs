@@ -113,7 +113,7 @@ mod offsets {
         // rodata (R--)
         static __rodata_start: u8;
         static __rodata_end: u8;
-        // data+bss (RW-)
+        // data (RW-)
         static __data_start: u8;
         static __data_end: u8;
         static __bss_start: u8;
@@ -123,7 +123,7 @@ mod offsets {
 
         // stack in RW data
         static __init_stack_start: u8;
-        static __init_stack_end: u8;
+        pub static __init_stack_end: u8;
     }
 
     pub fn text() -> Range<usize> {
@@ -142,28 +142,10 @@ mod offsets {
         }
     }
 
-    pub fn data_and_bss() -> Range<usize> {
-        unsafe {
-            let start = &__data_start as *const u8 as usize;
-            let end = &__bss_end as *const u8 as usize;
-            start..end
-        }
-    }
-
-    // temp
     pub fn data() -> Range<usize> {
         unsafe {
             let start = &__data_start as *const u8 as usize;
             let end = &__data_end as *const u8 as usize;
-            start..end
-        }
-    }
-
-    // temp
-    pub fn bss() -> Range<usize> {
-        unsafe {
-            let start = &__bss_start as *const u8 as usize;
-            let end = &__bss_end as *const u8 as usize;
             start..end
         }
     }
@@ -173,33 +155,32 @@ mod offsets {
     }
 }
 
-/*
+
 #[naked]
 #[no_mangle]
 pub unsafe extern "C" fn user_start() {
     core::arch::asm!(
         "
-        mov rsp, __init_stack_end
+        lea rsp, {stack}
         mov rbp, rsp
 
         call {main}
         # `start` must never return.
         ud2
         ",
-        //stack = sym offsets::__init_stack_end,
+        stack = sym offsets::__init_stack_end,
         main = sym main,
         options(noreturn),
     );
 }
-*/
+
 
 // Force at least one data, so that it is laid out after bss in linker script
 // This force bss allocation in binary file
 #[used(linker)]
 static mut FORCE_DATA_SECTION: u8 = 0x42;
 
-#[no_mangle]
-pub extern "C" fn main() -> ! {
+extern "C" fn main() -> ! {
     // TODO: protection
 
     log(
@@ -227,15 +208,6 @@ pub extern "C" fn main() -> ! {
             offsets::data().start,
             offsets::data().end,
             offsets::data().end - offsets::data().start
-        ),
-    );
-    log(
-        Level::Info,
-        format_args!(
-            "bss: {:016X} -> {:016X} (size={})",
-            offsets::bss().start,
-            offsets::bss().end,
-            offsets::bss().end - offsets::bss().start
         ),
     );
     log(

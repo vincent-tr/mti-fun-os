@@ -158,6 +158,7 @@ mod offsets {
 
 #[naked]
 #[no_mangle]
+#[link_section = ".text_entry"]
 pub unsafe extern "C" fn user_start() {
     core::arch::asm!(
         "

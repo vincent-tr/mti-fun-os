@@ -11,6 +11,8 @@ SECTIONS {
     .text ALIGN(4K) : {
         __text_start = .;
 
+        // Force entry point at the begining of text section
+        *(.text_entry*)
         *(.text*)
         
         . = ALIGN(4K);

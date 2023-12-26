@@ -1,4 +1,5 @@
 use core::cmp::{max, min};
+use core::mem;
 use core::ops::Range;
 
 use crate::memory::{self, page_aligned_down, page_aligned_up, Permissions, PAGE_SIZE};
@@ -13,6 +14,9 @@ use xmas_elf::{
     program::{self, ProgramHeader},
     ElfFile,
 };
+
+const BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
+const SIZE_OF_HEADERS: usize = PAGE_SIZE;
 
 // https://docs.rs/include_bytes_aligned/latest/src/include_bytes_aligned/lib.rs.html#1-37
 macro_rules! include_bytes_aligned {
@@ -41,11 +45,28 @@ fn load() -> (Arc<Process>, VirtAddr) {
     // TODO: try to make it part of the build
     let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
 
+    let mem_size = page_aligned_up(binary.len());
+    let memory_object = MemoryObject::new(mem_size).expect("Failed to create memory object");
+
+    let process = process::create().expect("Failed to create init process");
+
+    process.map(BASE_ADDRESS, mem_size, Permissions::READ | Permissions::WRITE | Permissions::EXECUTE, Some(memory_object), 0).expect("Failed to map in init process");
+
+    let mut access = process.vm_access(BASE_ADDRESS..BASE_ADDRESS+binary.len(), Permissions::READ | Permissions::WRITE).expect("Failed to access mapping");
+
+    let dest = access.get_slice_mut::<u8>();
+    dest.copy_from_slice(binary);
+
+    mem::drop(access);
+
+    (process, BASE_ADDRESS + SIZE_OF_HEADERS)
+/*
     let loader = Loader::new(binary);
     loader.sanity_check();
     loader.load_segments();
     let entry_point = loader.entry_point();
     (loader.process, entry_point)
+*/
 }
 
 fn create_thread(process: Arc<Process>, entry_point: VirtAddr) -> Arc<Thread> {

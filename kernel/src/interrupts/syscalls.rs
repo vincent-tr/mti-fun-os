@@ -5,6 +5,7 @@ use memoffset::offset_of;
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::memory::VirtAddr;
 use crate::user::execute_syscall;
+use crate::user::thread::{userland_timer_begin, userland_timer_end};
 use x86_64::registers::model_specific::{Efer, EferFlags};
 use x86_64::registers::{
     model_specific::{LStar, SFMask, Star},
@@ -83,6 +84,8 @@ unsafe fn syscall_native_handler() {
 }
 
 unsafe extern "C" fn syscall_handler() {
+    userland_timer_end();
+
     let stack = InterruptStack::current();
 
     let n = stack.scratch.rax;
@@ -97,4 +100,6 @@ unsafe extern "C" fn syscall_handler() {
     let ret = execute_syscall(n, arg1, arg2, arg3, arg4, arg5, arg6);
 
     stack.scratch.rax = ret;
+
+    userland_timer_begin();
 }

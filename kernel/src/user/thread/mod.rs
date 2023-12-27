@@ -9,7 +9,7 @@ use spin::RwLock;
 use syscalls::ThreadPriority;
 
 pub use self::thread::{Thread, ThreadError, ThreadState};
-use self::{threads::THREADS, wait_queue::WaitQueue};
+use self::{thread::add_ticks, threads::THREADS, wait_queue::WaitQueue};
 
 use super::process::Process;
 use crate::{
@@ -203,4 +203,33 @@ pub fn thread_set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
         SCHEDULER.remove(thread);
         SCHEDULER.add(thread.clone());
     }
+}
+
+static mut USERLAND_TIMER_BEGIN_TICKS: usize = 0;
+
+/// Call just before switch to userland
+pub fn userland_timer_begin() {
+    unsafe {
+        USERLAND_TIMER_BEGIN_TICKS = core::arch::x86_64::_rdtsc() as usize;
+    }
+}
+
+/// Call just after switch from userland
+pub fn userland_timer_end() {
+    let (begin, end) = unsafe {
+        let begin = USERLAND_TIMER_BEGIN_TICKS;
+        if begin == 0 {
+            // This is first syscall enter, no begin has been called.
+            // Nothing to count
+            return;
+        }
+
+        USERLAND_TIMER_BEGIN_TICKS = 0;
+
+        let end = core::arch::x86_64::_rdtsc() as usize;
+
+        (begin, end)
+    };
+
+    add_ticks(&current_thread(), end - begin);
 }

@@ -197,9 +197,13 @@ macro_rules! native_handler {
             }
 
             unsafe extern "C" fn wrapper() {
+                crate::user::thread::userland_timer_end();
+
                 let stack = InterruptStack::current();
 
-                $handler(stack)
+                $handler(stack);
+
+                crate::user::thread::userland_timer_begin();
             }
 
             VirtAddr::new(handler as u64)
@@ -239,9 +243,14 @@ macro_rules! native_error_handler {
             }
 
             unsafe extern "C" fn wrapper() {
+                crate::user::thread::userland_timer_end();
+
                 let stack = InterruptStack::current();
 
-                $handler(stack)
+                $handler(stack);
+
+                #[allow(unreachable_code)]
+                crate::user::thread::userland_timer_begin();
             }
 
             VirtAddr::new(handler as u64)

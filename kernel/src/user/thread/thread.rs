@@ -1,5 +1,5 @@
 use core::hash::{Hash, Hasher};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use core::{fmt, mem};
 
 use alloc::sync::{Arc, Weak};
@@ -38,6 +38,10 @@ pub fn set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
     thread.set_priority(priority);
 }
 
+pub fn add_ticks(thread: &Arc<Thread>, ticks: usize) {
+    thread.add_ticks(ticks);
+}
+
 pub unsafe fn save(thread: &Arc<Thread>) {
     let mut context = thread.context.lock();
     context.save(InterruptStack::current());
@@ -56,6 +60,7 @@ pub struct Thread {
     priority: AtomicU64,
     state: RwLock<ThreadState>,
     context: Mutex<ThreadContext>,
+    ticks: AtomicUsize,
 }
 
 impl Thread {
@@ -72,12 +77,14 @@ impl Thread {
             priority: AtomicU64::new(priority as u64),
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
             context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
+            ticks: AtomicUsize::new(0),
         });
 
         debug!(
-            "Thread {} created (pid={}, thread_start={:?}, stack_top={:?})",
+            "Thread {} created (pid={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
             thread.process.id(),
+            thread.priority(),
             thread_start,
             stack_top,
         );
@@ -108,6 +115,16 @@ impl Thread {
     /// Set the priority of the thread
     fn set_priority(&self, priority: ThreadPriority) {
         self.priority.store(priority as u64, Ordering::Relaxed);
+    }
+
+    /// Get the number of CPU ticks spent running the thread
+    pub fn ticks(&self) -> usize {
+        self.ticks.load(Ordering::Relaxed)
+    }
+
+    /// Add CPU ticks
+    fn add_ticks(&self, ticks: usize) {
+        self.ticks.fetch_add(ticks, Ordering::Relaxed);
     }
 }
 

@@ -2,6 +2,7 @@
 
 mod handle;
 mod logging;
+pub mod memory_object;
 pub mod process;
 mod syscalls;
 pub mod thread;

@@ -13,18 +13,23 @@ pub use thread_priority::ThreadPriority;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SyscallNumber {
     Log = 1,
+
     Close,
     Duplicate,
+
     ProcessOpenSelf,
     ProcessCreate,
     ProcessMMap,
     ProcessMUnmap,
     ProcessMProtect,
+
     ThreadOpenSelf,
     ThreadCreate,
     ThreadExit,
     ThreadKill,
     ThreadSetPriority,
+
+    MemoryObjectCreate,
 
     InitSetup,
 }

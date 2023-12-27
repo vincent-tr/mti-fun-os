@@ -261,13 +261,13 @@ impl Mappings {
             // need to split
             self.split(start_area, range.start);
         }
-        
+
         let end_area = self.get(range.end - PAGE_SIZE);
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
         }
-        
+
         //start_area = self.get(range.start);
         //end_area = self.get(range.end - PAGE_SIZE);
 

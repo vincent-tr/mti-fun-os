@@ -33,15 +33,8 @@ pub fn setup(
     _arg5: usize,
     _arg6: usize,
 ) -> Result<(), Error> {
-    info!("test");
     // Unregister current syscall
     unregister_syscall(SyscallNumber::InitSetup);
-
-    info!("test");
-
-    let stack_var = 42;
-
-    info!("current stack = {:?}", VirtAddr::from_ptr(&stack_var));
 
     // Drop initial kernel stack (not used anymore, we are on regular interrupt stack)
     drop_initial_kernel_stack();

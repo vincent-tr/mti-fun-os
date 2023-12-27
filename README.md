@@ -89,13 +89,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- init start:
-  - create temp syscall 'run init'
-    - clean old kernel stack
-    - create init process
-    - switch to it
-  - at the end of kmain(), execute 'syscall' (with noreturn)
-
 - Handle
 - TODO: when last thread of a process stops, close all its handles
 - iomem mapping -> strong uncacheable

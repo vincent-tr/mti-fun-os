@@ -12,7 +12,7 @@ pub use handle::*;
 pub use logging::*;
 
 use ::syscalls::SUCCESS;
-pub use ::syscalls::{Error, Permissions};
+pub use ::syscalls::{Error, Permissions, ThreadPriority};
 
 pub type SyscallResult<T> = Result<T, Error>;
 

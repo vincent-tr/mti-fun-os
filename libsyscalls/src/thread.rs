@@ -14,7 +14,7 @@ pub fn open_self() -> SyscallResult<Handle> {
 pub fn create(
     process: &Handle,
     priority: ThreadPriority,
-    entry_point: usize,
+    entry_point: fn() -> !,
     stack_top: usize,
 ) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -23,7 +23,7 @@ pub fn create(
             SyscallNumber::ThreadCreate,
             process.as_syscall_value(),
             priority as usize,
-            entry_point,
+            entry_point as usize,
             stack_top,
             new_handle.as_syscall_ptr(),
         )

@@ -76,24 +76,6 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     user::init();
 
     init::run();
-
-    /*
-
-    init start:
-    create temp syscall 'run init'
-    - clean old kernel stack
-    - create init process
-    - switch to it
-    at the end of kmain(), execute 'syscall' (with noreturn)
-
-    Next:
-    - Handle
-    - TODO: when last thread of a process stops, close all its handles
-    - iomem mapping -> strong uncacheable
-    - IPC
-    - Exceptions in userland
-
-     */
 }
 
 #[panic_handler]

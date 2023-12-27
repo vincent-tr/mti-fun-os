@@ -86,3 +86,18 @@ tail -f serial.log
 ### The holy bible
 
 - ( [downloaded](docs/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf) ) https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf
+
+## Next tasks / Notes
+
+- init start:
+  - create temp syscall 'run init'
+    - clean old kernel stack
+    - create init process
+    - switch to it
+  - at the end of kmain(), execute 'syscall' (with noreturn)
+
+- Handle
+- TODO: when last thread of a process stops, close all its handles
+- iomem mapping -> strong uncacheable
+- IPC
+- Exceptions in userland

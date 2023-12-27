@@ -77,8 +77,17 @@ impl Mapping {
     }
 
     /// Set the permissions of the mapping
-    pub fn set_permissions(&mut self, _perms: Permissions) -> Result<(), Error> {
-        todo!();
+    pub fn set_permissions(&mut self, perms: Permissions) {
+        let process = self.process();
+        let mut address_space = process.address_space().write();
+
+        for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
+            unsafe {
+                address_space
+                    .update_permissions(virt_addr, perms)
+                    .expect("Permissions update error")
+            };
+        }
     }
 
     /// Get the memory object this mapping is pointing to
@@ -152,13 +161,12 @@ impl Mapping {
 
     unsafe fn map(&mut self, perms: Permissions) -> Result<(), Error> {
         let mut phys_offset = self.offset;
-        let mut virt_addr = self.range.start;
 
         let process = self.process();
         let mut address_space = process.address_space().write();
         let mobj = self.memory_object.as_ref().unwrap();
 
-        while virt_addr < self.range.end {
+        for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             let mut frame = mobj.frame(phys_offset).clone();
 
             match address_space.map(virt_addr, frame.frame(), perms) {
@@ -187,7 +195,6 @@ impl Mapping {
             }
 
             phys_offset += PAGE_SIZE;
-            virt_addr += PAGE_SIZE;
         }
 
         Ok(())
@@ -197,9 +204,7 @@ impl Mapping {
         let process = self.process();
         let mut address_space = process.address_space().write();
 
-        let mut virt_addr = self.range.start;
-
-        while virt_addr < self.range.end {
+        for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             match address_space.unmap(virt_addr) {
                 Ok(phys_addr) => {
                     // Unborrow
@@ -219,8 +224,6 @@ impl Mapping {
                     }
                 }
             }
-
-            virt_addr += PAGE_SIZE;
         }
     }
 }

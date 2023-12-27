@@ -9,7 +9,7 @@ use core::{
 use alloc::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    memory::{VirtAddr, KERNEL_START, PAGE_SIZE},
+    memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
     user::{error::out_of_memory, Error},
 };
 
@@ -220,6 +220,15 @@ impl Mappings {
         }
     }
 
+    /// Check that the given range is only part of one mapping area
+    pub fn is_contigous_mapping(&self, range: &Range<VirtAddr>) -> bool {
+        // Get a cursor starting from the node before our range
+        let start_area = self.get(range.start);
+        let end_area = self.get(range.end - PAGE_SIZE);
+
+        Rc::ptr_eq(&start_area, &end_area) && start_area.is_used().is_some()
+    }
+
     pub fn remove_range(&mut self, range: Range<VirtAddr>) {
         // Make entries fit perfectly on boundaries
         let start_area = self.get(range.start);
@@ -260,6 +269,44 @@ impl Mappings {
                 break;
             }
         }
+
+        // Check if we can merge with prev/next area
+        if self.can_merge(range.start) {
+            self.merge(range.start);
+        }
+
+        if self.can_merge(range.end) {
+            self.merge(range.end);
+        }
+
+        #[cfg(debug_assertions)]
+        self.check_consistency();
+    }
+
+    pub fn update_access_range(&mut self, range: Range<VirtAddr>, perms: Permissions) {
+        // Make entries fit perfectly on boundaries
+        let mut start_area = self.get(range.start);
+        if start_area.range.start < range.start {
+            // need to split
+            self.split(start_area, range.start);
+            start_area = self.get(range.start);
+        }
+
+        let mut end_area = self.get(range.end - PAGE_SIZE);
+        if end_area.range.end > range.end {
+            // need to split
+            self.split(end_area, range.end);
+            end_area = self.get(range.end - PAGE_SIZE);
+        }
+
+        // Ensure there is only one range inside
+        assert!(Rc::ptr_eq(&start_area, &end_area));
+        let area = start_area;
+
+        let mut mapping = area.take_mapping();
+        mapping.set_permissions(perms);
+        // Note: even if permissions update failed, we must still deal with setting the mapping back
+        self.replace(Area::from_mapping(mapping));
 
         // Check if we can merge with prev/next area
         if self.can_merge(range.start) {

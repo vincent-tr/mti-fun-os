@@ -4,75 +4,24 @@
 #![feature(used_with_arg)]
 
 mod logging;
+mod offsets;
 
 use core::{arch::asm, panic::PanicInfo};
 
 use log::{error, info};
-
-mod offsets {
-    use core::ops::Range;
-
-    extern "C" {
-        // text (R-X)
-        static __text_start: u8;
-        static __text_end: u8;
-        // rodata (R--)
-        static __rodata_start: u8;
-        static __rodata_end: u8;
-        // data (RW-)
-        static __data_start: u8;
-        static __data_end: u8;
-        static __bss_start: u8;
-        static __bss_end: u8;
-
-        static __end: u8;
-
-        // stack in RW data
-        static __init_stack_start: u8;
-        pub static __init_stack_end: u8;
-    }
-
-    pub fn text() -> Range<usize> {
-        unsafe {
-            let start = &__text_start as *const u8 as usize;
-            let end = &__text_end as *const u8 as usize;
-            start..end
-        }
-    }
-
-    pub fn rodata() -> Range<usize> {
-        unsafe {
-            let start = &__rodata_start as *const u8 as usize;
-            let end = &__rodata_end as *const u8 as usize;
-            start..end
-        }
-    }
-
-    pub fn data() -> Range<usize> {
-        unsafe {
-            let start = &__data_start as *const u8 as usize;
-            let end = &__data_end as *const u8 as usize;
-            start..end
-        }
-    }
-
-    pub fn stack_top() -> usize {
-        unsafe { &__init_stack_end as *const u8 as usize }
-    }
-}
 
 // Special init start: need to setup its own stack
 #[naked]
 #[no_mangle]
 #[link_section = ".text_entry"]
 pub unsafe extern "C" fn user_start() {
-    core::arch::asm!(
+    asm!(
         "
         lea rsp, {stack}
         mov rbp, rsp
 
         call {main}
-        # `start` must never return.
+        # `main` must never return.
         ud2
         ",
         stack = sym offsets::__init_stack_end,
@@ -91,28 +40,28 @@ extern "C" fn main() -> ! {
 
     // TODO: protection
     info!(
-        "text: {:016X} -> {:016X} (size={})",
+        "text: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
         offsets::text().start,
         offsets::text().end,
         offsets::text().end - offsets::text().start
     );
     info!(
-        "rodata: {:016X} -> {:016X} (size={})",
+        "rodata: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
         offsets::rodata().start,
         offsets::rodata().end,
         offsets::rodata().end - offsets::rodata().start
     );
     info!(
-        "data: {:016X} -> {:016X} (size={})",
+        "data: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
         offsets::data().start,
         offsets::data().end,
         offsets::data().end - offsets::data().start
     );
-    info!("stack_top: {:016X}", offsets::stack_top());
+    info!("stack_top: 0x{:016X}", offsets::stack_top());
 
     info!("test");
 
-    unsafe {
+    {
         let handle = libsyscalls::process::open_self().expect("Could not open handle");
 
         info!("handle value={handle:?}");
@@ -121,6 +70,14 @@ extern "C" fn main() -> ! {
     loop {}
 }
 
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    error!("PANIC: {info}");
+
+    loop {}
+}
+
+/*
 #[inline]
 fn debugbreak() {
     unsafe {
@@ -140,10 +97,4 @@ fn div0() {
     // div / 0
     let _ = 42 / 0;
 }
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    error!("PANIC: {info}");
-
-    loop {}
-}
+*/

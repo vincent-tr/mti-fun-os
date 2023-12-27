@@ -59,7 +59,7 @@ fn load() -> Arc<Process> {
     let process = process::create().expect("Failed to create init process");
 
     process
-        .map(
+        .mmap(
             BASE_ADDRESS,
             mem_size,
             Permissions::READ | Permissions::WRITE | Permissions::EXECUTE,

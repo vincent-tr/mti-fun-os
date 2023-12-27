@@ -6,10 +6,15 @@ use spin::RwLock;
 
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
-    user::{handle::Handles, thread::Thread, weak_map::WeakMap},
+    user::{error::check_any_permissions, handle::Handles, thread::Thread, weak_map::WeakMap},
 };
 
-use super::{mapping::Mapping, mappings::Mappings, memory_access, MemoryAccess};
+use super::{
+    mapping::Mapping,
+    mappings::Mappings,
+    memory_access::{self, TypedMemoryAccess},
+    MemoryAccess,
+};
 
 use crate::user::{
     error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
@@ -75,7 +80,7 @@ impl Process {
     /// - If `addr` is `null`, an address where the mapping can fit will be found.
     /// - If `addr` is not `null`, this function cannot overwrite part of an existing mapping. Call unmap() before.
     ///
-    pub fn map(
+    pub fn mmap(
         self: &Arc<Self>,
         addr: VirtAddr,
         size: usize,
@@ -127,12 +132,13 @@ impl Process {
     }
 
     /// Unmap the address space from addr to addr+size.
+    ///
     /// Notes:
     /// - It may contains multiple mappings,
     /// - addr or addr+size may be in the middle of a mapping
     /// - part of the specified area my not be mapped. In consequence, calling unmap() on an unmapped area is a successful noop.
     ///
-    pub fn unmap(&self, addr: VirtAddr, size: usize) -> Result<(), Error> {
+    pub fn munmap(&self, addr: VirtAddr, size: usize) -> Result<(), Error> {
         check_positive(size)?;
         check_page_alignment(size)?;
         check_is_userspace(addr)?;
@@ -146,6 +152,35 @@ impl Process {
         mappings.remove_range(range.clone());
 
         debug!("Process {}: unmapped at {:?}", self.id, range);
+
+        Ok(())
+    }
+
+    /// Change the permissions for the given memory region
+    ///
+    /// Notes:
+    /// - It can only contains one mapping
+    /// - The mapping may be larger than the given region. It will be split.
+    pub fn mprotect(&self, addr: VirtAddr, size: usize, perms: Permissions) -> Result<(), Error> {
+        check_positive(size)?;
+        check_page_alignment(size)?;
+        check_is_userspace(addr)?;
+        check_page_alignment(addr.as_u64() as usize)?;
+        check_is_userspace(addr + size)?;
+        check_any_permissions(perms)?;
+
+        let mut mappings = self.mappings.write();
+
+        let range = addr..addr + size;
+
+        check_arg(mappings.is_contigous_mapping(&range))?;
+
+        mappings.update_access_range(range.clone(), perms);
+
+        debug!(
+            "Process {}: mprotect at {:?} -> {:?}",
+            self.id, range, perms
+        );
 
         Ok(())
     }
@@ -164,6 +199,16 @@ impl Process {
     ) -> Result<MemoryAccess, Error> {
         let address_space = self.address_space().read();
         memory_access::create(&address_space, range, perms)
+    }
+
+    /// Same than `vm_access`, but with typed data (easier access)
+    pub fn vm_access_typed<T>(
+        &self,
+        addr: VirtAddr,
+        perms: Permissions,
+    ) -> Result<TypedMemoryAccess<T>, Error> {
+        let address_space = self.address_space().read();
+        memory_access::create_typed(&address_space, addr, perms)
     }
 
     /// Add a thread to the process

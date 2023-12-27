@@ -28,6 +28,18 @@ impl From<usize> for Handle {
     }
 }
 
+impl Handle {
+    /// Construct a new invalid handle
+    pub const fn invalid() -> Self {
+        Handle(0)
+    }
+
+    /// Indicate is the handle is valid
+    pub const fn valid(&self) -> bool {
+        self.0 != 0
+    }
+}
+
 #[derive(Debug, Clone)]
 enum HandleImpl {
     MemoryObjectHandle(Arc<MemoryObject>),

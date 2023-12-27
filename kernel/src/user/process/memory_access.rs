@@ -1,4 +1,5 @@
 use core::{
+    marker::PhantomData,
     mem::{align_of, size_of},
     ops::Range,
     slice::{from_raw_parts, from_raw_parts_mut},
@@ -145,4 +146,41 @@ unsafe fn ref_frame(phys_addr: PhysAddr) -> FrameRef {
     borrowed_frame.borrow();
 
     frame_new_ref
+}
+
+/// Represent a memory access to some of the process VM space.
+pub struct TypedMemoryAccess<T> {
+    access: MemoryAccess,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> TypedMemoryAccess<T> {
+    pub fn get<'a>(&'a self) -> &'a T {
+        self.access.get()
+    }
+
+    pub fn get_mut<'a>(&'a mut self) -> &'a mut T {
+        self.access.get_mut()
+    }
+}
+
+/// Standalone function, so that MemoryAccess::create() can remain private
+///
+/// Create a new memory access
+///
+/// permissions are the at least excepted permission in address space.
+///
+/// eg: if READ is set, then the range must be mapped in the address space with at least READ permission
+pub fn create_typed<T>(
+    address_space: &AddressSpace,
+    addr: VirtAddr,
+    perms: Permissions,
+) -> Result<TypedMemoryAccess<T>, Error> {
+    let range = addr..addr + size_of::<T>();
+    let access = MemoryAccess::create(address_space, range, perms)?;
+
+    Ok(TypedMemoryAccess {
+        access,
+        _phantom: PhantomData,
+    })
 }

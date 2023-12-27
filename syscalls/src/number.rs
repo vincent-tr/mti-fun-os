@@ -7,6 +7,9 @@ pub enum SyscallNumber {
     Duplicate,
     ProcessOpenSelf,
     ProcessCreate,
+    ProcessMMap,
+    ProcessMUnmap,
+    ProcessMProtect,
 
     InitSetup,
 }

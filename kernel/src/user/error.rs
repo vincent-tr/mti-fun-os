@@ -49,6 +49,15 @@ pub fn check_permissions(actual: Permissions, expected: Permissions) -> Result<(
     Ok(())
 }
 
+/// Check that actual permissions contains any permission (ie: not NONE)
+pub fn check_any_permissions(perms: Permissions) -> Result<(), Error> {
+    if perms == Permissions::NONE {
+        Err(Error::MemoryAccessDenied)
+    } else {
+        Ok(())
+    }
+}
+
 pub fn not_supported() -> Error {
     Error::NotSupported
 }

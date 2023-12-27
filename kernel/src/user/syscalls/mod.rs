@@ -15,6 +15,9 @@ pub fn init() {
     register_syscall(SyscallNumber::Duplicate, handle::duplicate);
     register_syscall(SyscallNumber::ProcessOpenSelf, process::open_self);
     register_syscall(SyscallNumber::ProcessCreate, process::create);
+    register_syscall(SyscallNumber::ProcessMMap, process::mmap);
+    register_syscall(SyscallNumber::ProcessMUnmap, process::munmap);
+    register_syscall(SyscallNumber::ProcessMProtect, process::mprotect);
 
     register_syscall(SyscallNumber::InitSetup, init::setup);
 }

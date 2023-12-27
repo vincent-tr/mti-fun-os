@@ -1,4 +1,3 @@
-use bitflags::bitflags;
 use core::{mem, ops::Range, ptr};
 use log::{info, warn};
 
@@ -22,6 +21,8 @@ use super::{
     config::{KERNEL_START, PAGE_SIZE},
     phys::{self, AllocatorError, FrameRef},
 };
+
+pub use syscalls::Permissions;
 
 /*
 
@@ -52,24 +53,6 @@ After full initialization (drop of initial kernel stack):
 This 2 entries needs to be copied to all Page Tables created for user processes
 
 */
-
-bitflags! {
-    /// Possible paging permissions
-    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-    pub struct Permissions: u64 {
-        /// No access
-        const NONE = 0;
-
-        /// Page can be read
-        const READ = 1 << 0;
-
-        /// Page can be written
-        const WRITE = 1 << 1;
-
-        /// Page can be executed
-        const EXECUTE = 1 << 2;
-    }
-}
 
 static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
 

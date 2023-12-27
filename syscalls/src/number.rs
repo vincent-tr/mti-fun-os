@@ -14,6 +14,7 @@ pub enum SyscallNumber {
     ThreadCreate,
     ThreadExit,
     ThreadKill,
+    ThreadSetPriority,
 
     InitSetup,
 }

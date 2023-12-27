@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 
 use alloc::sync::Arc;
+use syscalls::ThreadPriority;
 
 use crate::user::{id_gen::IdGen, process::Process, weak_map::WeakMap};
 
@@ -30,11 +31,12 @@ impl Threads {
     pub fn create(
         &self,
         process: Arc<Process>,
+        priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
     ) -> Arc<Thread> {
         let id = self.id_gen.generate();
-        let thread = thread::new(id, process.clone(), thread_start, stack_top);
+        let thread = thread::new(id, process.clone(), priority, thread_start, stack_top);
 
         self.threads.insert(id, &thread);
 

@@ -7,7 +7,7 @@ use crate::user::syscalls::engine::unregister_syscall;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::info;
-use syscalls::{Error, SyscallNumber};
+use syscalls::{Error, SyscallNumber, ThreadPriority};
 
 const BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
 const SIZE_OF_HEADERS: usize = PAGE_SIZE;
@@ -90,5 +90,10 @@ fn create_thread(process: Arc<Process>) {
     // Init does setup its stack itself.
     let stack_top = VirtAddr::zero();
 
-    user::thread::create(process.clone(), entry_point, stack_top);
+    user::thread::create(
+        process.clone(),
+        ThreadPriority::Normal,
+        entry_point,
+        stack_top,
+    );
 }

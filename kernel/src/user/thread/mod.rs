@@ -6,6 +6,7 @@ mod wait_queue;
 use alloc::sync::Arc;
 use hashbrown::HashSet;
 use spin::RwLock;
+use syscalls::ThreadPriority;
 
 pub use self::thread::{Thread, ThreadError, ThreadState};
 use self::{threads::THREADS, wait_queue::WaitQueue};
@@ -19,8 +20,13 @@ use crate::{
     },
 };
 
-pub fn create(process: Arc<Process>, thread_start: VirtAddr, stack_top: VirtAddr) -> Arc<Thread> {
-    let thread = THREADS.create(process, thread_start, stack_top);
+pub fn create(
+    process: Arc<Process>,
+    priority: ThreadPriority,
+    thread_start: VirtAddr,
+    stack_top: VirtAddr,
+) -> Arc<Thread> {
+    let thread = THREADS.create(process, priority, thread_start, stack_top);
 
     assert!(thread.state().is_ready());
     SCHEDULER.add(thread.clone());
@@ -186,4 +192,15 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
 /// Wait up all threads from the wait queue
 pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>) {
     while wait_queue_wake_one(wait_queue) {}
+}
+
+/// Set the thread priority
+pub fn thread_set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
+    thread::set_priority(thread, priority);
+
+    if thread.state().is_ready() {
+        // re-queue the thread so that the new priority is applied
+        SCHEDULER.remove(thread);
+        SCHEDULER.add(thread.clone());
+    }
 }

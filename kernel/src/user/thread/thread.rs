@@ -1,10 +1,12 @@
-use core::fmt;
 use core::hash::{Hash, Hasher};
+use core::sync::atomic::{AtomicU64, Ordering};
+use core::{fmt, mem};
 
 use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
+use syscalls::ThreadPriority;
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
@@ -20,15 +22,20 @@ use super::wait_queue::WaitQueue;
 pub fn new(
     id: u64,
     process: Arc<Process>,
+    priority: ThreadPriority,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
 ) -> Arc<Thread> {
-    Thread::new(id, process, thread_start, stack_top)
+    Thread::new(id, process, priority, thread_start, stack_top)
 }
 
 pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
     let mut state = thread.state.write();
     *state = new_state;
+}
+
+pub fn set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
+    thread.set_priority(priority);
 }
 
 pub unsafe fn save(thread: &Arc<Thread>) {
@@ -46,6 +53,7 @@ pub unsafe fn load(thread: &Arc<Thread>) {
 pub struct Thread {
     id: u64,
     process: Arc<Process>,
+    priority: AtomicU64,
     state: RwLock<ThreadState>,
     context: Mutex<ThreadContext>,
 }
@@ -54,12 +62,14 @@ impl Thread {
     fn new(
         id: u64,
         process: Arc<Process>,
+        priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
     ) -> Arc<Self> {
         let thread = Arc::new(Self {
             id,
             process,
+            priority: AtomicU64::new(priority as u64),
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
             context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
         });
@@ -88,6 +98,16 @@ impl Thread {
     /// Get the state of the thread
     pub fn state(&self) -> RwLockReadGuard<ThreadState> {
         self.state.read()
+    }
+
+    /// Get the priority of the thread
+    pub fn priority(&self) -> ThreadPriority {
+        unsafe { mem::transmute(self.priority.load(Ordering::Relaxed)) }
+    }
+
+    /// Set the priority of the thread
+    fn set_priority(&self, priority: ThreadPriority) {
+        self.priority.store(priority as u64, Ordering::Relaxed);
     }
 }
 

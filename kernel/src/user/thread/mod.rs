@@ -8,7 +8,7 @@ use hashbrown::HashSet;
 use spin::RwLock;
 
 pub use self::thread::{Thread, ThreadError, ThreadState};
-use self::{thread::initial_run_thread, threads::THREADS, wait_queue::WaitQueue};
+use self::{threads::THREADS, wait_queue::WaitQueue};
 
 use super::process::Process;
 use crate::{
@@ -33,20 +33,16 @@ pub fn find(pid: u64) -> Option<Arc<Thread>> {
 }
 
 /// Setup initial thread
-pub unsafe fn initial_setup_thread(new_thread: Arc<Thread>) -> ! {
-    {
-        let new_process = new_thread.process();
-        let address_space = new_process.address_space().write();
-        unsafe { crate::memory::set_current_address_space(&address_space) };
+pub fn initial_setup_thread(new_thread: Arc<Thread>) {
+    let new_process = new_thread.process();
+    let address_space = new_process.address_space().write();
+    unsafe { crate::memory::set_current_address_space(&address_space) };
 
-        // initial task setup will be handled by initial_run_thread/switch_to_userland below
-        let mut current = CURRENT_THREAD.write();
-        update_state(&new_thread, ThreadState::Executing);
-        *current = Some(new_thread.clone());
-    }
+    unsafe { thread::load(&new_thread) };
 
-    // be sure to drop any locals before
-    initial_run_thread(new_thread);
+    let mut current = CURRENT_THREAD.write();
+    update_state(&new_thread, ThreadState::Executing);
+    *current = Some(new_thread.clone());
 }
 
 // Note: null before init

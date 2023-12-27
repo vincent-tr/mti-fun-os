@@ -69,23 +69,19 @@ pub fn init_userland() {
     syscalls::init();
 }
 
-pub fn switch_to_userland(user_code: VirtAddr, user_stack_top: VirtAddr) -> ! {
-    // Initial switch to userland using sysretq
-
+pub fn syscall_switch(syscall_number: usize) -> ! {
+    // Initial context switch to interrupt stack, using syscall
     unsafe {
         asm!(concat!(
             "mov ds, {user_data_seg:x};",     // Set userland data segment
             "mov es, {user_data_seg:x};",     // Set userland data segment
             "mov fs, {user_data_seg:x};",     // Set userland data segment
             "mov gs, {user_data_seg:x};",     // Set userland data segment
-            "mov rsp, {user_stack};",         // Set userland stack pointer
-            "sysretq;",                       // Return into userland; RCX=>RIP,R11=>RFLAGS
+            "syscall;",                       // Run syscall (will never return)
         ),
 
         user_data_seg = in(reg) user_data_selector().0,
-        user_stack = in(reg) user_stack_top.as_u64(),
-        in("rcx") user_code.as_u64(), // Set userland return pointer
-        in("r11")USERLAND_RFLAGS.bits(), // Set rflags
+        in("rax") syscall_number,
 
         options(noreturn));
     }

@@ -26,13 +26,13 @@ mod interrupts;
 mod logging;
 mod memory;
 
-mod init;
 mod user;
 
 use crate::memory::VirtAddr;
 use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::panic::PanicInfo;
 use log::{error, info};
+use syscalls::SyscallNumber;
 use x86_64::registers::model_specific::{Efer, EferFlags};
 
 const CONFIG: BootloaderConfig = {
@@ -75,7 +75,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    init::run();
+    interrupts::syscall_switch(SyscallNumber::InitSetup as usize);
 }
 
 #[panic_handler]

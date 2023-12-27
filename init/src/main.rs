@@ -8,8 +8,9 @@ mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
-use libsyscalls::{thread, Permissions};
+use libsyscalls::{thread, Handle, Permissions, ThreadPriority};
 use log::{debug, error};
+use offsets::stack_top;
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -36,10 +37,32 @@ pub unsafe extern "C" fn user_start() {
 #[used(linker)]
 static mut FORCE_DATA_SECTION: u8 = 0x42;
 
+const PAGE_SIZE: usize = 4096;
+
 extern "C" fn main() -> ! {
     logging::init();
 
-    apply_memory_protections();
+    let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
+
+    apply_memory_protections(&self_proc);
+
+    // small stack, does not do much
+    let idle_stack =
+        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create idle task stack");
+
+    let stack_addr = libsyscalls::process::mmap(
+        &self_proc,
+        None,
+        PAGE_SIZE,
+        Permissions::READ | Permissions::WRITE,
+        Some(&idle_stack),
+        0,
+    )
+    .expect("Could not map idle task stack");
+    let stack_top = stack_top() + PAGE_SIZE;
+
+    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top)
+        .expect("Could create idle task");
 
     // TODO
 
@@ -47,9 +70,7 @@ extern "C" fn main() -> ! {
     unsafe { unreachable_unchecked() };
 }
 
-fn apply_memory_protections() {
-    let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
-
+fn apply_memory_protections(self_proc: &Handle) {
     let text_range = offsets::text();
     let rodata_range = offsets::rodata();
     let data_range = offsets::data();
@@ -96,6 +117,15 @@ fn apply_memory_protections() {
 fn panic(info: &PanicInfo) -> ! {
     error!("PANIC: {info}");
 
+    halt();
+}
+
+fn idle() -> ! {
+    halt();
+}
+
+fn halt() -> ! {
+    // TODO: better sleep
     loop {}
 }
 

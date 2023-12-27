@@ -64,6 +64,7 @@ fn context_switch(new_thread: Arc<Thread>) {
 
     if Arc::ptr_eq(old_thread, &new_thread) {
         // Same thread, nothing to do
+        update_state(&new_thread, ThreadState::Executing);
         return;
     }
 

@@ -1,5 +1,4 @@
 use core::{
-    borrow::BorrowMut,
     cell::{Ref, RefCell},
     mem::swap,
     ops::{Bound, Range},
@@ -33,6 +32,14 @@ enum AreaContent {
     Used(Mapping),
 }
 
+#[derive(Debug)]
+enum AreaContentType {
+    Invalid,
+    Boundary,
+    Empty,
+    Used,
+}
+
 impl Area {
     pub fn from_mapping(mapping: Mapping) -> Rc<Self> {
         Rc::new(Self {
@@ -57,6 +64,15 @@ impl Area {
 
     pub fn size(&self) -> usize {
         (self.range.end - self.range.start) as usize
+    }
+
+    pub fn is_valid(&self) -> bool {
+        let content = self.content.borrow();
+        if let AreaContent::Invalid = *content {
+            false
+        } else {
+            true
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -94,6 +110,15 @@ impl Area {
         }
     }
 
+    pub fn r#type(&self) -> AreaContentType {
+        match &*self.content.borrow() {
+            AreaContent::Invalid => AreaContentType::Invalid,
+            AreaContent::Boundary => AreaContentType::Boundary,
+            AreaContent::Empty => AreaContentType::Empty,
+            AreaContent::Used(_) => AreaContentType::Used,
+        }
+    }
+
     pub fn invalidate(&self) {
         *self.content.borrow_mut() = AreaContent::Invalid;
     }
@@ -101,7 +126,7 @@ impl Area {
     pub fn take_mapping(&self) -> Mapping {
         let mut content = self.content.borrow_mut();
         let mut swapped_content = AreaContent::Invalid;
-        swap(&mut swapped_content, &mut *content.borrow_mut());
+        swap(&mut swapped_content, &mut *content);
 
         if let AreaContent::Used(mapping) = swapped_content {
             mapping
@@ -235,15 +260,16 @@ impl Mappings {
         if start_area.range.start < range.start {
             // need to split
             self.split(start_area, range.start);
-            //start_area = self.get(range.start);
         }
-
+        
         let end_area = self.get(range.end - PAGE_SIZE);
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
-            //end_area = self.get(range.end - PAGE_SIZE);
         }
+        
+        //start_area = self.get(range.start);
+        //end_area = self.get(range.end - PAGE_SIZE);
 
         // Replace all ranges inside
         let mut addr = range.start;
@@ -289,15 +315,16 @@ impl Mappings {
         if start_area.range.start < range.start {
             // need to split
             self.split(start_area, range.start);
-            start_area = self.get(range.start);
         }
 
         let mut end_area = self.get(range.end - PAGE_SIZE);
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
-            end_area = self.get(range.end - PAGE_SIZE);
         }
+
+        start_area = self.get(range.start);
+        end_area = self.get(range.end - PAGE_SIZE);
 
         // Ensure there is only one range inside
         assert!(Rc::ptr_eq(&start_area, &end_area));
@@ -325,14 +352,14 @@ impl Mappings {
         assert!(area.range.start < addr);
         assert!(addr < area.range.end);
 
-        let (left_area, right_area) = match &*area.content.borrow() {
-            AreaContent::Invalid => panic!("invalid area"),
-            AreaContent::Boundary => panic!("Cannot split area boundary"),
-            AreaContent::Empty => (
+        let (left_area, right_area) = match area.r#type() {
+            AreaContentType::Invalid => panic!("invalid area"),
+            AreaContentType::Boundary => panic!("Cannot split area boundary"),
+            AreaContentType::Empty => (
                 Area::empty(area.range.start..addr),
                 Area::empty(addr..area.range.end),
             ),
-            AreaContent::Used(_) => {
+            AreaContentType::Used => {
                 let mut left_mapping = area.take_mapping();
                 let right_mapping = left_mapping.split(addr);
                 (
@@ -384,14 +411,14 @@ impl Mappings {
 
         self.nodes.remove(&addr);
 
-        let new_area = match &*left_area.content.borrow() {
-            AreaContent::Invalid => panic!("invalid area"),
-            AreaContent::Boundary => panic!("Cannot merge area boundary"),
-            AreaContent::Empty => {
+        let new_area = match left_area.r#type() {
+            AreaContentType::Invalid => panic!("invalid area"),
+            AreaContentType::Boundary => panic!("Cannot merge area boundary"),
+            AreaContentType::Empty => {
                 assert!(right_area.is_empty(), "area types mismatch");
                 Area::empty(left_area.range.start..right_area.range.end)
             }
-            AreaContent::Used(_) => {
+            AreaContentType::Used => {
                 let mut left_mapping = left_area.take_mapping();
                 let right_mapping = right_area.take_mapping();
                 assert!(left_mapping.can_merge(&right_mapping));

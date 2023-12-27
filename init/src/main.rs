@@ -3,10 +3,12 @@
 #![feature(naked_functions)]
 #![feature(used_with_arg)]
 
+mod logging;
 mod syscalls;
 
 use core::{arch::asm, fmt, mem, panic::PanicInfo};
 
+use log::{error, info};
 use syscalls::{syscall1, syscall3, SyscallNumber};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,83 +18,6 @@ impl Handle {
     pub const fn invalid() -> Self {
         Handle(0)
     }
-}
-
-#[repr(usize)]
-enum Level {
-    Error = 1,
-    Warn,
-    Info,
-    Debug,
-    Trace,
-}
-
-// https://stackoverflow.com/questions/50200268/how-can-i-use-the-format-macro-in-a-no-std-environment
-pub mod write_to {
-    use core::cmp::min;
-    use core::fmt;
-
-    pub struct WriteTo<'a> {
-        buffer: &'a mut [u8],
-        // on write error (i.e. not enough space in buffer) this grows beyond
-        // `buffer.len()`.
-        used: usize,
-    }
-
-    impl<'a> WriteTo<'a> {
-        pub fn new(buffer: &'a mut [u8]) -> Self {
-            WriteTo { buffer, used: 0 }
-        }
-
-        pub fn as_str(self) -> Option<&'a str> {
-            if self.used <= self.buffer.len() {
-                // only successful concats of str - must be a valid str.
-                use core::str::from_utf8_unchecked;
-                Some(unsafe { from_utf8_unchecked(&self.buffer[..self.used]) })
-            } else {
-                None
-            }
-        }
-    }
-
-    impl<'a> fmt::Write for WriteTo<'a> {
-        fn write_str(&mut self, s: &str) -> fmt::Result {
-            if self.used > self.buffer.len() {
-                return Err(fmt::Error);
-            }
-            let remaining_buf = &mut self.buffer[self.used..];
-            let raw_s = s.as_bytes();
-            let write_num = min(raw_s.len(), remaining_buf.len());
-            remaining_buf[..write_num].copy_from_slice(&raw_s[..write_num]);
-            self.used += raw_s.len();
-            if write_num < raw_s.len() {
-                Err(fmt::Error)
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    pub fn show<'a>(buffer: &'a mut [u8], args: fmt::Arguments) -> Result<&'a str, fmt::Error> {
-        let mut w = WriteTo::new(buffer);
-        fmt::write(&mut w, args)?;
-        w.as_str().ok_or(fmt::Error)
-    }
-}
-
-fn log(level: Level, args: fmt::Arguments) {
-    let mut buf: [u8; 1024] = [0u8; 1024];
-
-    let message: &str = write_to::show(&mut buf, args).unwrap();
-
-    unsafe {
-        syscall3(
-            SyscallNumber::Log,
-            level as usize,
-            message.as_ptr() as usize,
-            message.len(),
-        )
-    };
 }
 
 /// # Safety
@@ -155,6 +80,7 @@ mod offsets {
     }
 }
 
+// Special init start: need to setup its own stack
 #[naked]
 #[no_mangle]
 #[link_section = ".text_entry"]
@@ -180,47 +106,36 @@ pub unsafe extern "C" fn user_start() {
 static mut FORCE_DATA_SECTION: u8 = 0x42;
 
 extern "C" fn main() -> ! {
+    logging::init();
+
     // TODO: protection
+    info!(
+        "text: {:016X} -> {:016X} (size={})",
+        offsets::text().start,
+        offsets::text().end,
+        offsets::text().end - offsets::text().start
+    );
+    info!(
+        "rodata: {:016X} -> {:016X} (size={})",
+        offsets::rodata().start,
+        offsets::rodata().end,
+        offsets::rodata().end - offsets::rodata().start
+    );
+    info!(
+        "data: {:016X} -> {:016X} (size={})",
+        offsets::data().start,
+        offsets::data().end,
+        offsets::data().end - offsets::data().start
+    );
+    info!("stack_top: {:016X}", offsets::stack_top());
 
-    log(
-        Level::Info,
-        format_args!(
-            "text: {:016X} -> {:016X} (size={})",
-            offsets::text().start,
-            offsets::text().end,
-            offsets::text().end - offsets::text().start
-        ),
-    );
-    log(
-        Level::Info,
-        format_args!(
-            "rodata: {:016X} -> {:016X} (size={})",
-            offsets::rodata().start,
-            offsets::rodata().end,
-            offsets::rodata().end - offsets::rodata().start
-        ),
-    );
-    log(
-        Level::Info,
-        format_args!(
-            "data: {:016X} -> {:016X} (size={})",
-            offsets::data().start,
-            offsets::data().end,
-            offsets::data().end - offsets::data().start
-        ),
-    );
-    log(
-        Level::Info,
-        format_args!("stack_top: {:016X}", offsets::stack_top()),
-    );
-
-    log(Level::Info, format_args!("test"));
+    info!("test");
 
     unsafe {
         let mut handle = Handle::invalid();
         syscall1(SyscallNumber::ProcessOpenSelf, out_ptr(&mut handle));
 
-        log(Level::Info, format_args!("handle value={handle:?}"));
+        info!("handle value={handle:?}");
 
         syscall1(SyscallNumber::Close, handle.0 as usize);
     }
@@ -250,8 +165,7 @@ fn div0() {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    //error!("PANIC: {info}");
-    log(Level::Error, format_args!("PANIC: {info}"));
+    error!("PANIC: {info}");
 
     loop {}
 }

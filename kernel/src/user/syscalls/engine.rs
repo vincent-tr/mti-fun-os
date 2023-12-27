@@ -4,6 +4,7 @@ use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use log::{debug, trace};
 use spin::RwLock;
+use syscalls::SUCCESS;
 
 use crate::user::error::{not_supported, Error};
 
@@ -11,8 +12,6 @@ use super::SyscallNumber;
 
 /// Type of a syscal; handler
 pub type SyscallHandler = fn(usize, usize, usize, usize, usize, usize) -> Result<(), Error>;
-
-const SUCCESS: usize = 0;
 
 struct Handlers {
     handlers: HashMap<SyscallNumber, SyscallHandler>,

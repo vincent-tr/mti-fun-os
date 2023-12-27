@@ -4,6 +4,7 @@
 pub enum SyscallNumber {
     Log = 1,
     Close,
+    Duplicate,
     ProcessOpenSelf,
     ProcessCreate,
 

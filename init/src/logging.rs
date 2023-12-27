@@ -1,9 +1,4 @@
-use core::fmt::Write;
-use lazy_static::lazy_static;
 use log::{Metadata, Record};
-use syscalls::SyscallNumber;
-
-use crate::syscalls::syscall3;
 
 struct InitLogger;
 
@@ -72,14 +67,8 @@ impl log::Log for InitLogger {
 
             let message: &str = write_to::show(&mut buf, *record.args()).unwrap();
 
-            unsafe {
-                syscall3(
-                    SyscallNumber::Log,
-                    record.level() as usize,
-                    message.as_ptr() as usize,
-                    message.len(),
-                )
-            };
+            // If logging fails, there is not much we can do...
+            let _ = libsyscalls::log(record.level(), message);
         }
     }
 

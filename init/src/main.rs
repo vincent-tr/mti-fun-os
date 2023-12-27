@@ -4,29 +4,10 @@
 #![feature(used_with_arg)]
 
 mod logging;
-mod syscalls;
 
-use core::{arch::asm, fmt, mem, panic::PanicInfo};
+use core::{arch::asm, panic::PanicInfo};
 
 use log::{error, info};
-use syscalls::{syscall1, syscall3, SyscallNumber};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Handle(u64);
-
-impl Handle {
-    pub const fn invalid() -> Self {
-        Handle(0)
-    }
-}
-
-/// # Safety
-///
-/// Borrowing rules unchecked. Do right before syscalls only.
-unsafe fn out_ptr<T>(value: &mut T) -> usize {
-    let ptr: *mut T = value;
-    mem::transmute(ptr)
-}
 
 mod offsets {
     use core::ops::Range;
@@ -132,12 +113,9 @@ extern "C" fn main() -> ! {
     info!("test");
 
     unsafe {
-        let mut handle = Handle::invalid();
-        syscall1(SyscallNumber::ProcessOpenSelf, out_ptr(&mut handle));
+        let handle = libsyscalls::process::open_self().expect("Could not open handle");
 
         info!("handle value={handle:?}");
-
-        syscall1(SyscallNumber::Close, handle.0 as usize);
     }
 
     loop {}

@@ -16,4 +16,4 @@ members = [
   "kernel",
   "init",
   "syscalls"
-]
+, "libsyscalls"]

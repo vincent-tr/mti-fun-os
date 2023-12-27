@@ -15,7 +15,7 @@
 // option is specified.
 use core::arch::asm;
 
-pub use syscalls::SyscallNumber;
+use syscalls::SyscallNumber;
 
 /// Issues a raw system call with 0 arguments.
 ///

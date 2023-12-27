@@ -3,5 +3,5 @@
 mod error;
 mod number;
 
-pub use error::Error;
+pub use error::{Error, SUCCESS};
 pub use number::SyscallNumber;

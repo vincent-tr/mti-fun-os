@@ -28,7 +28,7 @@ impl From<usize> for Handle {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum HandleImpl {
     MemoryObjectHandle(Arc<MemoryObject>),
     ProcessHandle(Arc<Process>),
@@ -123,5 +123,18 @@ impl Handles {
         mem::drop(handle_impl);
 
         Ok(())
+    }
+
+    /// Duplicate a handle
+    pub fn duplicate(&self, handle: Handle) -> Result<Handle, Error> {
+        let new_handle_impl = {
+            let handles = self.handles.read();
+
+            let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+            handle_impl.clone()
+        };
+
+        Ok(self.open(new_handle_impl))
     }
 }

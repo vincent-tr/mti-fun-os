@@ -1,6 +1,6 @@
 use crate::user::{process, thread, Error};
 
-use super::handle;
+use super::handle::HandleOutputWriter;
 
 pub fn open_self(
     handle_out_ptr: usize,
@@ -13,9 +13,12 @@ pub fn open_self(
     let thread = thread::current_thread();
     let process = thread.process();
 
+    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+
     let handle = process.handles().open_process(process.clone());
 
-    handle::as_output(handle_out_ptr, handle)
+    handle_out.set(handle);
+    Ok(())
 }
 
 pub fn create(
@@ -29,9 +32,12 @@ pub fn create(
     let thread = thread::current_thread();
     let process = thread.process();
 
+    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+
     let new_process = process::create()?;
 
     let handle = process.handles().open_process(new_process);
 
-    handle::as_output(handle_out_ptr, handle)
+    handle_out.set(handle);
+    Ok(())
 }

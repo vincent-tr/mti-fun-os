@@ -7,3 +7,5 @@ pub enum Error {
     NotSupported,
     MemoryAccessDenied,
 }
+
+pub const SUCCESS: usize = 0;

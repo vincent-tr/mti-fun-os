@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use core::{mem, ptr};
+use core::{mem, ops::Range, ptr};
 use log::{info, warn};
 
 use x86_64::{
@@ -77,6 +77,11 @@ pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
     page_table: ptr::null_mut(),
 };
 
+// Keep the initial kernel stack L4 index while booting
+// Filled at paging initialization
+// Used while after switch to another stack to drop this initial stack
+static mut INITIAL_KERNEL_STACK_L4_INDEX: Option<(PageTableIndex, Range<VirtAddr>)> = None;
+
 pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
     // Create new empty page table
 
@@ -147,6 +152,9 @@ pub fn init(phys_mapping: VirtAddr) {
             kernel_stack_end - kernel_stack_start
         );
 
+        INITIAL_KERNEL_STACK_L4_INDEX =
+            Some((kernel_stack_l4_index, kernel_stack_start..kernel_stack_end));
+
         // Drop everything else
 
         // Note: bootloader prepare each memory component in its own l4 index so we can keep our 3 indexes and drop any other
@@ -167,6 +175,28 @@ pub fn init(phys_mapping: VirtAddr) {
         }
 
         tlb::flush_all();
+    }
+}
+
+/// Drop the initial kernel stack
+///
+/// Note: no process address space must exist at this time.
+pub fn drop_initial_kernel_stack() {
+    unsafe {
+        let (l4_index, stack_range) = INITIAL_KERNEL_STACK_L4_INDEX
+            .take()
+            .expect("INITIAL_KERNEL_STACK_L4_INDEX not set");
+
+        // Drop hierarchy in kernel address space
+        let kernel_page_table = KERNEL_ADDRESS_SPACE.get_page_table();
+        assert!(get_current_page_table() as *const _ == kernel_page_table as *const _);
+
+        drop_mapping(&mut kernel_page_table[l4_index]);
+
+        // Invalidate all stack pages
+        for page_addr in stack_range.step_by(PAGE_SIZE) {
+            tlb::flush(page_addr);
+        }
     }
 }
 

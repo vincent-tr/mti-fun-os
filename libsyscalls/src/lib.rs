@@ -4,6 +4,7 @@ mod handle;
 mod logging;
 pub mod process;
 mod syscalls;
+pub mod thread;
 
 use core::mem;
 

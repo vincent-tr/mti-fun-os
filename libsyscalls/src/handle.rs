@@ -2,11 +2,7 @@ use syscalls::SyscallNumber;
 
 use super::SyscallResult;
 
-use super::{
-    out_ptr,
-    syscalls::{syscall1, syscall2},
-    sysret_to_result,
-};
+use super::{out_ptr, syscalls::*, sysret_to_result};
 
 /// Handle: Pointer to kernel object
 #[derive(Debug)]

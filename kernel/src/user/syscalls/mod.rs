@@ -3,6 +3,7 @@ mod handle;
 mod init;
 mod logging;
 mod process;
+mod thread;
 
 use self::engine::register_syscall;
 
@@ -18,6 +19,10 @@ pub fn init() {
     register_syscall(SyscallNumber::ProcessMMap, process::mmap);
     register_syscall(SyscallNumber::ProcessMUnmap, process::munmap);
     register_syscall(SyscallNumber::ProcessMProtect, process::mprotect);
+    register_syscall(SyscallNumber::ThreadOpenSelf, thread::open_self);
+    register_syscall(SyscallNumber::ThreadCreate, thread::create);
+    register_syscall(SyscallNumber::ThreadExit, thread::exit);
+    register_syscall(SyscallNumber::ThreadKill, thread::kill);
 
     register_syscall(SyscallNumber::InitSetup, init::setup);
 }

@@ -2,10 +2,7 @@ use core::ops::Range;
 
 use syscalls::SyscallNumber;
 
-use super::{
-    syscalls::{syscall1, syscall3, syscall4, syscall6},
-    sysret_to_result, Handle, Permissions, SyscallResult,
-};
+use super::{syscalls::*, sysret_to_result, Handle, Permissions, SyscallResult};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();

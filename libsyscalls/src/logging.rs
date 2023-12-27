@@ -1,4 +1,4 @@
-use super::{syscalls::syscall3, sysret_to_result, SyscallResult};
+use super::{syscalls::*, sysret_to_result, SyscallResult};
 use syscalls::SyscallNumber;
 
 pub fn log(level: log::Level, message: &str) -> SyscallResult<()> {

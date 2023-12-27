@@ -105,8 +105,8 @@ pub fn mprotect(
     addr: usize,
     size: usize,
     perms: usize,
-    _arg4: usize,
     _arg5: usize,
+    _arg6: usize,
 ) -> Result<(), Error> {
     let thread = thread::current_thread();
     let process = thread.process();

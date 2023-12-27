@@ -6,10 +6,10 @@
 mod logging;
 mod offsets;
 
-use core::{arch::asm, panic::PanicInfo};
+use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
-use libsyscalls::Permissions;
-use log::{debug, error, info};
+use libsyscalls::{thread, Permissions};
+use log::{debug, error};
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -41,15 +41,10 @@ extern "C" fn main() -> ! {
 
     apply_memory_protections();
 
-    info!("test");
+    // TODO
 
-    {
-        let handle = libsyscalls::process::open_self().expect("Could not open handle");
-
-        info!("handle value={handle:?}");
-    }
-
-    loop {}
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
 }
 
 fn apply_memory_protections() {

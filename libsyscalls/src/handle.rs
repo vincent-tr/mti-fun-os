@@ -27,6 +27,11 @@ impl Handle {
     pub(crate) unsafe fn as_syscall_ptr(&mut self) -> usize {
         out_ptr(self)
     }
+
+    /// Reserved for syscalls implementations
+    pub(crate) unsafe fn as_syscall_value(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl Drop for Handle {

@@ -8,7 +8,8 @@ mod offsets;
 
 use core::{arch::asm, panic::PanicInfo};
 
-use log::{error, info};
+use libsyscalls::Permissions;
+use log::{debug, error, info};
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -38,26 +39,7 @@ static mut FORCE_DATA_SECTION: u8 = 0x42;
 extern "C" fn main() -> ! {
     logging::init();
 
-    // TODO: protection
-    info!(
-        "text: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        offsets::text().start,
-        offsets::text().end,
-        offsets::text().end - offsets::text().start
-    );
-    info!(
-        "rodata: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        offsets::rodata().start,
-        offsets::rodata().end,
-        offsets::rodata().end - offsets::rodata().start
-    );
-    info!(
-        "data: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        offsets::data().start,
-        offsets::data().end,
-        offsets::data().end - offsets::data().start
-    );
-    info!("stack_top: 0x{:016X}", offsets::stack_top());
+    apply_memory_protections();
 
     info!("test");
 
@@ -68,6 +50,51 @@ extern "C" fn main() -> ! {
     }
 
     loop {}
+}
+
+fn apply_memory_protections() {
+    let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
+
+    let text_range = offsets::text();
+    let rodata_range = offsets::rodata();
+    let data_range = offsets::data();
+
+    libsyscalls::process::mprotect(
+        &self_proc,
+        &text_range,
+        Permissions::READ | Permissions::EXECUTE,
+    )
+    .expect("Could not setup memory protection");
+
+    libsyscalls::process::mprotect(&self_proc, &rodata_range, Permissions::READ)
+        .expect("Could not setup memory protection");
+
+    libsyscalls::process::mprotect(
+        &self_proc,
+        &data_range,
+        Permissions::READ | Permissions::WRITE,
+    )
+    .expect("Could not setup memory protection");
+
+    debug!(
+        "text: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
+        text_range.start,
+        text_range.end,
+        text_range.len()
+    );
+    debug!(
+        "rodata: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
+        rodata_range.start,
+        rodata_range.end,
+        rodata_range.len()
+    );
+    debug!(
+        "data: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
+        data_range.start,
+        data_range.end,
+        data_range.len()
+    );
+    debug!("stack_top: 0x{:016X}", offsets::stack_top());
 }
 
 #[panic_handler]

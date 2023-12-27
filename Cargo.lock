@@ -528,7 +528,6 @@ dependencies = [
  "lazy_static",
  "libsyscalls",
  "log",
- "syscalls",
 ]
 
 [[package]]

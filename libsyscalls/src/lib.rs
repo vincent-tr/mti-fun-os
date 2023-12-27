@@ -10,8 +10,8 @@ use core::mem;
 pub use handle::*;
 pub use logging::*;
 
-pub use ::syscalls::Error;
 use ::syscalls::SUCCESS;
+pub use ::syscalls::{Error, Permissions};
 
 pub type SyscallResult<T> = Result<T, Error>;
 

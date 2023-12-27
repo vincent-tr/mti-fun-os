@@ -29,21 +29,12 @@ impl Handlers {
         assert!(self.handlers.insert(syscall_number, handler).is_none());
     }
 
-    pub fn execute(
-        &self,
-        syscall_number: SyscallNumber,
-        arg1: usize,
-        arg2: usize,
-        arg3: usize,
-        arg4: usize,
-        arg5: usize,
-        arg6: usize,
-    ) -> Result<(), Error> {
-        if let Some(handler) = self.handlers.get(&syscall_number) {
-            handler(arg1, arg2, arg3, arg4, arg5, arg6)
-        } else {
-            Err(not_supported())
-        }
+    pub fn unregister(&mut self, syscall_number: SyscallNumber) {
+        assert!(self.handlers.remove(&syscall_number).is_some());
+    }
+
+    pub fn get(&self, syscall_number: SyscallNumber) -> Option<SyscallHandler> {
+        self.handlers.get(&syscall_number).copied()
     }
 }
 
@@ -66,9 +57,19 @@ pub fn execute_syscall(
 
     trace!("Syscall {syscall_number:?} (arg1={arg1} (0x{arg1:016X}), arg2={arg2} (0x{arg2:016X}), arg3={arg3} (0x{arg3:016X}), arg4={arg4} (0x{arg4:016X}), arg5={arg5} (0x{arg5:016X}), arg6={arg6} (0x{arg6:016X}))");
 
-    let handler = HANDLERS.read();
+    // Do not keep the lock while executing, else we cannot register/unregister syscalls from a syscall
+    let handler = {
+        let handlers = HANDLERS.read();
+        handlers.get(syscall_number)
+    };
 
-    let ret = match handler.execute(syscall_number, arg1, arg2, arg3, arg4, arg5, arg6) {
+    let result = if let Some(handler) = handler {
+        handler(arg1, arg2, arg3, arg4, arg5, arg6)
+    } else {
+        Err(not_supported())
+    };
+
+    let ret = match result {
         Ok(_) => SUCCESS,
         Err(err) => err as usize,
     };
@@ -83,4 +84,13 @@ pub fn register_syscall(syscall_number: SyscallNumber, handler: SyscallHandler) 
     debug!("Add syscall {syscall_number:?}");
     let mut handlers = HANDLERS.write();
     handlers.register(syscall_number, handler);
+}
+
+/// Unregister a syscall handler
+///
+/// Used to remove the initial "init run" syscall
+pub fn unregister_syscall(syscall_number: SyscallNumber) {
+    debug!("Remove syscall {syscall_number:?}");
+    let mut handlers = HANDLERS.write();
+    handlers.unregister(syscall_number);
 }

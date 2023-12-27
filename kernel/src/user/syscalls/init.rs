@@ -1,12 +1,14 @@
 use core::mem;
 
-use crate::memory::{page_aligned_up, Permissions, PAGE_SIZE};
+use crate::memory::{drop_initial_kernel_stack, page_aligned_up, Permissions, PAGE_SIZE};
 use crate::user;
 use crate::user::process::{self, Process};
+use crate::user::syscalls::engine::unregister_syscall;
 use crate::user::thread::Thread;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::info;
+use syscalls::{Error, SyscallNumber};
 
 const BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
 const SIZE_OF_HEADERS: usize = PAGE_SIZE;
@@ -23,20 +25,39 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
-pub fn run() -> ! {
+pub fn setup(
+    _arg1: usize,
+    _arg2: usize,
+    _arg3: usize,
+    _arg4: usize,
+    _arg5: usize,
+    _arg6: usize,
+) -> Result<(), Error> {
+    info!("test");
+    // Unregister current syscall
+    unregister_syscall(SyscallNumber::InitSetup);
+
+    info!("test");
+
+    let stack_var = 42;
+
+    info!("current stack = {:?}", VirtAddr::from_ptr(&stack_var));
+
+    // Drop initial kernel stack (not used anymore, we are on regular interrupt stack)
+    drop_initial_kernel_stack();
+
     info!("Loading init binary");
     let process = load();
-
-    info!("Starting init binary");
     let thread = create_thread(process);
 
-    // Note: all locals must be dropped here
-    unsafe { user::thread::initial_setup_thread(thread) };
+    user::thread::initial_setup_thread(thread);
+
+    Ok(())
 }
 
 fn load() -> Arc<Process> {
     // TODO: make path less static
-    let binary = include_bytes_aligned!(8, "../../target/x86_64-mti_fun_os/debug/init");
+    let binary = include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os/debug/init");
 
     // Load init binary at fixed address
     let mem_size = page_aligned_up(binary.len());

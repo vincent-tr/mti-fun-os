@@ -1,5 +1,6 @@
 mod engine;
 mod handle;
+mod init;
 mod logging;
 mod process;
 
@@ -13,4 +14,6 @@ pub fn init() {
     register_syscall(SyscallNumber::Close, handle::close);
     register_syscall(SyscallNumber::ProcessOpenSelf, process::open_self);
     register_syscall(SyscallNumber::ProcessCreate, process::create);
+
+    register_syscall(SyscallNumber::InitSetup, init::setup);
 }

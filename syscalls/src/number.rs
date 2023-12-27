@@ -6,4 +6,6 @@ pub enum SyscallNumber {
     Close,
     ProcessOpenSelf,
     ProcessCreate,
+
+    InitSetup,
 }

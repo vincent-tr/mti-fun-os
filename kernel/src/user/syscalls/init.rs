@@ -4,7 +4,6 @@ use crate::memory::{drop_initial_kernel_stack, page_aligned_up, Permissions, PAG
 use crate::user;
 use crate::user::process::{self, Process};
 use crate::user::syscalls::engine::unregister_syscall;
-use crate::user::thread::Thread;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::info;
@@ -41,9 +40,9 @@ pub fn setup(
 
     info!("Loading init binary");
     let process = load();
-    let thread = create_thread(process);
+    create_thread(process);
 
-    user::thread::initial_setup_thread(thread);
+    user::thread::initial_setup_thread();
 
     Ok(())
 }
@@ -83,7 +82,7 @@ fn load() -> Arc<Process> {
     process
 }
 
-fn create_thread(process: Arc<Process>) -> Arc<Thread> {
+fn create_thread(process: Arc<Process>) {
     // .text section is right after headers.
     // entry point is laid out at the begining of .text section
     let entry_point = BASE_ADDRESS + SIZE_OF_HEADERS;
@@ -91,5 +90,5 @@ fn create_thread(process: Arc<Process>) -> Arc<Thread> {
     // Init does setup its stack itself.
     let stack_top = VirtAddr::zero();
 
-    user::thread::create(process.clone(), entry_point, stack_top)
+    user::thread::create(process.clone(), entry_point, stack_top);
 }

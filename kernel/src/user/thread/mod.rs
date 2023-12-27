@@ -33,7 +33,11 @@ pub fn find(pid: u64) -> Option<Arc<Thread>> {
 }
 
 /// Setup initial thread
-pub fn initial_setup_thread(new_thread: Arc<Thread>) {
+///
+/// Pick it from the scheduler queue, and make it as current
+///
+pub fn initial_setup_thread() {
+    let new_thread = SCHEDULER.schedule();
     let new_process = new_thread.process();
     let address_space = new_process.address_space().write();
     unsafe { crate::memory::set_current_address_space(&address_space) };

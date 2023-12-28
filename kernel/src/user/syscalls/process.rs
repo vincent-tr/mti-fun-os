@@ -1,10 +1,6 @@
 use crate::{
     memory::{Permissions, VirtAddr},
-    user::{
-        handle::Handle,
-        process::{self, Process},
-        thread, Error,
-    },
+    user::{handle::Handle, process, thread, Error},
 };
 
 use super::helpers::{HandleOutputWriter, ListOutputWriter};

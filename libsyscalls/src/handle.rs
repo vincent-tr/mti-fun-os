@@ -1,4 +1,4 @@
-use syscalls::SyscallNumber;
+use syscalls::{HandleType, SyscallNumber};
 
 use super::SyscallResult;
 
@@ -28,6 +28,14 @@ impl Handle {
     pub(crate) unsafe fn as_syscall_value(&self) -> usize {
         self.0 as usize
     }
+
+    pub fn r#type(&self) -> HandleType {
+        if !self.valid() {
+            HandleType::Invalid
+        } else {
+            r#type(self).expect("Could not get handle type")
+        }
+    }
 }
 
 impl Drop for Handle {
@@ -45,7 +53,7 @@ impl Clone for Handle {
 }
 
 fn close(handle: &Handle) -> SyscallResult<()> {
-    let ret = unsafe { syscall1(SyscallNumber::Close, handle.0 as usize) };
+    let ret = unsafe { syscall1(SyscallNumber::HandleClose, handle.as_syscall_value()) };
 
     sysret_to_result(ret)
 }
@@ -55,8 +63,8 @@ fn duplicate(handle: &Handle) -> SyscallResult<Handle> {
 
     let ret = unsafe {
         syscall2(
-            SyscallNumber::ProcessOpenSelf,
-            handle.0 as usize,
+            SyscallNumber::HandleDuplicate,
+            handle.as_syscall_value(),
             new_handle.as_syscall_ptr(),
         )
     };
@@ -64,4 +72,20 @@ fn duplicate(handle: &Handle) -> SyscallResult<Handle> {
     sysret_to_result(ret)?;
 
     Ok(new_handle)
+}
+
+fn r#type(handle: &Handle) -> SyscallResult<HandleType> {
+    let mut handle_type = HandleType::Invalid;
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::HandleType,
+            handle.as_syscall_value(),
+            out_ptr(&mut handle_type),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(handle_type)
 }

@@ -3,6 +3,7 @@ use core::mem;
 use alloc::sync::Arc;
 use hashbrown::HashMap;
 use spin::RwLock;
+use syscalls::HandleType;
 
 use super::{
     error::{check_arg_opt, invalid_argument},
@@ -47,6 +48,16 @@ enum HandleImpl {
     ThreadHandle(Arc<Thread>),
 }
 
+impl HandleImpl {
+    pub fn r#type(&self) -> HandleType {
+        match self {
+            HandleImpl::MemoryObjectHandle(_) => HandleType::MemoryObject,
+            HandleImpl::ProcessHandle(_) => HandleType::Process,
+            HandleImpl::ThreadHandle(_) => HandleType::Thread,
+        }
+    }
+}
+
 /// Handles management in a process
 #[derive(Debug)]
 pub struct Handles {
@@ -84,6 +95,15 @@ impl Handles {
         handles.insert_unique_unchecked(handle, handle_impl);
 
         handle
+    }
+
+    /// Retrieve the type of the handle
+    pub fn r#type(&self, handle: Handle) -> Result<HandleType, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        Ok(handle_impl.r#type())
     }
 
     /// Retrieve the memory object from the handle

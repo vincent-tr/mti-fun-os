@@ -14,8 +14,9 @@ use syscalls::SyscallNumber;
 pub fn init() {
     register_syscall(SyscallNumber::Log, logging::log);
 
-    register_syscall(SyscallNumber::Close, handle::close);
-    register_syscall(SyscallNumber::Duplicate, handle::duplicate);
+    register_syscall(SyscallNumber::HandleClose, handle::close);
+    register_syscall(SyscallNumber::HandleDuplicate, handle::duplicate);
+    register_syscall(SyscallNumber::HandleType, handle::r#type);
 
     register_syscall(SyscallNumber::ProcessOpenSelf, process::open_self);
     register_syscall(SyscallNumber::ProcessCreate, process::create);

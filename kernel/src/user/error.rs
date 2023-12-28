@@ -69,3 +69,7 @@ pub fn check_found<T>(value: Option<T>) -> Result<T, Error> {
 pub fn duplicate_name() -> Error {
     Error::ObjectNameDuplicate
 }
+
+pub fn port_closed() -> Error {
+    Error::PortClosed
+}

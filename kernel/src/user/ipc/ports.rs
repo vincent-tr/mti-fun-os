@@ -5,11 +5,7 @@ use syscalls::Error;
 
 use crate::user::{error::duplicate_name, id_gen::IdGen, weak_map::WeakMap};
 
-use super::{
-    port,
-    port_access::{receiver, sender},
-    Port, PortReceiver, PortSender,
-};
+use super::{port, port_access::access, PortReceiver, PortSender};
 
 lazy_static! {
     pub static ref PORTS: Ports = Ports::new();
@@ -18,8 +14,8 @@ lazy_static! {
 #[derive(Debug)]
 pub struct Ports {
     id_gen: IdGen,
-    ports: WeakMap<u64, Port>,
-    names_map: WeakMap<String, Port>, // Only contains named ports
+    ports: WeakMap<u64, PortSender>,
+    names_map: WeakMap<String, PortSender>, // Only contains named ports
 }
 
 impl Ports {
@@ -37,6 +33,7 @@ impl Ports {
     pub fn create(&self, name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
         let id = self.id_gen.generate();
         let port = port::new(id, name);
+        let (receiver, sender) = access(port);
 
         if name.len() > 0 {
             // Forbid name duplicates here
@@ -45,33 +42,22 @@ impl Ports {
                 return Err(duplicate_name());
             }
 
-            self.names_map.insert(name, &port);
+            self.names_map.insert(name, &sender);
         }
 
-        self.ports.insert(id, &port);
-
-        let receiver = receiver(port.clone());
-        let sender = sender(port.clone());
+        self.ports.insert(id, &sender);
 
         Ok((receiver, sender))
     }
 
     /// Find a port by its id
     pub fn find_by_id(&self, id: u64) -> Option<Arc<PortSender>> {
-        Self::as_sender(self.ports.find(&id))
+        self.ports.find(&id)
     }
 
     /// Find a port by its name
     pub fn find_by_name(&self, name: &str) -> Option<Arc<PortSender>> {
-        Self::as_sender(self.names_map.find(&String::from(name)))
-    }
-
-    fn as_sender(port: Option<Arc<Port>>) -> Option<Arc<PortSender>> {
-        if let Some(port) = port {
-            Some(sender(port))
-        } else {
-            None
-        }
+        self.names_map.find(&String::from(name))
     }
 
     /// List pids

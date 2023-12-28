@@ -26,8 +26,14 @@ pub fn new(id: u64, name: &str) -> Arc<Port> {
 pub struct Port {
     id: u64,
     name: String,
-    message_queue: RwLock<LinkedList<InternalMessage>>,
+    data: RwLock<Data>,
     reader_queue: WaitQueue,
+}
+
+#[derive(Debug)]
+struct Data {
+    message_queue: LinkedList<InternalMessage>,
+    closed: bool,
 }
 
 impl Port {
@@ -35,7 +41,10 @@ impl Port {
         Arc::new(Self {
             id,
             name: String::from(name),
-            message_queue: RwLock::new(LinkedList::new()),
+            data: RwLock::new(Data {
+                message_queue: LinkedList::new(),
+                closed: false,
+            }),
             reader_queue: WaitQueue::new(),
         })
     }
@@ -52,10 +61,16 @@ impl Port {
 
     /// Send a message to the port
     pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
+        let mut data = self.data.write();
+        if data.closed {
+            return Err(port_closed());
+        }
+
         let message = InternalMessage::from(sender, &message)?;
 
-        let mut message_queue = self.message_queue.write();
-        message_queue.push_back(message);
+        data.message_queue.push_back(message);
+
+        // TODO: wake up
 
         Ok(())
     }
@@ -64,13 +79,25 @@ impl Port {
     ///
     /// Note: the operation does not block
     pub fn receive(&self, receiver: &Arc<Process>) -> Option<Message> {
-        let mut message_queue = self.message_queue.write();
+        let mut data = self.data.write();
+        assert!(!data.closed);
 
-        if let Some(message) = message_queue.pop_front() {
+        if let Some(message) = data.message_queue.pop_front() {
             Some(message.to(receiver))
         } else {
             None
         }
+    }
+
+    /// Called when receiver is dropped: No one will ever be able to read the messages, so drop them
+    pub fn close(&self) {
+        let mut data = self.data.write();
+        assert!(!data.closed);
+
+        data.closed = true;
+        data.message_queue.clear();
+
+        // TODO: wake up
     }
 }
 

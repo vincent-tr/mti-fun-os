@@ -5,12 +5,8 @@ use crate::user::process::Process;
 
 use super::{Message, Port};
 
-pub fn receiver(port: Arc<Port>) -> Arc<PortReceiver> {
-    PortReceiver::new(port)
-}
-
-pub fn sender(port: Arc<Port>) -> Arc<PortSender> {
-    PortSender::new(port)
+pub fn access(port: Arc<Port>) -> (Arc<PortReceiver>, Arc<PortSender>) {
+    (PortReceiver::new(port.clone()), PortSender::new(port))
 }
 
 #[derive(Debug)]
@@ -38,6 +34,12 @@ impl PortReceiver {
     /// Note: the operation does not block
     pub fn receive(&self, receiver: &Arc<Process>) -> Option<Message> {
         self.port.receive(receiver)
+    }
+}
+
+impl Drop for PortReceiver {
+    fn drop(&mut self) {
+        self.port.close();
     }
 }
 

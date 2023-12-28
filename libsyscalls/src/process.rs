@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, Handle, Permissions, SyscallResult};
+use super::{syscalls::*, sysret_to_result, Handle, Permissions, SyscallList, SyscallResult};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -99,4 +99,21 @@ pub fn mprotect(process: &Handle, range: &Range<usize>, perms: Permissions) -> S
     };
 
     sysret_to_result(ret)
+}
+
+/// Get list of pids living in the system
+pub fn list<'a>(array: &'a mut [u64]) -> SyscallResult<(&'a [u64], usize)> {
+    let mut list = unsafe { SyscallList::new(array) };
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ProcessList,
+            list.array_ptr_arg(),
+            list.count_ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(list.finalize())
 }

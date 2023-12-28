@@ -1,6 +1,6 @@
 use syscalls::{SyscallNumber, ThreadPriority};
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallResult};
+use super::{syscalls::*, sysret_to_result, Handle, SyscallList, SyscallResult};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -56,4 +56,21 @@ pub fn set_priority(thread: &Handle, priority: ThreadPriority) -> SyscallResult<
     };
 
     sysret_to_result(ret)
+}
+
+/// Get list of tids living in the system
+pub fn list<'a>(array: &'a mut [u64]) -> SyscallResult<(&'a [u64], usize)> {
+    let mut list = unsafe { SyscallList::new(array) };
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ThreadList,
+            list.array_ptr_arg(),
+            list.count_ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(list.finalize())
 }

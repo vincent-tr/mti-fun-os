@@ -7,7 +7,10 @@ pub mod process;
 mod syscalls;
 pub mod thread;
 
-use core::mem;
+use core::{
+    cmp::min,
+    mem::{self, replace},
+};
 
 pub use handle::*;
 pub use logging::*;
@@ -20,14 +23,60 @@ pub type SyscallResult<T> = Result<T, Error>;
 /// # Safety
 ///
 /// Borrowing rules unchecked. Do right before syscalls only.
-unsafe fn out_ptr<T>(value: &mut T) -> usize {
-    let ptr: *mut T = value;
-    mem::transmute(ptr)
+unsafe fn ref_ptr<T>(value: &T) -> usize {
+    let ptr: *const T = value;
+    ptr as usize
 }
 
 fn sysret_to_result(sysret: usize) -> SyscallResult<()> {
     match sysret {
         SUCCESS => Ok(()),
         err => Err(unsafe { mem::transmute(err) }),
+    }
+}
+
+/// Manage a list in syscall
+struct SyscallList<'a, T: Sized + Copy> {
+    array: &'a mut [T],
+    count: usize,
+}
+
+impl<'a, T: Sized + Copy> SyscallList<'a, T> {
+    /// # Safety
+    ///
+    /// Structure must not be moved after creation, it must stay on stack
+    pub unsafe fn new(array: &'a mut [T]) -> Self {
+        let count = array.len();
+        Self { array, count }
+    }
+
+    /// Get the array pointer argument for syscall
+    ///
+    /// # Safety
+    /// No borrow rule are checked
+    ///
+    pub unsafe fn array_ptr_arg(&self) -> usize {
+        self.array.as_ptr() as usize
+    }
+
+    /// Get the count pointer argument for syscall
+    ///
+    /// # Safety
+    /// No borrow rule are checked
+    ///
+    pub unsafe fn count_ptr_arg(&self) -> usize {
+        ref_ptr(&self.count)
+    }
+
+    /// Call after syscall to properly configure output slice
+    pub fn finalize<'b>(&mut self) -> (&'b [T], usize) {
+        let slice_count = min(self.count, self.array.len());
+
+        // FIXME: indicate borrow checked that &[T] has same lifetime than 'array'
+        //&self.array[0..slice_count]
+        let ptr = self.array.as_ptr();
+        let slice = unsafe { core::slice::from_raw_parts(ptr, slice_count) };
+
+        (slice, self.count)
     }
 }

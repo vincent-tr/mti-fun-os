@@ -2,7 +2,7 @@ use syscalls::{HandleType, SyscallNumber};
 
 use super::SyscallResult;
 
-use super::{out_ptr, syscalls::*, sysret_to_result};
+use super::{ref_ptr, syscalls::*, sysret_to_result};
 
 /// Handle: Pointer to kernel object
 #[derive(Debug)]
@@ -21,7 +21,7 @@ impl Handle {
 
     /// Reserved for syscalls implementations
     pub(crate) unsafe fn as_syscall_ptr(&mut self) -> usize {
-        out_ptr(self)
+        ref_ptr(self)
     }
 
     /// Reserved for syscalls implementations
@@ -81,7 +81,7 @@ fn r#type(handle: &Handle) -> SyscallResult<HandleType> {
         syscall2(
             SyscallNumber::HandleType,
             handle.as_syscall_value(),
-            out_ptr(&mut handle_type),
+            ref_ptr(&mut handle_type),
         )
     };
 

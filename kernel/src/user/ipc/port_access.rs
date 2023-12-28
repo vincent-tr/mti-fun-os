@@ -13,6 +13,7 @@ pub fn sender(port: Arc<Port>) -> Arc<PortSender> {
     PortSender::new(port)
 }
 
+#[derive(Debug)]
 pub struct PortReceiver {
     port: Arc<Port>,
 }
@@ -40,6 +41,7 @@ impl PortReceiver {
     }
 }
 
+#[derive(Debug)]
 pub struct PortSender {
     port: Arc<Port>,
 }

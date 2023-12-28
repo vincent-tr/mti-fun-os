@@ -1,12 +1,6 @@
 use log::Level;
 
-use crate::user::{
-    error::{check_arg_res, invalid_argument},
-    syscalls::helpers::StringReader,
-    thread, Error,
-};
-
-use alloc::str;
+use crate::user::{error::invalid_argument, syscalls::helpers::StringReader, thread, Error};
 
 pub fn log(
     level: usize,

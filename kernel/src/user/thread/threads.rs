@@ -48,7 +48,7 @@ impl Threads {
 
     /// Find a thread by its tid
     pub fn find(&self, tid: u64) -> Option<Arc<Thread>> {
-        self.threads.find(tid)
+        self.threads.find(&tid)
     }
 
     /// List tids

@@ -7,6 +7,7 @@ pub enum Error {
     NotSupported,
     MemoryAccessDenied,
     ObjectNotFound,
+    ObjectNameDuplicate,
 }
 
 pub const SUCCESS: usize = 0;

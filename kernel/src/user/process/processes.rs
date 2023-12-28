@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
 
 use crate::user::{id_gen::IdGen, process::process, weak_map::WeakMap, Error};
 
@@ -36,7 +36,7 @@ impl Processes {
 
     /// Find a process by its pid
     pub fn find(&self, pid: u64) -> Option<Arc<Process>> {
-        self.processes.find(pid)
+        self.processes.find(&pid)
     }
 
     /// List pids

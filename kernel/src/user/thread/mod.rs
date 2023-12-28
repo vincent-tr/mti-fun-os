@@ -8,8 +8,11 @@ use hashbrown::HashSet;
 use spin::RwLock;
 use syscalls::ThreadPriority;
 
-pub use self::thread::{Thread, ThreadError, ThreadState};
-use self::{thread::add_ticks, threads::THREADS, wait_queue::WaitQueue};
+use self::{thread::add_ticks, threads::THREADS};
+pub use self::{
+    thread::{Thread, ThreadError, ThreadState},
+    wait_queue::WaitQueue,
+};
 
 use super::process::Process;
 use crate::{

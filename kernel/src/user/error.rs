@@ -65,3 +65,7 @@ pub fn not_supported() -> Error {
 pub fn check_found<T>(value: Option<T>) -> Result<T, Error> {
     value.ok_or(Error::ObjectNotFound)
 }
+
+pub fn duplicate_name() -> Error {
+    Error::ObjectNameDuplicate
+}

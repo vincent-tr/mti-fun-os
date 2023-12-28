@@ -8,11 +8,11 @@ use core::hash::Hash;
 use spin::RwLock;
 
 #[derive(Debug)]
-pub struct WeakMap<Key: Copy + Eq + Hash, Value> {
+pub struct WeakMap<Key: Eq + Hash + Clone, Value> {
     map: RwLock<HashMap<Key, Weak<Value>>>,
 }
 
-impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
+impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
     pub fn new() -> Self {
         Self {
             map: RwLock::new(HashMap::new()),
@@ -30,12 +30,20 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
         );
     }
 
-    /// Find a an item by its id
-    pub fn find(&self, id: Key) -> Option<Arc<Value>> {
+    pub fn has(&self, id: &Key) -> bool {
         self.clean_map();
 
         let map = self.map.read();
-        if let Some(weak) = map.get(&id) {
+
+        map.contains_key(id)
+    }
+
+    /// Find a an item by its id
+    pub fn find(&self, id: &Key) -> Option<Arc<Value>> {
+        self.clean_map();
+
+        let map = self.map.read();
+        if let Some(weak) = map.get(id) {
             return weak.upgrade();
         } else {
             None
@@ -50,7 +58,7 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
         self.clean_map();
 
         let map = self.map.read();
-        map.keys().map(|&key| key).collect()
+        map.keys().map(|key| key.clone()).collect()
     }
 
     /// Get the number of items in the map
@@ -66,9 +74,9 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
 
         let mut delete_list = Vec::new();
 
-        for (&id, weak) in map.iter() {
+        for (id, weak) in map.iter() {
             if weak.strong_count() == 0 {
-                delete_list.push(id);
+                delete_list.push(id.clone());
             }
         }
 

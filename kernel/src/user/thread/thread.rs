@@ -6,7 +6,7 @@ use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
-use syscalls::ThreadPriority;
+use syscalls::{Permissions, ThreadPriority};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
@@ -203,7 +203,7 @@ impl From<Weak<WaitQueue>> for WaitQueueRef {
 /// Error occured on a thread
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThreadError {
-    PageFault,
+    PageFault((VirtAddr, Permissions)),
 }
 
 impl ThreadState {

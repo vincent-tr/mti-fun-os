@@ -1,6 +1,5 @@
 use core::cmp::min;
 
-use alloc::string::String;
 use syscalls::ProcessInfo;
 
 use crate::{

@@ -4,7 +4,7 @@ use syscalls::{Permissions, ThreadInfo, ThreadPriority, ThreadState};
 
 use crate::{
     memory::VirtAddr,
-    user::{thread, Error},
+    user::{error::check_found, thread, Error},
 };
 
 use super::helpers::{HandleOutputWriter, ListOutputWriter};
@@ -23,6 +23,26 @@ pub fn open_self(
     let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
 
     let handle = process.handles().open_thread(thread.clone());
+
+    handle_out.set(handle);
+    Ok(())
+}
+
+pub fn open(
+    tid: usize,
+    handle_out_ptr: usize,
+    _arg3: usize,
+    _arg4: usize,
+    _arg5: usize,
+    _arg6: usize,
+) -> Result<(), Error> {
+    let thread = thread::current_thread();
+    let process = thread.process();
+
+    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+
+    let target_thread = check_found(thread::find(tid as u64))?;
+    let handle = process.handles().open_thread(target_thread.clone());
 
     handle_out.set(handle);
     Ok(())

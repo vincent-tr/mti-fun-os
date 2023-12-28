@@ -1,12 +1,29 @@
 use core::ops::Range;
 
-use syscalls::SyscallNumber;
+use syscalls::{ProcessInfo, SyscallNumber};
 
-use super::{syscalls::*, sysret_to_result, Handle, Permissions, SyscallList, SyscallResult};
+use super::{
+    syscalls::*, sysret_to_result, Handle, Permissions, SyscallList, SyscallOutPtr, SyscallResult,
+};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
     let ret = unsafe { syscall1(SyscallNumber::ProcessOpenSelf, new_handle.as_syscall_ptr()) };
+
+    sysret_to_result(ret)?;
+
+    Ok(new_handle)
+}
+
+pub fn open(pid: u64) -> SyscallResult<Handle> {
+    let mut new_handle = Handle::invalid();
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ProcessOpen,
+            pid as usize,
+            new_handle.as_syscall_ptr(),
+        )
+    };
 
     sysret_to_result(ret)?;
 
@@ -99,6 +116,23 @@ pub fn mprotect(process: &Handle, range: &Range<usize>, perms: Permissions) -> S
     };
 
     sysret_to_result(ret)
+}
+
+/// Get info about the process
+pub fn info(process: &Handle) -> SyscallResult<ProcessInfo> {
+    let info = SyscallOutPtr::new();
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ProcessInfo,
+            process.as_syscall_value(),
+            info.ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(info.take())
 }
 
 /// Get list of pids living in the system

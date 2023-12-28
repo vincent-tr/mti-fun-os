@@ -9,14 +9,16 @@ pub mod thread;
 
 use core::{
     cmp::min,
-    mem::{self, replace},
+    mem::{self, MaybeUninit},
 };
 
 pub use handle::*;
 pub use logging::*;
 
 use ::syscalls::SUCCESS;
-pub use ::syscalls::{Error, HandleType, Permissions, ThreadPriority};
+pub use ::syscalls::{
+    Error, HandleType, Permissions, ProcessInfo, ThreadInfo, ThreadPriority, ThreadState,
+};
 
 pub type SyscallResult<T> = Result<T, Error>;
 
@@ -78,5 +80,24 @@ impl<'a, T: Sized + Copy> SyscallList<'a, T> {
         let slice = unsafe { core::slice::from_raw_parts(ptr, slice_count) };
 
         (slice, self.count)
+    }
+}
+
+pub struct SyscallOutPtr<T: Sized> {
+    value: T,
+}
+
+impl<T> SyscallOutPtr<T> {
+    pub const fn new() -> Self {
+        let value: T = unsafe { MaybeUninit::uninit().assume_init() };
+        Self { value }
+    }
+
+    pub unsafe fn ptr_arg(&self) -> usize {
+        ref_ptr(&self.value)
+    }
+
+    pub fn take(self) -> T {
+        self.value
     }
 }

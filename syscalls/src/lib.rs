@@ -23,17 +23,21 @@ pub enum SyscallNumber {
     HandleType,
 
     ProcessOpenSelf,
+    ProcessOpen,
     ProcessCreate,
     ProcessMMap,
     ProcessMUnmap,
     ProcessMProtect,
+    ProcessInfo,
     ProcessList,
 
     ThreadOpenSelf,
+    ThreadOpen,
     ThreadCreate,
     ThreadExit,
     ThreadKill,
     ThreadSetPriority,
+    ThreadInfo,
     ThreadList,
 
     MemoryObjectCreate,

@@ -1,10 +1,11 @@
 /// Thread priority
 #[repr(u64)]
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub enum ThreadPriority {
     Idle = 1,
     Lowest,
     BelowNormal,
+    #[default]
     Normal,
     AboveNormal,
     Highest,

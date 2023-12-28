@@ -1,10 +1,25 @@
-use syscalls::{SyscallNumber, ThreadPriority};
+use syscalls::{SyscallNumber, ThreadInfo, ThreadPriority};
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallList, SyscallResult};
+use super::{syscalls::*, sysret_to_result, Handle, SyscallList, SyscallOutPtr, SyscallResult};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
     let ret = unsafe { syscall1(SyscallNumber::ThreadOpenSelf, new_handle.as_syscall_ptr()) };
+
+    sysret_to_result(ret)?;
+
+    Ok(new_handle)
+}
+
+pub fn open(tid: u64) -> SyscallResult<Handle> {
+    let mut new_handle = Handle::invalid();
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ThreadOpen,
+            tid as usize,
+            new_handle.as_syscall_ptr(),
+        )
+    };
 
     sysret_to_result(ret)?;
 
@@ -56,6 +71,23 @@ pub fn set_priority(thread: &Handle, priority: ThreadPriority) -> SyscallResult<
     };
 
     sysret_to_result(ret)
+}
+
+/// Get info about the thread
+pub fn info(thread: &Handle) -> SyscallResult<ThreadInfo> {
+    let info = SyscallOutPtr::new();
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::ThreadInfo,
+            thread.as_syscall_value(),
+            info.ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(info.take())
 }
 
 /// Get list of tids living in the system

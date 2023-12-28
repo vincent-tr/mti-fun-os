@@ -6,6 +6,7 @@ pub enum Error {
     OutOfMemory,
     NotSupported,
     MemoryAccessDenied,
+    ObjectNotFound,
 }
 
 pub const SUCCESS: usize = 0;

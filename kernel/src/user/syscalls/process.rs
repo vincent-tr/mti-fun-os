@@ -2,7 +2,7 @@ use syscalls::ProcessInfo;
 
 use crate::{
     memory::{Permissions, VirtAddr},
-    user::{handle::Handle, process, thread, Error},
+    user::{error::check_found, handle::Handle, process, thread, Error},
 };
 
 use super::helpers::{HandleOutputWriter, ListOutputWriter};
@@ -21,6 +21,26 @@ pub fn open_self(
     let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
 
     let handle = process.handles().open_process(process.clone());
+
+    handle_out.set(handle);
+    Ok(())
+}
+
+pub fn open(
+    pid: usize,
+    handle_out_ptr: usize,
+    _arg3: usize,
+    _arg4: usize,
+    _arg5: usize,
+    _arg6: usize,
+) -> Result<(), Error> {
+    let thread = thread::current_thread();
+    let process = thread.process();
+
+    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+
+    let target_process = check_found(process::find(pid as u64))?;
+    let handle = process.handles().open_process(target_process);
 
     handle_out.set(handle);
     Ok(())

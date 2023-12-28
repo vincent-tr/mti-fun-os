@@ -61,3 +61,7 @@ pub fn check_any_permissions(perms: Permissions) -> Result<(), Error> {
 pub fn not_supported() -> Error {
     Error::NotSupported
 }
+
+pub fn check_found<T>(value: Option<T>) -> Result<T, Error> {
+    value.ok_or(Error::ObjectNotFound)
+}

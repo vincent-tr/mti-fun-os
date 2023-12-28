@@ -175,6 +175,19 @@ impl Mappings {
         mappings
     }
 
+    /// Get the number of mappings
+    pub fn len(&self) -> usize {
+        let mut len = 0;
+        for node in self.nodes.values() {
+            let area = &node.next;
+            if area.is_used().is_some() {
+                len += 1;
+            }
+        }
+
+        len
+    }
+
     pub fn add(&mut self, mapping: Mapping) {
         let new_area = Area::from_mapping(mapping);
 

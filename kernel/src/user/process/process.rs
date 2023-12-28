@@ -220,6 +220,18 @@ impl Process {
     pub fn handles(&self) -> &Handles {
         &self.handles
     }
+
+    /// Get the number of threads in the process
+    pub fn thread_count(&self) -> usize {
+        self.threads.len()
+    }
+
+    /// Get the number of mappings in the address space of the process
+    pub fn mapping_count(&self) -> usize {
+        let mappings = self.mappings.read();
+
+        mappings.len()
+    }
 }
 
 impl Drop for Process {

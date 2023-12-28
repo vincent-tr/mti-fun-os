@@ -1,14 +1,16 @@
 #![no_std]
 
 mod error;
-mod handle_type;
+mod handle;
 mod permissions;
-mod thread_priority;
+mod process;
+mod thread;
 
 pub use error::{Error, SUCCESS};
-pub use handle_type::HandleType;
+pub use handle::HandleType;
 pub use permissions::Permissions;
-pub use thread_priority::ThreadPriority;
+pub use process::ProcessInfo;
+pub use thread::{ThreadInfo, ThreadPriority, ThreadState};
 
 /// List of syscall numbers
 #[repr(usize)]

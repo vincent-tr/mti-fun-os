@@ -56,6 +56,33 @@ impl HandleImpl {
             HandleImpl::ThreadHandle(_) => HandleType::Thread,
         }
     }
+
+    /// Check if the 2 handles points to the same object
+    pub fn is_obj_eq(&self, other: &HandleImpl) -> bool {
+        match self {
+            HandleImpl::MemoryObjectHandle(self_obj) => {
+                if let HandleImpl::MemoryObjectHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            HandleImpl::ProcessHandle(self_obj) => {
+                if let HandleImpl::ProcessHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            HandleImpl::ThreadHandle(self_obj) => {
+                if let HandleImpl::ThreadHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+        }
+    }
 }
 
 /// Handles management in a process
@@ -71,6 +98,13 @@ impl Handles {
             id_gen: IdGen::new(),
             handles: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Get the number of opened handles
+    pub fn len(&self) -> usize {
+        let handles = self.handles.read();
+
+        handles.len()
     }
 
     /// Open the given memory object in the process
@@ -104,6 +138,15 @@ impl Handles {
         let handle_impl = check_arg_opt(handles.get(&handle))?;
 
         Ok(handle_impl.r#type())
+    }
+
+    pub fn is_obj_eq(&self, handle1: Handle, handle2: Handle) -> Result<bool, Error> {
+        let handles = self.handles.read();
+
+        let handle1_impl = check_arg_opt(handles.get(&handle1))?;
+        let handle2_impl = check_arg_opt(handles.get(&handle2))?;
+
+        Ok(handle1_impl.is_obj_eq(handle2_impl))
     }
 
     /// Retrieve the memory object from the handle

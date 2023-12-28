@@ -1,6 +1,6 @@
 use core::mem;
 
-use syscalls::ThreadPriority;
+use syscalls::{Permissions, ThreadInfo, ThreadPriority, ThreadState};
 
 use crate::{
     memory::VirtAddr,
@@ -106,6 +106,44 @@ pub fn set_priority(
     let priority: ThreadPriority = unsafe { mem::transmute(priority) };
 
     thread::thread_set_priority(&target_thread, priority);
+
+    Ok(())
+}
+
+pub fn info(
+    thread_handle: usize,
+    info_ptr: usize,
+    _arg3: usize,
+    _arg4: usize,
+    _arg5: usize,
+    _arg6: usize,
+) -> Result<(), Error> {
+    let thread = thread::current_thread();
+    let process = thread.process();
+
+    let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    let mut user_access = process.vm_access_typed::<ThreadInfo>(
+        VirtAddr::new(info_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    // Convert kernel state into syscall state
+    let state = match *target_thread.state() {
+        thread::ThreadState::Executing => ThreadState::Executing,
+        thread::ThreadState::Ready => ThreadState::Ready,
+        thread::ThreadState::Waiting(_) => ThreadState::Waiting,
+        thread::ThreadState::Error(_) => ThreadState::Error,
+        thread::ThreadState::Terminated => ThreadState::Terminated,
+    };
+
+    *user_access.get_mut() = ThreadInfo {
+        tid: target_thread.id(),
+        pid: target_thread.process().id(),
+        priority: target_thread.priority(),
+        state,
+        ticks: target_thread.ticks(),
+    };
 
     Ok(())
 }

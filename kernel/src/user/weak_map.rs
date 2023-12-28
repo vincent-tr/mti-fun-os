@@ -53,6 +53,14 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
         map.keys().map(|&key| key).collect()
     }
 
+    /// Get the number of items in the map
+    pub fn len(&self) -> usize {
+        self.clean_map();
+
+        let map = self.map.read();
+        map.len()
+    }
+
     fn clean_map(&self) {
         let map = self.map.upgradeable_read();
 

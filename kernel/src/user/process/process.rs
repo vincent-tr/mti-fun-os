@@ -75,7 +75,7 @@ impl Process {
     pub fn name<'a>(&'a self) -> &'a str {
         &self.name
     }
-    
+
     /// Get address space of the process
     pub fn address_space(&self) -> &RwLock<AddressSpace> {
         &self.address_space

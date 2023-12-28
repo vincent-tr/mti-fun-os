@@ -237,3 +237,18 @@ pub fn userland_timer_end() {
 
     add_ticks(&current_thread(), end - begin);
 }
+
+pub struct UserlandTimerInterruptScope {}
+
+impl UserlandTimerInterruptScope {
+    pub fn new() -> Self {
+        userland_timer_end();
+        Self {}
+    }
+}
+
+impl Drop for UserlandTimerInterruptScope {
+    fn drop(&mut self) {
+        userland_timer_begin();
+    }
+}

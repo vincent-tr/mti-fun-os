@@ -42,6 +42,17 @@ impl<Key: Copy + Eq + Hash, Value> WeakMap<Key, Value> {
         }
     }
 
+    /// List map keys
+    ///
+    /// Note:
+    /// The data is copied to avoid to keep the map locked
+    pub fn keys(&self) -> Vec<Key> {
+        self.clean_map();
+
+        let map = self.map.read();
+        map.keys().map(|&key| key).collect()
+    }
+
     fn clean_map(&self) {
         let map = self.map.upgradeable_read();
 

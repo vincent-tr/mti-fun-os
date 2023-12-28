@@ -1,4 +1,4 @@
-use syscalls::{SyscallNumber, ThreadPriority};
+use syscalls::SyscallNumber;
 
 use super::{syscalls::*, sysret_to_result, Handle, SyscallResult};
 

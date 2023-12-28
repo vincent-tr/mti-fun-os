@@ -9,7 +9,7 @@ mod offsets;
 use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
 use libsyscalls::{thread, Handle, Permissions, ThreadPriority};
-use log::{debug, error};
+use log::{debug, error, info};
 use offsets::stack_top;
 
 // Special init start: need to setup its own stack
@@ -63,6 +63,8 @@ extern "C" fn main() -> ! {
 
     libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top)
         .expect("Could create idle task");
+
+    info!("handle type = {:?}", self_proc.r#type());
 
     // TODO
 

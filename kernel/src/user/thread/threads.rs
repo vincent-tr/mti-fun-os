@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use lazy_static::lazy_static;
 
 use alloc::sync::Arc;
@@ -45,8 +46,13 @@ impl Threads {
         thread
     }
 
-    /// Find a thread by its pid
-    pub fn find(&self, pid: u64) -> Option<Arc<Thread>> {
-        self.threads.find(pid)
+    /// Find a thread by its tid
+    pub fn find(&self, tid: u64) -> Option<Arc<Thread>> {
+        self.threads.find(tid)
+    }
+
+    /// List tids
+    pub fn list(&self) -> Vec<u64> {
+        self.threads.keys()
     }
 }

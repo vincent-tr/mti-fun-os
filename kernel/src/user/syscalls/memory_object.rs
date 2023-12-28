@@ -1,6 +1,6 @@
 use crate::user::{thread, Error, MemoryObject};
 
-use super::handle::HandleOutputWriter;
+use super::helpers::HandleOutputWriter;
 
 pub fn create(
     size: usize,

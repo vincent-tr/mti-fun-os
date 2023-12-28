@@ -3,7 +3,7 @@ mod thread;
 mod threads;
 mod wait_queue;
 
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
 use spin::RwLock;
 use syscalls::ThreadPriority;
@@ -36,6 +36,10 @@ pub fn create(
 
 pub fn find(pid: u64) -> Option<Arc<Thread>> {
     THREADS.find(pid)
+}
+
+pub fn list() -> Vec<u64> {
+    THREADS.list()
 }
 
 /// Setup initial thread

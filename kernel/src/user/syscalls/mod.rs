@@ -1,5 +1,6 @@
 mod engine;
 mod handle;
+mod helpers;
 mod init;
 mod logging;
 mod memory_object;
@@ -23,11 +24,13 @@ pub fn init() {
     register_syscall(SyscallNumber::ProcessMMap, process::mmap);
     register_syscall(SyscallNumber::ProcessMUnmap, process::munmap);
     register_syscall(SyscallNumber::ProcessMProtect, process::mprotect);
+    register_syscall(SyscallNumber::ProcessList, process::list);
 
     register_syscall(SyscallNumber::ThreadOpenSelf, thread::open_self);
     register_syscall(SyscallNumber::ThreadCreate, thread::create);
     register_syscall(SyscallNumber::ThreadExit, thread::exit);
     register_syscall(SyscallNumber::ThreadKill, thread::kill);
+    register_syscall(SyscallNumber::ThreadList, thread::list);
 
     register_syscall(SyscallNumber::MemoryObjectCreate, memory_object::create);
 

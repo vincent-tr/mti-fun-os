@@ -25,12 +25,14 @@ pub enum SyscallNumber {
     ProcessMMap,
     ProcessMUnmap,
     ProcessMProtect,
+    ProcessList,
 
     ThreadOpenSelf,
     ThreadCreate,
     ThreadExit,
     ThreadKill,
     ThreadSetPriority,
+    ThreadList,
 
     MemoryObjectCreate,
 

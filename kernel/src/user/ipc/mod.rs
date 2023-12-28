@@ -8,7 +8,7 @@ use syscalls::Error;
 
 pub use self::message::Message;
 pub use self::port::Port;
-use self::port_access::{PortReceiver, PortSender};
+pub use self::port_access::{PortReceiver, PortSender};
 use self::ports::PORTS;
 
 pub fn create(name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {

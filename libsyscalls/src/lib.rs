@@ -1,6 +1,7 @@
 #![no_std]
 
 mod handle;
+pub mod ipc;
 mod logging;
 pub mod memory_object;
 pub mod process;
@@ -17,7 +18,7 @@ pub use logging::*;
 
 use ::syscalls::SUCCESS;
 pub use ::syscalls::{
-    Error, HandleType, Permissions, ProcessInfo, ThreadInfo, ThreadPriority, ThreadState,
+    Error, HandleType, Permissions, PortInfo, ProcessInfo, ThreadInfo, ThreadPriority, ThreadState,
 };
 
 pub type SyscallResult<T> = Result<T, Error>;
@@ -83,7 +84,7 @@ impl<'a, T: Sized + Copy> SyscallList<'a, T> {
     }
 }
 
-pub struct SyscallOutPtr<T: Sized> {
+struct SyscallOutPtr<T: Sized> {
     value: T,
 }
 
@@ -99,5 +100,25 @@ impl<T> SyscallOutPtr<T> {
 
     pub fn take(self) -> T {
         self.value
+    }
+}
+
+struct SyscallInStr<'a> {
+    value: &'a [u8],
+}
+
+impl<'a> SyscallInStr<'a> {
+    pub const fn new(value: &'a str) -> Self {
+        Self {
+            value: value.as_bytes(),
+        }
+    }
+
+    pub unsafe fn ptr_arg(&self) -> usize {
+        self.value.as_ptr() as usize
+    }
+
+    pub unsafe fn len_arg(&self) -> usize {
+        self.value.len()
     }
 }

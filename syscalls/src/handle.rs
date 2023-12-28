@@ -6,4 +6,6 @@ pub enum HandleType {
     MemoryObject,
     Process,
     Thread,
+    PortSender,
+    PortReceiver,
 }

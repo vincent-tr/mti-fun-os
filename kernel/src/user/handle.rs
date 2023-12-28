@@ -8,6 +8,7 @@ use syscalls::HandleType;
 use super::{
     error::{check_arg_opt, invalid_argument},
     id_gen::IdGen,
+    ipc::{Port, PortReceiver, PortSender},
     process::Process,
     thread::Thread,
     Error, MemoryObject,
@@ -46,6 +47,8 @@ pub enum KernelHandle {
     MemoryObjectHandle(Arc<MemoryObject>),
     ProcessHandle(Arc<Process>),
     ThreadHandle(Arc<Thread>),
+    PortReceiverHandle(Arc<PortReceiver>),
+    PortSenderHandle(Arc<PortSender>),
 }
 
 impl KernelHandle {
@@ -54,6 +57,8 @@ impl KernelHandle {
             KernelHandle::MemoryObjectHandle(_) => HandleType::MemoryObject,
             KernelHandle::ProcessHandle(_) => HandleType::Process,
             KernelHandle::ThreadHandle(_) => HandleType::Thread,
+            KernelHandle::PortReceiverHandle(_) => HandleType::PortReceiver,
+            KernelHandle::PortSenderHandle(_) => HandleType::PortSender,
         }
     }
 
@@ -76,6 +81,20 @@ impl KernelHandle {
             }
             KernelHandle::ThreadHandle(self_obj) => {
                 if let KernelHandle::ThreadHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            KernelHandle::PortReceiverHandle(self_obj) => {
+                if let KernelHandle::PortReceiverHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            KernelHandle::PortSenderHandle(self_obj) => {
+                if let KernelHandle::PortSenderHandle(other_obj) = other {
                     Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
@@ -120,6 +139,16 @@ impl Handles {
     /// Open the given thread in the process
     pub fn open_thread(&self, thread: Arc<Thread>) -> Handle {
         self.open(KernelHandle::ThreadHandle(thread))
+    }
+
+    /// Open the given port receiver in the process
+    pub fn open_port_receiver(&self, thread: Arc<PortReceiver>) -> Handle {
+        self.open(KernelHandle::PortReceiverHandle(thread))
+    }
+
+    /// Open the given port sender in the process
+    pub fn open_port_sender(&self, thread: Arc<PortSender>) -> Handle {
+        self.open(KernelHandle::PortSenderHandle(thread))
     }
 
     /// Open raw kernel handle
@@ -192,6 +221,47 @@ impl Handles {
 
         if let KernelHandle::ThreadHandle(thread) = handle_impl {
             Ok(thread.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the port receiver from the handle
+    pub fn get_port_receiver(&self, handle: Handle) -> Result<Arc<PortReceiver>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::PortReceiverHandle(port_receiver) = handle_impl {
+            Ok(port_receiver.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the port sender from the handle
+    pub fn get_port_sender(&self, handle: Handle) -> Result<Arc<PortSender>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::PortSenderHandle(port_sender) = handle_impl {
+            Ok(port_sender.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the port sender or receiver, then get the inner port
+    pub fn get_port(&self, handle: Handle) -> Result<Arc<Port>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::PortSenderHandle(port_sender) = handle_impl {
+            Ok(port_sender.port().clone())
+        } else if let KernelHandle::PortReceiverHandle(port_receiver) = handle_impl {
+            Ok(port_receiver.port().clone())
         } else {
             Err(invalid_argument())
         }

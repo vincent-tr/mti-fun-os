@@ -100,6 +100,16 @@ impl Port {
 
         // TODO: wake up
     }
+
+    pub fn closed(&self) -> bool {
+        let data = self.data.read();
+        data.closed
+    }
+
+    pub fn message_queue_count(&self) -> usize {
+        let data = self.data.read();
+        data.message_queue.len()
+    }
 }
 
 #[derive(Debug)]
@@ -156,4 +166,3 @@ impl InternalMessage {
         message
     }
 }
-

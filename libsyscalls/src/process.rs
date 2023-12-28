@@ -3,7 +3,8 @@ use core::ops::Range;
 use syscalls::{ProcessInfo, SyscallNumber};
 
 use super::{
-    syscalls::*, sysret_to_result, Handle, Permissions, SyscallList, SyscallOutPtr, SyscallResult,
+    syscalls::*, sysret_to_result, Handle, Permissions, SyscallInStr, SyscallList, SyscallOutPtr,
+    SyscallResult,
 };
 
 pub fn open_self() -> SyscallResult<Handle> {
@@ -30,9 +31,17 @@ pub fn open(pid: u64) -> SyscallResult<Handle> {
     Ok(new_handle)
 }
 
-pub fn create() -> SyscallResult<Handle> {
+pub fn create(name: &str) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
-    let ret = unsafe { syscall1(SyscallNumber::ProcessCreate, new_handle.as_syscall_ptr()) };
+    let name_reader = SyscallInStr::new(name);
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::ProcessCreate,
+            name_reader.ptr_arg(),
+            name_reader.len_arg(),
+            new_handle.as_syscall_ptr(),
+        )
+    };
 
     sysret_to_result(ret)?;
 

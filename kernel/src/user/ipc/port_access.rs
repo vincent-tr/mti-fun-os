@@ -35,6 +35,11 @@ impl PortReceiver {
     pub fn receive(&self, receiver: &Arc<Process>) -> Option<Message> {
         self.port.receive(receiver)
     }
+
+    /// Get the inner port
+    pub fn port(&self) -> &Arc<Port> {
+        &self.port
+    }
 }
 
 impl Drop for PortReceiver {
@@ -66,5 +71,10 @@ impl PortSender {
     /// Send a message to the port
     pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
         self.port.send(sender, message)
+    }
+
+    /// Get the inner port
+    pub fn port(&self) -> &Arc<Port> {
+        &self.port
     }
 }

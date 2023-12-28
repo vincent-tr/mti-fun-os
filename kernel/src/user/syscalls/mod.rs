@@ -2,6 +2,7 @@ mod engine;
 mod handle;
 mod helpers;
 mod init;
+mod ipc;
 mod logging;
 mod memory_object;
 mod process;
@@ -37,6 +38,11 @@ pub fn init() {
     register_syscall(SyscallNumber::ThreadList, thread::list);
 
     register_syscall(SyscallNumber::MemoryObjectCreate, memory_object::create);
+
+    register_syscall(SyscallNumber::PortOpen, ipc::open);
+    register_syscall(SyscallNumber::PortCreate, ipc::create);
+    register_syscall(SyscallNumber::PortInfo, ipc::info);
+    register_syscall(SyscallNumber::PortList, ipc::list);
 
     register_syscall(SyscallNumber::InitSetup, init::setup);
 }

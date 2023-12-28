@@ -2,12 +2,14 @@
 
 mod error;
 mod handle;
+mod ipc;
 mod permissions;
 mod process;
 mod thread;
 
 pub use error::{Error, SUCCESS};
 pub use handle::HandleType;
+pub use ipc::PortInfo;
 pub use permissions::Permissions;
 pub use process::ProcessInfo;
 pub use thread::{ThreadInfo, ThreadPriority, ThreadState};
@@ -41,6 +43,11 @@ pub enum SyscallNumber {
     ThreadList,
 
     MemoryObjectCreate,
+
+    PortCreate,
+    PortOpen,
+    PortInfo,
+    PortList,
 
     InitSetup,
 }

@@ -3,7 +3,11 @@ use lazy_static::lazy_static;
 use alloc::{string::String, sync::Arc, vec::Vec};
 use syscalls::Error;
 
-use crate::user::{error::duplicate_name, id_gen::IdGen, weak_map::WeakMap};
+use crate::user::{
+    error::{check_arg, duplicate_name},
+    id_gen::IdGen,
+    weak_map::WeakMap,
+};
 
 use super::{port, port_access::access, PortReceiver, PortSender};
 
@@ -31,6 +35,8 @@ impl Ports {
     ///
     /// Note: port name must be unique
     pub fn create(&self, name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
+        check_arg(name.len() > 0)?;
+
         let id = self.id_gen.generate();
         let port = port::new(id, name);
         let (receiver, sender) = access(port);
@@ -60,7 +66,7 @@ impl Ports {
         self.names_map.find(&String::from(name))
     }
 
-    /// List pids
+    /// List port ids
     pub fn list(&self) -> Vec<u64> {
         self.ports.keys()
     }

@@ -3,6 +3,7 @@ use spin::RwLock;
 use syscalls::Error;
 
 use crate::user::{
+    error::port_closed,
     handle::{Handle, KernelHandle},
     process::Process,
     thread::{ThreadError, WaitQueue},

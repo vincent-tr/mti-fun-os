@@ -4,6 +4,7 @@ mod memory_access;
 mod process;
 mod processes;
 
+use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
@@ -13,8 +14,8 @@ use self::processes::PROCESSES;
 
 use super::Error;
 
-pub fn create() -> Result<Arc<Process>, Error> {
-    PROCESSES.create()
+pub fn create(name: &str) -> Result<Arc<Process>, Error> {
+    PROCESSES.create(name)
 }
 
 pub fn find(pid: u64) -> Option<Arc<Process>> {

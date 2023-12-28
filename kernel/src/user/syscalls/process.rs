@@ -1,3 +1,6 @@
+use core::cmp::min;
+
+use alloc::string::String;
 use syscalls::ProcessInfo;
 
 use crate::{
@@ -5,7 +8,7 @@ use crate::{
     user::{error::check_found, handle::Handle, process, thread, Error},
 };
 
-use super::helpers::{HandleOutputWriter, ListOutputWriter};
+use super::helpers::{HandleOutputWriter, ListOutputWriter, StringReader};
 
 pub fn open_self(
     handle_out_ptr: usize,
@@ -47,9 +50,9 @@ pub fn open(
 }
 
 pub fn create(
+    name_ptr: usize,
+    name_len: usize,
     handle_out_ptr: usize,
-    _arg2: usize,
-    _arg3: usize,
     _arg4: usize,
     _arg5: usize,
     _arg6: usize,
@@ -58,8 +61,10 @@ pub fn create(
     let process = thread.process();
 
     let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let name_reader = StringReader::new(name_ptr, name_len)?;
+    let name = name_reader.str()?;
 
-    let new_process = process::create()?;
+    let new_process = process::create(name)?;
 
     let handle = process.handles().open_process(new_process);
 
@@ -160,12 +165,19 @@ pub fn info(
         Permissions::READ | Permissions::WRITE,
     )?;
 
-    *user_access.get_mut() = ProcessInfo {
+    let info = &mut *user_access.get_mut();
+
+    *info = ProcessInfo {
         pid: target_process.id(),
+        name: [0; ProcessInfo::NAME_LEN],
         thread_count: target_process.thread_count(),
         mapping_count: target_process.mapping_count(),
         handle_count: target_process.handles().len(),
     };
+
+    let src_name = target_process.name().as_bytes();
+    let name_len = min(ProcessInfo::NAME_LEN, src_name.len());
+    info.name[0..name_len].copy_from_slice(&src_name[0..name_len]);
 
     Ok(())
 }

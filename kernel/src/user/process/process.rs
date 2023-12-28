@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 use log::debug;
 use spin::RwLock;
 
@@ -24,14 +24,15 @@ use crate::user::{
 /// Standalone function, so that Process::new() can remain private
 ///
 /// Note: Only Process type is exported by process module, not this function
-pub fn new(id: u64) -> Result<Arc<Process>, Error> {
-    Process::new(id)
+pub fn new(id: u64, name: &str) -> Result<Arc<Process>, Error> {
+    Process::new(id, name)
 }
 
 /// Process
 #[derive(Debug)]
 pub struct Process {
     id: u64,
+    name: String,
     address_space: RwLock<AddressSpace>,
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
@@ -40,7 +41,7 @@ pub struct Process {
 }
 
 impl Process {
-    fn new(id: u64) -> Result<Arc<Self>, Error> {
+    fn new(id: u64, name: &str) -> Result<Arc<Self>, Error> {
         let address_space = match create_adress_space() {
             Ok(address_space) => address_space,
             Err(err) => {
@@ -53,6 +54,7 @@ impl Process {
 
         let process = Arc::new(Self {
             id,
+            name: String::from(name),
             address_space: RwLock::new(address_space),
             mappings: RwLock::new(Mappings::new()),
             threads: WeakMap::new(),
@@ -69,6 +71,10 @@ impl Process {
         self.id
     }
 
+    /// Get the process name
+    pub fn name<'a>(&'a self) -> &'a str {
+        &self.name
+    }
     /// Get address space of the process
     pub fn address_space(&self) -> &RwLock<AddressSpace> {
         &self.address_space

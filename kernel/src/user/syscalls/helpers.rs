@@ -5,11 +5,14 @@ use syscalls::{Error, Permissions};
 use crate::{
     memory::VirtAddr,
     user::{
+        error::check_arg_res,
         handle::Handle,
         process::{MemoryAccess, TypedMemoryAccess},
         thread,
     },
 };
+
+use alloc::str;
 
 /// Helper object to operate output in 2 steps:
 /// - fallible step: prepare pointer view
@@ -77,5 +80,26 @@ impl<T: Sized + Copy> ListOutputWriter<T> {
 
         dest[0..count].copy_from_slice(&source[0..count]);
         *self.count_access.get_mut() = source.len();
+    }
+}
+
+pub struct StringReader {
+    access: MemoryAccess,
+}
+
+impl StringReader {
+    pub fn new(ptr: usize, len: usize) -> Result<Self, Error> {
+        let thread = thread::current_thread();
+        let process = thread.process();
+
+        let message_range = VirtAddr::new(ptr as u64)..VirtAddr::new((ptr + len) as u64);
+        let access = process.vm_access(message_range, Permissions::READ)?;
+
+        Ok(Self { access })
+    }
+
+    /// Get the string
+    pub fn str<'a>(&'a self) -> Result<&'a str, Error> {
+        check_arg_res(str::from_utf8(self.access.get_slice::<u8>()))
     }
 }

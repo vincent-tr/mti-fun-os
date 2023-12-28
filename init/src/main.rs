@@ -10,7 +10,6 @@ use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
 use libsyscalls::{thread, Handle, Permissions, ThreadPriority};
 use log::{debug, error, info};
-use offsets::stack_top;
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -59,14 +58,12 @@ extern "C" fn main() -> ! {
         0,
     )
     .expect("Could not map idle task stack");
-    let stack_top = stack_top() + PAGE_SIZE;
+    let stack_top = stack_addr + PAGE_SIZE;
 
     libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top)
         .expect("Could create idle task");
 
-    info!("handle type = {:?}", self_proc.r#type());
-
-    // TODO
+    dump_processes_threads();
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
@@ -113,6 +110,28 @@ fn apply_memory_protections(self_proc: &Handle) {
         data_range.len()
     );
     debug!("stack_top: 0x{:016X}", offsets::stack_top());
+}
+
+fn dump_processes_threads() {
+    let mut pids_buff: [u64; 32] = [0; 32];
+    let (pids, count) = libsyscalls::process::list(&mut pids_buff).expect("Could not list pids");
+    info!("pids list = {:?} (count={})", pids, count);
+
+    for &pid in pids {
+        let process = libsyscalls::process::open(pid).expect("Could not open pid");
+        let info = libsyscalls::process::info(&process).expect("Could not get process info");
+        info!("  {:?}", info);
+    }
+
+    let mut tids_buff: [u64; 32] = [0; 32];
+    let (tids, count) = libsyscalls::thread::list(&mut tids_buff).expect("Could not list tids");
+    info!("tids list = {:?} (count={})", tids, count);
+
+    for &tid in tids {
+        let thread = libsyscalls::thread::open(tid).expect("Could not open tid");
+        let info = libsyscalls::thread::info(&thread).expect("Could not get thread info");
+        info!("  {:?}", info);
+    }
 }
 
 #[panic_handler]

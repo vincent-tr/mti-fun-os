@@ -55,7 +55,7 @@ fn load() -> Arc<Process> {
     let mem_size = page_aligned_up(binary.len());
     let memory_object = MemoryObject::new(mem_size).expect("Failed to create memory object");
 
-    let process = process::create().expect("Failed to create init process");
+    let process = process::create("init").expect("Failed to create init process");
 
     process
         .mmap(

@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{string::String, sync::Arc, vec::Vec};
 
 use crate::user::{id_gen::IdGen, process::process, weak_map::WeakMap, Error};
 
@@ -25,9 +25,9 @@ impl Processes {
     }
 
     /// Create a new process
-    pub fn create(&self) -> Result<Arc<Process>, Error> {
+    pub fn create(&self, name: &str) -> Result<Arc<Process>, Error> {
         let id = self.id_gen.generate();
-        let process = process::new(id)?;
+        let process = process::new(id, name)?;
 
         self.processes.insert(id, &process);
 

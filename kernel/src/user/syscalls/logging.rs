@@ -1,19 +1,17 @@
 use log::Level;
 
-use crate::{
-    memory::{Permissions, VirtAddr},
-    user::{
-        error::{check_arg_res, invalid_argument},
-        thread, Error,
-    },
+use crate::user::{
+    error::{check_arg_res, invalid_argument},
+    syscalls::helpers::StringReader,
+    thread, Error,
 };
 
 use alloc::str;
 
 pub fn log(
     level: usize,
-    str_ptr: usize,
-    len: usize,
+    message_ptr: usize,
+    message_len: usize,
     _arg4: usize,
     _arg5: usize,
     _arg6: usize,
@@ -21,13 +19,12 @@ pub fn log(
     let thread = thread::current_thread();
     let process = thread.process();
 
-    let process_range = VirtAddr::new(str_ptr as u64)..VirtAddr::new((str_ptr + len) as u64);
-    let access = process.vm_access(process_range, Permissions::READ)?;
+    let message_reader = StringReader::new(message_ptr, message_len)?;
 
     let pid = process.id();
     let tid = thread.id();
     let level = parse_level(level)?;
-    let message = check_arg_res(str::from_utf8(access.get_slice::<u8>()))?;
+    let message = message_reader.str()?;
 
     log::log!(level, "(pid={pid}, tid={tid}): {message}");
 

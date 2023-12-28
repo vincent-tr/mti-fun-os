@@ -76,6 +76,6 @@ impl<T: Sized + Copy> ListOutputWriter<T> {
         let count = min(source.len(), dest.len());
 
         dest[0..count].copy_from_slice(&source[0..count]);
-        *self.count_access.get_mut() = count;
+        *self.count_access.get_mut() = source.len();
     }
 }

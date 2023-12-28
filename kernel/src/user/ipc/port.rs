@@ -40,6 +40,16 @@ impl Port {
         })
     }
 
+    /// Get the port identifier
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    /// Get the port name
+    pub fn name<'a>(&'a self) -> &'a str {
+        &self.name
+    }
+
     /// Send a message to the port
     pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
         let message = InternalMessage::from(sender, &message)?;

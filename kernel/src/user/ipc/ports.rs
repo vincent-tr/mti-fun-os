@@ -5,7 +5,11 @@ use syscalls::Error;
 
 use crate::user::{error::duplicate_name, id_gen::IdGen, weak_map::WeakMap};
 
-use super::{port, Port};
+use super::{
+    port,
+    port_access::{receiver, sender},
+    Port, PortReceiver, PortSender,
+};
 
 lazy_static! {
     pub static ref PORTS: Ports = Ports::new();
@@ -30,7 +34,7 @@ impl Ports {
     /// Create a new port
     ///
     /// Note: port name must be unique
-    pub fn create(&self, name: &str) -> Result<Arc<Port>, Error> {
+    pub fn create(&self, name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
         let id = self.id_gen.generate();
         let port = port::new(id, name);
 
@@ -46,17 +50,28 @@ impl Ports {
 
         self.ports.insert(id, &port);
 
-        Ok(port)
+        let receiver = receiver(port.clone());
+        let sender = sender(port.clone());
+
+        Ok((receiver, sender))
     }
 
     /// Find a port by its id
-    pub fn find_by_id(&self, id: u64) -> Option<Arc<Port>> {
-        self.ports.find(&id)
+    pub fn find_by_id(&self, id: u64) -> Option<Arc<PortSender>> {
+        Self::as_sender(self.ports.find(&id))
     }
 
     /// Find a port by its name
-    pub fn find_by_name(&self, name: &str) -> Option<Arc<Port>> {
-        self.names_map.find(&String::from(name))
+    pub fn find_by_name(&self, name: &str) -> Option<Arc<PortSender>> {
+        Self::as_sender(self.names_map.find(&String::from(name)))
+    }
+
+    fn as_sender(port: Option<Arc<Port>>) -> Option<Arc<PortSender>> {
+        if let Some(port) = port {
+            Some(sender(port))
+        } else {
+            None
+        }
     }
 
     /// List pids

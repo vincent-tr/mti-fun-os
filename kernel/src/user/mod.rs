@@ -1,6 +1,7 @@
 mod error;
 mod handle;
 mod id_gen;
+pub mod ipc;
 mod memory_object;
 pub mod process;
 mod syscalls;

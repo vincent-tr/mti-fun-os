@@ -42,40 +42,40 @@ impl Handle {
 }
 
 #[derive(Debug, Clone)]
-enum HandleImpl {
+pub enum KernelHandle {
     MemoryObjectHandle(Arc<MemoryObject>),
     ProcessHandle(Arc<Process>),
     ThreadHandle(Arc<Thread>),
 }
 
-impl HandleImpl {
+impl KernelHandle {
     pub fn r#type(&self) -> HandleType {
         match self {
-            HandleImpl::MemoryObjectHandle(_) => HandleType::MemoryObject,
-            HandleImpl::ProcessHandle(_) => HandleType::Process,
-            HandleImpl::ThreadHandle(_) => HandleType::Thread,
+            KernelHandle::MemoryObjectHandle(_) => HandleType::MemoryObject,
+            KernelHandle::ProcessHandle(_) => HandleType::Process,
+            KernelHandle::ThreadHandle(_) => HandleType::Thread,
         }
     }
 
     /// Check if the 2 handles points to the same object
-    pub fn is_obj_eq(&self, other: &HandleImpl) -> bool {
+    pub fn is_obj_eq(&self, other: &KernelHandle) -> bool {
         match self {
-            HandleImpl::MemoryObjectHandle(self_obj) => {
-                if let HandleImpl::MemoryObjectHandle(other_obj) = other {
+            KernelHandle::MemoryObjectHandle(self_obj) => {
+                if let KernelHandle::MemoryObjectHandle(other_obj) = other {
                     Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
                 }
             }
-            HandleImpl::ProcessHandle(self_obj) => {
-                if let HandleImpl::ProcessHandle(other_obj) = other {
+            KernelHandle::ProcessHandle(self_obj) => {
+                if let KernelHandle::ProcessHandle(other_obj) = other {
                     Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
                 }
             }
-            HandleImpl::ThreadHandle(self_obj) => {
-                if let HandleImpl::ThreadHandle(other_obj) = other {
+            KernelHandle::ThreadHandle(self_obj) => {
+                if let KernelHandle::ThreadHandle(other_obj) = other {
                     Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
@@ -89,7 +89,7 @@ impl HandleImpl {
 #[derive(Debug)]
 pub struct Handles {
     id_gen: IdGen,
-    handles: RwLock<HashMap<Handle, HandleImpl>>,
+    handles: RwLock<HashMap<Handle, KernelHandle>>,
 }
 
 impl Handles {
@@ -109,20 +109,21 @@ impl Handles {
 
     /// Open the given memory object in the process
     pub fn open_memory_object(&self, memory_object: Arc<MemoryObject>) -> Handle {
-        self.open(HandleImpl::MemoryObjectHandle(memory_object))
+        self.open(KernelHandle::MemoryObjectHandle(memory_object))
     }
 
     /// Open the given process in the process
     pub fn open_process(&self, process: Arc<Process>) -> Handle {
-        self.open(HandleImpl::ProcessHandle(process))
+        self.open(KernelHandle::ProcessHandle(process))
     }
 
     /// Open the given thread in the process
     pub fn open_thread(&self, thread: Arc<Thread>) -> Handle {
-        self.open(HandleImpl::ThreadHandle(thread))
+        self.open(KernelHandle::ThreadHandle(thread))
     }
 
-    fn open(&self, handle_impl: HandleImpl) -> Handle {
+    /// Open raw kernel handle
+    pub fn open(&self, handle_impl: KernelHandle) -> Handle {
         let handle = Handle(self.id_gen.generate());
 
         let mut handles = self.handles.write();
@@ -149,13 +150,21 @@ impl Handles {
         Ok(handle1_impl.is_obj_eq(handle2_impl))
     }
 
+    pub fn get(&self, handle: Handle) -> Result<KernelHandle, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        Ok(handle_impl.clone())
+    }
+
     /// Retrieve the memory object from the handle
     pub fn get_memory_object(&self, handle: Handle) -> Result<Arc<MemoryObject>, Error> {
         let handles = self.handles.read();
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;
 
-        if let HandleImpl::MemoryObjectHandle(memory_object) = handle_impl {
+        if let KernelHandle::MemoryObjectHandle(memory_object) = handle_impl {
             Ok(memory_object.clone())
         } else {
             Err(invalid_argument())
@@ -168,7 +177,7 @@ impl Handles {
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;
 
-        if let HandleImpl::ProcessHandle(process) = handle_impl {
+        if let KernelHandle::ProcessHandle(process) = handle_impl {
             Ok(process.clone())
         } else {
             Err(invalid_argument())
@@ -181,7 +190,7 @@ impl Handles {
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;
 
-        if let HandleImpl::ThreadHandle(thread) = handle_impl {
+        if let KernelHandle::ThreadHandle(thread) = handle_impl {
             Ok(thread.clone())
         } else {
             Err(invalid_argument())

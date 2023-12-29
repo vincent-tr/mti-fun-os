@@ -1,3 +1,4 @@
+mod queue;
 mod scheduler;
 mod thread;
 mod threads;
@@ -203,11 +204,15 @@ pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>) {
 
 /// Set the thread priority
 pub fn thread_set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
+    // re-queue the thread so that the new priority is applied
+    // Note: cannot change priority while thread is in queue, else we will not be able to remove it after
+    if thread.state().is_ready() {
+        SCHEDULER.remove(thread);
+    }
+
     thread::set_priority(thread, priority);
 
     if thread.state().is_ready() {
-        // re-queue the thread so that the new priority is applied
-        SCHEDULER.remove(thread);
         SCHEDULER.add(thread.clone());
     }
 }

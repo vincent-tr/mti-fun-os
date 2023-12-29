@@ -2,7 +2,7 @@ use core::mem;
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use log::{debug, trace};
+use log::trace;
 use spin::RwLock;
 use syscalls::SUCCESS;
 
@@ -80,7 +80,7 @@ pub fn execute_syscall(
 
 /// Register a new syscall handler
 pub fn register_syscall(syscall_number: SyscallNumber, handler: SyscallHandler) {
-    debug!("Add syscall {syscall_number:?}");
+    trace!("Add syscall {syscall_number:?}");
     let mut handlers = HANDLERS.write();
     handlers.register(syscall_number, handler);
 }
@@ -89,7 +89,7 @@ pub fn register_syscall(syscall_number: SyscallNumber, handler: SyscallHandler) 
 ///
 /// Used to remove the initial "init run" syscall
 pub fn unregister_syscall(syscall_number: SyscallNumber) {
-    debug!("Remove syscall {syscall_number:?}");
+    trace!("Remove syscall {syscall_number:?}");
     let mut handlers = HANDLERS.write();
     handlers.unregister(syscall_number);
 }

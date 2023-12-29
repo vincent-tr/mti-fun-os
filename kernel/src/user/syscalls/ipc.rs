@@ -93,8 +93,9 @@ pub fn info(
     *info = PortInfo {
         id: target_port.id(),
         name: [0; PortInfo::NAME_LEN],
-        message_queue_count: target_port.message_queue_count(),
         closed: target_port.closed(),
+        message_queue_count: target_port.message_queue_count(),
+        waiting_receiver_count: target_port.waiting_receiver_count(),
     };
 
     let src_name = target_port.name().as_bytes();

@@ -32,7 +32,7 @@ impl PortReceiver {
     /// Receive a message from the port
     ///
     /// Note: the operation does not block
-    pub fn receive(&self, receiver: &Arc<Process>) -> Option<Message> {
+    pub fn receive(&self, receiver: &Arc<Process>) -> Result<Message, Error> {
         self.port.receive(receiver)
     }
 

@@ -89,8 +89,28 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- Handle
 - TODO: when last thread of a process stops, close all its handles
 - iomem mapping -> strong uncacheable
 - IPC
 - Exceptions in userland
+
+kernel register message to port (port_handle, kernel_message_type)
+kernel unregister
+
+context switch: 
+- in syscall, the interrupted thread will go to sleep.
+  on wake up, we must set its syscall result before going back to userland
+  then the syscall wake up one thread, and we must not overwrite its state with syscall result
+
+
+TODO WaitQueue
+
+pub enum KernelMessage {
+    ProcessCreated(u64),
+    ProcesssDeleted(u64),
+    ThreadCreated(u64),
+    ThreadTerminated(u64),
+    ThreadError((u64, ThreadError)),
+    MemoryObjectCreated(u64),
+    MemoryObjectDeleted(u64),
+}

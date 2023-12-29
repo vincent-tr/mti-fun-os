@@ -3,10 +3,10 @@ use spin::RwLock;
 use syscalls::Error;
 
 use crate::user::{
-    error::port_closed,
+    error::{object_closed, object_not_ready},
     handle::{Handle, KernelHandle},
     process::Process,
-    thread::WaitQueue,
+    thread::{self, WaitQueue},
 };
 
 use super::Message;
@@ -28,7 +28,7 @@ pub struct Port {
     id: u64,
     name: String,
     data: RwLock<Data>,
-    reader_queue: WaitQueue,
+    receiver_queue: Arc<WaitQueue>,
 }
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ impl Port {
                 message_queue: LinkedList::new(),
                 closed: false,
             }),
-            reader_queue: WaitQueue::new(),
+            receiver_queue: Arc::new(WaitQueue::new()),
         })
     }
 
@@ -64,41 +64,56 @@ impl Port {
     pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
         let mut data = self.data.write();
         if data.closed {
-            return Err(port_closed());
+            return Err(object_closed());
         }
 
         let message = InternalMessage::from(sender, &message)?;
-
         data.message_queue.push_back(message);
 
-        // TODO: wake up
+        // Wake up any waiting receiver
+        thread::wait_queue_wake_all(&self.receiver_queue);
 
         Ok(())
     }
 
     /// Receive a message from the port
     ///
-    /// Note: the operation does not block
-    pub fn receive(&self, receiver: &Arc<Process>) -> Option<Message> {
+    /// Note: the operation does not block, and return Error::ObjectNotReady if there is no message available
+    pub fn receive(&self, receiver: &Arc<Process>) -> Result<Message, Error> {
         let mut data = self.data.write();
+        // Should not be able to receive on closed port since there is no receiver anymore
         assert!(!data.closed);
 
         if let Some(message) = data.message_queue.pop_front() {
-            Some(message.to(receiver))
+            Ok(message.to(receiver))
         } else {
-            None
+            Err(object_not_ready())
         }
     }
 
     /// Called when receiver is dropped: No one will ever be able to read the messages, so drop them
     pub fn close(&self) {
         let mut data = self.data.write();
+        // Should not be able to close on closed port since there is already no receiver anymore
         assert!(!data.closed);
+
+        // Wait up any sleeping receivers (They won't be able to receive)
+        thread::wait_queue_wake_all(&self.receiver_queue);
 
         data.closed = true;
         data.message_queue.clear();
+    }
 
-        // TODO: wake up
+    // TODO: review API
+    pub fn wait(&self) -> Result<(), Error> {
+        let data = self.data.read();
+        // Should not be able to wait on closed port since there is no receiver anymore
+        assert!(!data.closed);
+
+        let current = thread::current_thread();
+        thread::thread_sleep(&current, &[self.receiver_queue.clone()]);
+
+        Ok(())
     }
 
     pub fn closed(&self) -> bool {
@@ -109,6 +124,10 @@ impl Port {
     pub fn message_queue_count(&self) -> usize {
         let data = self.data.read();
         data.message_queue.len()
+    }
+
+    pub fn waiting_receiver_count(&self) -> usize {
+        self.receiver_queue.len()
     }
 }
 

@@ -8,7 +8,8 @@ pub enum Error {
     MemoryAccessDenied,
     ObjectNotFound,
     ObjectNameDuplicate,
-    PortClosed,
+    ObjectClosed,
+    ObjectNotReady,
 }
 
 pub const SUCCESS: usize = 0;

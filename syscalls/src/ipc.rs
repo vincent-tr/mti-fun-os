@@ -9,6 +9,7 @@ pub struct PortInfo {
     pub name: [u8; Self::NAME_LEN],
     pub closed: bool,
     pub message_queue_count: usize,
+    pub waiting_receiver_count: usize,
 }
 
 impl PortInfo {
@@ -25,6 +26,7 @@ impl Debug for PortInfo {
             )
             .field("closed", &self.closed)
             .field("message_queue_count", &self.message_queue_count)
+            .field("waiting_receiver_count", &self.waiting_receiver_count)
             .finish()
     }
 }

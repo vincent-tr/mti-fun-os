@@ -36,4 +36,21 @@ impl WaitQueue {
         let mut queue = self.queue.write();
         queue.pop()
     }
+
+    /// Get the number of waiting threads in this queue
+    pub fn len(&self) -> usize {
+        let queue = self.queue.read();
+        queue.len()
+    }
+
+    /// Test if this wait queue is empty
+    pub fn empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Drop for WaitQueue {
+    fn drop(&mut self) {
+        assert!(self.empty());
+    }
 }

@@ -70,6 +70,10 @@ pub fn duplicate_name() -> Error {
     Error::ObjectNameDuplicate
 }
 
-pub fn port_closed() -> Error {
-    Error::PortClosed
+pub fn object_closed() -> Error {
+    Error::ObjectClosed
+}
+
+pub fn object_not_ready() -> Error {
+    Error::ObjectNotReady
 }

@@ -1,10 +1,14 @@
 use core::mem;
 
+use alloc::sync::Arc;
 use syscalls::{Permissions, ThreadInfo, ThreadPriority, ThreadState};
 
 use crate::{
     memory::VirtAddr,
-    user::{error::check_found, thread, Error},
+    user::{
+        error::{check_arg, check_found},
+        thread, Error,
+    },
 };
 
 use super::helpers::{HandleOutputWriter, ListOutputWriter};
@@ -105,6 +109,9 @@ pub fn kill(
     let process = thread.process();
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    // Forbid to kill self
+    check_arg(!Arc::ptr_eq(&thread, &target_thread))?;
 
     thread::thread_terminate(&target_thread);
 

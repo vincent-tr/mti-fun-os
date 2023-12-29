@@ -5,30 +5,21 @@ use crate::{
     user::{thread, Error},
 };
 
-use super::helpers::HandleOutputWriter;
+use super::{context::SyncContext, helpers::HandleOutputWriter};
 
-pub fn close(
-    handle: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
+pub fn close(context: &dyn SyncContext) -> Result<(), Error> {
+    let handle = context.arg1();
+
     let thread = thread::current_thread();
     let process = thread.process();
 
     process.handles().close(handle.into())
 }
 
-pub fn duplicate(
-    handle: usize,
-    handle_out_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
+pub fn duplicate(context: &dyn SyncContext) -> Result<(), Error> {
+    let handle = context.arg1();
+    let handle_out_ptr = context.arg2();
+
     let thread = thread::current_thread();
     let process = thread.process();
 
@@ -40,14 +31,10 @@ pub fn duplicate(
     Ok(())
 }
 
-pub fn r#type(
-    handle: usize,
-    type_out_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
+pub fn r#type(context: &dyn SyncContext) -> Result<(), Error> {
+    let handle = context.arg1();
+    let type_out_ptr = context.arg2();
+
     let thread = thread::current_thread();
     let process = thread.process();
 

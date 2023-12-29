@@ -6,7 +6,7 @@ use crate::user::{
     error::port_closed,
     handle::{Handle, KernelHandle},
     process::Process,
-    thread::{ThreadError, WaitQueue},
+    thread::WaitQueue,
 };
 
 use super::Message;

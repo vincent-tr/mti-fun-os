@@ -1,8 +1,8 @@
 use crate::user::{Error, MemoryObject};
 
-use super::{context::SyncContext, helpers::HandleOutputWriter};
+use super::{context::Context, helpers::HandleOutputWriter};
 
-pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn create(context: &Context) -> Result<(), Error> {
     let size = context.arg1();
     let handle_out_ptr = context.arg2();
 

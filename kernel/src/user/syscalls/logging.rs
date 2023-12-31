@@ -2,11 +2,11 @@ use log::Level;
 
 use crate::user::{
     error::invalid_argument,
-    syscalls::{context::SyncContext, helpers::StringReader},
+    syscalls::{context::Context, helpers::StringReader},
     Error,
 };
 
-pub fn log(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn log(context: &Context) -> Result<(), Error> {
     let level = context.arg1();
     let message_ptr = context.arg2();
     let message_len = context.arg3();

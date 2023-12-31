@@ -5,9 +5,9 @@ use crate::{
     user::Error,
 };
 
-use super::{context::SyncContext, helpers::HandleOutputWriter};
+use super::{context::Context, helpers::HandleOutputWriter};
 
-pub fn close(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn close(context: &Context) -> Result<(), Error> {
     let handle = context.arg1();
 
     let thread = context.owner();
@@ -16,7 +16,7 @@ pub fn close(context: &dyn SyncContext) -> Result<(), Error> {
     process.handles().close(handle.into())
 }
 
-pub fn duplicate(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn duplicate(context: &Context) -> Result<(), Error> {
     let handle = context.arg1();
     let handle_out_ptr = context.arg2();
 
@@ -31,7 +31,7 @@ pub fn duplicate(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn r#type(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn r#type(context: &Context) -> Result<(), Error> {
     let handle = context.arg1();
     let type_out_ptr = context.arg2();
 

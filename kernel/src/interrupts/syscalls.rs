@@ -164,11 +164,9 @@ impl SyscallContext {
         self.arg6
     }
 
-    pub fn set_result(&self, value: usize) {
-        // FIXME: may not be current thread
+    /// Set return value on the current thread
+    pub fn set_current_result(value: usize) {
         let stack = unsafe { InterruptStack::current() };
         stack.scratch.rax = value;
-        // ret
-        // TODO: ensure that syscall has ret before going back to userland
     }
 }

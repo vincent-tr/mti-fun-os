@@ -1,6 +1,6 @@
 use core::mem;
 
-use super::{Context, SyncContext};
+use super::Context;
 use alloc::sync::Arc;
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
@@ -19,10 +19,10 @@ use super::SyscallNumber;
 pub trait SyscallRawHandler = Fn(SyscallContext) + 'static;
 
 /// Type of a syscall handler
-pub trait SyscallHandler = Fn(Context) + 'static;
+pub trait SyscallHandler = Fn(&Context) + 'static;
 
 /// Type of a synchronous syscall handler
-pub trait SyscallSyncHandler = Fn(&dyn SyncContext) -> Result<(), Error> + 'static;
+pub trait SyscallSyncHandler = Fn(&Context) -> Result<(), Error> + 'static;
 
 struct Handlers {
     handlers: HashMap<SyscallNumber, Arc<dyn SyscallRawHandler>>,
@@ -78,7 +78,7 @@ pub fn execute_syscall(n: usize, context: SyscallContext) {
     if let Some(handler) = handler {
         handler(context);
     } else {
-        context.set_result(not_supported() as usize);
+        SyscallContext::set_current_result(not_supported() as usize);
     };
 }
 
@@ -96,7 +96,7 @@ pub fn register_syscall_raw<Handler: SyscallRawHandler>(
 pub fn register_syscall<Handler: SyscallHandler>(syscall_number: SyscallNumber, handler: Handler) {
     register_syscall_raw(syscall_number, move |inner: SyscallContext| {
         let context = Context::from(inner, &thread::current_thread());
-        handler(context);
+        handler(&context);
     });
 }
 
@@ -105,9 +105,9 @@ pub fn register_syscall_sync<Handler: SyscallSyncHandler>(
     syscall_number: SyscallNumber,
     handler: Handler,
 ) {
-    register_syscall(syscall_number, move |context: Context| {
+    register_syscall(syscall_number, move |context: &Context| {
         let ret = handler(&context);
-        context.set_result(ret);
+        context.set_sync_result(ret);
     });
 }
 

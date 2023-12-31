@@ -11,12 +11,12 @@ use crate::{
 };
 
 use super::{
-    context::SyncContext,
+    context::Context,
     helpers::{HandleOutputWriter, ListOutputWriter, StringReader},
 };
 
 // set one of id or name
-pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn open(context: &Context) -> Result<(), Error> {
     let id = context.arg1();
     let name_ptr = context.arg2();
     let name_len = context.arg3();
@@ -45,7 +45,7 @@ pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn create(context: &Context) -> Result<(), Error> {
     let name_ptr = context.arg1();
     let name_len = context.arg2();
     let handle_receiver_out_ptr = context.arg3();
@@ -69,7 +69,7 @@ pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn info(context: &Context) -> Result<(), Error> {
     let port_handle = context.arg1();
     let info_ptr = context.arg2();
 
@@ -103,7 +103,7 @@ pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of ports. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn list(context: &Context) -> Result<(), Error> {
     let array_ptr = context.arg1();
     let count_ptr = context.arg2();
 

@@ -12,11 +12,11 @@ use crate::{
 };
 
 use super::{
-    context::{Context, SyncContext},
+    context::Context,
     helpers::{HandleOutputWriter, ListOutputWriter},
 };
 
-pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn open_self(context: &Context) -> Result<(), Error> {
     let handle_out_ptr = context.arg1();
 
     let thread = context.owner();
@@ -30,7 +30,7 @@ pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn open(context: &Context) -> Result<(), Error> {
     let tid = context.arg1();
     let handle_out_ptr = context.arg2();
 
@@ -46,7 +46,7 @@ pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn create(context: &Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let priority = context.arg2();
     let entry_point = context.arg3();
@@ -74,14 +74,14 @@ pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn exit(context: Context) {
+pub fn exit(context: &Context) {
     let thread = context.owner();
     // let process = thread.process();
 
     thread::thread_terminate(&thread);
 }
 
-pub fn kill(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn kill(context: &Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
 
     let thread = context.owner();
@@ -97,7 +97,7 @@ pub fn kill(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn set_priority(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn set_priority(context: &Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
     let priority = context.arg2();
 
@@ -112,7 +112,7 @@ pub fn set_priority(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn info(context: &Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
     let info_ptr = context.arg2();
 
@@ -149,7 +149,7 @@ pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn list(context: &Context) -> Result<(), Error> {
     let array_ptr = context.arg1();
     let count_ptr = context.arg2();
 

@@ -13,7 +13,7 @@ use crate::{
 
 use alloc::str;
 
-use super::context::SyncContext;
+use super::context::Context;
 
 /// Helper object to operate output in 2 steps:
 /// - fallible step: prepare pointer view
@@ -24,7 +24,7 @@ pub struct HandleOutputWriter {
 
 impl HandleOutputWriter {
     // Create a new writer
-    pub fn new(context: &dyn SyncContext, handle_out_ptr: usize) -> Result<Self, Error> {
+    pub fn new(context: &Context, handle_out_ptr: usize) -> Result<Self, Error> {
         let thread = context.owner();
         let process = thread.process();
 
@@ -50,11 +50,7 @@ pub struct ListOutputWriter<T: Sized + Copy> {
 
 impl<T: Sized + Copy> ListOutputWriter<T> {
     // Create a new writer
-    pub fn new(
-        context: &dyn SyncContext,
-        array_ptr: usize,
-        count_ptr: usize,
-    ) -> Result<Self, Error> {
+    pub fn new(context: &Context, array_ptr: usize, count_ptr: usize) -> Result<Self, Error> {
         let thread = context.owner();
         let process = thread.process();
 
@@ -93,7 +89,7 @@ pub struct StringReader {
 }
 
 impl StringReader {
-    pub fn new(context: &dyn SyncContext, ptr: usize, len: usize) -> Result<Self, Error> {
+    pub fn new(context: &Context, ptr: usize, len: usize) -> Result<Self, Error> {
         let thread = context.owner();
         let process = thread.process();
 

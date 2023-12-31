@@ -8,11 +8,11 @@ use crate::{
 };
 
 use super::{
-    context::SyncContext,
+    context::Context,
     helpers::{HandleOutputWriter, ListOutputWriter, StringReader},
 };
 
-pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn open_self(context: &Context) -> Result<(), Error> {
     let handle_out_ptr = context.arg1();
 
     let thread = context.owner();
@@ -26,7 +26,7 @@ pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn open(context: &Context) -> Result<(), Error> {
     let pid = context.arg1();
     let handle_out_ptr = context.arg2();
 
@@ -42,7 +42,7 @@ pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn create(context: &Context) -> Result<(), Error> {
     let name_ptr = context.arg1();
     let name_len = context.arg2();
     let handle_out_ptr = context.arg3();
@@ -62,7 +62,7 @@ pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn mmap(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn mmap(context: &Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr_ptr = context.arg2();
     let size = context.arg3();
@@ -101,7 +101,7 @@ pub fn mmap(context: &dyn SyncContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn munmap(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn munmap(context: &Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr = context.arg2();
     let size = context.arg3();
@@ -114,7 +114,7 @@ pub fn munmap(context: &dyn SyncContext) -> Result<(), Error> {
     target_process.munmap(VirtAddr::new(addr as u64), size)
 }
 
-pub fn mprotect(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn mprotect(context: &Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr = context.arg2();
     let size = context.arg3();
@@ -132,7 +132,7 @@ pub fn mprotect(context: &dyn SyncContext) -> Result<(), Error> {
     )
 }
 
-pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn info(context: &Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let info_ptr = context.arg2();
 
@@ -166,7 +166,7 @@ pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(context: &dyn SyncContext) -> Result<(), Error> {
+pub fn list(context: &Context) -> Result<(), Error> {
     let array_ptr = context.arg1();
     let count_ptr = context.arg2();
 

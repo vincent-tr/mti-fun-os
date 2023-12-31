@@ -9,7 +9,7 @@ mod memory_object;
 mod process;
 mod thread;
 
-use self::context::{Context, SyncContext};
+use self::context::Context;
 use self::engine::{register_syscall, register_syscall_raw, register_syscall_sync};
 
 pub use engine::execute_syscall;

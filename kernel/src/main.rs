@@ -15,6 +15,7 @@
 #![feature(naked_functions)]
 #![feature(asm_const)]
 #![feature(linked_list_cursors)]
+#![feature(trait_alias)]
 
 extern crate alloc;
 extern crate bootloader_api;

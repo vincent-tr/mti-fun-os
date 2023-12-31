@@ -1,26 +1,28 @@
 use core::mem;
 
+use alloc::sync::Arc;
 use syscalls::{Permissions, ThreadInfo, ThreadPriority, ThreadState};
 
 use crate::{
     memory::VirtAddr,
-    user::{error::check_found, thread, Error},
+    user::{
+        error::{check_arg, check_found},
+        thread, Error,
+    },
 };
 
-use super::helpers::{HandleOutputWriter, ListOutputWriter};
+use super::{
+    context::{Context, SyncContext},
+    helpers::{HandleOutputWriter, ListOutputWriter},
+};
 
-pub fn open_self(
-    handle_out_ptr: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
+    let handle_out_ptr = context.arg1();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
 
     let handle = process.handles().open_thread(thread.clone());
 
@@ -28,18 +30,14 @@ pub fn open_self(
     Ok(())
 }
 
-pub fn open(
-    tid: usize,
-    handle_out_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
+    let tid = context.arg1();
+    let handle_out_ptr = context.arg2();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
 
     let target_thread = check_found(thread::find(tid as u64))?;
     let handle = process.handles().open_thread(target_thread.clone());
@@ -48,18 +46,17 @@ pub fn open(
     Ok(())
 }
 
-pub fn create(
-    process_handle: usize,
-    priority: usize,
-    entry_point: usize,
-    stack_top: usize,
-    handle_out_ptr: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let priority = context.arg2();
+    let entry_point = context.arg3();
+    let stack_top = context.arg4();
+    let handle_out_ptr = context.arg5();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
 
     let target_process = process.handles().get_process(process_handle.into())?;
     let priority: ThreadPriority = unsafe { mem::transmute(priority) };
@@ -77,49 +74,34 @@ pub fn create(
     Ok(())
 }
 
-pub fn exit(
-    _arg1: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn exit(context: Context) {
+    let thread = context.owner();
     // let process = thread.process();
 
     thread::thread_terminate(&thread);
-
-    Ok(())
 }
 
-pub fn kill(
-    thread_handle: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn kill(context: &dyn SyncContext) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    // Forbid to kill self
+    check_arg(!Arc::ptr_eq(&thread, &target_thread))?;
 
     thread::thread_terminate(&target_thread);
 
     Ok(())
 }
 
-pub fn set_priority(
-    thread_handle: usize,
-    priority: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn set_priority(context: &dyn SyncContext) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+    let priority = context.arg2();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
@@ -130,15 +112,11 @@ pub fn set_priority(
     Ok(())
 }
 
-pub fn info(
-    thread_handle: usize,
-    info_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+    let info_ptr = context.arg2();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
@@ -171,18 +149,14 @@ pub fn info(
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(
-    array_ptr: usize,
-    count_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    //let thread = thread::current_thread();
+pub fn list(context: &dyn SyncContext) -> Result<(), Error> {
+    let array_ptr = context.arg1();
+    let count_ptr = context.arg2();
+
+    //let thread = context.owner();
     //let process = thread.process();
 
-    let mut writer = ListOutputWriter::<u64>::new(array_ptr, count_ptr)?;
+    let mut writer = ListOutputWriter::<u64>::new(context, array_ptr, count_ptr)?;
 
     writer.fill(&thread::list());
 

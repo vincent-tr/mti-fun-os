@@ -1,5 +1,6 @@
 use super::handler::InterruptStack;
 use core::arch::asm;
+use core::fmt;
 use memoffset::offset_of;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
@@ -89,17 +90,85 @@ unsafe extern "C" fn syscall_handler() {
     let stack = InterruptStack::current();
 
     let n = stack.scratch.rax;
+    let context = SyscallContext::from_stack(stack);
 
-    let arg1 = stack.scratch.rdi;
-    let arg2 = stack.scratch.rsi;
-    let arg3 = stack.scratch.rdx;
-    let arg4 = stack.scratch.r10;
-    let arg5 = stack.scratch.r8;
-    let arg6 = stack.scratch.r9;
-
-    let ret = execute_syscall(n, arg1, arg2, arg3, arg4, arg5, arg6);
-
-    stack.scratch.rax = ret;
+    execute_syscall(n, context);
 
     userland_timer_begin();
+}
+
+/// Represent the context of a syscall
+pub struct SyscallContext {
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    arg4: usize,
+    arg5: usize,
+    arg6: usize,
+
+    ret: Option<usize>,
+}
+
+impl fmt::Debug for SyscallContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut formatter = f.debug_struct("SyscallContext");
+        formatter
+            .field("arg1", &format_args!("{0:?} ({:#016x})", self.arg1))
+            .field("arg2", &format_args!("{0:?} ({:#016x})", self.arg2))
+            .field("arg3", &format_args!("{0:?} ({:#016x})", self.arg3))
+            .field("arg4", &format_args!("{0:?} ({:#016x})", self.arg4))
+            .field("arg5", &format_args!("{0:?} ({:#016x})", self.arg5))
+            .field("arg6", &format_args!("{0:?} ({:#016x})", self.arg6));
+        if let Some(ret) = self.ret {
+            formatter.field("ret", &format_args!("{0:?} ({:#016x})", ret));
+        }
+
+        formatter.finish()
+    }
+}
+
+impl SyscallContext {
+    fn from_stack(stack: &InterruptStack) -> Self {
+        Self {
+            arg1: stack.scratch.rdi,
+            arg2: stack.scratch.rsi,
+            arg3: stack.scratch.rdx,
+            arg4: stack.scratch.r10,
+            arg5: stack.scratch.r8,
+            arg6: stack.scratch.r9,
+            ret: None,
+        }
+    }
+
+    pub fn arg1(&self) -> usize {
+        self.arg1
+    }
+
+    pub fn arg2(&self) -> usize {
+        self.arg2
+    }
+
+    pub fn arg3(&self) -> usize {
+        self.arg3
+    }
+
+    pub fn arg4(&self) -> usize {
+        self.arg4
+    }
+
+    pub fn arg5(&self) -> usize {
+        self.arg5
+    }
+
+    pub fn arg6(&self) -> usize {
+        self.arg6
+    }
+
+    pub fn set_result(&self, value: usize) {
+        // FIXME: may not be current thread
+        let stack = unsafe { InterruptStack::current() };
+        stack.scratch.rax = value;
+        // ret
+        // TODO: ensure that syscall has ret before going back to userland
+    }
 }

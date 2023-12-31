@@ -4,23 +4,21 @@ use syscalls::ProcessInfo;
 
 use crate::{
     memory::{Permissions, VirtAddr},
-    user::{error::check_found, handle::Handle, process, thread, Error},
+    user::{error::check_found, handle::Handle, process, Error},
 };
 
-use super::helpers::{HandleOutputWriter, ListOutputWriter, StringReader};
+use super::{
+    context::SyncContext,
+    helpers::{HandleOutputWriter, ListOutputWriter, StringReader},
+};
 
-pub fn open_self(
-    handle_out_ptr: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn open_self(context: &dyn SyncContext) -> Result<(), Error> {
+    let handle_out_ptr = context.arg1();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
 
     let handle = process.handles().open_process(process.clone());
 
@@ -28,18 +26,14 @@ pub fn open_self(
     Ok(())
 }
 
-pub fn open(
-    pid: usize,
-    handle_out_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn open(context: &dyn SyncContext) -> Result<(), Error> {
+    let pid = context.arg1();
+    let handle_out_ptr = context.arg2();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
 
     let target_process = check_found(process::find(pid as u64))?;
     let handle = process.handles().open_process(target_process);
@@ -48,19 +42,16 @@ pub fn open(
     Ok(())
 }
 
-pub fn create(
-    name_ptr: usize,
-    name_len: usize,
-    handle_out_ptr: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn create(context: &dyn SyncContext) -> Result<(), Error> {
+    let name_ptr = context.arg1();
+    let name_len = context.arg2();
+    let handle_out_ptr = context.arg3();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(handle_out_ptr)?;
-    let name_reader = StringReader::new(name_ptr, name_len)?;
+    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let name_reader = StringReader::new(context, name_ptr, name_len)?;
     let name = name_reader.str()?;
 
     let new_process = process::create(name)?;
@@ -71,15 +62,15 @@ pub fn create(
     Ok(())
 }
 
-pub fn mmap(
-    process_handle: usize,
-    addr_ptr: usize,
-    size: usize,
-    perms: usize,
-    memory_object_handle: usize,
-    offset: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn mmap(context: &dyn SyncContext) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let addr_ptr = context.arg2();
+    let size = context.arg3();
+    let perms = context.arg4();
+    let memory_object_handle = context.arg5();
+    let offset = context.arg6();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_process = process.handles().get_process(process_handle.into())?;
@@ -110,15 +101,12 @@ pub fn mmap(
     Ok(())
 }
 
-pub fn munmap(
-    process_handle: usize,
-    addr: usize,
-    size: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn munmap(context: &dyn SyncContext) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let addr = context.arg2();
+    let size = context.arg3();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_process = process.handles().get_process(process_handle.into())?;
@@ -126,15 +114,13 @@ pub fn munmap(
     target_process.munmap(VirtAddr::new(addr as u64), size)
 }
 
-pub fn mprotect(
-    process_handle: usize,
-    addr: usize,
-    size: usize,
-    perms: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn mprotect(context: &dyn SyncContext) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let addr = context.arg2();
+    let size = context.arg3();
+    let perms = context.arg4();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_process = process.handles().get_process(process_handle.into())?;
@@ -146,15 +132,11 @@ pub fn mprotect(
     )
 }
 
-pub fn info(
-    process_handle: usize,
-    info_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn info(context: &dyn SyncContext) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let info_ptr = context.arg2();
+
+    let thread = context.owner();
     let process = thread.process();
 
     let target_process = process.handles().get_process(process_handle.into())?;
@@ -184,18 +166,14 @@ pub fn info(
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(
-    array_ptr: usize,
-    count_ptr: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    //let thread = thread::current_thread();
+pub fn list(context: &dyn SyncContext) -> Result<(), Error> {
+    let array_ptr = context.arg1();
+    let count_ptr = context.arg2();
+
+    //let thread = context.owner();
     //let process = thread.process();
 
-    let mut writer = ListOutputWriter::<u64>::new(array_ptr, count_ptr)?;
+    let mut writer = ListOutputWriter::<u64>::new(context, array_ptr, count_ptr)?;
 
     writer.fill(&process::list());
 

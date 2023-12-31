@@ -1,19 +1,20 @@
 use log::Level;
 
-use crate::user::{error::invalid_argument, syscalls::helpers::StringReader, thread, Error};
+use crate::user::{
+    error::invalid_argument,
+    syscalls::{context::SyncContext, helpers::StringReader},
+    Error,
+};
 
-pub fn log(
-    level: usize,
-    message_ptr: usize,
-    message_len: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
-    let thread = thread::current_thread();
+pub fn log(context: &dyn SyncContext) -> Result<(), Error> {
+    let level = context.arg1();
+    let message_ptr = context.arg2();
+    let message_len = context.arg3();
+
+    let thread = context.owner();
     let process = thread.process();
 
-    let message_reader = StringReader::new(message_ptr, message_len)?;
+    let message_reader = StringReader::new(context, message_ptr, message_len)?;
 
     let pid = process.id();
     let tid = thread.id();

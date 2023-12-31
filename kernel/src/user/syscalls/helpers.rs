@@ -8,11 +8,12 @@ use crate::{
         error::check_arg_res,
         handle::Handle,
         process::{MemoryAccess, TypedMemoryAccess},
-        thread,
     },
 };
 
 use alloc::str;
+
+use super::context::SyncContext;
 
 /// Helper object to operate output in 2 steps:
 /// - fallible step: prepare pointer view
@@ -23,8 +24,8 @@ pub struct HandleOutputWriter {
 
 impl HandleOutputWriter {
     // Create a new writer
-    pub fn new(handle_out_ptr: usize) -> Result<Self, Error> {
-        let thread = thread::current_thread();
+    pub fn new(context: &dyn SyncContext, handle_out_ptr: usize) -> Result<Self, Error> {
+        let thread = context.owner();
         let process = thread.process();
 
         let user_access = process.vm_access_typed(
@@ -49,8 +50,12 @@ pub struct ListOutputWriter<T: Sized + Copy> {
 
 impl<T: Sized + Copy> ListOutputWriter<T> {
     // Create a new writer
-    pub fn new(array_ptr: usize, count_ptr: usize) -> Result<Self, Error> {
-        let thread = thread::current_thread();
+    pub fn new(
+        context: &dyn SyncContext,
+        array_ptr: usize,
+        count_ptr: usize,
+    ) -> Result<Self, Error> {
+        let thread = context.owner();
         let process = thread.process();
 
         let count_access = process.vm_access_typed(
@@ -88,8 +93,8 @@ pub struct StringReader {
 }
 
 impl StringReader {
-    pub fn new(ptr: usize, len: usize) -> Result<Self, Error> {
-        let thread = thread::current_thread();
+    pub fn new(context: &dyn SyncContext, ptr: usize, len: usize) -> Result<Self, Error> {
+        let thread = context.owner();
         let process = thread.process();
 
         let message_range = VirtAddr::new(ptr as u64)..VirtAddr::new((ptr + len) as u64);

@@ -1,5 +1,6 @@
 use core::mem;
 
+use crate::interrupts::SyscallContext;
 use crate::memory::{drop_initial_kernel_stack, page_aligned_up, Permissions, PAGE_SIZE};
 use crate::user;
 use crate::user::process::{self, Process};
@@ -7,7 +8,7 @@ use crate::user::syscalls::engine::unregister_syscall;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
 use log::info;
-use syscalls::{Error, SyscallNumber, ThreadPriority};
+use syscalls::{SyscallNumber, ThreadPriority};
 
 const BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
 const SIZE_OF_HEADERS: usize = PAGE_SIZE;
@@ -24,14 +25,7 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
-pub fn setup(
-    _arg1: usize,
-    _arg2: usize,
-    _arg3: usize,
-    _arg4: usize,
-    _arg5: usize,
-    _arg6: usize,
-) -> Result<(), Error> {
+pub fn setup(_context: SyscallContext) {
     // Unregister current syscall
     unregister_syscall(SyscallNumber::InitSetup);
 
@@ -43,8 +37,6 @@ pub fn setup(
     create_thread(process);
 
     user::thread::initial_setup_thread();
-
-    Ok(())
 }
 
 fn load() -> Arc<Process> {

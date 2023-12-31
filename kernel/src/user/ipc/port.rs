@@ -103,19 +103,19 @@ impl Port {
         data.closed = true;
         data.message_queue.clear();
     }
+    /*
+        // TODO: review API
+        pub fn wait(&self) -> Result<(), Error> {
+            let data = self.data.read();
+            // Should not be able to wait on closed port since there is no receiver anymore
+            assert!(!data.closed);
 
-    // TODO: review API
-    pub fn wait(&self) -> Result<(), Error> {
-        let data = self.data.read();
-        // Should not be able to wait on closed port since there is no receiver anymore
-        assert!(!data.closed);
+            let current = context.owner();
+            thread::thread_sleep(&current, &[self.receiver_queue.clone()]);
 
-        let current = thread::current_thread();
-        thread::thread_sleep(&current, &[self.receiver_queue.clone()]);
-
-        Ok(())
-    }
-
+            Ok(())
+        }
+    */
     pub fn closed(&self) -> bool {
         let data = self.data.read();
         data.closed

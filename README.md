@@ -4,7 +4,9 @@
 
 ```shell
 cargo install cargo-make
-pacman -S extra/qemu-base
+pacman -S extra/qemu-base # archlinux
+sudo apt install qemu-system-x86 # ubuntu
+rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
 ```
 
 ## Build image

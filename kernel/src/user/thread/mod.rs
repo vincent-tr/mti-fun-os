@@ -7,9 +7,12 @@ mod wait_queue;
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
 use spin::RwLock;
-use syscalls::ThreadPriority;
+use syscalls::{Error, ThreadPriority};
 
-use self::{thread::add_ticks, threads::THREADS};
+use self::{
+    thread::{add_ticks, set_syscall_result},
+    threads::THREADS,
+};
 pub use self::{
     thread::{Thread, ThreadError, ThreadState},
     wait_queue::WaitQueue,
@@ -172,7 +175,7 @@ pub fn thread_error(thread: &Arc<Thread>, error: ThreadError) {
 /// Wait up one thread from the wait queue
 ///
 /// returns: true if OK, false if the wait_queue was empty
-pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
+pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>, syscall_result: usize) -> bool {
     let thread = match wait_queue.wake() {
         Some(thread) => thread,
         None => return false,
@@ -191,6 +194,7 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
     }
 
     // Set it ready
+    set_syscall_result(&thread, syscall_result);
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread);
 
@@ -198,8 +202,8 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
 }
 
 /// Wait up all threads from the wait queue
-pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>) {
-    while wait_queue_wake_one(wait_queue) {}
+pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>, syscall_result: usize) {
+    while wait_queue_wake_one(wait_queue, syscall_result) {}
 }
 
 /// Set the thread priority

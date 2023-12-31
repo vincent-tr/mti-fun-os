@@ -34,6 +34,11 @@ pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
     *state = new_state;
 }
 
+pub fn set_syscall_result(thread: &Arc<Thread>, syscall_result: usize) {
+    let mut context = thread.context.lock();
+    context.rax = syscall_result;
+}
+
 pub fn set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
     thread.set_priority(priority);
 }

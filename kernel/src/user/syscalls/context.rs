@@ -19,16 +19,20 @@ impl Context {
         }
     }
 
+    pub fn prepare_result(result: Result<(), Error>) -> usize {
+        match result {
+            Ok(_) => SUCCESS,
+            Err(err) => err as usize,
+        }
+    }
+
     /// Only used from engine
     pub fn set_sync_result(&self, result: Result<(), Error>) {
         assert!(self.owner().state().is_executing());
 
         trace!("Syscall ret={result:?}");
 
-        let ret = match result {
-            Ok(_) => SUCCESS,
-            Err(err) => err as usize,
-        };
+        let ret = Self::prepare_result(result);
 
         SyscallContext::set_current_result(ret);
     }

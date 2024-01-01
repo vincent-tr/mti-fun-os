@@ -1,12 +1,14 @@
+use core::cell::RefCell;
 use core::hash::{Hash, Hasher};
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use core::{fmt, mem};
 
+use alloc::boxed::Box;
 use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
-use syscalls::{Permissions, ThreadPriority};
+use syscalls::{Error, Permissions, ThreadPriority};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
@@ -151,7 +153,7 @@ pub enum ThreadState {
     Ready,
 
     /// This thread is sleeping, waiting for something
-    Waiting(HashSet<WaitQueueRef>),
+    Waiting(WaitingData),
 
     /// This thread got an error (eg: page fault).
     ///
@@ -160,6 +162,53 @@ pub enum ThreadState {
 
     /// This thread has been terminated
     Terminated,
+}
+
+/// Data associated with the wait state of a thread
+#[derive(Debug)]
+pub struct WaitingData {
+    context: RefCell<Option<Box<dyn WaitingContext>>>, // will be left empty after wakeup called
+    wait_queues: HashSet<WaitQueueRef>,
+}
+
+unsafe impl Send for WaitingData {}
+unsafe impl Sync for WaitingData {}
+
+impl WaitingData {
+    pub fn new<Context: WaitingContext + 'static>(
+        context: Context,
+        wait_queues: HashSet<WaitQueueRef>,
+    ) -> Self {
+        Self {
+            context: RefCell::new(Some(Box::new(context))),
+            wait_queues,
+        }
+    }
+
+    pub fn wait_queues(&self) -> &HashSet<WaitQueueRef> {
+        &self.wait_queues
+    }
+
+    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) -> Result<(), Error> {
+        let context = self
+            .context
+            .borrow_mut()
+            .take()
+            .expect("Cannot wakeup twice");
+        context.wakeup(wait_queue)
+    }
+}
+
+/// Trait that represent the context of a waiting thread
+///
+/// Its implementation can hold the data that are required to resume thread execution
+pub trait WaitingContext: fmt::Debug {
+    /// Called by the thread management when the thread will resume.
+    ///
+    /// `wait_queue` is the wait queue that has been triggered to wake up the thread
+    ///
+    /// The returned result will be used are the result of the syscall when returning to userland
+    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>) -> Result<(), Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -228,9 +277,9 @@ impl ThreadState {
         }
     }
 
-    pub fn is_waiting(&self) -> Option<&HashSet<WaitQueueRef>> {
-        if let ThreadState::Waiting(wait_queues) = self {
-            Some(wait_queues)
+    pub fn is_waiting(&self) -> Option<&WaitingData> {
+        if let ThreadState::Waiting(data) = self {
+            Some(data)
         } else {
             None
         }

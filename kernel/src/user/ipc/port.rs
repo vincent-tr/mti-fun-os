@@ -97,11 +97,11 @@ impl Port {
         // Should not be able to close on closed port since there is already no receiver anymore
         assert!(!data.closed);
 
-        // Wait up any sleeping receivers (They won't be able to receive)
-        thread::wait_queue_wake_all(&self.receiver_queue);
-
         data.closed = true;
         data.message_queue.clear();
+
+        // Wait up any sleeping receivers (They won't be able to receive)
+        thread::wait_queue_wake_all(&self.receiver_queue);
     }
     /*
         // TODO: review API
@@ -116,6 +116,7 @@ impl Port {
             Ok(())
         }
     */
+
     pub fn closed(&self) -> bool {
         let data = self.data.read();
         data.closed

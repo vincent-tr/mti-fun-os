@@ -43,6 +43,9 @@ pub fn init() {
 
     register_syscall_sync(SyscallNumber::PortOpen, ipc::open);
     register_syscall_sync(SyscallNumber::PortCreate, ipc::create);
+    register_syscall_sync(SyscallNumber::PortSend, ipc::send);
+    register_syscall_sync(SyscallNumber::PortReceive, ipc::receive);
+    register_syscall(SyscallNumber::PortWait, ipc::wait);
     register_syscall_sync(SyscallNumber::PortInfo, ipc::info);
     register_syscall_sync(SyscallNumber::PortList, ipc::list);
 

@@ -1,7 +1,7 @@
 use crate::user::handle::Handle;
 
 /// Structure of an IPC message
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct Message {
     /// User data

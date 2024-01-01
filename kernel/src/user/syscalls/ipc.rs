@@ -6,7 +6,8 @@ use crate::{
     memory::{Permissions, VirtAddr},
     user::{
         error::{check_arg, check_found},
-        ipc, Error,
+        ipc::{self, Message},
+        Error,
     },
 };
 
@@ -67,6 +68,48 @@ pub fn create(context: &Context) -> Result<(), Error> {
     handle_receiver_out.set(receiver_handle);
     handle_sender_out.set(sender_handle);
     Ok(())
+}
+
+pub fn send(context: &Context) -> Result<(), Error> {
+    let port_handle = context.arg1();
+    let message_ptr = context.arg2();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_port_sender = process.handles().get_port_sender(port_handle.into())?;
+
+    let user_message =
+        process.vm_access_typed::<Message>(VirtAddr::new(message_ptr as u64), Permissions::READ)?;
+
+    let message = user_message.get().clone();
+
+    target_port_sender.send(process, message)
+}
+
+pub fn receive(context: &Context) -> Result<(), Error> {
+    let port_handle = context.arg1();
+    let message_ptr = context.arg2();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_port_receiver = process.handles().get_port_receiver(port_handle.into())?;
+
+    let mut user_message = process.vm_access_typed::<Message>(
+        VirtAddr::new(message_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    let message = target_port_receiver.receive(process)?;
+
+    *user_message.get_mut() = message;
+
+    Ok(())
+}
+
+pub fn wait(context: &Context) {
+    // TODO
 }
 
 pub fn info(context: &Context) -> Result<(), Error> {

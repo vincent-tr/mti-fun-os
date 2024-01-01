@@ -46,6 +46,9 @@ pub enum SyscallNumber {
 
     PortCreate,
     PortOpen,
+    PortSend,
+    PortReceive,
+    PortWait,
     PortInfo,
     PortList,
 

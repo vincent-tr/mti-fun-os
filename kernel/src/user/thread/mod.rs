@@ -7,25 +7,20 @@ mod wait_queue;
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
 use spin::RwLock;
-use syscalls::{Error, ThreadPriority};
+use syscalls::ThreadPriority;
 
 use self::{
-    thread::{add_ticks, set_syscall_result},
+    scheduler::SCHEDULER,
+    thread::{add_ticks, set_syscall_result, update_state, WaitQueueRef, WaitingData},
     threads::THREADS,
 };
 pub use self::{
-    thread::{Thread, ThreadError, ThreadState},
+    thread::{Thread, ThreadError, ThreadState, WaitingContext},
     wait_queue::WaitQueue,
 };
 
-use super::process::Process;
-use crate::{
-    memory::VirtAddr,
-    user::thread::{
-        scheduler::SCHEDULER,
-        thread::{update_state, WaitQueueRef},
-    },
-};
+use super::{process::Process, syscalls::Context};
+use crate::memory::VirtAddr;
 
 pub fn create(
     process: Arc<Process>,
@@ -104,38 +99,34 @@ fn context_switch(new_thread: Arc<Thread>) {
 }
 
 /// Add the thread to the specified wait queues
-pub fn thread_sleep(thread: &Arc<Thread>, wait_queues: &[Arc<WaitQueue>]) {
+pub fn thread_sleep<Context: WaitingContext + 'static>(
+    thread: &Arc<Thread>,
+    context: Context,
+    wait_queues: &[Arc<WaitQueue>],
+) {
     assert!(wait_queues.len() > 0);
 
     match *thread.state() {
         ThreadState::Executing => {
+            // Note: syscall must be async
             context_switch(SCHEDULER.schedule());
         }
         ThreadState::Ready => {
             SCHEDULER.remove(thread);
         }
-        ThreadState::Waiting(_) => {
-            // Nothing to do
-        }
-        ThreadState::Error(_) | ThreadState::Terminated => {
+        _ => {
             panic!("invalid thread state: {:?}", thread.state())
         }
     }
 
     let mut set: HashSet<WaitQueueRef> = HashSet::new();
 
-    if let Some(existing) = thread.state().is_waiting() {
-        for wait_queue_ref in existing {
-            set.insert(wait_queue_ref.clone());
-        }
-    }
-
     for wait_queue in wait_queues {
         set.insert(wait_queue.into());
         wait_queue.add(thread.clone());
     }
 
-    update_state(thread, ThreadState::Waiting(set));
+    update_state(thread, ThreadState::Waiting(WaitingData::new(context, set)));
 }
 
 /// Terminated the given thread
@@ -175,26 +166,30 @@ pub fn thread_error(thread: &Arc<Thread>, error: ThreadError) {
 /// Wait up one thread from the wait queue
 ///
 /// returns: true if OK, false if the wait_queue was empty
-pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>, syscall_result: usize) -> bool {
+pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
     let thread = match wait_queue.wake() {
         Some(thread) => thread,
         None => return false,
     };
 
-    // Remove it from all other queues
-    {
+    let syscall_result = {
         let state = thread.state();
-        let wait_queues = state.is_waiting().expect("thread not waiting");
-        for wait_queue_ref in wait_queues {
+        let data = state.is_waiting().expect("thread not waiting");
+
+        // Remove it from all other queues
+        for wait_queue_ref in data.wait_queues() {
             if Arc::as_ptr(wait_queue) != wait_queue_ref.as_ptr() {
                 let wait_queue = wait_queue_ref.upgrade().expect("could not read wait queue");
                 wait_queue.remove(&thread);
             }
         }
-    }
+
+        // Resume it
+        data.wakeup(wait_queue)
+    };
 
     // Set it ready
-    set_syscall_result(&thread, syscall_result);
+    set_syscall_result(&thread, Context::prepare_result(syscall_result));
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread);
 
@@ -202,8 +197,8 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>, syscall_result: usize) -
 }
 
 /// Wait up all threads from the wait queue
-pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>, syscall_result: usize) {
-    while wait_queue_wake_one(wait_queue, syscall_result) {}
+pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>) {
+    while wait_queue_wake_one(wait_queue) {}
 }
 
 /// Set the thread priority

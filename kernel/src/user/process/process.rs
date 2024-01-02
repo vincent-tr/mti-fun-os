@@ -218,6 +218,17 @@ impl Process {
         memory_access::create_typed(&address_space, addr, perms)
     }
 
+    /// Same than `vm_access`, but with typed slice data (easier access)
+    pub fn vm_access_typed_slice<T>(
+        &self,
+        addr: VirtAddr,
+        count: usize,
+        perms: Permissions,
+    ) -> Result<TypedMemoryAccess<T>, Error> {
+        let address_space = self.address_space().read();
+        memory_access::create_typed_slice(&address_space, addr, count, perms)
+    }
+
     /// Add a thread to the process
     pub fn add_thread(&self, thread: &Arc<Thread>) {
         self.threads.insert(thread.id(), thread);

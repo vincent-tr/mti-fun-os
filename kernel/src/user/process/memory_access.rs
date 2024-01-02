@@ -184,3 +184,42 @@ pub fn create_typed<T>(
         _phantom: PhantomData,
     })
 }
+
+
+/// Represent a memory access to some of the process VM space.
+pub struct TypedSliceMemoryAccess<T> {
+    access: MemoryAccess,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> TypedSliceMemoryAccess<T> {
+    pub fn get<'a>(&'a self) -> &'a [T] {
+        self.access.get_slice()
+    }
+
+    pub fn get_mut<'a>(&'a mut self) -> &'a mut [T] {
+        self.access.get_slice_mut()
+    }
+}
+
+/// Standalone function, so that MemoryAccess::create() can remain private
+///
+/// Create a new memory access
+///
+/// permissions are the at least excepted permission in address space.
+///
+/// eg: if READ is set, then the range must be mapped in the address space with at least READ permission
+pub fn create_typed_slice<T>(
+    address_space: &AddressSpace,
+    addr: VirtAddr,
+    count: usize,
+    perms: Permissions,
+) -> Result<TypedSliceMemoryAccess<T>, Error> {
+    let range = addr..addr + (count * size_of::<T>()));
+    let access = MemoryAccess::create(address_space, range, perms)?;
+
+    Ok(TypedSliceMemoryAccess {
+        access,
+        _phantom: PhantomData,
+    })
+}

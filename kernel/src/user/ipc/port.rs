@@ -1,6 +1,6 @@
 use alloc::{collections::LinkedList, string::String, sync::Arc};
 use spin::RwLock;
-use syscalls::Error;
+use syscalls::{Error, Message};
 
 use crate::user::{
     error::{object_closed, object_not_ready},
@@ -8,8 +8,6 @@ use crate::user::{
     process::Process,
     thread::{self, WaitQueue},
 };
-
-use super::Message;
 
 /// Standalone function, so that Port::new() can remain private
 ///
@@ -148,7 +146,7 @@ impl InternalMessage {
         };
 
         for index in 0..Message::HANDLE_COUNT {
-            let handle = message.handles[index];
+            let handle = Handle::from(message.handles[index]);
             if handle.valid() {
                 internal_message.handles[index] = Some(sender.handles().get(handle)?);
             }
@@ -156,7 +154,7 @@ impl InternalMessage {
 
         // Now that we could get all handle successfully, close them on the sender
         for index in 0..Message::HANDLE_COUNT {
-            let handle = message.handles[index];
+            let handle = Handle::from(message.handles[index]);
             if handle.valid() {
                 sender
                     .handles()
@@ -170,7 +168,7 @@ impl InternalMessage {
 
     pub fn to(self, receiver: &Arc<Process>) -> Message {
         // Create handles in the receiver
-        const NO_HANDLE: Handle = Handle::invalid();
+        const NO_HANDLE: u64 = Handle::invalid().as_u64();
 
         let mut message = Message {
             data: self.data,
@@ -179,7 +177,7 @@ impl InternalMessage {
 
         for index in 0..Message::HANDLE_COUNT {
             if let Some(kernel_handle) = &self.handles[index] {
-                message.handles[index] = receiver.handles().open(kernel_handle.clone());
+                message.handles[index] = receiver.handles().open(kernel_handle.clone()).as_u64();
             }
         }
 

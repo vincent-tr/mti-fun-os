@@ -1,9 +1,9 @@
 use alloc::sync::Arc;
-use syscalls::Error;
+use syscalls::{Error, Message};
 
 use crate::user::process::Process;
 
-use super::{Message, Port};
+use super::Port;
 
 pub fn access(port: Arc<Port>) -> (Arc<PortReceiver>, Arc<PortSender>) {
     (PortReceiver::new(port.clone()), PortSender::new(port))

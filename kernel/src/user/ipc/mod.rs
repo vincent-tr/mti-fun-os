@@ -1,4 +1,3 @@
-mod message;
 mod port;
 mod port_access;
 mod ports;
@@ -6,7 +5,6 @@ mod ports;
 use alloc::{sync::Arc, vec::Vec};
 use syscalls::Error;
 
-pub use self::message::Message;
 pub use self::port::Port;
 pub use self::port_access::{PortReceiver, PortSender};
 use self::ports::PORTS;

@@ -9,7 +9,7 @@ mod thread;
 
 pub use error::{Error, SUCCESS};
 pub use handle::HandleType;
-pub use ipc::PortInfo;
+pub use ipc::{Message, PortInfo};
 pub use permissions::Permissions;
 pub use process::ProcessInfo;
 pub use thread::{ThreadInfo, ThreadPriority, ThreadState};

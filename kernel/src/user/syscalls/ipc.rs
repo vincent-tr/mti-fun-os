@@ -1,13 +1,12 @@
 use core::cmp::min;
 
-use syscalls::{PortInfo, ProcessInfo};
+use syscalls::{Message, PortInfo, ProcessInfo};
 
 use crate::{
     memory::{Permissions, VirtAddr},
     user::{
         error::{check_arg, check_found},
-        ipc::{self, Message},
-        Error,
+        ipc, Error,
     },
 };
 

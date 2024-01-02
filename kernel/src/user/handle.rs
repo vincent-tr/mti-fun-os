@@ -150,13 +150,13 @@ impl Handles {
     }
 
     /// Open the given port receiver in the process
-    pub fn open_port_receiver(&self, thread: Arc<PortReceiver>) -> Handle {
-        self.open(KernelHandle::PortReceiverHandle(thread))
+    pub fn open_port_receiver(&self, port: Arc<PortReceiver>) -> Handle {
+        self.open(KernelHandle::PortReceiverHandle(port))
     }
 
     /// Open the given port sender in the process
-    pub fn open_port_sender(&self, thread: Arc<PortSender>) -> Handle {
-        self.open(KernelHandle::PortSenderHandle(thread))
+    pub fn open_port_sender(&self, port: Arc<PortSender>) -> Handle {
+        self.open(KernelHandle::PortSenderHandle(port))
     }
 
     /// Open raw kernel handle

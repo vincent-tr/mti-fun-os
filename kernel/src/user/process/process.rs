@@ -12,7 +12,7 @@ use crate::{
 use super::{
     mapping::Mapping,
     mappings::Mappings,
-    memory_access::{self, TypedMemoryAccess},
+    memory_access::{self, TypedMemoryAccess, TypedSliceMemoryAccess},
     MemoryAccess,
 };
 
@@ -224,7 +224,7 @@ impl Process {
         addr: VirtAddr,
         count: usize,
         perms: Permissions,
-    ) -> Result<TypedMemoryAccess<T>, Error> {
+    ) -> Result<TypedSliceMemoryAccess<T>, Error> {
         let address_space = self.address_space().read();
         memory_access::create_typed_slice(&address_space, addr, count, perms)
     }

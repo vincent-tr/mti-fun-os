@@ -1,12 +1,15 @@
 use core::cmp::min;
 
+use alloc::vec::Vec;
+use bit_field::BitArray;
 use syscalls::{Message, PortInfo, ProcessInfo};
 
 use crate::{
-    memory::{Permissions, VirtAddr},
+    memory::{align_up, Permissions, VirtAddr},
     user::{
         error::{check_arg, check_found},
-        ipc, Error,
+        handle::Handle,
+        ipc, thread, Error,
     },
 };
 
@@ -108,6 +111,53 @@ pub fn receive(context: &Context) -> Result<(), Error> {
 }
 
 pub fn wait(context: &Context) {
+    let port_handle_array_ptr = context.arg1();
+    let ready_bit_array_ptr = context.arg2();
+    let port_count = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let port_handle_array_access = process.vm_access_typed_slice::<Handle>(
+        VirtAddr::new(port_handle_array_ptr as u64),
+        port_count,
+        Permissions::READ,
+    )?;
+
+    let mut ready_bit_array_access = process.vm_access_typed_slice::<u8>(
+        VirtAddr::new(port_handle_array_ptr as u64),
+        align_up(port_count as u64, u8::BITS as u64) as usize / u8::BITS as usize,
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    let mut ready_bits = ready_bit_array_access.get_mut();
+    ready_bits.fill(0);
+
+    let mut ports = Vec::new();
+    let mut queues = Vec::new();
+    let mut is_sync = false;
+
+    ports.reserve(port_count);
+    queues.reserve(port_count);
+
+    for (index, &handle) in port_handle_array_access.get().iter().enumerate() {
+        let port = process.handles().get_port_receiver(handle)?;
+        if let Some(queue) = port.prepare_wait() {
+            queues.push(queue.clone());
+        } else {
+            ready_bits.set_bit(index, true);
+            is_sync = true;
+        }
+
+        ports.push(port);
+    }
+
+    if is_sync {
+        return Ok(())
+    }
+
+    thread::thread_sleep(&thread, context, &queues);
+
     // TODO
 }
 

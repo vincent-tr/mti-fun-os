@@ -22,7 +22,7 @@ pub fn init() {
     register_syscall_sync(SyscallNumber::HandleDuplicate, handle::duplicate);
     register_syscall_sync(SyscallNumber::HandleType, handle::r#type);
 
-    register_syscall_sync(SyscallNumber::ProcessOpenSelf, &process::open_self);
+    register_syscall_sync(SyscallNumber::ProcessOpenSelf, process::open_self);
     register_syscall_sync(SyscallNumber::ProcessOpen, process::open);
     register_syscall_sync(SyscallNumber::ProcessCreate, process::create);
     register_syscall_sync(SyscallNumber::ProcessMMap, process::mmap);

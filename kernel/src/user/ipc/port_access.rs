@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 use syscalls::{Error, Message};
 
-use crate::user::process::Process;
+use crate::user::{process::Process, thread::WaitQueue};
 
 use super::Port;
 
@@ -34,6 +34,13 @@ impl PortReceiver {
     /// Note: the operation does not block
     pub fn receive(&self, receiver: &Arc<Process>) -> Result<Message, Error> {
         self.port.receive(receiver)
+    }
+
+    /// Prepare a wait on the port
+    /// 
+    /// Return None if the port is already ready for receive
+    pub fn prepare_wait(&self) -> Option<&Arc<WaitQueue>> {
+        self.port.prepare_wait()
     }
 
     /// Get the inner port

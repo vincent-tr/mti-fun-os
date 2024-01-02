@@ -101,19 +101,21 @@ impl Port {
         // Wait up any sleeping receivers (They won't be able to receive)
         thread::wait_queue_wake_all(&self.receiver_queue);
     }
-    /*
-        // TODO: review API
-        pub fn wait(&self) -> Result<(), Error> {
-            let data = self.data.read();
-            // Should not be able to wait on closed port since there is no receiver anymore
-            assert!(!data.closed);
 
-            let current = context.owner();
-            thread::thread_sleep(&current, &[self.receiver_queue.clone()]);
+    /// Prepare a wait
+    /// 
+    /// Return None if the port is already ready for receive
+    pub fn prepare_wait(&self) -> Option<&Arc<WaitQueue>> {
+        let data = self.data.read();
+        // Should not be able to wait on closed port since there is no receiver anymore
+        assert!(!data.closed);
 
-            Ok(())
+        if data.message_queue.is_empty() {
+            Some(&self.receiver_queue)
+        } else {
+            None
         }
-    */
+    }
 
     pub fn closed(&self) -> bool {
         let data = self.data.read();

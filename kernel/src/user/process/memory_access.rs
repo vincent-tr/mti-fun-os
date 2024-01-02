@@ -185,7 +185,6 @@ pub fn create_typed<T>(
     })
 }
 
-
 /// Represent a memory access to some of the process VM space.
 pub struct TypedSliceMemoryAccess<T> {
     access: MemoryAccess,
@@ -215,7 +214,7 @@ pub fn create_typed_slice<T>(
     count: usize,
     perms: Permissions,
 ) -> Result<TypedSliceMemoryAccess<T>, Error> {
-    let range = addr..addr + (count * size_of::<T>()));
+    let range = addr..addr + (count * size_of::<T>());
     let access = MemoryAccess::create(address_space, range, perms)?;
 
     Ok(TypedSliceMemoryAccess {

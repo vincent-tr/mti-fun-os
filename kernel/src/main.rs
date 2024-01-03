@@ -18,6 +18,7 @@
 #![feature(trait_alias)]
 #![feature(async_closure)]
 #![feature(noop_waker)]
+#![feature(never_type)]
 
 extern crate alloc;
 extern crate bootloader_api;

@@ -19,7 +19,7 @@ pub use self::{
     wait_queue::WaitQueue,
 };
 
-use super::{process::Process, syscalls::Context};
+use super::process::Process;
 use crate::memory::VirtAddr;
 
 pub fn create(

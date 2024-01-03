@@ -75,11 +75,7 @@ pub async fn create(context: Context) -> Result<(), Error> {
 }
 
 pub async fn exit(context: Context) -> Result<(), Error> {
-    let thread = context.owner();
-    // let process = thread.process();
-
-    todo!();
-    // thread::thread_terminate(&thread);
+    super::exit(&context).await
 }
 
 pub async fn kill(context: Context) -> Result<(), Error> {

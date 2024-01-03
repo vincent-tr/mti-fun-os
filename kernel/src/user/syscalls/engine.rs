@@ -10,7 +10,10 @@ use syscalls::{Error, SUCCESS};
 
 use crate::{
     interrupts::SyscallContext,
-    user::{error::not_supported, thread},
+    user::{
+        error::not_supported,
+        thread::{self, thread_terminate, WaitQueue},
+    },
 };
 
 use super::SyscallNumber;
@@ -121,13 +124,6 @@ pub fn register_syscall<Handler: SyscallHandler>(syscall_number: SyscallNumber, 
     });
 }
 
-pub fn prepare_result(result: Result<(), Error>) -> usize {
-    match result {
-        Ok(_) => SUCCESS,
-        Err(err) => err as usize,
-    }
-}
-
 /// Unregister a syscall handler
 ///
 /// Used to remove the initial "init run" syscall
@@ -135,4 +131,19 @@ pub fn unregister_syscall(syscall_number: SyscallNumber) {
     trace!("Remove syscall {syscall_number:?}");
     let mut handlers = HANDLERS.write();
     handlers.unregister(syscall_number);
+}
+
+pub fn prepare_result(result: Result<(), Error>) -> usize {
+    match result {
+        Ok(_) => SUCCESS,
+        Err(err) => err as usize,
+    }
+}
+
+/// Async API: make the thread sleep until one wait queue wake it up.
+pub fn sleep(wait_queues: &[Arc<WaitQueue>]) -> impl Future<Output = Arc<WaitQueue>> {}
+
+/// Async API: exit (never returns)
+pub fn exit(context: &Context) -> impl Future<Output = !> {
+    thread_terminate(&context.owner());
 }

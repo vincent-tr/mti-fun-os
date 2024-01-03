@@ -2,6 +2,7 @@ use core::cmp::min;
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
+use hashbrown::HashMap;
 use syscalls::{Message, PortInfo, ProcessInfo};
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
     user::{
         error::{check_arg, check_found},
         handle::Handle,
-        ipc, thread, Error,
+        ipc, Error,
     },
 };
 
@@ -125,40 +126,43 @@ pub async fn wait(context: Context) -> Result<(), Error> {
     )?;
 
     let mut ready_bit_array_access = process.vm_access_typed_slice::<u8>(
-        VirtAddr::new(port_handle_array_ptr as u64),
+        VirtAddr::new(ready_bit_array_ptr as u64),
         align_up(port_count as u64, u8::BITS as u64) as usize / u8::BITS as usize,
         Permissions::READ | Permissions::WRITE,
     )?;
 
-    let mut ready_bits = ready_bit_array_access.get_mut();
+    let ready_bits = ready_bit_array_access.get_mut();
     ready_bits.fill(0);
 
-    let mut ports = Vec::new();
     let mut queues = Vec::new();
+    let mut queue_map = HashMap::new();
     let mut is_sync = false;
 
-    ports.reserve(port_count);
     queues.reserve(port_count);
 
     for (index, &handle) in port_handle_array_access.get().iter().enumerate() {
         let port = process.handles().get_port_receiver(handle)?;
         if let Some(queue) = port.prepare_wait() {
             queues.push(queue.clone());
+            queue_map.insert(queue.as_ref() as *const _, index);
         } else {
             ready_bits.set_bit(index, true);
             is_sync = true;
         }
-
-        ports.push(port);
     }
 
     if is_sync {
         return Ok(());
     }
 
-    todo!();
+    let woken_queue = super::sleep(&queues).await;
+    let index = *queue_map
+        .get(&(woken_queue.as_ref() as *const _))
+        .expect("woken queue not found");
 
-    //thread::thread_sleep(&thread, context, &queues);
+    ready_bits.set_bit(index, true);
+
+    Ok(())
 }
 
 pub async fn info(context: Context) -> Result<(), Error> {

@@ -37,7 +37,7 @@ impl PortReceiver {
     }
 
     /// Prepare a wait on the port
-    /// 
+    ///
     /// Return None if the port is already ready for receive
     pub fn prepare_wait(&self) -> Option<&Arc<WaitQueue>> {
         self.port.prepare_wait()

@@ -103,7 +103,7 @@ impl Port {
     }
 
     /// Prepare a wait
-    /// 
+    ///
     /// Return None if the port is already ready for receive
     pub fn prepare_wait(&self) -> Option<&Arc<WaitQueue>> {
         let data = self.data.read();

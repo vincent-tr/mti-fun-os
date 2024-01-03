@@ -189,7 +189,7 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
     };
 
     // Set it ready
-    set_syscall_result(&thread, Context::prepare_result(syscall_result));
+    set_syscall_result(&thread, syscall_result);
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread);
 

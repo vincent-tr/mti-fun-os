@@ -189,7 +189,7 @@ impl WaitingData {
         &self.wait_queues
     }
 
-    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) -> Result<(), Error> {
+    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) -> usize {
         let context = self
             .context
             .borrow_mut()
@@ -208,7 +208,7 @@ pub trait WaitingContext: fmt::Debug {
     /// `wait_queue` is the wait queue that has been triggered to wake up the thread
     ///
     /// The returned result will be used are the result of the syscall when returning to userland
-    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>) -> Result<(), Error>;
+    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>) -> usize;
 }
 
 #[derive(Debug, Clone)]

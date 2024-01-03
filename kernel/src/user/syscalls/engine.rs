@@ -1,12 +1,12 @@
-use core::mem;
+use core::{future::Future, mem, task};
 
 use super::Context;
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use log::trace;
 use spin::RwLock;
-use syscalls::Error;
+use syscalls::{Error, SUCCESS};
 
 use crate::{
     interrupts::SyscallContext,
@@ -15,14 +15,21 @@ use crate::{
 
 use super::SyscallNumber;
 
-/// Type of a raw syscall handler (init handlr)
+/// Type of a raw syscall handler (init handler)
 pub trait SyscallRawHandler = Fn(SyscallContext) + 'static;
 
 /// Type of a syscall handler
-pub trait SyscallHandler = Fn(&Context) + 'static;
+pub trait SyscallHandler: (Fn(Context) -> Self::Future) + 'static {
+    type Future: Future<Output = Result<(), Error>> + 'static;
+}
 
-/// Type of a synchronous syscall handler
-pub trait SyscallSyncHandler = Fn(&Context) -> Result<(), Error> + 'static;
+impl<F, Fut> SyscallHandler for F
+where
+    F: (Fn(Context) -> Fut) + 'static,
+    Fut: Future<Output = Result<(), Error>> + 'static,
+{
+    type Future = Fut;
+}
 
 struct Handlers {
     handlers: HashMap<SyscallNumber, Arc<dyn SyscallRawHandler>>,
@@ -96,19 +103,29 @@ pub fn register_syscall_raw<Handler: SyscallRawHandler>(
 pub fn register_syscall<Handler: SyscallHandler>(syscall_number: SyscallNumber, handler: Handler) {
     register_syscall_raw(syscall_number, move |inner: SyscallContext| {
         let context = Context::from(inner, &thread::current_thread());
-        handler(&context);
+        let mut future = Box::pin(handler(context));
+
+        let waker = task::Waker::noop();
+        let mut ctx = task::Context::from_waker(&waker);
+
+        match future.as_mut().poll(&mut ctx) {
+            task::Poll::Ready(result) => {
+                // Syscall completed synchronously
+                trace!("Syscall ret={result:?}");
+                SyscallContext::set_current_result(prepare_result(result));
+            }
+            task::Poll::Pending => {
+                todo!();
+            }
+        }
     });
 }
 
-/// Register a new synchronous syscall handler
-pub fn register_syscall_sync<Handler: SyscallSyncHandler>(
-    syscall_number: SyscallNumber,
-    handler: Handler,
-) {
-    register_syscall(syscall_number, move |context: &Context| {
-        let ret = handler(&context);
-        context.set_sync_result(ret);
-    });
+pub fn prepare_result(result: Result<(), Error>) -> usize {
+    match result {
+        Ok(_) => SUCCESS,
+        Err(err) => err as usize,
+    }
 }
 
 /// Unregister a syscall handler

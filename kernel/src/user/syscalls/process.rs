@@ -12,13 +12,13 @@ use super::{
     helpers::{HandleOutputWriter, ListOutputWriter, StringReader},
 };
 
-pub fn open_self(context: &Context) -> Result<(), Error> {
+pub async fn open_self(context: Context) -> Result<(), Error> {
     let handle_out_ptr = context.arg1();
 
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
     let handle = process.handles().open_process(process.clone());
 
@@ -26,14 +26,14 @@ pub fn open_self(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn open(context: &Context) -> Result<(), Error> {
+pub async fn open(context: Context) -> Result<(), Error> {
     let pid = context.arg1();
     let handle_out_ptr = context.arg2();
 
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
     let target_process = check_found(process::find(pid as u64))?;
     let handle = process.handles().open_process(target_process);
@@ -42,7 +42,7 @@ pub fn open(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn create(context: &Context) -> Result<(), Error> {
+pub async fn create(context: Context) -> Result<(), Error> {
     let name_ptr = context.arg1();
     let name_len = context.arg2();
     let handle_out_ptr = context.arg3();
@@ -50,8 +50,8 @@ pub fn create(context: &Context) -> Result<(), Error> {
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
-    let name_reader = StringReader::new(context, name_ptr, name_len)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
+    let name_reader = StringReader::new(&context, name_ptr, name_len)?;
     let name = name_reader.str()?;
 
     let new_process = process::create(name)?;
@@ -62,7 +62,7 @@ pub fn create(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn mmap(context: &Context) -> Result<(), Error> {
+pub async fn mmap(context: Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr_ptr = context.arg2();
     let size = context.arg3();
@@ -101,7 +101,7 @@ pub fn mmap(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn munmap(context: &Context) -> Result<(), Error> {
+pub async fn munmap(context: Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr = context.arg2();
     let size = context.arg3();
@@ -114,7 +114,7 @@ pub fn munmap(context: &Context) -> Result<(), Error> {
     target_process.munmap(VirtAddr::new(addr as u64), size)
 }
 
-pub fn mprotect(context: &Context) -> Result<(), Error> {
+pub async fn mprotect(context: Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let addr = context.arg2();
     let size = context.arg3();
@@ -132,7 +132,7 @@ pub fn mprotect(context: &Context) -> Result<(), Error> {
     )
 }
 
-pub fn info(context: &Context) -> Result<(), Error> {
+pub async fn info(context: Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let info_ptr = context.arg2();
 
@@ -166,14 +166,14 @@ pub fn info(context: &Context) -> Result<(), Error> {
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(context: &Context) -> Result<(), Error> {
+pub async fn list(context: Context) -> Result<(), Error> {
     let array_ptr = context.arg1();
     let count_ptr = context.arg2();
 
     //let thread = context.owner();
     //let process = thread.process();
 
-    let mut writer = ListOutputWriter::<u64>::new(context, array_ptr, count_ptr)?;
+    let mut writer = ListOutputWriter::<u64>::new(&context, array_ptr, count_ptr)?;
 
     writer.fill(&process::list());
 

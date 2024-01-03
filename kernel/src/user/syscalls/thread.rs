@@ -16,13 +16,13 @@ use super::{
     helpers::{HandleOutputWriter, ListOutputWriter},
 };
 
-pub fn open_self(context: &Context) -> Result<(), Error> {
+pub async fn open_self(context: Context) -> Result<(), Error> {
     let handle_out_ptr = context.arg1();
 
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
     let handle = process.handles().open_thread(thread.clone());
 
@@ -30,14 +30,14 @@ pub fn open_self(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn open(context: &Context) -> Result<(), Error> {
+pub async fn open(context: Context) -> Result<(), Error> {
     let tid = context.arg1();
     let handle_out_ptr = context.arg2();
 
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
     let target_thread = check_found(thread::find(tid as u64))?;
     let handle = process.handles().open_thread(target_thread.clone());
@@ -46,7 +46,7 @@ pub fn open(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn create(context: &Context) -> Result<(), Error> {
+pub async fn create(context: Context) -> Result<(), Error> {
     let process_handle = context.arg1();
     let priority = context.arg2();
     let entry_point = context.arg3();
@@ -56,7 +56,7 @@ pub fn create(context: &Context) -> Result<(), Error> {
     let thread = context.owner();
     let process = thread.process();
 
-    let mut handle_out = HandleOutputWriter::new(context, handle_out_ptr)?;
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
     let target_process = process.handles().get_process(process_handle.into())?;
     let priority: ThreadPriority = unsafe { mem::transmute(priority) };
@@ -74,14 +74,15 @@ pub fn create(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn exit(context: &Context) {
+pub async fn exit(context: Context) -> Result<(), Error> {
     let thread = context.owner();
     // let process = thread.process();
 
-    thread::thread_terminate(&thread);
+    todo!();
+    // thread::thread_terminate(&thread);
 }
 
-pub fn kill(context: &Context) -> Result<(), Error> {
+pub async fn kill(context: Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
 
     let thread = context.owner();
@@ -97,7 +98,7 @@ pub fn kill(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn set_priority(context: &Context) -> Result<(), Error> {
+pub async fn set_priority(context: Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
     let priority = context.arg2();
 
@@ -112,7 +113,7 @@ pub fn set_priority(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn info(context: &Context) -> Result<(), Error> {
+pub async fn info(context: Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
     let info_ptr = context.arg2();
 
@@ -149,14 +150,14 @@ pub fn info(context: &Context) -> Result<(), Error> {
 /// count_ptr:
 /// - on input -> element count in array
 /// - on output -> real number of processes. Can be smaller or larger than array. If larger, the array is truncated
-pub fn list(context: &Context) -> Result<(), Error> {
+pub async fn list(context: Context) -> Result<(), Error> {
     let array_ptr = context.arg1();
     let count_ptr = context.arg2();
 
     //let thread = context.owner();
     //let process = thread.process();
 
-    let mut writer = ListOutputWriter::<u64>::new(context, array_ptr, count_ptr)?;
+    let mut writer = ListOutputWriter::<u64>::new(&context, array_ptr, count_ptr)?;
 
     writer.fill(&thread::list());
 

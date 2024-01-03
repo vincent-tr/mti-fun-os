@@ -6,7 +6,7 @@ use crate::user::{
     Error,
 };
 
-pub fn log(context: &Context) -> Result<(), Error> {
+pub async fn log(context: Context) -> Result<(), Error> {
     let level = context.arg1();
     let message_ptr = context.arg2();
     let message_len = context.arg3();
@@ -14,7 +14,7 @@ pub fn log(context: &Context) -> Result<(), Error> {
     let thread = context.owner();
     let process = thread.process();
 
-    let message_reader = StringReader::new(context, message_ptr, message_len)?;
+    let message_reader = StringReader::new(&context, message_ptr, message_len)?;
 
     let pid = process.id();
     let tid = thread.id();

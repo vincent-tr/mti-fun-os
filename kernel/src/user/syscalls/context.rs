@@ -1,16 +1,16 @@
 use alloc::sync::{Arc, Weak};
 
-use crate::{interrupts::SyscallContext, user::thread::Thread};
+use crate::{interrupts::SyscallArgs, user::thread::Thread};
 
-/// Wrapper around interrupts::SyscallContext to provide easier access
+/// Syscall context
 #[derive(Debug)]
 pub struct Context {
-    inner: SyscallContext,
+    inner: SyscallArgs,
     owner: Weak<Thread>,
 }
 
 impl Context {
-    pub fn from(inner: SyscallContext, thread: &Arc<Thread>) -> Self {
+    pub fn from(inner: SyscallArgs, thread: &Arc<Thread>) -> Self {
         Self {
             inner,
             owner: Arc::downgrade(thread),

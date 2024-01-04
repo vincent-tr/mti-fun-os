@@ -1,6 +1,6 @@
 use core::mem;
 
-use crate::interrupts::SyscallContext;
+use crate::interrupts::SyscallArgs;
 use crate::memory::{drop_initial_kernel_stack, page_aligned_up, Permissions, PAGE_SIZE};
 use crate::user;
 use crate::user::process::{self, Process};
@@ -25,7 +25,7 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
-pub fn setup(_context: SyscallContext) {
+pub fn setup(_context: SyscallArgs) {
     // Unregister current syscall
     unregister_syscall(SyscallNumber::InitSetup);
 

@@ -90,7 +90,7 @@ unsafe extern "C" fn syscall_handler() {
     let stack = InterruptStack::current();
 
     let n = stack.scratch.rax;
-    let context = SyscallContext::from_stack(stack);
+    let context = SyscallArgs::from_stack(stack);
 
     execute_syscall(n, context);
 
@@ -98,36 +98,29 @@ unsafe extern "C" fn syscall_handler() {
 }
 
 /// Represent the context of a syscall
-pub struct SyscallContext {
+pub struct SyscallArgs {
     arg1: usize,
     arg2: usize,
     arg3: usize,
     arg4: usize,
     arg5: usize,
     arg6: usize,
-
-    ret: Option<usize>,
 }
 
-impl fmt::Debug for SyscallContext {
+impl fmt::Debug for SyscallArgs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut formatter = f.debug_struct("SyscallContext");
-        formatter
+        f.debug_struct("SyscallArgs")
             .field("arg1", &format_args!("{0:?} ({:#016x})", self.arg1))
             .field("arg2", &format_args!("{0:?} ({:#016x})", self.arg2))
             .field("arg3", &format_args!("{0:?} ({:#016x})", self.arg3))
             .field("arg4", &format_args!("{0:?} ({:#016x})", self.arg4))
             .field("arg5", &format_args!("{0:?} ({:#016x})", self.arg5))
-            .field("arg6", &format_args!("{0:?} ({:#016x})", self.arg6));
-        if let Some(ret) = self.ret {
-            formatter.field("ret", &format_args!("{0:?} ({:#016x})", ret));
-        }
-
-        formatter.finish()
+            .field("arg6", &format_args!("{0:?} ({:#016x})", self.arg6))
+            .finish()
     }
 }
 
-impl SyscallContext {
+impl SyscallArgs {
     fn from_stack(stack: &InterruptStack) -> Self {
         Self {
             arg1: stack.scratch.rdi,

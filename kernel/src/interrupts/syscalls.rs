@@ -129,7 +129,6 @@ impl SyscallArgs {
             arg4: stack.scratch.r10,
             arg5: stack.scratch.r8,
             arg6: stack.scratch.r9,
-            ret: None,
         }
     }
 

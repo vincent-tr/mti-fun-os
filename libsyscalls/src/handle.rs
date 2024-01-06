@@ -20,12 +20,12 @@ impl Handle {
     }
 
     /// Reserved for syscalls implementations
-    pub(crate) unsafe fn as_syscall_ptr(&mut self) -> usize {
+    pub unsafe fn as_syscall_ptr(&mut self) -> usize {
         ref_ptr(self)
     }
 
     /// Reserved for syscalls implementations
-    pub(crate) const unsafe fn as_syscall_value(&self) -> usize {
+    pub const unsafe fn as_syscall_value(&self) -> usize {
         self.0 as usize
     }
 

@@ -219,7 +219,7 @@ fn do_ipc(self_proc: &Handle) {
 }
 
 fn wait_one(port: &Handle) -> SyscallResult<()> {
-    let ports = &[port];
+    let ports = &[unsafe { port.as_syscall_value() }];
     let ready = &mut [0u8];
 
     ipc::wait(ports, ready)?;

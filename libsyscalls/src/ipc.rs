@@ -100,8 +100,10 @@ pub fn receive(port: &Handle) -> SyscallResult<Message> {
 
 /// Wait for a port to be ready to receive a message
 ///
-/// Note: `ready_buffer` must be at least `align_up(ports.len() / 8, 8)` size
-pub fn wait(ports: &[&Handle], ready_buffer: &mut [u8]) -> SyscallResult<()> {
+/// Notes:
+/// - `ready_buffer` must be at least `align_up(ports.len() / 8, 8)` size
+/// - ports is a sliace of results of `handle.as_syscall_value()`
+pub fn wait(ports: &[usize], ready_buffer: &mut [u8]) -> SyscallResult<()> {
     assert!(ports.len() <= ready_buffer.len() * 8);
     let size = ports.len();
 

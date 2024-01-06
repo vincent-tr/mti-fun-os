@@ -93,19 +93,9 @@ tail -f serial.log
 
 - TODO: when last thread of a process stops, close all its handles
 - iomem mapping -> strong uncacheable
-- IPC
 - Exceptions in userland
-
-kernel register message to port (port_handle, kernel_message_type)
-kernel unregister
-
-context switch: 
-- in syscall, the interrupted thread will go to sleep.
-  on wake up, we must set its syscall result before going back to userland
-  then the syscall wake up one thread, and we must not overwrite its state with syscall result
-
-
-TODO WaitQueue
+- kernel register message to port (port_handle, kernel_message_type)
+- kernel unregister
 
 pub enum KernelMessage {
     ProcessCreated(u64),
@@ -116,3 +106,9 @@ pub enum KernelMessage {
     MemoryObjectCreated(u64),
     MemoryObjectDeleted(u64),
 }
+
+- userland heap allocator
+- better object oriented syscalls lib
+- process creation:
+  - dynamic linking
+  - envp/argp

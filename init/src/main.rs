@@ -216,6 +216,7 @@ fn do_ipc(self_proc: &Handle) {
     let msg = libsyscalls::ipc::receive(&reader2).expect("receive failed");
 
     assert!(msg.data[0] == 42);
+    debug!("IPC ALL GOOD");
 }
 
 fn wait_one(port: &Handle) -> SyscallResult<()> {

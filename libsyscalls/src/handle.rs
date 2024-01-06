@@ -25,7 +25,7 @@ impl Handle {
     }
 
     /// Reserved for syscalls implementations
-    pub(crate) unsafe fn as_syscall_value(&self) -> usize {
+    pub(crate) const unsafe fn as_syscall_value(&self) -> usize {
         self.0 as usize
     }
 

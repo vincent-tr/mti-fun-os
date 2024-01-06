@@ -1,7 +1,8 @@
-use syscalls::{PortInfo, SyscallNumber};
+use syscalls::{Message, PortInfo, SyscallNumber};
 
 use super::{
-    syscalls::*, sysret_to_result, Handle, SyscallInStr, SyscallList, SyscallOutPtr, SyscallResult,
+    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInStr, SyscallList, SyscallOutPtr,
+    SyscallResult,
 };
 
 pub enum NameOrId<'a> {
@@ -63,6 +64,59 @@ pub fn create(name: &str) -> SyscallResult<(Handle, Handle)> {
     sysret_to_result(ret)?;
 
     Ok((new_receiver_handle, new_sender_handle))
+}
+
+/// Send a message to a port
+pub fn send(port: &Handle, msg: &Message) -> SyscallResult<()> {
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::PortSend,
+            port.as_syscall_value(),
+            ref_ptr(msg),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(())
+}
+
+/// Receive a message from a port
+pub fn receive(port: &Handle) -> SyscallResult<Message> {
+    let msg = SyscallOutPtr::new();
+
+    let ret = unsafe {
+        syscall2(
+            SyscallNumber::PortReceive,
+            port.as_syscall_value(),
+            msg.ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(msg.take())
+}
+
+/// Wait for a port to be ready to receive a message
+///
+/// Note: `ready_buffer` must be at least `align_up(ports.len() / 8, 8)` size
+pub fn wait(ports: &[&Handle], ready_buffer: &mut [u8]) -> SyscallResult<()> {
+    assert!(ports.len() <= ready_buffer.len() * 8);
+    let size = ports.len();
+
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::PortWait,
+            ports.as_ptr() as usize,
+            ready_buffer.as_ptr() as usize,
+            size,
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(())
 }
 
 /// Get info about the port (can use sender or receiver)

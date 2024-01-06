@@ -201,8 +201,8 @@ fn do_ipc(self_proc: &Handle) {
     .expect("Could not map idle task stack");
     let stack_top = stack_addr + PAGE_SIZE;
 
-    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, echo, stack_top)
-        .expect("Could create idle task");
+    libsyscalls::thread::create(&self_proc, ThreadPriority::Normal, echo, stack_top)
+        .expect("Could create echo task");
 
     let msg = libsyscalls::Message {
         data: [42; libsyscalls::Message::DATA_SIZE],

@@ -11,7 +11,7 @@ use syscalls::ThreadPriority;
 
 use self::{
     scheduler::SCHEDULER,
-    thread::{add_ticks, set_syscall_result, update_state, WaitQueueRef, WaitingData},
+    thread::{add_ticks, syscall_clear, update_state, WaitQueueRef, WaitingData},
     threads::THREADS,
 };
 pub use self::{
@@ -137,6 +137,7 @@ pub fn thread_terminate(thread: &Arc<Thread>) {
         context_switch(SCHEDULER.schedule());
     }
 
+    syscall_clear(thread);
     update_state(thread, ThreadState::Terminated);
 }
 
@@ -172,7 +173,7 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
         None => return false,
     };
 
-    let syscall_result = {
+    {
         let state = thread.state();
         let data = state.is_waiting().expect("thread not waiting");
 
@@ -186,10 +187,9 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
 
         // Resume it
         data.wakeup(wait_queue)
-    };
+    }
 
     // Set it ready
-    set_syscall_result(&thread, syscall_result);
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread);
 

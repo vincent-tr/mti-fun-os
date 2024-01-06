@@ -1,7 +1,18 @@
-use core::{future::Future, mem, task};
+use core::{
+    cell::RefCell,
+    fmt,
+    future::{pending, Future},
+    mem,
+    pin::Pin,
+    task,
+};
 
 use super::Context;
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{
+    boxed::Box,
+    sync::{Arc, Weak},
+    vec::Vec,
+};
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use log::trace;
@@ -9,17 +20,17 @@ use spin::RwLock;
 use syscalls::{Error, SUCCESS};
 
 use crate::{
-    interrupts::SyscallContext,
+    interrupts::SyscallArgs,
     user::{
         error::not_supported,
-        thread::{self, thread_terminate, WaitQueue},
+        thread::{self, thread_sleep, thread_terminate, Thread, WaitQueue},
     },
 };
 
 use super::SyscallNumber;
 
 /// Type of a raw syscall handler (init handler)
-pub trait SyscallRawHandler = Fn(SyscallContext) + 'static;
+pub trait SyscallRawHandler = Fn(SyscallArgs) + 'static;
 
 /// Type of a syscall handler
 pub trait SyscallHandler: (Fn(Context) -> Self::Future) + 'static {
@@ -73,7 +84,7 @@ lazy_static! {
 }
 
 /// Execute a system call
-pub fn execute_syscall(n: usize, context: SyscallContext) {
+pub fn execute_syscall(n: usize, context: SyscallArgs) {
     // If the number is not in struct we just won't get the key
     let syscall_number: SyscallNumber = unsafe { mem::transmute(n) };
 
@@ -88,7 +99,7 @@ pub fn execute_syscall(n: usize, context: SyscallContext) {
     if let Some(handler) = handler {
         handler(context);
     } else {
-        SyscallContext::set_current_result(not_supported() as usize);
+        SyscallArgs::set_current_result(not_supported() as usize);
     };
 }
 
@@ -104,21 +115,22 @@ pub fn register_syscall_raw<Handler: SyscallRawHandler>(
 
 /// Register a new syscall handler
 pub fn register_syscall<Handler: SyscallHandler>(syscall_number: SyscallNumber, handler: Handler) {
-    register_syscall_raw(syscall_number, move |inner: SyscallContext| {
-        let context = Context::from(inner, &thread::current_thread());
-        let mut future = Box::pin(handler(context));
+    register_syscall_raw(syscall_number, move |inner: SyscallArgs| {
+        let thread = thread::current_thread();
+        let context = Context::from(inner, &thread);
+        let future = handler(context);
 
-        let waker = task::Waker::noop();
-        let mut ctx = task::Context::from_waker(&waker);
+        let executor = SyscallExecutor::new(thread.clone(), future);
+        thread.syscall_enter(executor.clone());
 
-        match future.as_mut().poll(&mut ctx) {
+        match executor.run_once() {
             task::Poll::Ready(result) => {
                 // Syscall completed synchronously
                 trace!("Syscall ret={result:?}");
-                SyscallContext::set_current_result(prepare_result(result));
+                thread.syscall_exit(prepare_result(result));
             }
             task::Poll::Pending => {
-                todo!();
+                // Thread is either terminated or waiting, nothing to do
             }
         }
     });
@@ -140,10 +152,187 @@ pub fn prepare_result(result: Result<(), Error>) -> usize {
     }
 }
 
+pub struct SyscallExecutor {
+    thread: Weak<Thread>,
+    future: RefCell<Pin<Box<dyn Future<Output = Result<(), Error>>>>>,
+}
+
+impl fmt::Debug for SyscallExecutor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SyscallExecutor")
+            .field("thread", &self.thread)
+            .field("future", &"<future>")
+            .finish()
+    }
+}
+
+unsafe impl Sync for SyscallExecutor {}
+unsafe impl Send for SyscallExecutor {}
+
+impl SyscallExecutor {
+    pub fn new<TFuture: Future<Output = Result<(), Error>> + 'static>(
+        thread: Arc<Thread>,
+        future: TFuture,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            thread: Arc::downgrade(&thread),
+            future: RefCell::new(Box::pin(future)),
+        })
+    }
+
+    pub fn run_once(self: &Arc<Self>) -> task::Poll<Result<(), Error>> {
+        let waker = task::Waker::noop();
+        let mut ctx = task::Context::from_waker(&waker);
+        let mut borrowed = self.future.borrow_mut();
+        let future = borrowed.as_mut();
+
+        match future.poll(&mut ctx) {
+            task::Poll::Ready(result) => task::Poll::Ready(result),
+            task::Poll::Pending => {
+                let thread = self
+                    .thread
+                    .upgrade()
+                    .expect("Thread dropped while executing syscall");
+                let state = thread.state();
+
+                // Check the thread state. It can be Waiting (real async handling) or Terminated
+                match *state {
+                    thread::ThreadState::Terminated => {
+                        // Thread terminated, we can drop the (never) future, nothing to do.
+                    }
+                    thread::ThreadState::Waiting(_) => {
+                        // Thread in waiting state. the wake will poll it again, nothing to do right now.
+                    }
+                    _ => panic!("unexpected thread state {:?}", *state),
+                };
+
+                task::Poll::Pending
+            }
+        }
+    }
+}
+
 /// Async API: make the thread sleep until one wait queue wake it up.
-pub fn sleep(wait_queues: &[Arc<WaitQueue>]) -> impl Future<Output = Arc<WaitQueue>> {}
+pub fn sleep(
+    context: &Context,
+    wait_queues: Vec<Arc<WaitQueue>>,
+) -> impl Future<Output = Arc<WaitQueue>> {
+    SleepFuture::new(context, wait_queues)
+}
+
+struct SleepFuture {
+    thread: Weak<Thread>,
+    state: SleepFutureState,
+}
+
+enum SleepFutureState {
+    Created(Vec<Arc<WaitQueue>>),
+    Sleeping(Arc<WaitResult>),
+    Terminated,
+}
+
+impl SleepFuture {
+    pub fn new(context: &Context, wait_queues: Vec<Arc<WaitQueue>>) -> Self {
+        Self {
+            thread: Arc::downgrade(&context.owner()),
+            state: SleepFutureState::Created(wait_queues),
+        }
+    }
+}
+
+impl Future for SleepFuture {
+    type Output = Arc<WaitQueue>;
+
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
+        let mut self_future = self.as_mut();
+        let thread = self_future
+            .thread
+            .upgrade()
+            .expect("Thread dropped while sleeping");
+
+        match &self_future.state {
+            SleepFutureState::Created(wait_queues) => {
+                // First step: sleep
+                let wait_result = WaitResult::new();
+                let wait_context = WaitCtx::new(self_future.thread.clone(), wait_result.clone());
+                thread_sleep(&thread, wait_context, &wait_queues);
+
+                self_future.state = SleepFutureState::Sleeping(wait_result);
+
+                task::Poll::Pending
+            }
+            SleepFutureState::Sleeping(wait_result) => {
+                let result = wait_result.take();
+
+                self_future.state = SleepFutureState::Terminated;
+
+                task::Poll::Ready(result)
+            }
+            SleepFutureState::Terminated => {
+                panic!("Task terminated");
+            }
+        }
+    }
+}
+
+/// Pointer on sleep result shared between context and future
+#[derive(Debug)]
+struct WaitResult(RefCell<Option<Arc<WaitQueue>>>);
+
+impl WaitResult {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self(RefCell::new(None)))
+    }
+
+    pub fn set(&self, result: Arc<WaitQueue>) {
+        let mut value = self.0.borrow_mut();
+        *value = Some(result);
+    }
+
+    pub fn take(&self) -> Arc<WaitQueue> {
+        let mut value = self.0.borrow_mut();
+        value.take().expect("no value")
+    }
+}
+
+#[derive(Debug)]
+struct WaitCtx {
+    thread: Weak<Thread>,
+    result: Arc<WaitResult>,
+}
+
+impl WaitCtx {
+    pub fn new(thread: Weak<Thread>, result: Arc<WaitResult>) -> Self {
+        Self { thread, result }
+    }
+}
+
+impl thread::WaitingContext for WaitCtx {
+    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>) {
+        self.result.set(wait_queue.clone());
+
+        let thread = self
+            .thread
+            .upgrade()
+            .expect("Thread dropped during syscall");
+        let executor = thread.syscall().expect("Missing thread executor");
+
+        match executor.run_once() {
+            task::Poll::Ready(result) => {
+                // Syscall terminated, set result
+                trace!("Syscall ret={result:?}");
+                thread.syscall_exit(prepare_result(result));
+            }
+            task::Poll::Pending => {
+                // Thread is either terminated or waiting, nothing to do
+            }
+        }
+    }
+}
 
 /// Async API: exit (never returns)
 pub fn exit(context: &Context) -> impl Future<Output = !> {
     thread_terminate(&context.owner());
+
+    return pending();
 }

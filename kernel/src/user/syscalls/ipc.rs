@@ -155,7 +155,7 @@ pub async fn wait(context: Context) -> Result<(), Error> {
         return Ok(());
     }
 
-    let woken_queue = super::sleep(&queues).await;
+    let woken_queue = super::sleep(&context, queues).await;
     let index = *queue_map
         .get(&(woken_queue.as_ref() as *const _))
         .expect("woken queue not found");

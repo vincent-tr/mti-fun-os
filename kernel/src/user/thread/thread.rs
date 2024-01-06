@@ -12,9 +12,10 @@ use syscalls::{Permissions, ThreadPriority};
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
-use crate::interrupts::{InterruptStack, USERLAND_RFLAGS};
+use crate::interrupts::{InterruptStack, SyscallArgs, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
 use crate::user::process::Process;
+use crate::user::syscalls::SyscallExecutor;
 
 use super::wait_queue::WaitQueue;
 
@@ -36,17 +37,17 @@ pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
     *state = new_state;
 }
 
-pub fn set_syscall_result(thread: &Arc<Thread>, syscall_result: usize) {
-    let mut context = thread.context.lock();
-    context.rax = syscall_result;
-}
-
 pub fn set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {
     thread.set_priority(priority);
 }
 
 pub fn add_ticks(thread: &Arc<Thread>, ticks: usize) {
     thread.add_ticks(ticks);
+}
+
+// Unconditionaly clear the current syscall executor if any
+pub fn syscall_clear(thread: &Arc<Thread>) {
+    thread.syscall_clear();
 }
 
 pub unsafe fn save(thread: &Arc<Thread>) {
@@ -67,6 +68,7 @@ pub struct Thread {
     priority: AtomicU64,
     state: RwLock<ThreadState>,
     context: Mutex<ThreadContext>,
+    syscall: Mutex<Option<Arc<SyscallExecutor>>>,
     ticks: AtomicUsize,
 }
 
@@ -84,6 +86,7 @@ impl Thread {
             priority: AtomicU64::new(priority as u64),
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
             context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
+            syscall: Mutex::new(None),
             ticks: AtomicUsize::new(0),
         });
 
@@ -132,6 +135,52 @@ impl Thread {
     /// Add CPU ticks
     fn add_ticks(&self, ticks: usize) {
         self.ticks.fetch_add(ticks, Ordering::Relaxed);
+    }
+
+    /// Enter syscall and add executor
+    pub fn syscall_enter(&self, syscall: Arc<SyscallExecutor>) {
+        let mut syscall_locked = self.syscall.lock();
+        assert!(syscall_locked.is_none());
+        *syscall_locked = Some(syscall);
+    }
+
+    /// Leave syscall and clear executor
+    pub fn syscall_exit(&self, result: usize) {
+        let mut syscall_locked = self.syscall.lock();
+        assert!(syscall_locked.is_some());
+        *syscall_locked = None;
+
+        let is_executing = {
+            let state = self.state();
+            match *state {
+                ThreadState::Executing => true,
+                ThreadState::Ready => false,
+                ThreadState::Waiting(_) | ThreadState::Error(_) | ThreadState::Terminated => {
+                    panic!("Bad thread state to exit syscall: {:?}", *state)
+                }
+            }
+        };
+
+        if is_executing {
+            // The context has not been saved, put it directly on the running interrupt stack
+            SyscallArgs::set_current_result(result);
+        } else {
+            // Put the result on the thread context
+            let mut context = self.context.lock();
+            context.rax = result;
+        }
+    }
+
+    // Unconditionaly clear the current syscall executor if any
+    fn syscall_clear(&self) {
+        let mut syscall_locked = self.syscall.lock();
+        *syscall_locked = None;
+    }
+
+    /// Get the current syscall executor
+    pub fn syscall(&self) -> Option<Arc<SyscallExecutor>> {
+        let syscall_locked = self.syscall.lock();
+        syscall_locked.clone()
     }
 }
 
@@ -189,7 +238,7 @@ impl WaitingData {
         &self.wait_queues
     }
 
-    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) -> usize {
+    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) {
         let context = self
             .context
             .borrow_mut()
@@ -206,9 +255,7 @@ pub trait WaitingContext: fmt::Debug {
     /// Called by the thread management when the thread will resume.
     ///
     /// `wait_queue` is the wait queue that has been triggered to wake up the thread
-    ///
-    /// The returned result will be used are the result of the syscall when returning to userland
-    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>) -> usize;
+    fn wakeup(self: Box<Self>, wait_queue: &Arc<WaitQueue>);
 }
 
 #[derive(Debug, Clone)]

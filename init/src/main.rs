@@ -8,7 +8,8 @@ mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
-use libsyscalls::{thread, Handle, Permissions, ThreadPriority};
+use bit_field::BitArray;
+use libsyscalls::{ipc, thread, Handle, Permissions, SyscallResult, ThreadPriority};
 use log::{debug, error, info};
 
 // Special init start: need to setup its own stack
@@ -64,6 +65,8 @@ extern "C" fn main() -> ! {
         .expect("Could create idle task");
 
     dump_processes_threads();
+
+    do_ipc(&self_proc);
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
@@ -171,3 +174,85 @@ fn div0() {
     let _ = 42 / 0;
 }
 */
+
+fn do_ipc(self_proc: &Handle) {
+    // create thread, send data and wait back
+
+    let (reader1, sender1) = libsyscalls::ipc::create("chan1").expect("failed to create ipc");
+    let (reader2, sender2) = libsyscalls::ipc::create("chan2").expect("failed to create ipc");
+
+    unsafe {
+        EXC.reader = reader1;
+        EXC.sender = sender2;
+    }
+
+    // small stack, does not do much
+    let idle_stack =
+        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create idle task stack");
+
+    let stack_addr = libsyscalls::process::mmap(
+        &self_proc,
+        None,
+        PAGE_SIZE,
+        Permissions::READ | Permissions::WRITE,
+        Some(&idle_stack),
+        0,
+    )
+    .expect("Could not map idle task stack");
+    let stack_top = stack_addr + PAGE_SIZE;
+
+    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, echo, stack_top)
+        .expect("Could create idle task");
+
+    let msg = libsyscalls::Message {
+        data: [42; libsyscalls::Message::DATA_SIZE],
+        handles: [unsafe { core::mem::transmute(Handle::invalid()) };
+            libsyscalls::Message::HANDLE_COUNT],
+    };
+
+    libsyscalls::ipc::send(&sender1, &msg).expect("send failed");
+
+    wait_one(&reader2).expect("wait failed");
+    let msg = libsyscalls::ipc::receive(&reader2).expect("receive failed");
+
+    assert!(msg.data[0] == 42);
+}
+
+fn wait_one(port: &Handle) -> SyscallResult<()> {
+    let ports = &[port];
+    let ready = &mut [0u8];
+
+    ipc::wait(ports, ready)?;
+
+    assert!(ready.get_bit(0));
+
+    Ok(())
+}
+
+struct Exchange {
+    reader: Handle,
+    sender: Handle,
+}
+
+static mut EXC: Exchange = Exchange {
+    reader: Handle::invalid(),
+    sender: Handle::invalid(),
+};
+
+fn echo() -> ! {
+    // take from EXC
+    let mut reader = Handle::invalid();
+    let mut sender = Handle::invalid();
+    unsafe {
+        core::mem::swap(&mut reader, &mut EXC.reader);
+        core::mem::swap(&mut sender, &mut EXC.sender);
+    }
+
+    wait_one(&reader).expect("wait failed");
+    let msg = libsyscalls::ipc::receive(&reader).expect("receive failed");
+
+    libsyscalls::ipc::send(&sender, &msg).expect("send failed");
+
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
+}

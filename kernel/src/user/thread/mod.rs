@@ -173,7 +173,7 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
         None => return false,
     };
 
-    {
+    let wait_context = {
         let state = thread.state();
         let data = state.is_waiting().expect("thread not waiting");
 
@@ -185,13 +185,15 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
             }
         }
 
-        // Resume it
-        data.wakeup(wait_queue)
-    }
+        data.take_context()
+    };
 
     // Set it ready
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread);
+
+    // Resume it
+    wait_context.wakeup(wait_queue);
 
     return true;
 }

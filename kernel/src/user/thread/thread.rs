@@ -238,13 +238,11 @@ impl WaitingData {
         &self.wait_queues
     }
 
-    pub fn wakeup(&self, wait_queue: &Arc<WaitQueue>) {
-        let context = self
-            .context
+    pub fn take_context(&self) -> Box<dyn WaitingContext> {
+        self.context
             .borrow_mut()
             .take()
-            .expect("Cannot wakeup twice");
-        context.wakeup(wait_queue)
+            .expect("Cannot wakeup twice")
     }
 }
 

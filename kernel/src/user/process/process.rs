@@ -1,4 +1,7 @@
-use core::ops::Range;
+use core::{
+    ops::Range,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use alloc::{string::String, sync::Arc};
 use log::debug;
@@ -38,6 +41,7 @@ pub struct Process {
     mappings: RwLock<Mappings>,
     threads: WeakMap<u64, Thread>,
     handles: Handles,
+    terminated: AtomicBool,
 }
 
 impl Process {
@@ -59,6 +63,7 @@ impl Process {
             mappings: RwLock::new(Mappings::new()),
             threads: WeakMap::new(),
             handles: Handles::new(),
+            terminated: AtomicBool::new(false),
         });
 
         debug!("Process {} created", process.id);
@@ -231,7 +236,27 @@ impl Process {
 
     /// Add a thread to the process
     pub fn add_thread(&self, thread: &Arc<Thread>) {
+        assert!(!self.terminated());
+
         self.threads.insert(thread.id(), thread);
+    }
+
+    /// Indicates to the process that a thread terminated
+    pub fn thread_terminated(&self) {
+        if let Some(_) = self
+            .threads
+            .lookup(|thread| !thread.state().is_terminated())
+        {
+            return;
+        }
+
+        // All threads of the process are terminated.
+        self.handles.clear();
+        self.terminated.store(true, Ordering::Relaxed);
+    }
+
+    pub fn terminated(&self) -> bool {
+        self.terminated.load(Ordering::Relaxed)
     }
 
     /// Get the handle manager of the process

@@ -61,6 +61,9 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let target_process = process.handles().get_process(process_handle.into())?;
     let priority: ThreadPriority = unsafe { mem::transmute(priority) };
 
+    // Forbid to thread threads on terminated processes
+    check_arg(!target_process.terminated())?;
+
     let new_thread = thread::create(
         target_process.clone(),
         priority,

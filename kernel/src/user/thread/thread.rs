@@ -33,8 +33,16 @@ pub fn new(
 }
 
 pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
-    let mut state = thread.state.write();
-    *state = new_state;
+    let is_terminated = new_state.is_terminated();
+
+    {
+        let mut state = thread.state.write();
+        *state = new_state;
+    }
+
+    if is_terminated {
+        thread.process.thread_terminated();
+    }
 }
 
 pub fn set_priority(thread: &Arc<Thread>, priority: ThreadPriority) {

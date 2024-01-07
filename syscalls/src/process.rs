@@ -10,6 +10,7 @@ pub struct ProcessInfo {
     pub thread_count: usize,
     pub mapping_count: usize,
     pub handle_count: usize,
+    pub terminated: bool,
 }
 
 impl ProcessInfo {
@@ -27,6 +28,7 @@ impl Debug for ProcessInfo {
             .field("thread_count", &self.thread_count)
             .field("mapping_count", &self.mapping_count)
             .field("handle_count", &self.handle_count)
+            .field("terminated", &self.terminated)
             .finish()
     }
 }

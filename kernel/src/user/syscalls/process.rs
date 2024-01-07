@@ -154,6 +154,7 @@ pub async fn info(context: Context) -> Result<(), Error> {
         thread_count: target_process.thread_count(),
         mapping_count: target_process.mapping_count(),
         handle_count: target_process.handles().len(),
+        terminated: target_process.terminated(),
     };
 
     let src_name = target_process.name().as_bytes();

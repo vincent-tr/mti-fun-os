@@ -69,6 +69,27 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
         map.len()
     }
 
+    /// Lookup (slowly) for a value in the map.
+    ///
+    /// Returns the first occurence that matchs the predicate, if any
+    pub fn lookup<Predicate: Fn(&Arc<Value>) -> bool>(
+        &self,
+        predicate: Predicate,
+    ) -> Option<Arc<Value>> {
+        self.clean_map();
+
+        let map = self.map.read();
+        for value in map.values() {
+            if let Some(value) = value.upgrade() {
+                if predicate(&value) {
+                    return Some(value);
+                }
+            }
+        }
+
+        None
+    }
+
     fn clean_map(&self) {
         let map = self.map.upgradeable_read();
 

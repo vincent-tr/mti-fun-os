@@ -299,4 +299,12 @@ impl Handles {
 
         Ok(self.open(new_handle_impl))
     }
+
+    /// Close all the handles in the container
+    pub fn clear(&self) {
+        let mut handles = self.handles.write();
+
+        /// Note: all 'handle_impl' will be dropped
+        handles.clear();
+    }
 }

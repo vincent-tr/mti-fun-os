@@ -91,7 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- TODO: when last thread of a process stops, close all its handles -> process is terminated, no threads can be created
 - iomem mapping -> strong uncacheable
 - Exceptions in userland
 - kernel register message to port (port_handle, kernel_message_type)

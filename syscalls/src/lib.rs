@@ -3,6 +3,7 @@
 mod error;
 mod handle;
 mod ipc;
+mod listener;
 mod permissions;
 mod process;
 mod thread;
@@ -10,6 +11,7 @@ mod thread;
 pub use error::{Error, SUCCESS};
 pub use handle::HandleType;
 pub use ipc::{Message, PortInfo};
+pub use listener::{ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType};
 pub use permissions::Permissions;
 pub use process::ProcessInfo;
 pub use thread::{ThreadInfo, ThreadPriority, ThreadState};
@@ -51,6 +53,9 @@ pub enum SyscallNumber {
     PortWait,
     PortInfo,
     PortList,
+
+    ListenerCreateProcess,
+    ListenerCreateThread,
 
     InitSetup,
 }

@@ -93,32 +93,13 @@ tail -f serial.log
 
 - iomem mapping -> strong uncacheable
 - Exceptions in userland
-- kernel register message to port (port_handle, kernel_message_type)
-- kernel unregister
-
-pub enum KernelMessage {
-    ProcessCreated(u64),
-    ProcessTerminated(u64),
-    ProcessDeleted(u64),
-    ThreadCreated(u64),
-    ThreadTerminated(u64),
-    ThreadError((u64, ThreadError)),
-    ThreadDeleted(u64),
-    MemoryObjectCreated(u64), ??
-    MemoryObjectDeleted(u64), ??
-}
-
-or
-
-- ProcessStateChanged -> Created/Terminated/Deleted
-- ThreadStateChanged -> Created/Error/Resume?/Terminated/Deleted
-
-missing syscalls :
-- get thread error info
-- get thread context
-- change thread context
-- resume thread in error
-
+- Missing syscalls :
+  - kernel register message to port (port_handle, kernel_message_type)
+  - kernel unregister
+  - get thread error info
+  - get thread context
+  - change thread context
+  - resume thread in error
 - userland heap allocator
 - better object oriented syscalls lib
 - process creation:

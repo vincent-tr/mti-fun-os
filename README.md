@@ -114,6 +114,12 @@ or
 - ProcessStateChanged -> Created/Terminated/Deleted
 - ThreadStateChanged -> Created/Error/Resume?/Terminated/Deleted
 
+missing syscalls :
+- get thread error info
+- get thread context
+- change thread context
+- resume thread in error
+
 - userland heap allocator
 - better object oriented syscalls lib
 - process creation:

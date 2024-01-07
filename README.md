@@ -91,7 +91,7 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- TODO: when last thread of a process stops, close all its handles
+- TODO: when last thread of a process stops, close all its handles -> process is terminated, no threads can be created
 - iomem mapping -> strong uncacheable
 - Exceptions in userland
 - kernel register message to port (port_handle, kernel_message_type)
@@ -99,13 +99,20 @@ tail -f serial.log
 
 pub enum KernelMessage {
     ProcessCreated(u64),
-    ProcesssDeleted(u64),
+    ProcessTerminated(u64),
+    ProcessDeleted(u64),
     ThreadCreated(u64),
     ThreadTerminated(u64),
     ThreadError((u64, ThreadError)),
-    MemoryObjectCreated(u64),
-    MemoryObjectDeleted(u64),
+    ThreadDeleted(u64),
+    MemoryObjectCreated(u64), ??
+    MemoryObjectDeleted(u64), ??
 }
+
+or
+
+- ProcessStateChanged -> Created/Terminated/Deleted
+- ThreadStateChanged -> Created/Error/Resume?/Terminated/Deleted
 
 - userland heap allocator
 - better object oriented syscalls lib

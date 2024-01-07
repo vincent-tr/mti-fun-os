@@ -14,6 +14,7 @@ use x86_64::registers::rflags::RFlags;
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
 use crate::interrupts::{InterruptStack, SyscallArgs, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
+use crate::user::listener;
 use crate::user::process::Process;
 use crate::user::syscalls::SyscallExecutor;
 
@@ -195,6 +196,7 @@ impl Thread {
 impl Drop for Thread {
     fn drop(&mut self) {
         debug!("Thread {} deleted (pid={})", self.id, self.process.id());
+        listener::notify_thread(self.id, listener::ThreadEventType::Deleted);
     }
 }
 

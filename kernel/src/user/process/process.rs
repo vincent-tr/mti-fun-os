@@ -9,7 +9,9 @@ use spin::RwLock;
 
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
-    user::{error::check_any_permissions, handle::Handles, thread::Thread, weak_map::WeakMap},
+    user::{
+        error::check_any_permissions, handle::Handles, listener, thread::Thread, weak_map::WeakMap,
+    },
 };
 
 use super::{
@@ -253,6 +255,7 @@ impl Process {
         // All threads of the process are terminated.
         self.handles.clear();
         self.terminated.store(true, Ordering::Relaxed);
+        listener::notify_process(self.id, listener::ProcessEventType::Terminated);
     }
 
     pub fn terminated(&self) -> bool {
@@ -280,5 +283,6 @@ impl Process {
 impl Drop for Process {
     fn drop(&mut self) {
         debug!("Process {} deleted", self.id);
+        listener::notify_process(self.id, listener::ProcessEventType::Deleted);
     }
 }

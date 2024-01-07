@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use alloc::sync::Arc;
 use syscalls::ThreadPriority;
 
+use crate::user::listener;
 use crate::user::{id_gen::IdGen, process::Process, weak_map::WeakMap};
 
 use crate::memory::VirtAddr;
@@ -42,6 +43,8 @@ impl Threads {
         self.threads.insert(id, &thread);
 
         process.add_thread(&thread);
+
+        listener::notify_thread(thread.id(), listener::ThreadEventType::Created);
 
         thread
     }

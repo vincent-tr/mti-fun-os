@@ -20,7 +20,7 @@ pub use self::{
 };
 
 use super::process::Process;
-use crate::memory::VirtAddr;
+use crate::{memory::VirtAddr, user::listener};
 
 pub fn create(
     process: Arc<Process>,
@@ -139,6 +139,7 @@ pub fn thread_terminate(thread: &Arc<Thread>) {
 
     syscall_clear(thread);
     update_state(thread, ThreadState::Terminated);
+    listener::notify_thread(thread.id(), listener::ThreadEventType::Terminated);
 }
 
 /// End of time slice: mark the current thread as ready, and schedule the next one
@@ -154,14 +155,24 @@ pub fn thread_next() {
 
 /// Mark the given thread as errored
 pub fn thread_error(thread: &Arc<Thread>, error: ThreadError) {
-    assert!(!thread.state().is_terminated());
-    assert!(!thread.state().is_error().is_some());
+    // Only an executing thread can raise an error
+    assert!(!thread.state().is_executing());
 
-    if thread.state().is_executing() {
-        context_switch(SCHEDULER.schedule());
-    }
+    context_switch(SCHEDULER.schedule());
 
     update_state(thread, ThreadState::Error(error));
+    listener::notify_thread(thread.id(), listener::ThreadEventType::Error);
+}
+
+/// Resume the given errored thread
+pub fn thread_resume(thread: &Arc<Thread>) {
+    assert!(!thread.state().is_error().is_some());
+
+    // Set it ready
+    update_state(&thread, ThreadState::Ready);
+    SCHEDULER.add(thread.clone());
+
+    listener::notify_thread(thread.id(), listener::ThreadEventType::Resumed);
 }
 
 /// Wait up one thread from the wait queue

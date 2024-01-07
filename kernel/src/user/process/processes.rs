@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 
 use alloc::{sync::Arc, vec::Vec};
 
-use crate::user::{id_gen::IdGen, process::process, weak_map::WeakMap, Error};
+use crate::user::{id_gen::IdGen, listener, process::process, weak_map::WeakMap, Error};
 
 use super::Process;
 
@@ -30,6 +30,8 @@ impl Processes {
         let process = process::new(id, name)?;
 
         self.processes.insert(id, &process);
+
+        listener::notify_process(process.id(), listener::ProcessEventType::Created);
 
         Ok(process)
     }

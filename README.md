@@ -94,8 +94,6 @@ tail -f serial.log
 - iomem mapping -> strong uncacheable
 - Exceptions in userland
 - Missing syscalls :
-  - kernel register message to port (port_handle, kernel_message_type)
-  - kernel unregister
   - get thread error info
   - get thread context
   - change thread context

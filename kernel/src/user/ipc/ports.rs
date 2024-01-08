@@ -38,22 +38,24 @@ impl Ports {
         &self,
         name: Option<&str>,
     ) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
-        if let Some(name) = name {
-            check_arg(name.len() > 0)?;
+        let name_str = name.map(String::from);
+
+        if let Some(name_str) = &name_str {
+            check_arg(name_str.len() > 0)?;
+
+            // Forbid name duplicates here
+            if self.names_map.has(&name_str) {
+                return Err(duplicate_name());
+            }
         }
 
         let id = self.id_gen.generate();
         let port = port::new(id, name);
         let (receiver, sender) = access(port);
 
-        if let Some(name) = name {
-            // Forbid name duplicates here
-            let name = String::from(name);
-            if self.names_map.has(&name) {
-                return Err(duplicate_name());
-            }
-
-            self.names_map.insert(name, &sender);
+        if let Some(name_str) = name_str {
+            // TODO: thread safety
+            self.names_map.insert(name_str, &sender);
         }
 
         self.ports.insert(id, &sender);

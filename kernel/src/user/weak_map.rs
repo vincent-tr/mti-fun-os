@@ -4,7 +4,7 @@ use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
 };
-use core::hash::Hash;
+use core::{fmt::Debug, hash::Hash};
 use spin::RwLock;
 
 #[derive(Debug)]
@@ -12,7 +12,7 @@ pub struct WeakMap<Key: Eq + Hash + Clone, Value> {
     map: RwLock<HashMap<Key, Weak<Value>>>,
 }
 
-impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
+impl<Key: Eq + Hash + Clone + Debug, Value> WeakMap<Key, Value> {
     pub fn new() -> Self {
         Self {
             map: RwLock::new(HashMap::new()),
@@ -23,8 +23,8 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
     pub fn insert(&self, id: Key, value: &Arc<Value>) {
         let mut map = self.map.write();
         assert!(
-            map.insert(id, Arc::downgrade(&value)).is_none(),
-            "unexpected map overwrite"
+            map.insert(id.clone(), Arc::downgrade(&value)).is_none(),
+            "unexpected map overwrite: {id:?}"
         );
     }
 
@@ -33,7 +33,7 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
         let mut map = self.map.write();
         assert!(
             map.remove(&id).is_some(),
-            "unexpected map remove with no value"
+            "unexpected map remove with no value: {id:?}"
         );
     }
 

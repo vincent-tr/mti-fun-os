@@ -1,4 +1,6 @@
 /// Process event
+#[repr(C)]
+#[derive(Debug)]
 pub struct ProcessEvent {
     /// PID of the process this event occurs on
     pub pid: u64,
@@ -22,6 +24,8 @@ pub enum ProcessEventType {
 }
 
 /// Process event
+#[repr(C)]
+#[derive(Debug)]
 pub struct ThreadEvent {
     /// TID of the thread this event occurs on
     pub tid: u64,

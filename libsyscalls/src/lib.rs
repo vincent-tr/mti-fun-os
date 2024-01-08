@@ -19,8 +19,8 @@ pub use logging::*;
 
 use ::syscalls::SUCCESS;
 pub use ::syscalls::{
-    Error, HandleType, Message, Permissions, PortInfo, ProcessInfo, ThreadInfo, ThreadPriority,
-    ThreadState,
+    Error, HandleType, Message, Permissions, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo,
+    ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority, ThreadState,
 };
 
 pub type SyscallResult<T> = Result<T, Error>;

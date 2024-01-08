@@ -2,6 +2,7 @@
 
 mod handle;
 pub mod ipc;
+pub mod listener;
 mod logging;
 pub mod memory_object;
 pub mod process;
@@ -29,6 +30,14 @@ pub type SyscallResult<T> = Result<T, Error>;
 /// Borrowing rules unchecked. Do right before syscalls only.
 unsafe fn ref_ptr<T>(value: &T) -> usize {
     let ptr: *const T = value;
+    ptr as usize
+}
+
+/// # Safety
+///
+/// Borrowing rules unchecked. Do right before syscalls only.
+unsafe fn slice_ptr<T>(value: &[T]) -> usize {
+    let ptr = value.as_ptr();
     ptr as usize
 }
 

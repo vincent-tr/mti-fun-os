@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 
-pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
+pub const FATAL_FAULT_IST_INDEX: u16 = 0;
 pub const INTERRUPT_IST_INDEX: u16 = 1;
 
 pub const KERNEL_CODE_SELECTOR_INDEX: u16 = 1;
@@ -17,15 +17,15 @@ pub const USER_DATA_SELECTOR: SegmentSelector =
 pub const USER_CODE_SELECTOR: SegmentSelector =
     SegmentSelector::new(USER_CODE_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
 
-static mut DOUBLE_FAULT_STACK: KernelStack = KernelStack::new();
+static mut FATAL_FAULT_STACK: KernelStack = KernelStack::new();
 
 lazy_static! {
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
 
-        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
+        tss.interrupt_stack_table[FATAL_FAULT_IST_INDEX as usize] = {
             // Special stack for double fault, so that we cannot stack overflow to print to correct info
-            unsafe { DOUBLE_FAULT_STACK.stack_top() }
+            unsafe { FATAL_FAULT_STACK.stack_top() }
         };
 
         tss.interrupt_stack_table[INTERRUPT_IST_INDEX as usize] = {

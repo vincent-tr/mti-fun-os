@@ -144,7 +144,18 @@ lazy_static! {
                 .set_handler_addr(native_error_handler!(exceptions::security_exception_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
-        }
+
+
+            idt[Irq::LocalApicTimer as usize]
+                .set_handler_addr(native_handler!(irqs::lapic_timer_interrupt_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+
+            idt[Irq::LocalApicError as usize]
+                .set_handler_addr(native_handler!(irqs::lapic_error_interrupt_handler))
+                .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+            }
 
         idt
     };

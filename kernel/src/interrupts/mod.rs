@@ -35,48 +35,48 @@ lazy_static! {
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.machine_check
-                .set_handler_addr(native_error_handler!(exceptions::machine_check_handler))
+                .set_handler_addr(native_handler!(exceptions::machine_check_handler))
                 .set_stack_index(gdt::FATAL_FAULT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             // Others
             idt.divide_error
-                .set_handler_addr(native_error_handler!(exceptions::divide_error_handler))
+                .set_handler_addr(native_handler!(exceptions::divide_error_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.debug
-                .set_handler_addr(native_error_handler!(exceptions::debug_handler))
+                .set_handler_addr(native_handler!(exceptions::debug_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.non_maskable_interrupt
-                .set_handler_addr(native_error_handler!(exceptions::non_maskable_interrupt_handler))
+                .set_handler_addr(native_handler!(exceptions::non_maskable_interrupt_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.breakpoint
-                .set_handler_addr(native_error_handler!(exceptions::breakpoint_handler))
+                .set_handler_addr(native_handler!(exceptions::breakpoint_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.overflow
-                .set_handler_addr(native_error_handler!(exceptions::overflow_handler))
+                .set_handler_addr(native_handler!(exceptions::overflow_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.bound_range_exceeded
-                .set_handler_addr(native_error_handler!(exceptions::bound_range_exceeded_handler))
+                .set_handler_addr(native_handler!(exceptions::bound_range_exceeded_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.invalid_opcode
-                .set_handler_addr(native_error_handler!(exceptions::invalid_opcode_handler))
+                .set_handler_addr(native_handler!(exceptions::invalid_opcode_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.device_not_available
-                .set_handler_addr(native_error_handler!(exceptions::device_not_available_handler))
+                .set_handler_addr(native_handler!(exceptions::device_not_available_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
@@ -106,7 +106,7 @@ lazy_static! {
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.x87_floating_point
-                .set_handler_addr(native_error_handler!(exceptions::x87_floating_point_handler))
+                .set_handler_addr(native_handler!(exceptions::x87_floating_point_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
@@ -116,12 +116,12 @@ lazy_static! {
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.simd_floating_point
-                .set_handler_addr(native_error_handler!(exceptions::simd_floating_point_handler))
+                .set_handler_addr(native_handler!(exceptions::simd_floating_point_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.virtualization
-                .set_handler_addr(native_error_handler!(exceptions::virtualization_handler))
+                .set_handler_addr(native_handler!(exceptions::virtualization_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
@@ -131,7 +131,7 @@ lazy_static! {
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
             idt.hv_injection_exception
-                .set_handler_addr(native_error_handler!(exceptions::hv_injection_exception_handler))
+                .set_handler_addr(native_handler!(exceptions::hv_injection_exception_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 

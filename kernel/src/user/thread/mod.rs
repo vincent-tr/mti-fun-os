@@ -15,12 +15,12 @@ use self::{
     threads::THREADS,
 };
 pub use self::{
-    thread::{Thread, ThreadError, ThreadState, WaitingContext},
+    thread::{Thread, ThreadState, WaitingContext},
     wait_queue::WaitQueue,
 };
 
 use super::process::Process;
-use crate::{memory::VirtAddr, user::listener};
+use crate::{interrupts::Exception, memory::VirtAddr, user::listener};
 
 pub fn create(
     process: Arc<Process>,
@@ -153,14 +153,13 @@ pub fn thread_next() {
     context_switch(SCHEDULER.schedule());
 }
 
-/// Mark the given thread as errored
-pub fn thread_error(thread: &Arc<Thread>, error: ThreadError) {
-    // Only an executing thread can raise an error
-    assert!(!thread.state().is_executing());
+/// Triggered from exception handler: mark the current thread as errored
+pub fn thread_error(error: Exception) {
+    let thread = current_thread();
 
     context_switch(SCHEDULER.schedule());
 
-    update_state(thread, ThreadState::Error(error));
+    update_state(&thread, ThreadState::Error(error));
     listener::notify_thread(thread.id(), listener::ThreadEventType::Error);
 }
 

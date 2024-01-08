@@ -8,11 +8,11 @@ use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
-use syscalls::{Permissions, ThreadPriority};
+use syscalls::ThreadPriority;
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
-use crate::interrupts::{InterruptStack, SyscallArgs, USERLAND_RFLAGS};
+use crate::interrupts::{Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS};
 use crate::memory::VirtAddr;
 use crate::user::listener;
 use crate::user::process::Process;
@@ -219,7 +219,7 @@ pub enum ThreadState {
     /// This thread got an error (eg: page fault).
     ///
     /// It can be resumed after the error has been solved.
-    Error(ThreadError),
+    Error(Exception),
 
     /// This thread has been terminated
     Terminated,
@@ -311,12 +311,6 @@ impl From<Weak<WaitQueue>> for WaitQueueRef {
     }
 }
 
-/// Error occured on a thread
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ThreadError {
-    PageFault((VirtAddr, Permissions)),
-}
-
 impl ThreadState {
     pub fn is_executing(&self) -> bool {
         if let ThreadState::Executing = self {
@@ -342,7 +336,7 @@ impl ThreadState {
         }
     }
 
-    pub fn is_error(&self) -> Option<ThreadError> {
+    pub fn is_error(&self) -> Option<Exception> {
         if let ThreadState::Error(error) = self {
             Some(*error)
         } else {

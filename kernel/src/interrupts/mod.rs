@@ -14,6 +14,7 @@ use x86_64::{registers::rflags::RFlags, structures::idt::InterruptDescriptorTabl
 use self::handler::init_process_control_region;
 
 pub const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
+pub use self::exceptions::Exception;
 pub use self::handler::InterruptStack;
 pub use self::irqs::Irq;
 pub use self::syscalls::SyscallArgs;

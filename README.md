@@ -91,7 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- Exceptions in userland
 - Missing syscalls :
   - get thread error info
   - get thread context

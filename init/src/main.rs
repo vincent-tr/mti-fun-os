@@ -70,6 +70,9 @@ extern "C" fn main() -> ! {
 
     do_ipc(&self_proc);
 
+    create_thread(&self_proc, debugbreak);
+    create_thread(&self_proc, page_fault);
+
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
 }
@@ -155,27 +158,26 @@ fn halt() -> ! {
     loop {}
 }
 
-/*
-#[inline]
-fn debugbreak() {
+fn debugbreak() -> ! {
     unsafe {
         asm!("int3", options(nomem, nostack));
     }
+
+    debug!("debugbreak: resumed");
+
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
 }
 
-#[inline]
-fn page_fault() {
+fn page_fault() -> ! {
     let ptr = 0x42 as *mut u8;
     unsafe { *ptr = 42 };
-}
 
-#[allow(unconditional_panic)]
-#[inline]
-fn div0() {
-    // div / 0
-    let _ = 42 / 0;
+    debug!("page_fault: resumed");
+
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
 }
-*/
 
 fn do_ipc(self_proc: &Handle) {
     // create thread, send data and wait back
@@ -188,23 +190,7 @@ fn do_ipc(self_proc: &Handle) {
         EXC.sender = sender2;
     }
 
-    // small stack, does not do much
-    let thread_stack =
-        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
-
-    let stack_addr = libsyscalls::process::mmap(
-        &self_proc,
-        None,
-        PAGE_SIZE,
-        Permissions::READ | Permissions::WRITE,
-        Some(&thread_stack),
-        0,
-    )
-    .expect("Could not map thread task stack");
-    let stack_top = stack_addr + PAGE_SIZE;
-
-    libsyscalls::thread::create(&self_proc, ThreadPriority::Normal, echo, stack_top)
-        .expect("Could create echo task");
+    create_thread(self_proc, echo);
 
     let msg = libsyscalls::Message {
         data: [42; libsyscalls::Message::DATA_SIZE],
@@ -219,17 +205,6 @@ fn do_ipc(self_proc: &Handle) {
 
     assert!(msg.data[0] == 42);
     debug!("IPC ALL GOOD");
-}
-
-fn wait_one(port: &Handle) -> SyscallResult<()> {
-    let ports = &[unsafe { port.as_syscall_value() }];
-    let ready = &mut [0u8];
-
-    ipc::wait(ports, ready)?;
-
-    assert!(ready.get_bit(0));
-
-    Ok(())
 }
 
 struct Exchange {
@@ -261,28 +236,7 @@ fn echo() -> ! {
 }
 
 fn listen_threads(self_proc: &Handle) {
-    // small stack, does not do much
-    let thread_stack =
-        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
-
-    let stack_addr = libsyscalls::process::mmap(
-        &self_proc,
-        None,
-        PAGE_SIZE,
-        Permissions::READ | Permissions::WRITE,
-        Some(&thread_stack),
-        0,
-    )
-    .expect("Could not map thread task stack");
-    let stack_top = stack_addr + PAGE_SIZE;
-
-    libsyscalls::thread::create(
-        &self_proc,
-        ThreadPriority::Normal,
-        do_listen_threads,
-        stack_top,
-    )
-    .expect("Could create do_listen_threads task");
+    create_thread(self_proc, do_listen_threads);
 }
 
 fn do_listen_threads() -> ! {
@@ -301,4 +255,37 @@ fn do_listen_threads() -> ! {
 
         debug!("Thread event: {:?}", event);
     }
+}
+
+// Helpers
+
+fn create_thread(self_proc: &Handle, entry_point: fn() -> !) -> Handle {
+    // small stack, does not do much
+    let thread_stack =
+        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
+
+    let stack_addr = libsyscalls::process::mmap(
+        &self_proc,
+        None,
+        PAGE_SIZE,
+        Permissions::READ | Permissions::WRITE,
+        Some(&thread_stack),
+        0,
+    )
+    .expect("Could not map thread task stack");
+    let stack_top = stack_addr + PAGE_SIZE;
+
+    libsyscalls::thread::create(&self_proc, ThreadPriority::Normal, entry_point, stack_top)
+        .expect("Could create echo task")
+}
+
+fn wait_one(port: &Handle) -> SyscallResult<()> {
+    let ports = &[unsafe { port.as_syscall_value() }];
+    let ready = &mut [0u8];
+
+    ipc::wait(ports, ready)?;
+
+    assert!(ready.get_bit(0));
+
+    Ok(())
 }

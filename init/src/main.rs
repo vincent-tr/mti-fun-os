@@ -66,6 +66,8 @@ extern "C" fn main() -> ! {
 
     dump_processes_threads();
 
+    listen_threads(&self_proc);
+
     do_ipc(&self_proc);
 
     thread::exit().expect("Could not exit thread");
@@ -187,18 +189,18 @@ fn do_ipc(self_proc: &Handle) {
     }
 
     // small stack, does not do much
-    let idle_stack =
-        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create idle task stack");
+    let thread_stack =
+        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
 
     let stack_addr = libsyscalls::process::mmap(
         &self_proc,
         None,
         PAGE_SIZE,
         Permissions::READ | Permissions::WRITE,
-        Some(&idle_stack),
+        Some(&thread_stack),
         0,
     )
-    .expect("Could not map idle task stack");
+    .expect("Could not map thread task stack");
     let stack_top = stack_addr + PAGE_SIZE;
 
     libsyscalls::thread::create(&self_proc, ThreadPriority::Normal, echo, stack_top)
@@ -256,4 +258,46 @@ fn echo() -> ! {
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
+}
+
+fn listen_threads(self_proc: &Handle) {
+    // small stack, does not do much
+    let thread_stack =
+        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
+
+    let stack_addr = libsyscalls::process::mmap(
+        &self_proc,
+        None,
+        PAGE_SIZE,
+        Permissions::READ | Permissions::WRITE,
+        Some(&thread_stack),
+        0,
+    )
+    .expect("Could not map thread task stack");
+    let stack_top = stack_addr + PAGE_SIZE;
+
+    libsyscalls::thread::create(
+        &self_proc,
+        ThreadPriority::Normal,
+        do_listen_threads,
+        stack_top,
+    )
+    .expect("Could create do_listen_threads task");
+}
+
+fn do_listen_threads() -> ! {
+    let (reader, sender) =
+        libsyscalls::ipc::create(Some("thread-listener")).expect("failed to create ipc");
+
+    libsyscalls::listener::create_thread(&sender, None).expect("failed to create thread listener");
+
+    loop {
+        wait_one(&reader).expect("wait failed");
+        let msg = libsyscalls::ipc::receive(&reader).expect("receive failed");
+
+        let ptr = msg.data.as_ptr() as *const libsyscalls::ThreadEvent;
+        let event = unsafe { &*ptr };
+
+        debug!("Thread event: {:?}", event);
+    }
 }

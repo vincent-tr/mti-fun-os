@@ -304,7 +304,7 @@ impl Handles {
     pub fn clear(&self) {
         let mut handles = self.handles.write();
 
-        /// Note: all 'handle_impl' will be dropped
+        // Note: all 'handle_impl' will be dropped
         handles.clear();
     }
 }

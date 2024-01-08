@@ -178,8 +178,8 @@ fn div0() {
 fn do_ipc(self_proc: &Handle) {
     // create thread, send data and wait back
 
-    let (reader1, sender1) = libsyscalls::ipc::create("chan1").expect("failed to create ipc");
-    let (reader2, sender2) = libsyscalls::ipc::create("chan2").expect("failed to create ipc");
+    let (reader1, sender1) = libsyscalls::ipc::create(Some("chan1")).expect("failed to create ipc");
+    let (reader2, sender2) = libsyscalls::ipc::create(Some("chan2")).expect("failed to create ipc");
 
     unsafe {
         EXC.reader = reader1;

@@ -46,10 +46,10 @@ pub fn open(name_or_id: NameOrId) -> SyscallResult<Handle> {
 }
 
 // return (receiver, sender)
-pub fn create(name: &str) -> SyscallResult<(Handle, Handle)> {
+pub fn create(name: Option<&str>) -> SyscallResult<(Handle, Handle)> {
     let mut new_receiver_handle = Handle::invalid();
     let mut new_sender_handle = Handle::invalid();
-    let name_reader = SyscallInStr::new(name);
+    let name_reader = SyscallInStr::new(name.unwrap_or(""));
 
     let ret = unsafe {
         syscall4(

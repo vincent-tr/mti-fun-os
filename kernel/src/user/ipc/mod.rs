@@ -9,7 +9,7 @@ pub use self::port::Port;
 pub use self::port_access::{PortReceiver, PortSender};
 use self::ports::PORTS;
 
-pub fn create(name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
+pub fn create(name: Option<&str>) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
     PORTS.create(name)
 }
 

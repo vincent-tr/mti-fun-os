@@ -63,6 +63,8 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let name_reader = StringReader::new(&context, name_ptr, name_len)?;
     let name = name_reader.str()?;
 
+    let name = if name.len() > 0 { Some(name) } else { None };
+
     let (receiver, sender) = ipc::create(name)?;
 
     let receiver_handle = process.handles().open_port_receiver(receiver);
@@ -189,7 +191,7 @@ pub async fn info(context: Context) -> Result<(), Error> {
         waiting_receiver_count: target_port.waiting_receiver_count(),
     };
 
-    let src_name = target_port.name().as_bytes();
+    let src_name = target_port.name().unwrap_or("").as_bytes();
     let name_len = min(ProcessInfo::NAME_LEN, src_name.len());
     info.name[0..name_len].copy_from_slice(&src_name[0..name_len]);
 

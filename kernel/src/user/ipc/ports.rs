@@ -33,15 +33,20 @@ impl Ports {
 
     /// Create a new port
     ///
-    /// Note: port name must be unique
-    pub fn create(&self, name: &str) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
-        check_arg(name.len() > 0)?;
+    /// Note: if specified, port name must be unique
+    pub fn create(
+        &self,
+        name: Option<&str>,
+    ) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
+        if let Some(name) = name {
+            check_arg(name.len() > 0)?;
+        }
 
         let id = self.id_gen.generate();
         let port = port::new(id, name);
         let (receiver, sender) = access(port);
 
-        if name.len() > 0 {
+        if let Some(name) = name {
             // Forbid name duplicates here
             let name = String::from(name);
             if self.names_map.has(&name) {

@@ -12,7 +12,7 @@ use crate::user::{
 /// Standalone function, so that Port::new() can remain private
 ///
 /// Note: Only Port type is exported by port module, not this function
-pub fn new(id: u64, name: &str) -> Arc<Port> {
+pub fn new(id: u64, name: Option<&str>) -> Arc<Port> {
     Port::new(id, name)
 }
 
@@ -24,7 +24,7 @@ pub fn new(id: u64, name: &str) -> Arc<Port> {
 #[derive(Debug)]
 pub struct Port {
     id: u64,
-    name: String,
+    name: Option<String>,
     data: RwLock<Data>,
     receiver_queue: Arc<WaitQueue>,
 }
@@ -36,10 +36,10 @@ struct Data {
 }
 
 impl Port {
-    fn new(id: u64, name: &str) -> Arc<Self> {
+    fn new(id: u64, name: Option<&str>) -> Arc<Self> {
         Arc::new(Self {
             id,
-            name: String::from(name),
+            name: name.map(String::from),
             data: RwLock::new(Data {
                 message_queue: LinkedList::new(),
                 closed: false,
@@ -54,8 +54,8 @@ impl Port {
     }
 
     /// Get the port name
-    pub fn name<'a>(&'a self) -> &'a str {
-        &self.name
+    pub fn name<'a>(&'a self) -> Option<&'a str> {
+        self.name.as_ref().map(|x| x.as_str())
     }
 
     /// Send a message to the port

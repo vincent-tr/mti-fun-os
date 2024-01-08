@@ -25,8 +25,8 @@ impl PortReceiver {
     }
 
     /// Get the port name
-    pub fn name<'a>(&'a self) -> &'a str {
-        &self.port.name()
+    pub fn name<'a>(&'a self) -> Option<&'a str> {
+        self.port.name()
     }
 
     /// Receive a message from the port
@@ -71,8 +71,8 @@ impl PortSender {
     }
 
     /// Get the port name
-    pub fn name<'a>(&'a self) -> &'a str {
-        &self.port.name()
+    pub fn name<'a>(&'a self) -> Option<&'a str> {
+        self.port.name()
     }
 
     /// Send a message to the port

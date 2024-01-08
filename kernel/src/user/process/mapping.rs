@@ -4,8 +4,8 @@ use alloc::sync::{Arc, Weak};
 
 use crate::{
     memory::{
-        is_page_aligned, is_userspace, FrameRef, MapError, Permissions, UnmapError, VirtAddr,
-        PAGE_SIZE,
+        is_page_aligned, is_userspace, AdditionalFlags, FrameRef, MapError, Permissions,
+        UnmapError, VirtAddr, PAGE_SIZE,
     },
     user::{error::out_of_memory, Error, MemoryObject},
 };
@@ -42,7 +42,7 @@ impl Mapping {
             unsafe {
                 // If the map fails, size has been sert to the partially mapped part, so that the mapping is consistent.
                 // Leaving will drop the partial map properly.
-                mapping.map(perms)?;
+                mapping.map(perms, None)?;
             }
         }
 
@@ -71,7 +71,7 @@ impl Mapping {
         let process = self.process();
         let address_space = process.address_space().read();
 
-        let (_, perm) = unsafe { address_space.get_infos(self.range.start) };
+        let (_, perm, _) = unsafe { address_space.get_infos(self.range.start) };
 
         perm
     }
@@ -159,7 +159,11 @@ impl Mapping {
         return true;
     }
 
-    unsafe fn map(&mut self, perms: Permissions) -> Result<(), Error> {
+    unsafe fn map(
+        &mut self,
+        perms: Permissions,
+        additional_flags: Option<AdditionalFlags>,
+    ) -> Result<(), Error> {
         let mut phys_offset = self.offset;
 
         let process = self.process();
@@ -169,7 +173,7 @@ impl Mapping {
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             let mut frame = mobj.frame(phys_offset).clone();
 
-            match address_space.map(virt_addr, frame.frame(), perms) {
+            match address_space.map(virt_addr, frame.frame(), perms, additional_flags) {
                 Ok(_) => {
                     // Mark it as used
                     frame.borrow();

@@ -441,6 +441,7 @@ impl AddressSpace {
         addr: VirtAddr,
         phys_addr: PhysAddr,
         permissions: Permissions,
+        additional_flags: Option<AdditionalFlags>,
     ) -> Result<(), MapToError<Size4KiB>> {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
         assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
@@ -451,7 +452,7 @@ impl AddressSpace {
         let flusher = manager.map_to_with_table_flags(
             Page::<Size4KiB>::from_start_address_unchecked(addr),
             PhysFrame::from_start_address_unchecked(phys_addr),
-            create_flags(addr, permissions),
+            create_flags(addr, permissions, additional_flags),
             create_parent_flags(addr),
             &mut frame_allocator,
         )?;
@@ -466,6 +467,7 @@ impl AddressSpace {
         addr: VirtAddr,
         phys_addr: PhysAddr,
         permissions: Permissions,
+        additional_flags: Option<AdditionalFlags>,
     ) -> Result<FrameRef, UnmapError> {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
         assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
@@ -483,7 +485,7 @@ impl AddressSpace {
             .map_to_with_table_flags(
                 Page::<Size4KiB>::from_start_address_unchecked(addr),
                 PhysFrame::from_start_address_unchecked(phys_addr),
-                create_flags(addr, permissions),
+                create_flags(addr, permissions, additional_flags),
                 create_parent_flags(addr),
                 &mut frame_allocator,
             )
@@ -507,10 +509,12 @@ impl AddressSpace {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
 
         let mut manager = self.create_manager();
+        // Retrieve additional flags to keep them
+        let (_, _, additional_flags) = self.get_infos(addr);
 
         let flusher = manager.update_flags(
             Page::<Size4KiB>::from_start_address_unchecked(addr),
-            create_flags(addr, permissions),
+            create_flags(addr, permissions, Some(additional_flags)),
         )?;
 
         self.flush(addr, flusher);
@@ -534,7 +538,10 @@ impl AddressSpace {
         Ok(unmapped_frame.start_address())
     }
 
-    pub unsafe fn get_infos(&self, addr: VirtAddr) -> (Option<PhysAddr>, Permissions) {
+    pub unsafe fn get_infos(
+        &self,
+        addr: VirtAddr,
+    ) -> (Option<PhysAddr>, Permissions, AdditionalFlags) {
         assert!(addr.is_aligned(PAGE_SIZE as u64));
 
         let manager = self.create_manager();
@@ -546,6 +553,7 @@ impl AddressSpace {
                 flags,
             } => {
                 let mut perm = Permissions::READ;
+                let mut additional_flags = AdditionalFlags::new();
 
                 if flags.contains(PageTableFlags::WRITABLE) {
                     perm |= Permissions::WRITE;
@@ -555,10 +563,13 @@ impl AddressSpace {
                     perm |= Permissions::EXECUTE;
                 }
 
-                (Some(frame.start_address()), perm)
+                additional_flags.write_through(flags.contains(PageTableFlags::WRITE_THROUGH));
+                additional_flags.no_cache(flags.contains(PageTableFlags::NO_CACHE));
+
+                (Some(frame.start_address()), perm, additional_flags)
             }
 
-            TranslateResult::NotMapped => (None, Permissions::NONE),
+            TranslateResult::NotMapped => (None, Permissions::NONE, AdditionalFlags::new()),
 
             TranslateResult::InvalidFrameAddress(frame) => {
                 panic!("Invalid phys page {frame:?} mapped at {addr:?}");
@@ -606,8 +617,37 @@ fn is_user_address(addr: VirtAddr) -> bool {
     addr < KERNEL_START
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct AdditionalFlags {
+    pub write_through: Option<bool>,
+    pub no_cache: Option<bool>,
+}
+
+impl AdditionalFlags {
+    pub const fn new() -> Self {
+        Self {
+            write_through: None,
+            no_cache: None,
+        }
+    }
+
+    pub fn write_through(&mut self, value: bool) -> &mut Self {
+        self.write_through = Some(value);
+        self
+    }
+
+    pub fn no_cache(&mut self, value: bool) -> &mut Self {
+        self.no_cache = Some(value);
+        self
+    }
+}
+
 #[inline]
-fn create_flags(addr: VirtAddr, permissions: Permissions) -> PageTableFlags {
+fn create_flags(
+    addr: VirtAddr,
+    permissions: Permissions,
+    additional_flags: Option<AdditionalFlags>,
+) -> PageTableFlags {
     let mut flags = PageTableFlags::PRESENT;
 
     if is_user_address(addr) {
@@ -622,6 +662,16 @@ fn create_flags(addr: VirtAddr, permissions: Permissions) -> PageTableFlags {
 
     if !permissions.contains(Permissions::EXECUTE) {
         flags |= PageTableFlags::NO_EXECUTE;
+    }
+
+    if let Some(additional_flags) = additional_flags {
+        if let Some(true) = additional_flags.write_through {
+            flags |= PageTableFlags::WRITE_THROUGH;
+        }
+
+        if let Some(true) = additional_flags.no_cache {
+            flags |= PageTableFlags::NO_CACHE;
+        }
     }
 
     return flags;

@@ -10,7 +10,7 @@ use super::{
     paging::{self, Permissions},
     phys,
     slab::{self, SCAllocator},
-    FrameRef, KvmStats,
+    AdditionalFlags, FrameRef, KvmStats,
 };
 
 /*
@@ -179,7 +179,7 @@ impl<'a> Allocator<'a> {
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms) }
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms, None) }
             {
                 // Remove pages allocated so far
                 if page_index > 0 {
@@ -214,7 +214,7 @@ impl<'a> Allocator<'a> {
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms) }
+                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms, None) }
             {
                 // Remove pages allocated so far
                 if page_index > 0 {
@@ -249,9 +249,14 @@ impl<'a> Allocator<'a> {
             let page_addr = addr + page_index * PAGE_SIZE;
             let frame_addr = phys_addr + page_index * PAGE_SIZE;
 
-            if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame_addr, perms) }
-            {
+            // Strongly uncacheable
+            let mut iomem_flags = AdditionalFlags::new();
+            iomem_flags.write_through(true);
+            iomem_flags.no_cache(true);
+
+            if let Err(err) = unsafe {
+                paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame_addr, perms, Some(iomem_flags))
+            } {
                 // Remove pages allocated so far
                 if page_index > 0 {
                     self.unmap_iomem(addr, page_index);

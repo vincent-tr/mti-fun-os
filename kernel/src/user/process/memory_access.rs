@@ -41,7 +41,7 @@ impl MemoryAccess {
         let mut frames = Vec::new();
 
         for process_addr in process_range.step_by(PAGE_SIZE) {
-            let (phys_addr, actual_perms) = unsafe { address_space.get_infos(process_addr) };
+            let (phys_addr, actual_perms, _) = unsafe { address_space.get_infos(process_addr) };
             check_permissions(actual_perms, perms)?;
             let phys_addr = phys_addr.expect("Unexpected missing frame");
 

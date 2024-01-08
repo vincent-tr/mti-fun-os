@@ -1,4 +1,3 @@
-use log::debug;
 use x86_64::structures::idt::PageFaultErrorCode;
 
 use crate::{gdt, user::thread::thread_error};

@@ -4,6 +4,7 @@ mod handle;
 mod helpers;
 mod init;
 mod ipc;
+mod listener;
 mod logging;
 mod memory_object;
 mod process;
@@ -49,6 +50,12 @@ pub fn init() {
     register_syscall(SyscallNumber::PortWait, ipc::wait);
     register_syscall(SyscallNumber::PortInfo, ipc::info);
     register_syscall(SyscallNumber::PortList, ipc::list);
+
+    register_syscall(
+        SyscallNumber::ListenerCreateProcess,
+        listener::create_process,
+    );
+    register_syscall(SyscallNumber::ListenerCreateThread, listener::create_thread);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);
 }

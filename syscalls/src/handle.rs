@@ -8,4 +8,6 @@ pub enum HandleType {
     Thread,
     PortSender,
     PortReceiver,
+    ProcessListener,
+    ThreadListener,
 }

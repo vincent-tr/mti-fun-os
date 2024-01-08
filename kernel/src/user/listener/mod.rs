@@ -36,6 +36,9 @@ pub struct ProcessListener {
     port: Arc<PortSender>,
 }
 
+unsafe impl Sync for ProcessListener {}
+unsafe impl Send for ProcessListener {}
+
 impl ProcessListener {
     pub fn new(port: Arc<PortSender>, pids: Option<&[u64]>) -> Arc<Self> {
         let filter = if let Some(list) = pids {
@@ -82,6 +85,9 @@ pub struct ThreadListener {
     filter: Box<dyn IdFilter>,
     port: Arc<PortSender>,
 }
+
+unsafe impl Sync for ThreadListener {}
+unsafe impl Send for ThreadListener {}
 
 impl ThreadListener {
     pub fn new(port: Arc<PortSender>, tids: Option<&[u64]>) -> Arc<Self> {

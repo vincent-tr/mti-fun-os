@@ -9,6 +9,7 @@ use super::{
     error::{check_arg_opt, invalid_argument},
     id_gen::IdGen,
     ipc::{Port, PortReceiver, PortSender},
+    listener::{ProcessListener, ThreadListener},
     process::Process,
     thread::Thread,
     Error, MemoryObject,
@@ -57,6 +58,8 @@ pub enum KernelHandle {
     ThreadHandle(Arc<Thread>),
     PortReceiverHandle(Arc<PortReceiver>),
     PortSenderHandle(Arc<PortSender>),
+    ProcessListenerHandle(Arc<ProcessListener>),
+    ThreadListenerHandle(Arc<ThreadListener>),
 }
 
 impl KernelHandle {
@@ -67,6 +70,8 @@ impl KernelHandle {
             KernelHandle::ThreadHandle(_) => HandleType::Thread,
             KernelHandle::PortReceiverHandle(_) => HandleType::PortReceiver,
             KernelHandle::PortSenderHandle(_) => HandleType::PortSender,
+            KernelHandle::ProcessListenerHandle(_) => HandleType::ProcessListener,
+            KernelHandle::ThreadListenerHandle(_) => HandleType::ThreadListener,
         }
     }
 
@@ -103,6 +108,20 @@ impl KernelHandle {
             }
             KernelHandle::PortSenderHandle(self_obj) => {
                 if let KernelHandle::PortSenderHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            KernelHandle::ProcessListenerHandle(self_obj) => {
+                if let KernelHandle::ProcessListenerHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
+            KernelHandle::ThreadListenerHandle(self_obj) => {
+                if let KernelHandle::ThreadListenerHandle(other_obj) = other {
                     Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
@@ -157,6 +176,16 @@ impl Handles {
     /// Open the given port sender in the process
     pub fn open_port_sender(&self, port: Arc<PortSender>) -> Handle {
         self.open(KernelHandle::PortSenderHandle(port))
+    }
+
+    /// Open the given process listener in the process
+    pub fn open_process_listener(&self, listener: Arc<ProcessListener>) -> Handle {
+        self.open(KernelHandle::ProcessListenerHandle(listener))
+    }
+
+    /// Open the given thread listener in the process
+    pub fn open_thread_listener(&self, listener: Arc<ThreadListener>) -> Handle {
+        self.open(KernelHandle::ThreadListenerHandle(listener))
     }
 
     /// Open raw kernel handle
@@ -270,6 +299,32 @@ impl Handles {
             Ok(port_sender.port().clone())
         } else if let KernelHandle::PortReceiverHandle(port_receiver) = handle_impl {
             Ok(port_receiver.port().clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the process listener from the handle
+    pub fn get_process_listener(&self, handle: Handle) -> Result<Arc<ProcessListener>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::ProcessListenerHandle(process_listener) = handle_impl {
+            Ok(process_listener.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the thread listener from the handle
+    pub fn get_thread_listener(&self, handle: Handle) -> Result<Arc<ThreadListener>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::ThreadListenerHandle(thread_listener) = handle_impl {
+            Ok(thread_listener.clone())
         } else {
             Err(invalid_argument())
         }

@@ -1,4 +1,4 @@
-use x86_64::structures::idt::PageFaultErrorCode;
+use x86_64::structures::{gdt::SegmentSelector, idt::PageFaultErrorCode};
 
 use crate::{gdt, user::thread::thread_error};
 
@@ -193,5 +193,5 @@ pub fn security_exception_handler(stack: &mut InterruptStack) {
 }
 
 fn is_userland(stack: &mut InterruptStack) -> bool {
-    stack.iret.code_segment == gdt::USER_CODE_SELECTOR_INDEX as u64
+    SegmentSelector(stack.iret.code_segment as u16) == gdt::user_code_selector()
 }

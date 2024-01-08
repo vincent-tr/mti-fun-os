@@ -9,6 +9,8 @@ use crate::user::{
     thread::{self, WaitQueue},
 };
 
+use super::ports::remove_port;
+
 /// Standalone function, so that Port::new() can remain private
 ///
 /// Note: Only Port type is exported by port module, not this function
@@ -129,6 +131,12 @@ impl Port {
 
     pub fn waiting_receiver_count(&self) -> usize {
         self.receiver_queue.len()
+    }
+}
+
+impl Drop for Port {
+    fn drop(&mut self) {
+        remove_port(self);
     }
 }
 

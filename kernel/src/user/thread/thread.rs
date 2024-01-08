@@ -18,7 +18,7 @@ use crate::user::listener;
 use crate::user::process::Process;
 use crate::user::syscalls::SyscallExecutor;
 
-use super::wait_queue::WaitQueue;
+use super::{threads::remove_thread, wait_queue::WaitQueue};
 
 /// Standalone function, so that Thread::new() can remain private
 ///
@@ -195,6 +195,8 @@ impl Thread {
 
 impl Drop for Thread {
     fn drop(&mut self) {
+        remove_thread(self);
+
         debug!("Thread {} deleted (pid={})", self.id, self.process.id());
         listener::notify_thread(self.id, listener::ThreadEventType::Deleted);
     }

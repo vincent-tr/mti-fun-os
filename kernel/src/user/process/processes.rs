@@ -36,6 +36,11 @@ impl Processes {
         Ok(process)
     }
 
+    /// Process drop
+    fn remove(&self, process: &Process) {
+        self.processes.remove(process.id());
+    }
+
     /// Find a process by its pid
     pub fn find(&self, pid: u64) -> Option<Arc<Process>> {
         self.processes.find(&pid)
@@ -45,4 +50,9 @@ impl Processes {
     pub fn list(&self) -> Vec<u64> {
         self.processes.keys()
     }
+}
+
+/// Reserved for process drop
+pub fn remove_process(process: &Process) {
+    PROCESSES.remove(process)
 }

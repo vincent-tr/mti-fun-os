@@ -21,18 +21,23 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
 
     /// Insert item
     pub fn insert(&self, id: Key, value: &Arc<Value>) {
-        self.clean_map();
-
         let mut map = self.map.write();
         assert!(
             map.insert(id, Arc::downgrade(&value)).is_none(),
-            "unepxected map overwrite"
+            "unexpected map overwrite"
+        );
+    }
+
+    /// Remove item
+    pub fn remove(&self, id: Key) {
+        let mut map = self.map.write();
+        assert!(
+            map.remove(&id).is_some(),
+            "unexpected map remove with no value"
         );
     }
 
     pub fn has(&self, id: &Key) -> bool {
-        self.clean_map();
-
         let map = self.map.read();
 
         map.contains_key(id)
@@ -40,8 +45,6 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
 
     /// Find a an item by its id
     pub fn find(&self, id: &Key) -> Option<Arc<Value>> {
-        self.clean_map();
-
         let map = self.map.read();
         if let Some(weak) = map.get(id) {
             return weak.upgrade();
@@ -55,16 +58,12 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
     /// Note:
     /// The data is copied to avoid to keep the map locked
     pub fn keys(&self) -> Vec<Key> {
-        self.clean_map();
-
         let map = self.map.read();
         map.keys().map(|key| key.clone()).collect()
     }
 
     /// Get the number of items in the map
     pub fn len(&self) -> usize {
-        self.clean_map();
-
         let map = self.map.read();
         map.len()
     }
@@ -76,8 +75,6 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
         &self,
         predicate: Predicate,
     ) -> Option<Arc<Value>> {
-        self.clean_map();
-
         let map = self.map.read();
         for value in map.values() {
             if let Some(value) = value.upgrade() {
@@ -88,24 +85,5 @@ impl<Key: Eq + Hash + Clone, Value> WeakMap<Key, Value> {
         }
 
         None
-    }
-
-    fn clean_map(&self) {
-        let map = self.map.upgradeable_read();
-
-        let mut delete_list = Vec::new();
-
-        for (id, weak) in map.iter() {
-            if weak.strong_count() == 0 {
-                delete_list.push(id.clone());
-            }
-        }
-
-        if delete_list.len() > 0 {
-            let mut map = map.upgrade();
-            for id in delete_list {
-                map.remove(&id);
-            }
-        }
     }
 }

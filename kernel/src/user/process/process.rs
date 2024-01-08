@@ -18,6 +18,7 @@ use super::{
     mapping::Mapping,
     mappings::Mappings,
     memory_access::{self, TypedMemoryAccess, TypedSliceMemoryAccess},
+    processes::remove_process,
     MemoryAccess,
 };
 
@@ -282,6 +283,8 @@ impl Process {
 
 impl Drop for Process {
     fn drop(&mut self) {
+        remove_process(self);
+
         debug!("Process {} deleted", self.id);
         listener::notify_process(self.id, listener::ProcessEventType::Deleted);
     }

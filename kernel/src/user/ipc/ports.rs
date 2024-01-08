@@ -9,7 +9,7 @@ use crate::user::{
     weak_map::WeakMap,
 };
 
-use super::{port, port_access::access, PortReceiver, PortSender};
+use super::{port, port_access::access, Port, PortReceiver, PortSender};
 
 lazy_static! {
     pub static ref PORTS: Ports = Ports::new();
@@ -61,6 +61,15 @@ impl Ports {
         Ok((receiver, sender))
     }
 
+    /// Port drop
+    fn remove(&self, port: &Port) {
+        self.ports.remove(port.id());
+
+        if let Some(name) = port.name() {
+            self.names_map.remove(String::from(name));
+        }
+    }
+
     /// Find a port by its id
     pub fn find_by_id(&self, id: u64) -> Option<Arc<PortSender>> {
         self.ports.find(&id)
@@ -75,4 +84,9 @@ impl Ports {
     pub fn list(&self) -> Vec<u64> {
         self.ports.keys()
     }
+}
+
+/// Reserved for port drop
+pub fn remove_port(port: &Port) {
+    PORTS.remove(port)
 }

@@ -49,6 +49,11 @@ impl Threads {
         thread
     }
 
+    /// Thread drop
+    fn remove(&self, thread: &Thread) {
+        self.threads.remove(thread.id());
+    }
+
     /// Find a thread by its tid
     pub fn find(&self, tid: u64) -> Option<Arc<Thread>> {
         self.threads.find(&tid)
@@ -58,4 +63,9 @@ impl Threads {
     pub fn list(&self) -> Vec<u64> {
         self.threads.keys()
     }
+}
+
+/// Reserved for thread drop
+pub fn remove_thread(thread: &Thread) {
+    THREADS.remove(thread)
 }

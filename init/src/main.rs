@@ -289,7 +289,8 @@ fn do_listen_threads() -> ! {
     let (reader, sender) =
         libsyscalls::ipc::create(Some("thread-listener")).expect("failed to create ipc");
 
-    libsyscalls::listener::create_thread(&sender, None).expect("failed to create thread listener");
+    let listener = libsyscalls::listener::create_thread(&sender, None)
+        .expect("failed to create thread listener");
 
     loop {
         wait_one(&reader).expect("wait failed");

@@ -1,4 +1,4 @@
-use core::mem;
+use core::{mem, pin::Pin};
 
 use alloc::sync::Arc;
 use hashbrown::HashMap;
@@ -58,8 +58,8 @@ pub enum KernelHandle {
     ThreadHandle(Arc<Thread>),
     PortReceiverHandle(Arc<PortReceiver>),
     PortSenderHandle(Arc<PortSender>),
-    ProcessListenerHandle(Arc<ProcessListener>),
-    ThreadListenerHandle(Arc<ThreadListener>),
+    ProcessListenerHandle(Pin<Arc<ProcessListener>>),
+    ThreadListenerHandle(Pin<Arc<ThreadListener>>),
 }
 
 impl KernelHandle {
@@ -115,14 +115,18 @@ impl KernelHandle {
             }
             KernelHandle::ProcessListenerHandle(self_obj) => {
                 if let KernelHandle::ProcessListenerHandle(other_obj) = other {
-                    Arc::ptr_eq(self_obj, other_obj)
+                    let self_ptr: *const _ = self_obj.as_ref().get_ref();
+                    let other_ptr: *const _ = other_obj.as_ref().get_ref();
+                    core::ptr::addr_eq(self_ptr, other_ptr)
                 } else {
                     false
                 }
             }
             KernelHandle::ThreadListenerHandle(self_obj) => {
                 if let KernelHandle::ThreadListenerHandle(other_obj) = other {
-                    Arc::ptr_eq(self_obj, other_obj)
+                    let self_ptr: *const _ = self_obj.as_ref().get_ref();
+                    let other_ptr: *const _ = other_obj.as_ref().get_ref();
+                    core::ptr::addr_eq(self_ptr, other_ptr)
                 } else {
                     false
                 }
@@ -179,12 +183,12 @@ impl Handles {
     }
 
     /// Open the given process listener in the process
-    pub fn open_process_listener(&self, listener: Arc<ProcessListener>) -> Handle {
+    pub fn open_process_listener(&self, listener: Pin<Arc<ProcessListener>>) -> Handle {
         self.open(KernelHandle::ProcessListenerHandle(listener))
     }
 
     /// Open the given thread listener in the process
-    pub fn open_thread_listener(&self, listener: Arc<ThreadListener>) -> Handle {
+    pub fn open_thread_listener(&self, listener: Pin<Arc<ThreadListener>>) -> Handle {
         self.open(KernelHandle::ThreadListenerHandle(listener))
     }
 
@@ -305,7 +309,7 @@ impl Handles {
     }
 
     /// Retrieve the process listener from the handle
-    pub fn get_process_listener(&self, handle: Handle) -> Result<Arc<ProcessListener>, Error> {
+    pub fn get_process_listener(&self, handle: Handle) -> Result<Pin<Arc<ProcessListener>>, Error> {
         let handles = self.handles.read();
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;
@@ -318,7 +322,7 @@ impl Handles {
     }
 
     /// Retrieve the thread listener from the handle
-    pub fn get_thread_listener(&self, handle: Handle) -> Result<Arc<ThreadListener>, Error> {
+    pub fn get_thread_listener(&self, handle: Handle) -> Result<Pin<Arc<ThreadListener>>, Error> {
         let handles = self.handles.read();
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;

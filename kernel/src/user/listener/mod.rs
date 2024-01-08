@@ -8,7 +8,7 @@ use self::{
     message_builder::MessageBuilder,
 };
 use alloc::{boxed::Box, sync::Arc};
-use core::fmt::Debug;
+use core::{fmt::Debug, marker::PhantomPinned, pin::Pin};
 use lazy_static::lazy_static;
 use log::debug;
 use syscalls::{ProcessEvent, ThreadEvent};
@@ -34,20 +34,30 @@ pub fn notify_thread(tid: u64, r#type: ThreadEventType) {
 pub struct ProcessListener {
     filter: Box<dyn IdFilter>,
     port: Arc<PortSender>,
+    _marker: PhantomPinned,
 }
 
 unsafe impl Sync for ProcessListener {}
 unsafe impl Send for ProcessListener {}
 
 impl ProcessListener {
-    pub fn new(port: Arc<PortSender>, pids: Option<&[u64]>) -> Arc<Self> {
+    pub fn new(port: Arc<PortSender>, pids: Option<&[u64]>) -> Pin<Arc<Self>> {
         let filter = if let Some(list) = pids {
             ListFilter::new(list)
         } else {
             AllFilter::new()
         };
 
-        Arc::new(Self { port, filter })
+        let listener = Arc::pin(Self {
+            port,
+            filter,
+            _marker: PhantomPinned,
+        });
+
+        // Note: need not move since we keep tracks of pointers
+        PROCESS_LISTENERS.add(&listener);
+
+        listener
     }
 
     fn notify(&self, pid: u64, r#type: ProcessEventType) {
@@ -84,20 +94,30 @@ impl Drop for ProcessListener {
 pub struct ThreadListener {
     filter: Box<dyn IdFilter>,
     port: Arc<PortSender>,
+    _marker: PhantomPinned,
 }
 
 unsafe impl Sync for ThreadListener {}
 unsafe impl Send for ThreadListener {}
 
 impl ThreadListener {
-    pub fn new(port: Arc<PortSender>, tids: Option<&[u64]>) -> Arc<Self> {
+    pub fn new(port: Arc<PortSender>, tids: Option<&[u64]>) -> Pin<Arc<Self>> {
         let filter = if let Some(list) = tids {
             ListFilter::new(list)
         } else {
             AllFilter::new()
         };
 
-        Arc::new(Self { port, filter })
+        let listener = Arc::pin(Self {
+            port,
+            filter,
+            _marker: PhantomPinned,
+        });
+
+        // Note: need not move since we keep tracks of pointers
+        THREAD_LISTENERS.add(&listener);
+
+        listener
     }
 
     fn notify(&self, tid: u64, r#type: ThreadEventType) {

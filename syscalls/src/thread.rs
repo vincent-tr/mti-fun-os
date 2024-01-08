@@ -46,3 +46,63 @@ pub struct ThreadInfo {
     pub state: ThreadState,
     pub ticks: usize,
 }
+
+#[repr(u64)]
+#[derive(Debug, Clone, Copy)]
+pub enum Exception {
+    DivideError = 1,
+
+    Debug,
+
+    /// Cannot happen in userland
+    NonMaskableInterrupt,
+
+    Breakpoint,
+
+    Overflow,
+
+    BoundRangeExceeded,
+
+    InvalidOpcode,
+
+    DeviceNotAvailable,
+
+    /// Cannot happen in userland
+    DoubleFault,
+
+    /// Cannot happen in userland
+    InvalidTSS,
+
+    /// Cannot happen in userland
+    SegmentNotPresent(usize),
+
+    StackSegmentFault(usize),
+
+    GeneralProtectionFault(usize),
+
+    /// Second parameter is value of CR2: accessed address
+    PageFault(usize, usize),
+
+    X87FloatingPoint,
+
+    AlignmentCheck,
+
+    /// Cannot happen in userland
+    MachineCheck,
+
+    SimdFloatingPoint,
+
+    /// Cannot happen in userland
+    Virtualization,
+
+    CpProtectionException(usize),
+
+    /// Cannot happen in userland
+    HvInjectionException,
+
+    /// Cannot happen in userland
+    VmmCommunicationException(usize),
+
+    /// Cannot happen in userland
+    SecurityException(usize),
+}

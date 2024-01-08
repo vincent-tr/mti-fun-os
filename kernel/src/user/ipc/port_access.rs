@@ -77,7 +77,12 @@ impl PortSender {
 
     /// Send a message to the port
     pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
-        self.port.send(sender, message)
+        self.port.send(Some(sender), message)
+    }
+
+    /// Send a message to the port
+    pub fn kernel_send(&self, message: Message) -> Result<(), Error> {
+        self.port.send(None, message)
     }
 
     /// Get the inner port

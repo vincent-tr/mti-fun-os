@@ -61,7 +61,7 @@ impl Port {
     }
 
     /// Send a message to the port
-    pub fn send(&self, sender: &Arc<Process>, message: Message) -> Result<(), Error> {
+    pub fn send(&self, sender: Option<&Arc<Process>>, message: Message) -> Result<(), Error> {
         let mut data = self.data.write();
         if data.closed {
             return Err(object_closed());
@@ -147,7 +147,7 @@ struct InternalMessage {
 }
 
 impl InternalMessage {
-    pub fn from(sender: &Arc<Process>, message: &Message) -> Result<Self, Error> {
+    pub fn from(sender: Option<&Arc<Process>>, message: &Message) -> Result<Self, Error> {
         const NO_HANDLE: Option<KernelHandle> = None;
 
         let mut internal_message = InternalMessage {
@@ -158,7 +158,12 @@ impl InternalMessage {
         for index in 0..Message::HANDLE_COUNT {
             let handle = Handle::from(message.handles[index]);
             if handle.valid() {
-                internal_message.handles[index] = Some(sender.handles().get(handle)?);
+                internal_message.handles[index] = Some(
+                    sender
+                        .expect("MEssage with handles but no sender specified")
+                        .handles()
+                        .get(handle)?,
+                );
             }
         }
 
@@ -167,6 +172,7 @@ impl InternalMessage {
             let handle = Handle::from(message.handles[index]);
             if handle.valid() {
                 sender
+                    .expect("MEssage with handles but no sender specified")
                     .handles()
                     .close(handle)
                     .expect("Could not close handle");

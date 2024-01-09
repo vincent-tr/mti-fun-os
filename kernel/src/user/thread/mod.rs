@@ -7,7 +7,6 @@ mod wait_queue;
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
 use spin::RwLock;
-use syscalls::ThreadPriority;
 
 use self::{
     scheduler::SCHEDULER,
@@ -15,7 +14,7 @@ use self::{
     threads::THREADS,
 };
 pub use self::{
-    thread::{Thread, ThreadState, WaitingContext},
+    thread::{Thread, ThreadPriority, ThreadState, WaitingContext},
     wait_queue::WaitQueue,
 };
 

@@ -135,7 +135,9 @@ impl Process {
             mappings.find_space(size)?
         } else {
             let range = addr..addr + size;
-            check_arg(!mappings.overlaps(&range))?;
+            // Unmap the range first.
+            // TODO: if the mapping fails, we cannot map back what was previously
+            mappings.remove_range(range.clone());
             range
         };
 

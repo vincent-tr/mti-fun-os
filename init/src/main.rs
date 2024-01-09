@@ -10,8 +10,8 @@ use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
 use bit_field::BitArray;
 use libsyscalls::{
-    ipc, process, thread, Exception, Handle, Permissions, SyscallResult, ThreadEventType,
-    ThreadPriority,
+    ipc, process, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
+    ThreadEventType, ThreadPriority,
 };
 use log::{debug, error, info};
 
@@ -267,6 +267,16 @@ fn do_listen_threads() -> ! {
 
             match err {
                 Exception::Breakpoint => {
+                    // change context: update rax
+                    let context =
+                        libsyscalls::thread::context(&thread).expect("get context failed");
+                    debug!("Thread RAX = {}", context.rax);
+                    libsyscalls::thread::update_context(
+                        &thread,
+                        &[(ThreadContextRegister::Rax, context.rax + 1)],
+                    )
+                    .expect("set context failed");
+
                     debug!("Thread resume");
                     libsyscalls::thread::resume(&thread).expect("resume failed");
                 }
@@ -298,11 +308,12 @@ fn do_listen_threads() -> ! {
 }
 
 fn debugbreak() -> ! {
+    let mut value = 42;
     unsafe {
-        asm!("int3", options(nomem, nostack));
+        asm!("int3", inlateout("rax") value => value, options(nostack, preserves_flags));
     }
 
-    debug!("debugbreak: resumed");
+    debug!("debugbreak: resumed (value={value})");
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };

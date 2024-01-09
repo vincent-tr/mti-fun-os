@@ -3,17 +3,16 @@
 #![feature(naked_functions)]
 #![feature(used_with_arg)]
 
-mod logging;
 mod offsets;
 
-use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
+use core::{arch::asm, hint::unreachable_unchecked};
 
 use bit_field::BitArray;
 use libsyscalls::{
-    ipc, process, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
+    ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
     ThreadEventType, ThreadPriority,
 };
-use log::{debug, error, info};
+use log::{debug, info};
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -43,7 +42,7 @@ static mut FORCE_DATA_SECTION: u8 = 0x42;
 const PAGE_SIZE: usize = 4096;
 
 extern "C" fn main() -> ! {
-    logging::init();
+    libruntime::init();
 
     let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
 
@@ -142,15 +141,6 @@ fn dump_processes_threads() {
         let info = libsyscalls::thread::info(&thread).expect("Could not get thread info");
         info!("  {:?}", info);
     }
-}
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    error!("PANIC: {info}");
-
-    // Note: if case we failed exit, we cannot do much more.
-    let _ = process::exit();
-    unsafe { unreachable_unchecked() };
 }
 
 extern "C" fn idle(_arg: usize) -> ! {

@@ -9,7 +9,9 @@ mod offsets;
 use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
 use bit_field::BitArray;
-use libsyscalls::{ipc, thread, Handle, Permissions, SyscallResult, ThreadPriority};
+use libsyscalls::{
+    ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadEventType, ThreadPriority,
+};
 use log::{debug, error, info};
 
 // Special init start: need to setup its own stack
@@ -70,8 +72,8 @@ extern "C" fn main() -> ! {
 
     do_ipc(&self_proc);
 
-    create_thread(&self_proc, debugbreak);
-    create_thread(&self_proc, page_fault);
+    let _thread1 = create_thread(&self_proc, debugbreak);
+    let _thread2 = create_thread(&self_proc, page_fault);
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
@@ -254,6 +256,19 @@ fn do_listen_threads() -> ! {
         let event = unsafe { &*ptr };
 
         debug!("Thread event: {:?}", event);
+
+        if let ThreadEventType::Error = event.r#type {
+            let thread = libsyscalls::thread::open(event.tid).expect("could not open error thread");
+            let err =
+                libsyscalls::thread::error_info(&thread).expect("could not get thread error info");
+
+            debug!("Thread error: {:?}", err);
+
+            if let Exception::Breakpoint = err {
+                debug!("Thread resume");
+                libsyscalls::thread::resume(&thread).expect("resume failed");
+            }
+        }
     }
 }
 

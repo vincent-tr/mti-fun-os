@@ -5,7 +5,7 @@ use core::{
     panic,
 };
 
-use alloc::{collections::BTreeMap, rc::Rc};
+use alloc::{collections::BTreeMap, format, rc::Rc};
 
 use crate::{
     memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
@@ -100,7 +100,7 @@ impl Area {
                 if let AreaContent::Used(mapping) = content {
                     mapping
                 } else {
-                    panic!("unexpected enum value");
+                    panic!("unexpected enum value {:?}", content);
                 }
             });
 
@@ -131,7 +131,7 @@ impl Area {
         if let AreaContent::Used(mapping) = swapped_content {
             mapping
         } else {
-            panic!("invalid area type");
+            panic!("invalid area type {:?}", swapped_content);
         }
     }
 }
@@ -287,7 +287,12 @@ impl Mappings {
         // Replace all ranges inside
         let mut addr = range.start;
         loop {
-            let area = self.nodes.get(&addr).expect("missing area").next.clone();
+            let area = self
+                .nodes
+                .get(&addr)
+                .expect(&format!("missing area {:?}", addr))
+                .next
+                .clone();
             self.replace(Area::empty(area.range.clone()));
 
             addr = area.range.end;
@@ -299,9 +304,16 @@ impl Mappings {
         // Merge all empty area inside
         let mut addr = range.start;
         loop {
-            let area = self.nodes.get(&addr).expect("missing area").next.clone();
+            if addr != range.start {
+                self.merge(addr);
+            }
 
-            self.merge(addr);
+            let area = self
+                .nodes
+                .get(&addr)
+                .expect(&format!("missing area {:?}", addr))
+                .next
+                .clone();
 
             addr = area.range.end;
             if addr == range.end {
@@ -366,7 +378,7 @@ impl Mappings {
         assert!(addr < area.range.end);
 
         let (left_area, right_area) = match area.r#type() {
-            AreaContentType::Invalid => panic!("invalid area"),
+            AreaContentType::Invalid => panic!("invalid area {:?}", area),
             AreaContentType::Boundary => panic!("Cannot split area boundary"),
             AreaContentType::Empty => (
                 Area::empty(area.range.start..addr),
@@ -384,24 +396,33 @@ impl Mappings {
 
         area.invalidate();
 
-        let start = self.nodes.get_mut(&area.range.start).expect("bad area");
+        let start = self
+            .nodes
+            .get_mut(&area.range.start)
+            .expect(&format!("bad area {:?}", area));
         start.next = left_area.clone();
 
         let middle = Node::new(left_area, right_area.clone());
         self.nodes.insert(addr, middle);
 
-        let end = self.nodes.get_mut(&area.range.end).expect("bad area");
+        let end = self
+            .nodes
+            .get_mut(&area.range.end)
+            .expect(&format!("bad area {:?}", area));
         end.prev = right_area;
     }
 
     fn can_merge(&self, addr: VirtAddr) -> bool {
-        let node = self.nodes.get(&addr).expect("bad address");
+        let node = self
+            .nodes
+            .get(&addr)
+            .expect(&format!("bad address {:?}", addr));
 
         let left_area = node.prev.clone();
         let right_area = node.next.clone();
 
         let res = match &*left_area.content.borrow() {
-            AreaContent::Invalid => panic!("invalid area"),
+            AreaContent::Invalid => panic!("invalid area {:?}", left_area),
             AreaContent::Boundary => false,
             AreaContent::Empty => right_area.is_empty(),
             AreaContent::Used(left_mapping) => {
@@ -417,7 +438,10 @@ impl Mappings {
     }
 
     fn merge(&mut self, addr: VirtAddr) {
-        let node = self.nodes.get(&addr).expect("bad address");
+        let node = self
+            .nodes
+            .get(&addr)
+            .expect(&format!("bad address {:?}", addr));
 
         let left_area = node.prev.clone();
         let right_area = node.next.clone();
@@ -425,10 +449,15 @@ impl Mappings {
         self.nodes.remove(&addr);
 
         let new_area = match left_area.r#type() {
-            AreaContentType::Invalid => panic!("invalid area"),
-            AreaContentType::Boundary => panic!("Cannot merge area boundary"),
+            AreaContentType::Invalid => panic!("invalid area {:?}", left_area),
+            AreaContentType::Boundary => panic!("Cannot merge area boundary {:?}", left_area),
             AreaContentType::Empty => {
-                assert!(right_area.is_empty(), "area types mismatch");
+                assert!(
+                    right_area.is_empty(),
+                    "area types mismatch {:?} / {:?}",
+                    left_area,
+                    right_area
+                );
                 Area::empty(left_area.range.start..right_area.range.end)
             }
             AreaContentType::Used => {
@@ -442,19 +471,31 @@ impl Mappings {
             }
         };
 
-        let start = self.nodes.get_mut(&new_area.range.start).expect("bad area");
+        let start = self
+            .nodes
+            .get_mut(&new_area.range.start)
+            .expect(&format!("bad area {:?}", new_area));
         start.next = new_area.clone();
 
-        let end = self.nodes.get_mut(&new_area.range.end).expect("bad area");
+        let end = self
+            .nodes
+            .get_mut(&new_area.range.end)
+            .expect(&format!("bad area {:?}", new_area));
         end.prev = new_area;
     }
 
     fn replace(&mut self, new_area: Rc<Area>) {
-        let start = self.nodes.get_mut(&new_area.range.start).expect("bad area");
+        let start = self
+            .nodes
+            .get_mut(&new_area.range.start)
+            .expect(&format!("bad area {:?}", new_area));
         assert!(start.next.range == new_area.range);
         start.next = new_area.clone();
 
-        let end = self.nodes.get_mut(&new_area.range.end).expect("bad area");
+        let end = self
+            .nodes
+            .get_mut(&new_area.range.end)
+            .expect(&format!("bad area {:?}", new_area));
         assert!(end.prev.range == new_area.range);
         end.prev = new_area;
     }
@@ -464,7 +505,7 @@ impl Mappings {
             .nodes
             .upper_bound(Bound::Included(&addr))
             .value()
-            .expect("no area corresponding to address")
+            .expect(&format!("no area corresponding to address {:?}", addr))
             .next
             .clone();
         assert!(area.range.contains(&addr));

@@ -153,10 +153,6 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 fn idle() -> ! {
-    halt();
-}
-
-fn halt() -> ! {
     // TODO: better sleep
     loop {}
 }

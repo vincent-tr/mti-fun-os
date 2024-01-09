@@ -91,8 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- userland heap allocator
-  - https://github.com/alexcrichton/dlmalloc-rs
 - better object oriented syscalls lib
 - process creation:
   - dynamic linking

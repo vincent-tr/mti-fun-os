@@ -37,7 +37,7 @@ pub enum ThreadState {
 }
 
 /// Thread information
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct ThreadInfo {
     pub tid: u64,
@@ -108,7 +108,7 @@ pub enum Exception {
 }
 
 /// Context of the thread.
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct ThreadContext {
     pub rax: usize,

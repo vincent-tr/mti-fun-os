@@ -214,7 +214,7 @@ pub async fn context(context: Context) -> Result<(), Error> {
 
 pub async fn update_context(context: Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
-    let regs_array_ptr = context.arg1();
+    let regs_array_ptr = context.arg2();
     let regs_count = context.arg3();
 
     let thread = context.owner();

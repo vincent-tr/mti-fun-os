@@ -244,7 +244,7 @@ pub async fn resume(context: Context) -> Result<(), Error> {
 
     check_arg(target_thread.state().is_error().is_some())?;
 
-    thread_resume(&thread);
+    thread_resume(&target_thread);
 
     Ok(())
 }

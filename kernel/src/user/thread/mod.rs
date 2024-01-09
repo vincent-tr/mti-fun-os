@@ -164,7 +164,7 @@ pub fn thread_error(error: Exception) {
 
 /// Resume the given errored thread
 pub fn thread_resume(thread: &Arc<Thread>) {
-    assert!(!thread.state().is_error().is_some());
+    assert!(thread.state().is_error().is_some());
 
     // Set it ready
     update_state(&thread, ThreadState::Ready);

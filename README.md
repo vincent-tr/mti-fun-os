@@ -91,11 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- Missing syscalls :
-  - get thread error info
-  - get thread context
-  - change thread context
-  - resume thread in error
 - userland heap allocator
 - better object oriented syscalls lib
 - process creation:

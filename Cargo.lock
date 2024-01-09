@@ -527,6 +527,7 @@ version = "0.1.0"
 dependencies = [
  "bit_field",
  "lazy_static",
+ "libruntime",
  "libsyscalls",
  "log",
 ]
@@ -589,6 +590,17 @@ name = "libc"
 version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
+
+[[package]]
+name = "libruntime"
+version = "0.1.0"
+dependencies = [
+ "bit_field",
+ "lazy_static",
+ "libsyscalls",
+ "log",
+ "spin 0.9.8",
+]
 
 [[package]]
 name = "libsyscalls"

@@ -15,5 +15,7 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 members = [
   "kernel",
   "init",
-  "syscalls"
-, "libsyscalls"]
+  "syscalls",
+  "libsyscalls",
+  "libruntime"
+]

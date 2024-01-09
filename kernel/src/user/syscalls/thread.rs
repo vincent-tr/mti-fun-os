@@ -1,6 +1,6 @@
 use core::mem;
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::sync::Arc;
 use syscalls::{
     Exception, Permissions, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority,
     ThreadState,
@@ -215,7 +215,6 @@ pub async fn context(context: Context) -> Result<(), Error> {
 pub async fn update_context(context: Context) -> Result<(), Error> {
     let thread_handle = context.arg1();
     let regs_array_ptr = context.arg1();
-    let values_array_ptr = context.arg2();
     let regs_count = context.arg3();
 
     let thread = context.owner();
@@ -223,36 +222,16 @@ pub async fn update_context(context: Context) -> Result<(), Error> {
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
 
-    let regs_array_access = process.vm_access_typed_slice::<ThreadContextRegister>(
+    let regs_access = process.vm_access_typed_slice::<(ThreadContextRegister, usize)>(
         VirtAddr::new(regs_array_ptr as u64),
         regs_count,
         Permissions::READ,
     )?;
 
-    let values_array_access = process.vm_access_typed_slice::<usize>(
-        VirtAddr::new(values_array_ptr as u64),
-        regs_count,
-        Permissions::READ,
-    )?;
-
-    let regs = {
-        let mut regs = Vec::new();
-        regs.reserve(regs_count);
-
-        let regs_array = regs_array_access.get();
-        let values_array = values_array_access.get();
-
-        for index in 0..regs_count {
-            regs.push((regs_array[index], values_array[index]));
-        }
-
-        regs
-    };
-
     check_arg(target_thread.state().is_error().is_some())?;
 
     // TODO: not atomic with check
-    target_thread.update_user_context(&regs)
+    target_thread.update_user_context(regs_access.get())
 }
 
 pub async fn resume(context: Context) -> Result<(), Error> {

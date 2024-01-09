@@ -11,6 +11,7 @@ use core::{arch::asm, hint::unreachable_unchecked};
 
 use alloc::boxed::Box;
 use bit_field::BitArray;
+use libruntime::kobject::{self, PAGE_SIZE};
 use libsyscalls::{
     ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
     ThreadEventType, ThreadPriority,
@@ -41,8 +42,6 @@ pub unsafe extern "C" fn user_start() {
 // This force bss allocation in binary file
 #[used(linker)]
 static mut FORCE_DATA_SECTION: u8 = 0x42;
-
-const PAGE_SIZE: usize = 4096;
 
 extern "C" fn main() -> ! {
     libruntime::init();
@@ -76,6 +75,14 @@ extern "C" fn main() -> ! {
     do_ipc(&self_proc);
 
     do_alloc();
+
+    let _thread = kobject::Thread::start(
+        || {
+            debug!("in thread!");
+        },
+        kobject::ThreadOptions::default(),
+    )
+    .expect("could not create thread");
 
     //debug!("Exiting");
     //process::exit().expect("Could not exit process");

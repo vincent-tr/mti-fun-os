@@ -270,7 +270,7 @@ fn do_listen_threads() -> ! {
                     debug!("Thread resume");
                     libsyscalls::thread::resume(&thread).expect("resume failed");
                 }
-                Exception::PageFault(error_code, address) => {
+                Exception::PageFault(_error_code, address) => {
                     let self_proc =
                         libsyscalls::process::open_self().expect("Could not open self process");
                     let page = libsyscalls::memory_object::create(PAGE_SIZE)

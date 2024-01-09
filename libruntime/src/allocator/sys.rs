@@ -1,6 +1,8 @@
 use libsyscalls::{memory_object, process, Error, Permissions};
 use log::{error, trace};
 
+use crate::kobject;
+
 use super::Allocator;
 use core::ptr;
 
@@ -85,6 +87,6 @@ unsafe impl Allocator for System {
     }
 
     fn page_size(&self) -> usize {
-        4096
+        kobject::PAGE_SIZE
     }
 }

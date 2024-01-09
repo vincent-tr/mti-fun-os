@@ -1,3 +1,15 @@
+/// Parameters to create a thread
+#[repr(C)]
+#[derive(Debug)]
+pub struct ThreadCreationParameters {
+    pub process_handle: u64,
+    pub priority: ThreadPriority,
+    pub entry_point: usize,
+    pub stack_top: usize,
+    pub arg: usize,
+    pub tls: usize,
+}
+
 /// Thread priority
 #[repr(u64)]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
@@ -136,7 +148,7 @@ pub struct ThreadContext {
     pub cpu_flags: usize,
 
     // FS base value (used for TLS)
-    pub fs_base: usize,
+    pub tls: usize,
 }
 
 #[repr(u64)]
@@ -167,5 +179,5 @@ pub enum ThreadContextRegister {
     CpuFlags,
 
     // FS base value (used for TLS)
-    FsBase,
+    TLS,
 }

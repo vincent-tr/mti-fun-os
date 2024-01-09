@@ -24,6 +24,7 @@ use syscalls::SyscallNumber;
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall0(n: SyscallNumber) -> usize {
     let mut ret: usize;
     asm!(
@@ -43,6 +44,7 @@ pub unsafe fn syscall0(n: SyscallNumber) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall1(n: SyscallNumber, arg1: usize) -> usize {
     let mut ret: usize;
     asm!(
@@ -63,6 +65,7 @@ pub unsafe fn syscall1(n: SyscallNumber, arg1: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall2(n: SyscallNumber, arg1: usize, arg2: usize) -> usize {
     let mut ret: usize;
     asm!(
@@ -84,6 +87,7 @@ pub unsafe fn syscall2(n: SyscallNumber, arg1: usize, arg2: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall3(n: SyscallNumber, arg1: usize, arg2: usize, arg3: usize) -> usize {
     let mut ret: usize;
     asm!(
@@ -106,6 +110,7 @@ pub unsafe fn syscall3(n: SyscallNumber, arg1: usize, arg2: usize, arg3: usize) 
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall4(
     n: SyscallNumber,
     arg1: usize,
@@ -135,6 +140,7 @@ pub unsafe fn syscall4(
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall5(
     n: SyscallNumber,
     arg1: usize,
@@ -166,6 +172,7 @@ pub unsafe fn syscall5(
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
+#[allow(dead_code)]
 pub unsafe fn syscall6(
     n: SyscallNumber,
     arg1: usize,

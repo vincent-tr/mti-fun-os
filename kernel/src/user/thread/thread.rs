@@ -10,13 +10,12 @@ use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
 use syscalls::Error;
 pub use syscalls::ThreadPriority;
-use x86_64::registers::{
-    rflags::RFlags,
-    segmentation::{Segment64, FS},
-};
+use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
-use crate::interrupts::{Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS};
+use crate::interrupts::{
+    tls_reg_read, tls_reg_write, Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS,
+};
 use crate::memory::{is_userspace, VirtAddr};
 use crate::user::{
     error::invalid_argument,
@@ -36,8 +35,10 @@ pub fn new(
     priority: ThreadPriority,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
+    arg: usize,
+    tls: VirtAddr,
 ) -> Arc<Thread> {
-    Thread::new(id, process, priority, thread_start, stack_top)
+    Thread::new(id, process, priority, thread_start, stack_top, arg, tls)
 }
 
 pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
@@ -95,13 +96,15 @@ impl Thread {
         priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
+        arg: usize,
+        tls: VirtAddr,
     ) -> Arc<Self> {
         let thread = Arc::new(Self {
             id,
             process,
             priority: AtomicU64::new(priority as u64),
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
-            context: Mutex::new(ThreadContext::new(thread_start, stack_top)),
+            context: Mutex::new(ThreadContext::new(thread_start, stack_top, arg, tls)),
             syscall: Mutex::new(None),
             ticks: AtomicUsize::new(0),
         });
@@ -417,18 +420,23 @@ struct ThreadContext {
     cpu_flags: RFlags,
 
     // FS base value (used for TLS)
-    fs_base: VirtAddr,
+    tls: VirtAddr,
 }
 
 impl ThreadContext {
-    pub const fn new(thread_start: VirtAddr, stack_top: VirtAddr) -> Self {
+    pub const fn new(
+        thread_start: VirtAddr,
+        stack_top: VirtAddr,
+        arg: usize,
+        tls: VirtAddr,
+    ) -> Self {
         Self {
             rax: 0,
             rcx: 0,
             rdx: 0,
             rbx: 0,
             rsi: 0,
-            rdi: 0,
+            rdi: arg,
             rsp: stack_top,
             rbp: 0,
             r8: 0,
@@ -441,7 +449,7 @@ impl ThreadContext {
             r15: 0,
             instruction_pointer: thread_start,
             cpu_flags: USERLAND_RFLAGS,
-            fs_base: VirtAddr::zero(),
+            tls,
         }
     }
 
@@ -468,7 +476,7 @@ impl ThreadContext {
         self.instruction_pointer = interrupt_stack.iret.instruction_pointer;
         self.cpu_flags = RFlags::from_bits_retain(interrupt_stack.iret.cpu_flags);
 
-        self.fs_base = FS::read_base();
+        self.tls = tls_reg_read();
     }
 
     /// Load the thread context into the interrupt stack
@@ -497,7 +505,7 @@ impl ThreadContext {
         interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR.0);
         interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR.0);
 
-        FS::write_base(self.fs_base);
+        tls_reg_write(self.tls);
     }
 
     pub fn to_user(&self, user: &mut syscalls::ThreadContext) {
@@ -519,7 +527,7 @@ impl ThreadContext {
         user.r15 = self.r15;
         user.instruction_pointer = self.instruction_pointer.as_u64() as usize;
         user.cpu_flags = self.cpu_flags.bits() as usize;
-        user.fs_base = self.fs_base.as_u64() as usize;
+        user.tls = self.tls.as_u64() as usize;
     }
 
     pub fn validate_from_user(&self, reg: syscalls::ThreadContextRegister, value: usize) -> bool {
@@ -536,7 +544,7 @@ impl ThreadContext {
                 // Cannot change CPU Flags for now
                 false
             }
-            syscalls::ThreadContextRegister::FsBase => {
+            syscalls::ThreadContextRegister::TLS => {
                 let addr = VirtAddr::new(value as u64);
                 addr.is_null() || is_userspace(addr)
             }
@@ -600,8 +608,8 @@ impl ThreadContext {
             syscalls::ThreadContextRegister::CpuFlags => {
                 panic!("Cannot update CPU Flags from user");
             }
-            syscalls::ThreadContextRegister::FsBase => {
-                self.fs_base = VirtAddr::new(value as u64);
+            syscalls::ThreadContextRegister::TLS => {
+                self.tls = VirtAddr::new(value as u64);
             }
         }
     }

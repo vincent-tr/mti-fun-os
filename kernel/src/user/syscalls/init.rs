@@ -87,5 +87,7 @@ fn create_thread(process: Arc<Process>) {
         ThreadPriority::Normal,
         entry_point,
         stack_top,
+        0,
+        VirtAddr::zero(),
     );
 }

@@ -35,9 +35,19 @@ impl Threads {
         priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
+        arg: usize,
+        tls: VirtAddr,
     ) -> Arc<Thread> {
         let id = self.id_gen.generate();
-        let thread = thread::new(id, process.clone(), priority, thread_start, stack_top);
+        let thread = thread::new(
+            id,
+            process.clone(),
+            priority,
+            thread_start,
+            stack_top,
+            arg,
+            tls,
+        );
 
         self.threads.insert(id, &thread);
 

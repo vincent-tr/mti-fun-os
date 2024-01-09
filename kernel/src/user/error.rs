@@ -22,16 +22,19 @@ pub fn check_arg_opt<T>(value: Option<T>) -> Result<T, Error> {
     value.ok_or(invalid_argument())
 }
 
-pub fn check_is_userspace(addr: VirtAddr) -> Result<(), Error> {
-    check_arg(is_userspace(addr))
+pub fn check_is_userspace(addr: VirtAddr) -> Result<VirtAddr, Error> {
+    check_arg(is_userspace(addr))?;
+    Ok(addr)
 }
 
-pub fn check_page_alignment(addr: usize) -> Result<(), Error> {
-    check_arg(is_page_aligned(addr))
+pub fn check_page_alignment(addr: usize) -> Result<usize, Error> {
+    check_arg(is_page_aligned(addr))?;
+    Ok(addr)
 }
 
-pub fn check_positive(value: usize) -> Result<(), Error> {
-    check_arg(value > 0)
+pub fn check_positive(value: usize) -> Result<usize, Error> {
+    check_arg(value > 0)?;
+    Ok(value)
 }
 
 pub fn out_of_memory() -> Error {

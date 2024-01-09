@@ -64,7 +64,7 @@ extern "C" fn main() -> ! {
     .expect("Could not map idle task stack");
     let stack_top = stack_addr + PAGE_SIZE;
 
-    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top)
+    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top, 0, 0)
         .expect("Could create idle task");
 
     dump_processes_threads();
@@ -153,7 +153,7 @@ fn panic(info: &PanicInfo) -> ! {
     unsafe { unreachable_unchecked() };
 }
 
-fn idle() -> ! {
+extern "C" fn idle(_arg: usize) -> ! {
     // TODO: better sleep
     loop {}
 }
@@ -196,7 +196,7 @@ static mut EXC: Exchange = Exchange {
     sender: Handle::invalid(),
 };
 
-fn echo() -> ! {
+extern "C" fn echo(_arg: usize) -> ! {
     // take from EXC
     let mut reader = Handle::invalid();
     let mut sender = Handle::invalid();
@@ -218,7 +218,7 @@ fn listen_threads(self_proc: &Handle) {
     create_thread(self_proc, do_listen_threads);
 }
 
-fn do_listen_threads() -> ! {
+extern "C" fn do_listen_threads(_arg: usize) -> ! {
     let (reader, sender) =
         libsyscalls::ipc::create(Some("thread-listener")).expect("failed to create ipc");
 
@@ -307,7 +307,9 @@ fn do_listen_threads() -> ! {
     }
 }
 
-fn debugbreak() -> ! {
+extern "C" fn debugbreak(arg: usize) -> ! {
+    debug!("arg={arg}");
+
     let mut value = 42;
     unsafe {
         asm!("int3", inlateout("rax") value => value, options(nostack, preserves_flags));
@@ -321,7 +323,7 @@ fn debugbreak() -> ! {
 
 const PAGE_FAULT_ADDR: usize = 0x10000;
 
-fn page_fault() -> ! {
+extern "C" fn page_fault(_arg: usize) -> ! {
     let ptr = PAGE_FAULT_ADDR as *mut u8;
     unsafe { *ptr = 42 };
 
@@ -333,7 +335,7 @@ fn page_fault() -> ! {
 
 // Helpers
 
-fn create_thread(self_proc: &Handle, entry_point: fn() -> !) -> Handle {
+fn create_thread(self_proc: &Handle, entry_point: extern "C" fn(usize) -> !) -> Handle {
     // small stack, does not do much
     let thread_stack =
         libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
@@ -349,8 +351,15 @@ fn create_thread(self_proc: &Handle, entry_point: fn() -> !) -> Handle {
     .expect("Could not map thread task stack");
     let stack_top = stack_addr + PAGE_SIZE;
 
-    libsyscalls::thread::create(&self_proc, ThreadPriority::Normal, entry_point, stack_top)
-        .expect("Could create echo task")
+    libsyscalls::thread::create(
+        &self_proc,
+        ThreadPriority::Normal,
+        entry_point,
+        stack_top,
+        42,
+        0,
+    )
+    .expect("Could create echo task")
 }
 
 fn wait_one(port: &Handle) -> SyscallResult<()> {

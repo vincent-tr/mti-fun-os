@@ -2,14 +2,14 @@ use core::mem;
 
 use alloc::sync::Arc;
 use syscalls::{
-    Exception, Permissions, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority,
-    ThreadState,
+    Exception, Permissions, ThreadContext, ThreadContextRegister, ThreadCreationParameters,
+    ThreadInfo, ThreadPriority, ThreadState,
 };
 
 use crate::{
     memory::VirtAddr,
     user::{
-        error::{check_arg, check_found, invalid_argument},
+        error::{check_arg, check_found, check_is_userspace, invalid_argument},
         thread::{self, thread_resume},
         Error,
     },
@@ -51,19 +51,25 @@ pub async fn open(context: Context) -> Result<(), Error> {
 }
 
 pub async fn create(context: Context) -> Result<(), Error> {
-    let process_handle = context.arg1();
-    let priority = context.arg2();
-    let entry_point = context.arg3();
-    let stack_top = context.arg4();
-    let handle_out_ptr = context.arg5();
+    let params_ptr = context.arg1();
+    let handle_out_ptr = context.arg2();
 
     let thread = context.owner();
     let process = thread.process();
 
+    let params_access = process.vm_access_typed::<ThreadCreationParameters>(
+        VirtAddr::new(params_ptr as u64),
+        Permissions::READ,
+    )?;
+
     let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
-    let target_process = process.handles().get_process(process_handle.into())?;
-    let priority: ThreadPriority = unsafe { mem::transmute(priority) };
+    let params = params_access.get();
+
+    let target_process = process
+        .handles()
+        .get_process(params.process_handle.into())?;
+    let priority: ThreadPriority = unsafe { mem::transmute(params.priority) };
 
     // Forbid to thread threads on terminated processes
     check_arg(!target_process.terminated())?;
@@ -71,8 +77,10 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let new_thread = thread::create(
         target_process.clone(),
         priority,
-        VirtAddr::new(entry_point as u64),
-        VirtAddr::new(stack_top as u64),
+        check_is_userspace(VirtAddr::new(params.entry_point as u64))?,
+        check_is_userspace(VirtAddr::new(params.stack_top as u64))?,
+        params.arg,
+        check_is_userspace(VirtAddr::new(params.tls as u64))?,
     );
 
     let handle = process.handles().open_thread(new_thread);

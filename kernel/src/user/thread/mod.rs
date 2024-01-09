@@ -26,8 +26,10 @@ pub fn create(
     priority: ThreadPriority,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
+    arg: usize,
+    tls: VirtAddr,
 ) -> Arc<Thread> {
-    let thread = THREADS.create(process, priority, thread_start, stack_top);
+    let thread = THREADS.create(process, priority, thread_start, stack_top, arg, tls);
 
     assert!(thread.state().is_ready());
     SCHEDULER.add(thread.clone());

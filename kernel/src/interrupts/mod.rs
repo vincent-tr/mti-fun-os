@@ -9,6 +9,7 @@ use core::arch::asm;
 use crate::gdt::{self, user_data_selector};
 use crate::memory::VirtAddr;
 use lazy_static::lazy_static;
+use x86_64::registers::model_specific::FsBase;
 use x86_64::{registers::rflags::RFlags, structures::idt::InterruptDescriptorTable};
 
 use self::handler::init_process_control_region;
@@ -169,6 +170,14 @@ pub fn init_userland() {
     init_process_control_region();
 
     syscalls::init();
+}
+
+pub fn tls_reg_read() -> VirtAddr {
+    FsBase::read()
+}
+
+pub fn tls_reg_write(addr: VirtAddr) {
+    FsBase::write(addr);
 }
 
 pub fn syscall_switch(syscall_number: usize) -> ! {

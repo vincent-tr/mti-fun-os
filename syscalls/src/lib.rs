@@ -15,7 +15,8 @@ pub use listener::{ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType}
 pub use permissions::Permissions;
 pub use process::ProcessInfo;
 pub use thread::{
-    Exception, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority, ThreadState,
+    Exception, ThreadContext, ThreadContextRegister, ThreadCreationParameters, ThreadInfo,
+    ThreadPriority, ThreadState,
 };
 
 /// List of syscall numbers

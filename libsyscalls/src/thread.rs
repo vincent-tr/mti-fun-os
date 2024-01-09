@@ -1,8 +1,11 @@
 use syscalls::{
-    Exception, SyscallNumber, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority,
+    Exception, SyscallNumber, ThreadContext, ThreadContextRegister, ThreadCreationParameters,
+    ThreadInfo, ThreadPriority,
 };
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallList, SyscallOutPtr, SyscallResult};
+use super::{
+    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallList, SyscallOutPtr, SyscallResult,
+};
 
 pub fn open_self() -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -31,17 +34,26 @@ pub fn open(tid: u64) -> SyscallResult<Handle> {
 pub fn create(
     process: &Handle,
     priority: ThreadPriority,
-    entry_point: fn() -> !,
+    entry_point: extern "C" fn(usize) -> !,
     stack_top: usize,
+    arg: usize,
+    tls: usize,
 ) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
+
+    let params = ThreadCreationParameters {
+        process_handle: unsafe { process.as_syscall_value() } as u64,
+        priority,
+        entry_point: entry_point as usize,
+        stack_top,
+        arg,
+        tls,
+    };
+
     let ret = unsafe {
-        syscall5(
+        syscall2(
             SyscallNumber::ThreadCreate,
-            process.as_syscall_value(),
-            priority as usize,
-            entry_point as usize,
-            stack_top,
+            ref_ptr(&params),
             new_handle.as_syscall_ptr(),
         )
     };

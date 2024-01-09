@@ -8,12 +8,14 @@ use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
+use syscalls::Error;
 pub use syscalls::ThreadPriority;
 use x86_64::registers::rflags::RFlags;
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
 use crate::interrupts::{Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS};
-use crate::memory::VirtAddr;
+use crate::memory::{is_userspace, VirtAddr};
+use crate::user::error::invalid_argument;
 use crate::user::listener;
 use crate::user::process::Process;
 use crate::user::syscalls::SyscallExecutor;
@@ -190,6 +192,35 @@ impl Thread {
     pub fn syscall(&self) -> Option<Arc<SyscallExecutor>> {
         let syscall_locked = self.syscall.lock();
         syscall_locked.clone()
+    }
+
+    /// Get the context of the thread, for userland
+    pub fn get_user_context(&self, user: &mut syscalls::ThreadContext) {
+        assert!(!self.state().is_executing());
+
+        let context = self.context.lock();
+        context.to_user(user);
+    }
+
+    pub fn update_user_context(
+        &self,
+        user: &[(syscalls::ThreadContextRegister, usize)],
+    ) -> Result<(), Error> {
+        assert!(!self.state().is_executing());
+
+        let mut context = self.context.lock();
+
+        for &(reg, value) in user {
+            if !context.validate_from_user(reg, value) {
+                return Err(invalid_argument());
+            }
+        }
+
+        for &(reg, value) in user {
+            context.from_user(reg, value);
+        }
+
+        Ok(())
     }
 }
 
@@ -449,6 +480,104 @@ impl ThreadContext {
         interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
         interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR.0);
         interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR.0);
+    }
+
+    pub fn to_user(&self, user: &mut syscalls::ThreadContext) {
+        user.rax = self.rax;
+        user.rcx = self.rcx;
+        user.rdx = self.rdx;
+        user.rbx = self.rbx;
+        user.rsi = self.rsi;
+        user.rdi = self.rdi;
+        user.rsp = self.rsp.as_u64() as usize;
+        user.rbp = self.rbp;
+        user.r8 = self.r8;
+        user.r9 = self.r9;
+        user.r10 = self.r10;
+        user.r11 = self.r11;
+        user.r12 = self.r12;
+        user.r13 = self.r13;
+        user.r14 = self.r14;
+        user.r15 = self.r15;
+        user.instruction_pointer = self.instruction_pointer.as_u64() as usize;
+        user.cpu_flags = self.cpu_flags.bits() as usize;
+    }
+
+    pub fn validate_from_user(&self, reg: syscalls::ThreadContextRegister, value: usize) -> bool {
+        match reg {
+            syscalls::ThreadContextRegister::Rsp => {
+                let addr = VirtAddr::new(value as u64);
+                is_userspace(addr)
+            }
+            syscalls::ThreadContextRegister::InstructionPointer => {
+                let addr = VirtAddr::new(value as u64);
+                is_userspace(addr)
+            }
+            syscalls::ThreadContextRegister::CpuFlags => {
+                // Cannot change CPU Flags for now
+                false
+            }
+            _ => true,
+        }
+    }
+
+    pub fn from_user(&mut self, reg: syscalls::ThreadContextRegister, value: usize) {
+        match reg {
+            syscalls::ThreadContextRegister::Rax => {
+                self.rax = value;
+            }
+            syscalls::ThreadContextRegister::Rcx => {
+                self.rcx = value;
+            }
+            syscalls::ThreadContextRegister::Rdx => {
+                self.rdx = value;
+            }
+            syscalls::ThreadContextRegister::Rbx => {
+                self.rbx = value;
+            }
+            syscalls::ThreadContextRegister::Rsi => {
+                self.rsi = value;
+            }
+            syscalls::ThreadContextRegister::Rdi => {
+                self.rdi = value;
+            }
+            syscalls::ThreadContextRegister::Rsp => {
+                self.rsp = VirtAddr::new(value as u64);
+            }
+            syscalls::ThreadContextRegister::Rbp => {
+                self.rbp = value;
+            }
+            syscalls::ThreadContextRegister::R8 => {
+                self.r8 = value;
+            }
+            syscalls::ThreadContextRegister::R9 => {
+                self.r9 = value;
+            }
+            syscalls::ThreadContextRegister::R10 => {
+                self.r10 = value;
+            }
+            syscalls::ThreadContextRegister::R11 => {
+                self.r11 = value;
+            }
+            syscalls::ThreadContextRegister::R12 => {
+                self.r12 = value;
+            }
+            syscalls::ThreadContextRegister::R13 => {
+                self.r13 = value;
+            }
+            syscalls::ThreadContextRegister::R14 => {
+                self.r14 = value;
+            }
+            syscalls::ThreadContextRegister::R15 => {
+                self.r15 = value;
+            }
+            syscalls::ThreadContextRegister::InstructionPointer => {
+                self.instruction_pointer = VirtAddr::new(value as u64);
+            }
+            syscalls::ThreadContextRegister::CpuFlags => {
+                panic!("Cannot update CPU Flags from user");
+            }
+        }
     }
 }
 

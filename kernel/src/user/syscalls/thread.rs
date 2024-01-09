@@ -1,13 +1,17 @@
 use core::mem;
 
-use alloc::sync::Arc;
-use syscalls::{Permissions, ThreadInfo, ThreadPriority, ThreadState};
+use alloc::{sync::Arc, vec::Vec};
+use syscalls::{
+    Exception, Permissions, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority,
+    ThreadState,
+};
 
 use crate::{
     memory::VirtAddr,
     user::{
-        error::{check_arg, check_found},
-        thread, Error,
+        error::{check_arg, check_found, invalid_argument},
+        thread::{self, thread_resume},
+        Error,
     },
 };
 
@@ -159,6 +163,109 @@ pub async fn list(context: Context) -> Result<(), Error> {
     let mut writer = ListOutputWriter::<u64>::new(&context, array_ptr, count_ptr)?;
 
     writer.fill(&thread::list());
+
+    Ok(())
+}
+
+pub async fn error_info(context: Context) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+    let info_ptr = context.arg2();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    let mut user_access = process.vm_access_typed::<Exception>(
+        VirtAddr::new(info_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    if let Some(exception) = target_thread.state().is_error() {
+        *user_access.get_mut() = exception;
+    } else {
+        return Err(invalid_argument());
+    }
+
+    Ok(())
+}
+
+pub async fn context(context: Context) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+    let info_ptr = context.arg2();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    let mut user_access = process.vm_access_typed::<ThreadContext>(
+        VirtAddr::new(info_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    check_arg(target_thread.state().is_error().is_some())?;
+
+    // TODO: not atomic with check
+    target_thread.get_user_context(user_access.get_mut());
+
+    Ok(())
+}
+
+pub async fn update_context(context: Context) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+    let regs_array_ptr = context.arg1();
+    let values_array_ptr = context.arg2();
+    let regs_count = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    let regs_array_access = process.vm_access_typed_slice::<ThreadContextRegister>(
+        VirtAddr::new(regs_array_ptr as u64),
+        regs_count,
+        Permissions::READ,
+    )?;
+
+    let values_array_access = process.vm_access_typed_slice::<usize>(
+        VirtAddr::new(values_array_ptr as u64),
+        regs_count,
+        Permissions::READ,
+    )?;
+
+    let regs = {
+        let mut regs = Vec::new();
+        regs.reserve(regs_count);
+
+        let regs_array = regs_array_access.get();
+        let values_array = values_array_access.get();
+
+        for index in 0..regs_count {
+            regs.push((regs_array[index], values_array[index]));
+        }
+
+        regs
+    };
+
+    check_arg(target_thread.state().is_error().is_some())?;
+
+    // TODO: not atomic with check
+    target_thread.update_user_context(&regs)
+}
+
+pub async fn resume(context: Context) -> Result<(), Error> {
+    let thread_handle = context.arg1();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_thread = process.handles().get_thread(thread_handle.into())?;
+
+    check_arg(target_thread.state().is_error().is_some())?;
+
+    thread_resume(&thread);
 
     Ok(())
 }

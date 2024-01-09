@@ -14,7 +14,9 @@ pub use ipc::{Message, PortInfo};
 pub use listener::{ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType};
 pub use permissions::Permissions;
 pub use process::ProcessInfo;
-pub use thread::{Exception, ThreadInfo, ThreadPriority, ThreadState};
+pub use thread::{
+    Exception, ThreadContext, ThreadContextRegister, ThreadInfo, ThreadPriority, ThreadState,
+};
 
 /// List of syscall numbers
 #[repr(usize)]
@@ -43,6 +45,10 @@ pub enum SyscallNumber {
     ThreadSetPriority,
     ThreadInfo,
     ThreadList,
+    ThreadErrorInfo,
+    ThreadContext,
+    ThreadUpdateContext,
+    ThreadResume,
 
     MemoryObjectCreate,
 

@@ -40,6 +40,10 @@ pub fn init() {
     register_syscall(SyscallNumber::ThreadKill, thread::kill);
     register_syscall(SyscallNumber::ThreadInfo, thread::info);
     register_syscall(SyscallNumber::ThreadList, thread::list);
+    register_syscall(SyscallNumber::ThreadErrorInfo, thread::error_info);
+    register_syscall(SyscallNumber::ThreadContext, thread::context);
+    register_syscall(SyscallNumber::ThreadUpdateContext, thread::update_context);
+    register_syscall(SyscallNumber::ThreadResume, thread::resume);
 
     register_syscall(SyscallNumber::MemoryObjectCreate, memory_object::create);
 

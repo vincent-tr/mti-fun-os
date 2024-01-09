@@ -134,6 +134,9 @@ pub struct ThreadContext {
 
     /// CPU flags
     pub cpu_flags: usize,
+
+    // FS base value (used for TLS)
+    pub fs_base: usize,
 }
 
 #[repr(u64)]
@@ -162,4 +165,7 @@ pub enum ThreadContextRegister {
 
     /// CPU flags
     CpuFlags,
+
+    // FS base value (used for TLS)
+    FsBase,
 }

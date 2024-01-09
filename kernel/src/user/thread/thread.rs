@@ -10,15 +10,20 @@ use log::debug;
 use spin::{Mutex, RwLock, RwLockReadGuard};
 use syscalls::Error;
 pub use syscalls::ThreadPriority;
-use x86_64::registers::rflags::RFlags;
+use x86_64::registers::{
+    rflags::RFlags,
+    segmentation::{Segment64, FS},
+};
 
 use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
 use crate::interrupts::{Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS};
 use crate::memory::{is_userspace, VirtAddr};
-use crate::user::error::invalid_argument;
-use crate::user::listener;
-use crate::user::process::{process_remove_thread, Process};
-use crate::user::syscalls::SyscallExecutor;
+use crate::user::{
+    error::invalid_argument,
+    listener,
+    process::{process_remove_thread, Process},
+    syscalls::SyscallExecutor,
+};
 
 use super::{threads::remove_thread, wait_queue::WaitQueue};
 
@@ -63,12 +68,12 @@ pub fn syscall_clear(thread: &Arc<Thread>) {
 
 pub unsafe fn save(thread: &Arc<Thread>) {
     let mut context = thread.context.lock();
-    context.save(InterruptStack::current());
+    context.save();
 }
 
 pub unsafe fn load(thread: &Arc<Thread>) {
     let context = thread.context.lock();
-    context.load(InterruptStack::current());
+    context.load();
 }
 
 /// Thread of execution
@@ -410,6 +415,9 @@ struct ThreadContext {
 
     /// CPU flags
     cpu_flags: RFlags,
+
+    // FS base value (used for TLS)
+    fs_base: VirtAddr,
 }
 
 impl ThreadContext {
@@ -433,11 +441,14 @@ impl ThreadContext {
             r15: 0,
             instruction_pointer: thread_start,
             cpu_flags: USERLAND_RFLAGS,
+            fs_base: VirtAddr::zero(),
         }
     }
 
     /// Save the interrupt stack into the thread context
-    pub fn save(&mut self, interrupt_stack: &InterruptStack) {
+    pub unsafe fn save(&mut self) {
+        let interrupt_stack = InterruptStack::current();
+
         self.rax = interrupt_stack.scratch.rax;
         self.rcx = interrupt_stack.scratch.rcx;
         self.rdx = interrupt_stack.scratch.rdx;
@@ -456,10 +467,14 @@ impl ThreadContext {
         self.r15 = interrupt_stack.preserved.r15;
         self.instruction_pointer = interrupt_stack.iret.instruction_pointer;
         self.cpu_flags = RFlags::from_bits_retain(interrupt_stack.iret.cpu_flags);
+
+        self.fs_base = FS::read_base();
     }
 
     /// Load the thread context into the interrupt stack
-    pub fn load(&self, interrupt_stack: &mut InterruptStack) {
+    pub unsafe fn load(&self) {
+        let interrupt_stack = InterruptStack::current();
+
         interrupt_stack.scratch.rax = self.rax;
         interrupt_stack.scratch.rcx = self.rcx;
         interrupt_stack.scratch.rdx = self.rdx;
@@ -481,6 +496,8 @@ impl ThreadContext {
         interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
         interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR.0);
         interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR.0);
+
+        FS::write_base(self.fs_base);
     }
 
     pub fn to_user(&self, user: &mut syscalls::ThreadContext) {
@@ -502,6 +519,7 @@ impl ThreadContext {
         user.r15 = self.r15;
         user.instruction_pointer = self.instruction_pointer.as_u64() as usize;
         user.cpu_flags = self.cpu_flags.bits() as usize;
+        user.fs_base = self.fs_base.as_u64() as usize;
     }
 
     pub fn validate_from_user(&self, reg: syscalls::ThreadContextRegister, value: usize) -> bool {
@@ -517,6 +535,10 @@ impl ThreadContext {
             syscalls::ThreadContextRegister::CpuFlags => {
                 // Cannot change CPU Flags for now
                 false
+            }
+            syscalls::ThreadContextRegister::FsBase => {
+                let addr = VirtAddr::new(value as u64);
+                addr.is_null() || is_userspace(addr)
             }
             _ => true,
         }
@@ -577,6 +599,9 @@ impl ThreadContext {
             }
             syscalls::ThreadContextRegister::CpuFlags => {
                 panic!("Cannot update CPU Flags from user");
+            }
+            syscalls::ThreadContextRegister::FsBase => {
+                self.fs_base = VirtAddr::new(value as u64);
             }
         }
     }

@@ -1,10 +1,15 @@
 use core::cmp::min;
 
+use alloc::{format, sync::Arc};
 use syscalls::ProcessInfo;
 
 use crate::{
     memory::{Permissions, VirtAddr},
-    user::{error::check_found, handle::Handle, process, Error},
+    user::{
+        error::{check_arg, check_found},
+        handle::Handle,
+        process, thread, Error,
+    },
 };
 
 use super::{
@@ -130,6 +135,49 @@ pub async fn mprotect(context: Context) -> Result<(), Error> {
         size,
         Permissions::from_bits_retain(perms as u64),
     )
+}
+
+pub async fn exit(context: Context) -> Result<(), Error> {
+    let thread = context.owner();
+    let process = thread.process();
+
+    // TODO: must be atomic (no thread must be created in the process while doing this)
+    // Kill other threads
+    for tid in process.threads() {
+        if tid != thread.id() {
+            let thread =
+                crate::user::thread::find(tid).expect(&format!("Thread does not exist: {tid}"));
+
+            if !thread.state().is_terminated() {
+                thread::thread_terminate(&thread);
+            }
+        }
+    }
+
+    super::exit(&context).await
+}
+
+pub async fn kill(context: Context) -> Result<(), Error> {
+    let process_handle = context.arg1();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_process = process.handles().get_process(process_handle.into())?;
+
+    // Forbid to kill self
+    check_arg(!Arc::ptr_eq(&process, &target_process))?;
+
+    // TODO: must be atomic (no thread must be created in the process while doing this)
+    for tid in target_process.threads() {
+        let thread = crate::user::thread::find(tid).expect("Thread does not exist");
+
+        if !thread.state().is_terminated() {
+            thread::thread_terminate(&thread);
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn info(context: Context) -> Result<(), Error> {

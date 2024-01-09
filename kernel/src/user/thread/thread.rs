@@ -17,7 +17,7 @@ use crate::interrupts::{Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS}
 use crate::memory::{is_userspace, VirtAddr};
 use crate::user::error::invalid_argument;
 use crate::user::listener;
-use crate::user::process::Process;
+use crate::user::process::{process_remove_thread, Process};
 use crate::user::syscalls::SyscallExecutor;
 
 use super::{threads::remove_thread, wait_queue::WaitQueue};
@@ -227,6 +227,7 @@ impl Thread {
 impl Drop for Thread {
     fn drop(&mut self) {
         remove_thread(self);
+        process_remove_thread(self);
 
         debug!("Thread {} deleted (pid={})", self.id, self.process.id());
         listener::notify_thread(self.id, listener::ThreadEventType::Deleted);

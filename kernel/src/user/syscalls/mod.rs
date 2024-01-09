@@ -30,6 +30,8 @@ pub fn init() {
     register_syscall(SyscallNumber::ProcessMMap, process::mmap);
     register_syscall(SyscallNumber::ProcessMUnmap, process::munmap);
     register_syscall(SyscallNumber::ProcessMProtect, process::mprotect);
+    register_syscall(SyscallNumber::ProcessExit, process::exit);
+    register_syscall(SyscallNumber::ProcessKill, process::kill);
     register_syscall(SyscallNumber::ProcessInfo, process::info);
     register_syscall(SyscallNumber::ProcessList, process::list);
 

@@ -8,7 +8,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 pub use self::memory_access::{MemoryAccess, TypedMemoryAccess};
-pub use self::process::Process;
+pub use self::process::{process_remove_thread, Process};
 use self::processes::PROCESSES;
 
 use super::Error;

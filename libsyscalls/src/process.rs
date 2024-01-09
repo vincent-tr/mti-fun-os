@@ -127,6 +127,18 @@ pub fn mprotect(process: &Handle, range: &Range<usize>, perms: Permissions) -> S
     sysret_to_result(ret)
 }
 
+pub fn exit() -> SyscallResult<()> {
+    let ret = unsafe { syscall0(SyscallNumber::ProcessExit) };
+
+    sysret_to_result(ret)
+}
+
+pub fn kill(process: &Handle) -> SyscallResult<()> {
+    let ret = unsafe { syscall1(SyscallNumber::ProcessKill, process.as_syscall_value()) };
+
+    sysret_to_result(ret)
+}
+
 /// Get info about the process
 pub fn info(process: &Handle) -> SyscallResult<ProcessInfo> {
     let info = SyscallOutPtr::new();

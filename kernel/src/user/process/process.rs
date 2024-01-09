@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use alloc::{string::String, sync::Arc};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use log::debug;
 use spin::RwLock;
 
@@ -32,6 +32,12 @@ use crate::user::{
 /// Note: Only Process type is exported by process module, not this function
 pub fn new(id: u64, name: &str) -> Result<Arc<Process>, Error> {
     Process::new(id, name)
+}
+
+/// Used from thread drop
+pub fn process_remove_thread(thread: &Thread) {
+    let process = thread.process();
+    process.threads.remove(thread.id());
 }
 
 /// Process
@@ -271,6 +277,11 @@ impl Process {
     /// Get the number of threads in the process
     pub fn thread_count(&self) -> usize {
         self.threads.len()
+    }
+
+    /// Get the list of tids in the process
+    pub fn threads(&self) -> Vec<u64> {
+        self.threads.keys()
     }
 
     /// Get the number of mappings in the address space of the process

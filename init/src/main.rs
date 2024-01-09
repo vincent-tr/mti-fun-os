@@ -10,7 +10,8 @@ use core::{arch::asm, hint::unreachable_unchecked, panic::PanicInfo};
 
 use bit_field::BitArray;
 use libsyscalls::{
-    ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadEventType, ThreadPriority,
+    ipc, process, thread, Exception, Handle, Permissions, SyscallResult, ThreadEventType,
+    ThreadPriority,
 };
 use log::{debug, error, info};
 
@@ -72,10 +73,8 @@ extern "C" fn main() -> ! {
 
     do_ipc(&self_proc);
 
-    let _thread1 = create_thread(&self_proc, debugbreak);
-    let _thread2 = create_thread(&self_proc, page_fault);
-
-    thread::exit().expect("Could not exit thread");
+    debug!("Exiting");
+    process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };
 }
 
@@ -148,7 +147,9 @@ fn dump_processes_threads() {
 fn panic(info: &PanicInfo) -> ! {
     error!("PANIC: {info}");
 
-    halt();
+    // Note: if case we failed exit, we cannot do much more.
+    let _ = process::exit();
+    unsafe { unreachable_unchecked() };
 }
 
 fn idle() -> ! {
@@ -248,6 +249,19 @@ fn do_listen_threads() -> ! {
     let _listener = libsyscalls::listener::create_thread(&sender, None)
         .expect("failed to create thread listener");
 
+    let (mut thread_debugbreak, mut thread_pagefault) = {
+        let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
+        (
+            create_thread(&self_proc, debugbreak),
+            create_thread(&self_proc, page_fault),
+        )
+    };
+
+    let thread_debugbreak_info =
+        libsyscalls::thread::info(&thread_debugbreak).expect("Could not get thread info");
+    let thread_pagefault_info =
+        libsyscalls::thread::info(&thread_pagefault).expect("Could not get thread info");
+
     loop {
         wait_one(&reader).expect("wait failed");
         let msg = libsyscalls::ipc::receive(&reader).expect("receive failed");
@@ -258,7 +272,18 @@ fn do_listen_threads() -> ! {
         debug!("Thread event: {:?}", event);
 
         if let ThreadEventType::Error = event.r#type {
-            let thread = libsyscalls::thread::open(event.tid).expect("could not open error thread");
+            let thread = if event.tid == thread_debugbreak_info.tid {
+                let mut thread = Handle::invalid();
+                core::mem::swap(&mut thread, &mut thread_debugbreak);
+                thread
+            } else if event.tid == thread_pagefault_info.tid {
+                let mut thread = Handle::invalid();
+                core::mem::swap(&mut thread, &mut thread_pagefault);
+                thread
+            } else {
+                panic!("unexpected error");
+            };
+
             let err =
                 libsyscalls::thread::error_info(&thread).expect("could not get thread error info");
 
@@ -268,6 +293,8 @@ fn do_listen_threads() -> ! {
                 debug!("Thread resume");
                 libsyscalls::thread::resume(&thread).expect("resume failed");
             }
+
+            // thread handle will be dropped here
         }
     }
 }

@@ -6,6 +6,7 @@ mod wait_queue;
 
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
+use log::debug;
 use spin::RwLock;
 
 use self::{
@@ -35,8 +36,8 @@ pub fn create(
     thread
 }
 
-pub fn find(pid: u64) -> Option<Arc<Thread>> {
-    THREADS.find(pid)
+pub fn find(tid: u64) -> Option<Arc<Thread>> {
+    THREADS.find(tid)
 }
 
 pub fn list() -> Vec<u64> {

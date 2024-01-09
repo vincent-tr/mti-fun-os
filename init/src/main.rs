@@ -73,8 +73,9 @@ extern "C" fn main() -> ! {
 
     do_ipc(&self_proc);
 
-    debug!("Exiting");
-    process::exit().expect("Could not exit process");
+    //debug!("Exiting");
+    //process::exit().expect("Could not exit process");
+    thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
 }
 
@@ -155,27 +156,6 @@ fn panic(info: &PanicInfo) -> ! {
 fn idle() -> ! {
     // TODO: better sleep
     loop {}
-}
-
-fn debugbreak() -> ! {
-    unsafe {
-        asm!("int3", options(nomem, nostack));
-    }
-
-    debug!("debugbreak: resumed");
-
-    thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
-}
-
-fn page_fault() -> ! {
-    let ptr = 0x42 as *mut u8;
-    unsafe { *ptr = 42 };
-
-    debug!("page_fault: resumed");
-
-    thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
 }
 
 fn do_ipc(self_proc: &Handle) {
@@ -285,14 +265,59 @@ fn do_listen_threads() -> ! {
 
             debug!("Thread error: {:?}", err);
 
-            if let Exception::Breakpoint = err {
-                debug!("Thread resume");
-                libsyscalls::thread::resume(&thread).expect("resume failed");
+            match err {
+                Exception::Breakpoint => {
+                    debug!("Thread resume");
+                    libsyscalls::thread::resume(&thread).expect("resume failed");
+                }
+                Exception::PageFault(error_code, address) => {
+                    let self_proc =
+                        libsyscalls::process::open_self().expect("Could not open self process");
+                    let page = libsyscalls::memory_object::create(PAGE_SIZE)
+                        .expect("Could not create page");
+
+                    libsyscalls::process::mmap(
+                        &self_proc,
+                        Some(address),
+                        PAGE_SIZE,
+                        Permissions::READ | Permissions::WRITE,
+                        Some(&page),
+                        0,
+                    )
+                    .expect("Could not map page");
+
+                    debug!("Thread resume");
+                    libsyscalls::thread::resume(&thread).expect("resume failed");
+                }
+                _ => {}
             }
 
             // thread handle will be dropped here
         }
     }
+}
+
+fn debugbreak() -> ! {
+    unsafe {
+        asm!("int3", options(nomem, nostack));
+    }
+
+    debug!("debugbreak: resumed");
+
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
+}
+
+const PAGE_FAULT_ADDR: usize = 0x10000;
+
+fn page_fault() -> ! {
+    let ptr = PAGE_FAULT_ADDR as *mut u8;
+    unsafe { *ptr = 42 };
+
+    debug!("page_fault: resumed");
+
+    thread::exit().expect("Could not exit thread");
+    unsafe { unreachable_unchecked() };
 }
 
 // Helpers

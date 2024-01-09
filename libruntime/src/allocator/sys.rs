@@ -1,5 +1,5 @@
-use libsyscalls::{process, Error, Permissions};
-use log::error;
+use libsyscalls::{memory_object, process, Error, Permissions};
+use log::{error, trace};
 
 use super::Allocator;
 use core::ptr;
@@ -13,13 +13,17 @@ impl System {
     }
 
     fn mmap(&self, size: usize) -> Result<*mut u8, Error> {
+        trace!("mmap size={size}");
+
         let self_proc = process::open_self()?;
+
+        let mobj = memory_object::create(size)?;
         let addr = process::mmap(
             &self_proc,
             None,
             size,
             Permissions::READ | Permissions::WRITE,
-            None,
+            Some(&mobj),
             0,
         )?;
 
@@ -27,7 +31,11 @@ impl System {
     }
 
     fn munmap(&self, addr: *mut u8, size: usize) -> Result<(), Error> {
+        trace!("munmap addr={addr:?} size={size}");
+
         let self_proc = process::open_self()?;
+
+        // memory object will be dropped when all mapping is removed
         let addr = addr as usize;
         process::munmap(&self_proc, &(addr..(addr + size)))
     }

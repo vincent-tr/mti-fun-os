@@ -3,10 +3,13 @@
 #![feature(naked_functions)]
 #![feature(used_with_arg)]
 
+extern crate alloc;
+
 mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked};
 
+use alloc::boxed::Box;
 use bit_field::BitArray;
 use libsyscalls::{
     ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
@@ -71,6 +74,8 @@ extern "C" fn main() -> ! {
     listen_threads(&self_proc);
 
     do_ipc(&self_proc);
+
+    do_alloc();
 
     //debug!("Exiting");
     //process::exit().expect("Could not exit process");
@@ -316,7 +321,7 @@ extern "C" fn debugbreak(arg: usize) -> ! {
     unsafe { unreachable_unchecked() };
 }
 
-const PAGE_FAULT_ADDR: usize = 0x10000;
+const PAGE_FAULT_ADDR: usize = 0x1000000;
 
 extern "C" fn page_fault(arg: usize) -> ! {
     debug!("page_fault: arg={arg}");
@@ -333,6 +338,14 @@ extern "C" fn page_fault(arg: usize) -> ! {
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
+}
+
+fn do_alloc() {
+    let data = Box::new(57);
+
+    core::mem::drop(data);
+
+    debug!("ALLOC OK");
 }
 
 // Helpers

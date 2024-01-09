@@ -399,7 +399,7 @@ impl Mappings {
         let start = self
             .nodes
             .get_mut(&area.range.start)
-            .expect(&format!("bad area {:?}", area));
+            .expect(&format!("bad area {:?}", area.range));
         start.next = left_area.clone();
 
         let middle = Node::new(left_area, right_area.clone());
@@ -408,7 +408,7 @@ impl Mappings {
         let end = self
             .nodes
             .get_mut(&area.range.end)
-            .expect(&format!("bad area {:?}", area));
+            .expect(&format!("bad area {:?}", area.range));
         end.prev = right_area;
     }
 
@@ -474,13 +474,13 @@ impl Mappings {
         let start = self
             .nodes
             .get_mut(&new_area.range.start)
-            .expect(&format!("bad area {:?}", new_area));
+            .expect(&format!("bad area {:?}", new_area.range));
         start.next = new_area.clone();
 
         let end = self
             .nodes
             .get_mut(&new_area.range.end)
-            .expect(&format!("bad area {:?}", new_area));
+            .expect(&format!("bad area {:?}", new_area.range));
         end.prev = new_area;
     }
 
@@ -488,14 +488,14 @@ impl Mappings {
         let start = self
             .nodes
             .get_mut(&new_area.range.start)
-            .expect(&format!("bad area {:?}", new_area));
+            .expect(&format!("bad area {:?}", new_area.range));
         assert!(start.next.range == new_area.range);
         start.next = new_area.clone();
 
         let end = self
             .nodes
             .get_mut(&new_area.range.end)
-            .expect(&format!("bad area {:?}", new_area));
+            .expect(&format!("bad area {:?}", new_area.range));
         assert!(end.prev.range == new_area.range);
         end.prev = new_area;
     }

@@ -6,7 +6,6 @@ mod wait_queue;
 
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
-use log::debug;
 use spin::RwLock;
 
 use self::{
@@ -131,10 +130,26 @@ pub fn thread_sleep<Context: WaitingContext + 'static>(
 
 /// Terminated the given thread
 pub fn thread_terminate(thread: &Arc<Thread>) {
-    assert!(!thread.state().is_terminated());
-
-    if thread.state().is_executing() {
-        context_switch(SCHEDULER.schedule());
+    match &*thread.state() {
+        ThreadState::Executing => {
+            context_switch(SCHEDULER.schedule());
+        }
+        ThreadState::Ready => {
+            SCHEDULER.remove(thread);
+        }
+        ThreadState::Waiting(data) => {
+            // Remove it from all queues
+            for wait_queue_ref in data.wait_queues() {
+                let wait_queue = wait_queue_ref.upgrade().expect("could not read wait queue");
+                wait_queue.remove(&thread);
+            }
+        }
+        ThreadState::Error(_) => {
+            // Nothing to do, thread is already in no queue
+        }
+        ThreadState::Terminated => {
+            panic!("invalid thread state: {:?}", thread.state())
+        }
     }
 
     syscall_clear(thread);

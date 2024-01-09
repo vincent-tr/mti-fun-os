@@ -91,7 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- test TLS
 - userland heap allocator
   - https://github.com/alexcrichton/dlmalloc-rs
 - better object oriented syscalls lib

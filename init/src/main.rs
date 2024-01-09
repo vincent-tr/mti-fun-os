@@ -308,7 +308,10 @@ extern "C" fn do_listen_threads(_arg: usize) -> ! {
 }
 
 extern "C" fn debugbreak(arg: usize) -> ! {
-    debug!("arg={arg}");
+    debug!("debugbreak: arg={arg}");
+    unsafe {
+        set_tls(42);
+    }
 
     let mut value = 42;
     unsafe {
@@ -317,17 +320,26 @@ extern "C" fn debugbreak(arg: usize) -> ! {
 
     debug!("debugbreak: resumed (value={value})");
 
+    debug!("debugbreak: tls={}", unsafe { get_tls() });
+
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
 }
 
 const PAGE_FAULT_ADDR: usize = 0x10000;
 
-extern "C" fn page_fault(_arg: usize) -> ! {
+extern "C" fn page_fault(arg: usize) -> ! {
+    debug!("page_fault: arg={arg}");
+    unsafe {
+        set_tls(43);
+    }
+
     let ptr = PAGE_FAULT_ADDR as *mut u8;
     unsafe { *ptr = 42 };
 
     debug!("page_fault: resumed");
+
+    debug!("page_fault: tls={}", unsafe { get_tls() });
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
@@ -351,13 +363,26 @@ fn create_thread(self_proc: &Handle, entry_point: extern "C" fn(usize) -> !) -> 
     .expect("Could not map thread task stack");
     let stack_top = stack_addr + PAGE_SIZE;
 
+    // small stack, does not do much
+    let tls = libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create tls");
+
+    let tls_addr = libsyscalls::process::mmap(
+        &self_proc,
+        None,
+        PAGE_SIZE,
+        Permissions::READ | Permissions::WRITE,
+        Some(&tls),
+        0,
+    )
+    .expect("Could not map tls");
+
     libsyscalls::thread::create(
         &self_proc,
         ThreadPriority::Normal,
         entry_point,
         stack_top,
         42,
-        0,
+        tls_addr,
     )
     .expect("Could create echo task")
 }
@@ -371,4 +396,14 @@ fn wait_one(port: &Handle) -> SyscallResult<()> {
     assert!(ready.get_bit(0));
 
     Ok(())
+}
+
+unsafe fn set_tls(value: usize) {
+    asm!("mov fs:[0], {value};", value = in(reg)value, options(nostack, preserves_flags));
+}
+
+unsafe fn get_tls() -> usize {
+    let mut value: usize;
+    asm!("mov {value}, fs:[0];", value = out(reg)value, options(nostack, preserves_flags));
+    value
 }

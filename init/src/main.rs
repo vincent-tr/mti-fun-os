@@ -11,10 +11,10 @@ use core::{arch::asm, hint::unreachable_unchecked};
 
 use alloc::boxed::Box;
 use bit_field::BitArray;
-use libruntime::kobject::{self, PAGE_SIZE};
+use libruntime::kobject::{self, ThreadOptions, ThreadPriority, PAGE_SIZE};
 use libsyscalls::{
     ipc, thread, Exception, Handle, Permissions, SyscallResult, ThreadContextRegister,
-    ThreadEventType, ThreadPriority,
+    ThreadEventType,
 };
 use log::{debug, info};
 
@@ -50,23 +50,7 @@ extern "C" fn main() -> ! {
 
     apply_memory_protections(&self_proc);
 
-    // small stack, does not do much
-    let idle_stack =
-        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create idle task stack");
-
-    let stack_addr = libsyscalls::process::mmap(
-        &self_proc,
-        None,
-        PAGE_SIZE,
-        Permissions::READ | Permissions::WRITE,
-        Some(&idle_stack),
-        0,
-    )
-    .expect("Could not map idle task stack");
-    let stack_top = stack_addr + PAGE_SIZE;
-
-    libsyscalls::thread::create(&self_proc, ThreadPriority::Idle, idle, stack_top, 0, 0)
-        .expect("Could create idle task");
+    create_idle_task();
 
     dump_processes_threads();
 
@@ -88,6 +72,21 @@ extern "C" fn main() -> ! {
     //process::exit().expect("Could not exit process");
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
+}
+
+fn create_idle_task() {
+    let mut options = ThreadOptions::default();
+
+    // Small stack, does not do much
+    options.stack_size(PAGE_SIZE);
+    options.priority(ThreadPriority::Idle);
+
+    let idle = || {
+        // TODO: better sleep
+        loop {}
+    };
+
+    kobject::Thread::start(idle, options).expect("Could not create idle task");
 }
 
 fn apply_memory_protections(self_proc: &Handle) {
@@ -155,23 +154,21 @@ fn dump_processes_threads() {
     }
 }
 
-extern "C" fn idle(_arg: usize) -> ! {
-    // TODO: better sleep
-    loop {}
-}
-
 fn do_ipc(self_proc: &Handle) {
     // create thread, send data and wait back
 
-    let (reader1, sender1) = libsyscalls::ipc::create(Some("chan1")).expect("failed to create ipc");
-    let (reader2, sender2) = libsyscalls::ipc::create(Some("chan2")).expect("failed to create ipc");
+    let (echo_reader, main_sender) = libsyscalls::ipc::create(None).expect("failed to create ipc");
+    let (main_reader, echo_sender) = libsyscalls::ipc::create(None).expect("failed to create ipc");
 
-    unsafe {
-        EXC.reader = reader1;
-        EXC.sender = sender2;
-    }
+    let echo = move || {
+        wait_one(&echo_reader).expect("wait failed");
+        let msg = libsyscalls::ipc::receive(&echo_reader).expect("receive failed");
 
-    create_thread(self_proc, echo);
+        libsyscalls::ipc::send(&echo_sender, &msg).expect("send failed");
+    };
+
+    let echo_thread = kobject::Thread::start(echo, ThreadOptions::default())
+        .expect("could not create echo thread");
 
     let msg = libsyscalls::Message {
         data: [42; libsyscalls::Message::DATA_SIZE],
@@ -179,41 +176,13 @@ fn do_ipc(self_proc: &Handle) {
             libsyscalls::Message::HANDLE_COUNT],
     };
 
-    libsyscalls::ipc::send(&sender1, &msg).expect("send failed");
+    libsyscalls::ipc::send(&main_sender, &msg).expect("send failed");
 
-    wait_one(&reader2).expect("wait failed");
-    let msg = libsyscalls::ipc::receive(&reader2).expect("receive failed");
+    wait_one(&main_reader).expect("wait failed");
+    let msg = libsyscalls::ipc::receive(&main_reader).expect("receive failed");
 
     assert!(msg.data[0] == 42);
     debug!("IPC ALL GOOD");
-}
-
-struct Exchange {
-    reader: Handle,
-    sender: Handle,
-}
-
-static mut EXC: Exchange = Exchange {
-    reader: Handle::invalid(),
-    sender: Handle::invalid(),
-};
-
-extern "C" fn echo(_arg: usize) -> ! {
-    // take from EXC
-    let mut reader = Handle::invalid();
-    let mut sender = Handle::invalid();
-    unsafe {
-        core::mem::swap(&mut reader, &mut EXC.reader);
-        core::mem::swap(&mut sender, &mut EXC.sender);
-    }
-
-    wait_one(&reader).expect("wait failed");
-    let msg = libsyscalls::ipc::receive(&reader).expect("receive failed");
-
-    libsyscalls::ipc::send(&sender, &msg).expect("send failed");
-
-    thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
 }
 
 fn listen_threads(self_proc: &Handle) {

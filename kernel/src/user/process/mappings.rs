@@ -203,7 +203,7 @@ impl Mappings {
 
         if let Some(node) = self.nodes.get(&new_area.range.end) {
             // exactly on node
-            assert!(node.next.is_empty());
+            assert!(node.prev.is_empty());
         } else {
             // need to split next area
             let next_area = self.get(new_area.range.end);
@@ -556,5 +556,26 @@ impl Mappings {
         for &addr in self.nodes.keys() {
             assert!(!self.can_merge(addr));
         }
+
+        // Very verbose: write out a summary of the address space
+        use log::trace;
+
+        trace!("BEGIN check_consistency");
+
+        let mut first = true;
+        for (&addr, node) in self.nodes.iter() {
+            if first {
+                let left = &node.prev;
+                trace!("    {:?} ({:?})", left.r#type(), left.range);
+                first = false
+            }
+
+            trace!("  {:?}", addr);
+
+            let right = &node.next;
+            trace!("    {:?} ({:?})", right.r#type(), right.range);
+        }
+
+        trace!("END check_consistency");
     }
 }

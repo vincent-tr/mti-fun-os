@@ -130,7 +130,9 @@ impl<'a> PortWaiter<'a> {
 
         waiter.port_handles.reserve(waiter.len());
         for port in waiter.ports.iter() {
-            waiter.port_handles.push(unsafe { port.handle.as_syscall_value() });
+            waiter
+                .port_handles
+                .push(unsafe { port.handle.as_syscall_value() });
         }
 
         waiter.ready_resize();
@@ -144,16 +146,17 @@ impl<'a> PortWaiter<'a> {
     }
 
     /// Add a port at the end of the list
-    /// 
+    ///
     /// Note: This reset readyness
     pub fn add(&mut self, port: &'a PortReceiver) {
         self.ports.push(port);
-        self.port_handles.push(unsafe { port.handle.as_syscall_value() });
+        self.port_handles
+            .push(unsafe { port.handle.as_syscall_value() });
         self.ready_resize();
     }
 
     /// Remove the port at the specified index
-    /// 
+    ///
     /// Note: This reset readyness
     pub fn remove(&mut self, index: usize) {
         self.ports.remove(index);

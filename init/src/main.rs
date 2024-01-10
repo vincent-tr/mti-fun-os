@@ -56,17 +56,7 @@ extern "C" fn main() -> ! {
 
     listen_threads(&self_proc);
 
-    do_ipc(&self_proc);
-
-    do_alloc();
-
-    let _thread = kobject::Thread::start(
-        || {
-            debug!("in thread!");
-        },
-        kobject::ThreadOptions::default(),
-    )
-    .expect("could not create thread");
+    do_ipc();
 
     //debug!("Exiting");
     //process::exit().expect("Could not exit process");
@@ -154,34 +144,25 @@ fn dump_processes_threads() {
     }
 }
 
-fn do_ipc(self_proc: &Handle) {
+fn do_ipc() {
     // create thread, send data and wait back
 
-    let (echo_reader, main_sender) = libsyscalls::ipc::create(None).expect("failed to create ipc");
-    let (main_reader, echo_sender) = libsyscalls::ipc::create(None).expect("failed to create ipc");
+    let (echo_reader, main_sender) = kobject::Port::create(None).expect("failed to create ipc");
+    let (main_reader, echo_sender) = kobject::Port::create(None).expect("failed to create ipc");
 
     let echo = move || {
-        wait_one(&echo_reader).expect("wait failed");
-        let msg = libsyscalls::ipc::receive(&echo_reader).expect("receive failed");
-
-        libsyscalls::ipc::send(&echo_sender, &msg).expect("send failed");
+        let mut message = echo_reader.blocking_receive().expect("receive failed");
+        echo_sender.send(&mut message).expect("send failed");
     };
 
-    let echo_thread = kobject::Thread::start(echo, ThreadOptions::default())
-        .expect("could not create echo thread");
+    kobject::Thread::start(echo, ThreadOptions::default()).expect("could not create echo thread");
 
-    let msg = libsyscalls::Message {
-        data: [42; libsyscalls::Message::DATA_SIZE],
-        handles: [unsafe { core::mem::transmute(Handle::invalid()) };
-            libsyscalls::Message::HANDLE_COUNT],
-    };
+    let mut msg = unsafe { kobject::Message::new::<i32>(&42, &mut []) };
+    main_sender.send(&mut msg).expect("send failed");
 
-    libsyscalls::ipc::send(&main_sender, &msg).expect("send failed");
+    let msg = main_reader.blocking_receive().expect("wait failed");
 
-    wait_one(&main_reader).expect("wait failed");
-    let msg = libsyscalls::ipc::receive(&main_reader).expect("receive failed");
-
-    assert!(msg.data[0] == 42);
+    assert!(unsafe { *msg.data::<i32>() } == 42);
     debug!("IPC ALL GOOD");
 }
 
@@ -314,14 +295,6 @@ extern "C" fn page_fault(arg: usize) -> ! {
 
     thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
-}
-
-fn do_alloc() {
-    let data = Box::new(57);
-
-    core::mem::drop(data);
-
-    debug!("ALLOC OK");
 }
 
 // Helpers

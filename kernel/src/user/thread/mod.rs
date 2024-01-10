@@ -6,6 +6,7 @@ mod wait_queue;
 
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashSet;
+use log::debug;
 use spin::RwLock;
 
 use self::{
@@ -173,6 +174,8 @@ pub fn thread_next() {
 /// Triggered from exception handler: mark the current thread as errored
 pub fn thread_error(error: Exception) {
     let thread = current_thread();
+
+    debug!("Thread {} error: {:?}", thread.id(), error);
 
     context_switch(SCHEDULER.schedule());
 

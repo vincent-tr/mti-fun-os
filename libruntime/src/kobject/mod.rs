@@ -1,10 +1,12 @@
 pub const PAGE_SIZE: usize = 4096;
 
 use core::fmt::Debug;
-pub use libsyscalls::{Error, Handle, ThreadPriority};
+pub use libsyscalls::{
+    Error, Handle, ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType, ThreadPriority,
+};
 
 mod ipc;
-//mod listener;
+mod listener;
 mod memory;
 mod process;
 mod thread;
@@ -16,6 +18,7 @@ pub trait KObject: Debug {
 }
 
 pub use ipc::{KWaitable, Message, Port, PortReceiver, PortSender, Waiter};
+pub use listener::{ProcessListener, ThreadListener};
 pub use memory::MemoryObject;
 pub use process::Process;
 pub use thread::{Thread, ThreadOptions};

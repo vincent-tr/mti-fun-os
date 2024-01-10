@@ -73,6 +73,17 @@ impl KWaitable for PortReceiver {
     unsafe fn waitable_handle(&self) -> &Handle {
         &self.handle
     }
+
+    fn wait(&self) -> Result<(), Error> {
+        let ports = &[unsafe { self.handle.as_syscall_value() }];
+        let ready = &mut [0u8];
+
+        ipc::wait(ports, ready)?;
+
+        assert!(ready.get_bit(0));
+
+        Ok(())
+    }
 }
 
 impl PortReceiver {
@@ -87,18 +98,6 @@ impl PortReceiver {
         let msg = ipc::receive(&self.handle)?;
 
         Ok(unsafe { Message::from_receive_syscall(msg) })
-    }
-
-    /// Wait until the port is ready to receive a message
-    pub fn wait(&self) -> Result<(), Error> {
-        let ports = &[unsafe { self.handle.as_syscall_value() }];
-        let ready = &mut [0u8];
-
-        ipc::wait(ports, ready)?;
-
-        assert!(ready.get_bit(0));
-
-        Ok(())
     }
 
     /// Block until a message is received
@@ -122,6 +121,9 @@ impl PortReceiver {
 pub trait KWaitable: Debug {
     /// Get the internal waitable handle of the object
     unsafe fn waitable_handle(&self) -> &Handle;
+
+    /// Wait until the object is ready
+    fn wait(&self) -> Result<(), Error>;
 }
 
 /// Waiter for ports
@@ -319,7 +321,7 @@ impl Message {
 
         // Alignment is always a power of 2
         // data is `align(8)`
-        assert!(mem::align_of::<T>() < 8);
+        assert!(mem::align_of::<T>() <= 8);
     }
 
     /// Get the handle at index (index must be < 8)

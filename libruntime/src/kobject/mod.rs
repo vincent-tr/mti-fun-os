@@ -2,7 +2,8 @@ pub const PAGE_SIZE: usize = 4096;
 
 use core::fmt::Debug;
 pub use libsyscalls::{
-    Error, Handle, ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType, ThreadPriority,
+    Error, Exception, Handle, Permissions, ProcessEvent, ProcessEventType, ThreadContext,
+    ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority,
 };
 
 mod ipc;
@@ -21,4 +22,4 @@ pub use ipc::{KWaitable, Message, Port, PortReceiver, PortSender, Waiter};
 pub use listener::{ProcessListener, ThreadListener};
 pub use memory::MemoryObject;
 pub use process::Process;
-pub use thread::{Thread, ThreadOptions};
+pub use thread::{Thread, ThreadOptions, ThreadSupervisor};

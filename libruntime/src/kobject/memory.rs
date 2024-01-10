@@ -1,6 +1,6 @@
-use libsyscalls::{memory_object, Handle};
+use libsyscalls::memory_object;
 
-use super::{Error, KObject};
+use super::*;
 
 /// Memory object
 #[derive(Debug)]

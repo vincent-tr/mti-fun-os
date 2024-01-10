@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
-use libsyscalls::{listener, Handle};
+use libsyscalls::listener;
 
-use super::{Error, KObject, KWaitable, Port, PortReceiver, ProcessEvent, ThreadEvent};
+use super::*;
 
 /// Thread listener
 ///

@@ -5,11 +5,11 @@ use core::{
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
-use libsyscalls::{ipc, Handle};
+use libsyscalls::ipc;
 
 type SysMessage = libsyscalls::Message;
 
-use super::{Error, KObject};
+use super::*;
 
 pub struct Port {
     _priv: (),

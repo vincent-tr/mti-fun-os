@@ -9,8 +9,11 @@ mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked};
 
-use libruntime::kobject::{self, ThreadOptions, ThreadPriority, PAGE_SIZE};
-use libsyscalls::{thread, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType};
+use libruntime::kobject::{
+    self, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType, ThreadOptions,
+    ThreadPriority, PAGE_SIZE,
+};
+use libsyscalls::thread;
 use log::{debug, info};
 
 // Special init start: need to setup its own stack
@@ -162,22 +165,48 @@ fn do_ipc() {
 }
 
 fn listen_threads() {
+    let debugbreak = || {
+        unsafe {
+            set_tls(42);
+        }
+
+        let mut value = 42;
+        unsafe {
+            asm!("int3", inlateout("rax") value => value, options(nostack, preserves_flags));
+        }
+
+        debug!("debugbreak: resumed (value={value})");
+        debug!("debugbreak: tls={}", unsafe { get_tls() });
+    };
+
+    const PAGE_FAULT_ADDR: usize = 0x1000000;
+
+    let pagefault = || {
+        unsafe {
+            set_tls(43);
+        }
+
+        let ptr = PAGE_FAULT_ADDR as *mut u8;
+        unsafe { *ptr = 42 };
+
+        debug!("page_fault: resumed");
+        debug!("page_fault: tls={}", unsafe { get_tls() });
+    };
+
     let listen = move || {
         let listener =
             kobject::ThreadListener::create(None).expect("failed to create thread listener");
 
-        let (mut thread_debugbreak, mut thread_pagefault) = {
-            let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
-            (
-                create_thread(&self_proc, debugbreak),
-                create_thread(&self_proc, page_fault),
-            )
-        };
+        // Keep thread handle alive
+        let thread_debugbreak = kobject::Thread::start(debugbreak, ThreadOptions::default())
+            .expect("could not create thread");
 
-        let thread_debugbreak_info =
-            libsyscalls::thread::info(&thread_debugbreak).expect("Could not get thread info");
-        let thread_pagefault_info =
-            libsyscalls::thread::info(&thread_pagefault).expect("Could not get thread info");
+        // Keep thread handle alive
+        let thread_pagefault = kobject::Thread::start(pagefault, ThreadOptions::default())
+            .expect("could not create thread");
+
+        debug!("debugbreak_tid = {}", thread_debugbreak.tid());
+        debug!("pagefault_tid = {}", thread_pagefault.tid());
 
         loop {
             let event = listener.blocking_receive().expect("receive failed");
@@ -185,56 +214,52 @@ fn listen_threads() {
             debug!("Thread event: {:?}", event);
 
             if let ThreadEventType::Error = event.r#type {
-                let thread = if event.tid == thread_debugbreak_info.tid {
-                    let mut thread = Handle::invalid();
-                    core::mem::swap(&mut thread, &mut thread_debugbreak);
-                    thread
-                } else if event.tid == thread_pagefault_info.tid {
-                    let mut thread = Handle::invalid();
-                    core::mem::swap(&mut thread, &mut thread_pagefault);
-                    thread
+                let thread = if event.tid == thread_debugbreak.tid() {
+                    &thread_debugbreak
+                } else if event.tid == thread_pagefault.tid() {
+                    &thread_pagefault
                 } else {
                     panic!("unexpected error");
                 };
 
-                let err = libsyscalls::thread::error_info(&thread)
+                let supervisor = kobject::ThreadSupervisor::new(thread);
+
+                let err = supervisor
+                    .error_info()
                     .expect("could not get thread error info");
 
-                debug!("Thread error: {:?}", err);
+                debug!("Thread error: {:?} in thread {}", err, event.tid);
 
                 match err {
                     Exception::Breakpoint => {
                         // change context: update rax
-                        let context =
-                            libsyscalls::thread::context(&thread).expect("get context failed");
+                        let context = supervisor.context().expect("get context failed");
                         debug!("Thread RAX = {}", context.rax);
-                        libsyscalls::thread::update_context(
-                            &thread,
-                            &[(ThreadContextRegister::Rax, context.rax + 1)],
-                        )
-                        .expect("set context failed");
+                        supervisor
+                            .update_context(&[(ThreadContextRegister::Rax, context.rax + 1)])
+                            .expect("set context failed");
 
                         debug!("Thread resume");
-                        libsyscalls::thread::resume(&thread).expect("resume failed");
+                        supervisor.resume().expect("resume failed");
                     }
                     Exception::PageFault(_error_code, address) => {
-                        let self_proc =
-                            libsyscalls::process::open_self().expect("Could not open self process");
-                        let page = libsyscalls::memory_object::create(PAGE_SIZE)
+                        let self_proc = kobject::Process::current();
+                        libsyscalls::process::open_self().expect("Could not open self process");
+                        let page = kobject::MemoryObject::create(PAGE_SIZE)
                             .expect("Could not create page");
 
-                        libsyscalls::process::mmap(
-                            &self_proc,
-                            Some(address),
-                            PAGE_SIZE,
-                            Permissions::READ | Permissions::WRITE,
-                            Some(&page),
-                            0,
-                        )
-                        .expect("Could not map page");
+                        self_proc
+                            .map_mem(
+                                Some(address),
+                                PAGE_SIZE,
+                                Permissions::READ | Permissions::WRITE,
+                                &page,
+                                0,
+                            )
+                            .expect("Could not map page");
 
                         debug!("Thread resume");
-                        libsyscalls::thread::resume(&thread).expect("resume failed");
+                        supervisor.resume().expect("resume failed");
                     }
                     _ => {}
                 }
@@ -248,87 +273,7 @@ fn listen_threads() {
         .expect("Could not create listen thread");
 }
 
-extern "C" fn debugbreak(arg: usize) -> ! {
-    debug!("debugbreak: arg={arg}");
-    unsafe {
-        set_tls(42);
-    }
-
-    let mut value = 42;
-    unsafe {
-        asm!("int3", inlateout("rax") value => value, options(nostack, preserves_flags));
-    }
-
-    debug!("debugbreak: resumed (value={value})");
-
-    debug!("debugbreak: tls={}", unsafe { get_tls() });
-
-    thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
-}
-
-const PAGE_FAULT_ADDR: usize = 0x1000000;
-
-extern "C" fn page_fault(arg: usize) -> ! {
-    debug!("page_fault: arg={arg}");
-    unsafe {
-        set_tls(43);
-    }
-
-    let ptr = PAGE_FAULT_ADDR as *mut u8;
-    unsafe { *ptr = 42 };
-
-    debug!("page_fault: resumed");
-
-    debug!("page_fault: tls={}", unsafe { get_tls() });
-
-    thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
-}
-
 // Helpers
-
-fn create_thread(self_proc: &Handle, entry_point: extern "C" fn(usize) -> !) -> Handle {
-    // small stack, does not do much
-    const STACK_SIZE: usize = PAGE_SIZE * 5;
-    const TLS_SIZE: usize = PAGE_SIZE;
-
-    let thread_stack =
-        libsyscalls::memory_object::create(STACK_SIZE).expect("Could not create thread task stack");
-
-    let stack_addr = libsyscalls::process::mmap(
-        &self_proc,
-        None,
-        STACK_SIZE,
-        Permissions::READ | Permissions::WRITE,
-        Some(&thread_stack),
-        0,
-    )
-    .expect("Could not map thread task stack");
-    let stack_top = stack_addr + STACK_SIZE;
-
-    let tls = libsyscalls::memory_object::create(TLS_SIZE).expect("Could not create tls");
-
-    let tls_addr = libsyscalls::process::mmap(
-        &self_proc,
-        None,
-        TLS_SIZE,
-        Permissions::READ | Permissions::WRITE,
-        Some(&tls),
-        0,
-    )
-    .expect("Could not map tls");
-
-    libsyscalls::thread::create(
-        &self_proc,
-        ThreadPriority::Normal,
-        entry_point,
-        stack_top,
-        42,
-        tls_addr,
-    )
-    .expect("Could create task")
-}
 
 unsafe fn set_tls(value: usize) {
     asm!("mov fs:[0], {value};", value = in(reg)value, options(nostack, preserves_flags));

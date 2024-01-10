@@ -9,7 +9,6 @@ mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked};
 
-use alloc::boxed::Box;
 use bit_field::BitArray;
 use libruntime::kobject::{self, ThreadOptions, ThreadPriority, PAGE_SIZE};
 use libsyscalls::{

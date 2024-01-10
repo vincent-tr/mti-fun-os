@@ -1,4 +1,7 @@
-use core::mem::{self, size_of};
+use core::{
+    fmt::Debug,
+    mem::{self, size_of},
+};
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
@@ -66,6 +69,12 @@ impl KObject for PortReceiver {
     }
 }
 
+impl KWaitable for PortReceiver {
+    unsafe fn waitable_handle(&self) -> &Handle {
+        &self.handle
+    }
+}
+
 impl PortReceiver {
     fn from_handle(handle: Handle) -> Self {
         Self { handle }
@@ -109,30 +118,36 @@ impl PortReceiver {
     }
 }
 
+/// Trait to be implemented by all waitable objects
+pub trait KWaitable: Debug {
+    /// Get the internal waitable handle of the object
+    unsafe fn waitable_handle(&self) -> &Handle;
+}
+
 /// Waiter for ports
 #[derive(Debug)]
-pub struct PortWaiter<'a> {
+pub struct Waiter<'a> {
     /// Keep this list for user queries
-    ports: Vec<&'a PortReceiver>,
+    waitables: Vec<&'a dyn KWaitable>,
     /// Keep this list for efficiency
-    port_handles: Vec<usize>,
+    handles: Vec<usize>,
     ready: Vec<u8>,
 }
 
-impl<'a> PortWaiter<'a> {
+impl<'a> Waiter<'a> {
     /// Construct a new port waiter from a list of ports
-    pub fn new(ports: &[&'a PortReceiver]) -> Self {
+    pub fn new(waitables: &[&'a dyn KWaitable]) -> Self {
         let mut waiter = Self {
-            ports: Vec::from(ports),
-            port_handles: Vec::new(),
+            waitables: Vec::from(waitables),
+            handles: Vec::new(),
             ready: Vec::new(),
         };
 
-        waiter.port_handles.reserve(waiter.len());
-        for port in waiter.ports.iter() {
+        waiter.handles.reserve(waiter.len());
+        for waitable in waiter.waitables.iter() {
             waiter
-                .port_handles
-                .push(unsafe { port.handle.as_syscall_value() });
+                .handles
+                .push(unsafe { waitable.waitable_handle().as_syscall_value() });
         }
 
         waiter.ready_resize();
@@ -140,35 +155,35 @@ impl<'a> PortWaiter<'a> {
         waiter
     }
 
-    /// Get the number of ports
+    /// Get the number of waitables
     pub fn len(&self) -> usize {
-        self.ports.len()
+        self.waitables.len()
     }
 
-    /// Add a port at the end of the list
+    /// Add a waitable at the end of the list
     ///
     /// Note: This reset readyness
-    pub fn add(&mut self, port: &'a PortReceiver) {
-        self.ports.push(port);
-        self.port_handles
-            .push(unsafe { port.handle.as_syscall_value() });
+    pub fn add(&mut self, waitable: &'a dyn KWaitable) {
+        self.waitables.push(waitable);
+        self.handles
+            .push(unsafe { waitable.waitable_handle().as_syscall_value() });
         self.ready_resize();
     }
 
-    /// Remove the port at the specified index
+    /// Remove the waitable at the specified index
     ///
     /// Note: This reset readyness
     pub fn remove(&mut self, index: usize) {
-        self.ports.remove(index);
-        self.port_handles.remove(index);
+        self.waitables.remove(index);
+        self.handles.remove(index);
         self.ready_resize();
     }
 
-    /// Wait for any port to be ready.
+    /// Wait for any waitable to be ready.
     ///
     /// After this call returns, the ready list is updated
     pub fn wait(&mut self) -> Result<(), Error> {
-        ipc::wait(&self.port_handles, &mut self.ready)
+        ipc::wait(&self.handles, &mut self.ready)
     }
 
     /// Set all reeady flags to fals
@@ -176,12 +191,12 @@ impl<'a> PortWaiter<'a> {
         self.ready.fill(0);
     }
 
-    /// Iterate over port, readyness tuples
+    /// Iterate over waitable, readyness tuples
     pub fn iter() {}
 
-    /// Get the port at index
-    pub fn port(&self, index: usize) -> &'a PortReceiver {
-        &self.ports[index]
+    /// Get the waitable at index
+    pub fn waitable(&self, index: usize) -> &'a dyn KWaitable {
+        self.waitables[index]
     }
 
     /// Get the readyness at index
@@ -191,12 +206,12 @@ impl<'a> PortWaiter<'a> {
 
     fn ready_resize(&mut self) {
         self.ready.fill(0);
-        self.ready.resize(Self::ready_size(self.ports.len()), 0);
+        self.ready.resize(Self::ready_size(self.waitables.len()), 0);
     }
 
-    const fn ready_size(port_size: usize) -> usize {
+    const fn ready_size(waitables_size: usize) -> usize {
         const BITS: usize = u8::BITS as usize;
-        ((port_size + BITS - 1) / BITS) * BITS
+        ((waitables_size + BITS - 1) / BITS) * BITS
     }
 }
 

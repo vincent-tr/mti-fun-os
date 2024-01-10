@@ -29,6 +29,11 @@ impl Handle {
         self.0 as usize
     }
 
+    /// Build a pointer from a raw value. Reserved for ipc message implementations
+    pub unsafe fn from_raw(value: u64) -> Self {
+        Self(value)
+    }
+
     pub fn r#type(&self) -> HandleType {
         if !self.valid() {
             HandleType::Invalid

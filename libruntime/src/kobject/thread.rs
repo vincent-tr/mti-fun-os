@@ -109,6 +109,13 @@ impl Thread {
         thread::exit().expect("Could not exit thread");
         unsafe { unreachable_unchecked() };
     }
+
+    /// Open the given thread
+    pub fn open(tid: u64) -> Result<Self, Error> {
+        let handle = thread::open(tid)?;
+
+        Ok(Self { handle })
+    }
 }
 
 struct ThreadParameter {

@@ -18,7 +18,7 @@ impl KObject for Process {
 
 impl Process {
     /// Get the current process
-    pub fn current() -> &'static Process {
+    pub fn current() -> &'static Self {
         lazy_static::lazy_static! {
           static ref CURRENT: Process = Process::init_current();
         }
@@ -26,11 +26,17 @@ impl Process {
         &CURRENT
     }
 
-    fn init_current() -> Process {
+    fn init_current() -> Self {
         let handle = process::open_self().expect("Could not open current process");
-        Process { handle }
+        Self { handle }
     }
 
+    /// Open the given process
+    pub fn open(pid: u64) -> Result<Self, Error> {
+        let handle = process::open(pid)?;
+
+        Ok(Self { handle })
+    }
     /// Reserve an area in the process VM, but no not back it with memory
     pub fn map_reserve(&self, addr: Option<usize>, size: usize) -> Result<usize, Error> {
         process::mmap(&self.handle, addr, size, Permissions::NONE, None, 0)

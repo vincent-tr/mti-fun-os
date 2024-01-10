@@ -160,7 +160,7 @@ impl InternalMessage {
             if handle.valid() {
                 internal_message.handles[index] = Some(
                     sender
-                        .expect("MEssage with handles but no sender specified")
+                        .expect("Message with handles but no sender specified")
                         .handles()
                         .get(handle)?,
                 );
@@ -172,7 +172,7 @@ impl InternalMessage {
             let handle = Handle::from(message.handles[index]);
             if handle.valid() {
                 sender
-                    .expect("MEssage with handles but no sender specified")
+                    .expect("Message with handles but no sender specified")
                     .handles()
                     .close(handle)
                     .expect("Could not close handle");

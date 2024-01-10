@@ -359,27 +359,29 @@ fn do_alloc() {
 
 fn create_thread(self_proc: &Handle, entry_point: extern "C" fn(usize) -> !) -> Handle {
     // small stack, does not do much
+    const STACK_SIZE: usize = PAGE_SIZE * 5;
+    const TLS_SIZE: usize = PAGE_SIZE;
+
     let thread_stack =
-        libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create thread task stack");
+        libsyscalls::memory_object::create(STACK_SIZE).expect("Could not create thread task stack");
 
     let stack_addr = libsyscalls::process::mmap(
         &self_proc,
         None,
-        PAGE_SIZE,
+        STACK_SIZE,
         Permissions::READ | Permissions::WRITE,
         Some(&thread_stack),
         0,
     )
     .expect("Could not map thread task stack");
-    let stack_top = stack_addr + PAGE_SIZE;
+    let stack_top = stack_addr + STACK_SIZE;
 
-    // small stack, does not do much
-    let tls = libsyscalls::memory_object::create(PAGE_SIZE).expect("Could not create tls");
+    let tls = libsyscalls::memory_object::create(TLS_SIZE).expect("Could not create tls");
 
     let tls_addr = libsyscalls::process::mmap(
         &self_proc,
         None,
-        PAGE_SIZE,
+        TLS_SIZE,
         Permissions::READ | Permissions::WRITE,
         Some(&tls),
         0,
@@ -394,7 +396,7 @@ fn create_thread(self_proc: &Handle, entry_point: extern "C" fn(usize) -> !) -> 
         42,
         tls_addr,
     )
-    .expect("Could create echo task")
+    .expect("Could create task")
 }
 
 fn wait_one(port: &Handle) -> SyscallResult<()> {

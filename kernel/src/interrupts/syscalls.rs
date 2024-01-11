@@ -30,7 +30,7 @@ pub fn init() {
     const CS_SYSRET: SegmentSelector = gdt::USER_CODE_SELECTOR;
     const SS_SYSRET: SegmentSelector = gdt::USER_DATA_SELECTOR;
 
-        Star::write(CS_SYSRET, SS_SYSRET, CS_SYSCALL, SS_SYSCALL)
+    Star::write(CS_SYSRET, SS_SYSRET, CS_SYSCALL, SS_SYSCALL)
         .expect("Could not setup 'star' register");
 
     let handler = VirtAddr::from_ptr(syscall_native_handler as *const ());

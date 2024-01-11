@@ -3,12 +3,57 @@ use libsyscalls::listener;
 
 use super::*;
 
+/// Indicate the filter type on thread listener
+#[derive(Debug)]
+pub enum ThreadListenerFilter<'a> {
+    All,
+    Tids(&'a [u64]),
+    Pids(&'a [u64]),
+}
+
+impl<'a> ThreadListenerFilter<'a> {
+    fn syscall_arg(&self) -> (Option<&'a [u64]>, bool) {
+        match self {
+            ThreadListenerFilter::All => (None, false),
+            ThreadListenerFilter::Tids(list) => (Some(list), false),
+            ThreadListenerFilter::Pids(list) => (Some(list), true),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ThreadListenerFilterOwner {
+    All,
+    Tids(Vec<u64>),
+    Pids(Vec<u64>),
+}
+
+impl From<ThreadListenerFilter<'_>> for ThreadListenerFilterOwner {
+    fn from(value: ThreadListenerFilter) -> Self {
+        match value {
+            ThreadListenerFilter::All => ThreadListenerFilterOwner::All,
+            ThreadListenerFilter::Tids(list) => ThreadListenerFilterOwner::Tids(Vec::from(list)),
+            ThreadListenerFilter::Pids(list) => ThreadListenerFilterOwner::Pids(Vec::from(list)),
+        }
+    }
+}
+
+impl ThreadListenerFilterOwner {
+    fn as_ref(&self) -> ThreadListenerFilter<'_> {
+        match self {
+            ThreadListenerFilterOwner::All => ThreadListenerFilter::All,
+            ThreadListenerFilterOwner::Tids(list) => ThreadListenerFilter::Tids(list.as_slice()),
+            ThreadListenerFilterOwner::Pids(list) => ThreadListenerFilter::Pids(list.as_slice()),
+        }
+    }
+}
+
 /// Thread listener
 ///
 /// Note: since thread listener is a complex object, it does not implement KObject directly
 #[derive(Debug)]
 pub struct ThreadListener {
-    tids: Option<Vec<u64>>,
+    filter: ThreadListenerFilterOwner,
     _listener: Handle,
     reader: PortReceiver,
 }
@@ -25,13 +70,13 @@ impl KWaitable for ThreadListener {
 
 impl ThreadListener {
     /// Create a new object which listen to thread event.
-    pub fn create(tids: Option<&[u64]>) -> Result<Self, Error> {
+    pub fn create(filter: ThreadListenerFilter) -> Result<Self, Error> {
         let (reader, sender) = Port::create(None)?;
-        let listener = listener::create_thread(unsafe { sender.handle() }, tids)?;
-        let tids = tids.map(|list| Vec::from(list));
+        let (ids, is_pids) = filter.syscall_arg();
+        let listener = listener::create_thread(unsafe { sender.handle() }, ids, is_pids)?;
 
         Ok(Self {
-            tids,
+            filter: ThreadListenerFilterOwner::from(filter),
             _listener: listener,
             reader,
         })
@@ -53,11 +98,49 @@ impl ThreadListener {
         Ok(unsafe { msg.data::<ThreadEvent>().clone() })
     }
 
-    /// Get the thread ids that are registered to this listener.
-    ///
-    /// Note: None means no filter: receive all events
-    pub fn tids(&self) -> Option<&[u64]> {
-        self.tids.as_ref().map(|list| -> &[u64] { &list })
+    /// Get the filter that is setup on this listener.
+    pub fn filter(&self) -> ThreadListenerFilter {
+        self.filter.as_ref()
+    }
+}
+
+/// Indicate the filter type on process listener
+#[derive(Debug)]
+pub enum ProcessListenerFilter<'a> {
+    All,
+    Pids(&'a [u64]),
+}
+
+impl<'a> ProcessListenerFilter<'a> {
+    fn syscall_arg(&self) -> Option<&'a [u64]> {
+        match self {
+            ProcessListenerFilter::All => None,
+            ProcessListenerFilter::Pids(list) => Some(list),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ProcessListenerFilterOwner {
+    All,
+    Pids(Vec<u64>),
+}
+
+impl From<ProcessListenerFilter<'_>> for ProcessListenerFilterOwner {
+    fn from(value: ProcessListenerFilter) -> Self {
+        match value {
+            ProcessListenerFilter::All => ProcessListenerFilterOwner::All,
+            ProcessListenerFilter::Pids(list) => ProcessListenerFilterOwner::Pids(Vec::from(list)),
+        }
+    }
+}
+
+impl ProcessListenerFilterOwner {
+    fn as_ref(&self) -> ProcessListenerFilter<'_> {
+        match self {
+            ProcessListenerFilterOwner::All => ProcessListenerFilter::All,
+            ProcessListenerFilterOwner::Pids(list) => ProcessListenerFilter::Pids(list.as_slice()),
+        }
     }
 }
 
@@ -66,7 +149,7 @@ impl ThreadListener {
 /// Note: since thread listener is a complex object, it does not implement KObject directly
 #[derive(Debug)]
 pub struct ProcessListener {
-    pids: Option<Vec<u64>>,
+    filter: ProcessListenerFilterOwner,
     _listener: Handle,
     reader: PortReceiver,
 }
@@ -83,13 +166,13 @@ impl KWaitable for ProcessListener {
 
 impl ProcessListener {
     /// Create a new object which listen to process event.
-    pub fn create(pids: Option<&[u64]>) -> Result<Self, Error> {
+    pub fn create(filter: ProcessListenerFilter) -> Result<Self, Error> {
         let (reader, sender) = Port::create(None)?;
+        let pids = filter.syscall_arg();
         let listener = listener::create_process(unsafe { sender.handle() }, pids)?;
-        let pids = pids.map(|list| Vec::from(list));
 
         Ok(Self {
-            pids,
+            filter: ProcessListenerFilterOwner::from(filter),
             _listener: listener,
             reader,
         })
@@ -111,10 +194,8 @@ impl ProcessListener {
         Ok(unsafe { msg.data::<ProcessEvent>().clone() })
     }
 
-    /// Get the process ids that are registered to this listener.
-    ///
-    /// Note: None means no filter: receive all events
-    pub fn pids(&self) -> Option<&[u64]> {
-        self.pids.as_ref().map(|list| -> &[u64] { &list })
+    /// Get the filter that is setup on this listener.
+    pub fn filter(&self) -> ProcessListenerFilter {
+        self.filter.as_ref()
     }
 }

@@ -20,7 +20,7 @@ pub trait KObject: Debug {
 }
 
 pub use ipc::{KWaitable, Message, Port, PortReceiver, PortSender, Waiter};
-pub use listener::{ProcessListener, ThreadListener};
+pub use listener::{ProcessListener, ProcessListenerFilter, ThreadListener, ThreadListenerFilter};
 pub use memory::MemoryObject;
 pub use process::Process;
 pub use thread::{Thread, ThreadOptions, ThreadSupervisor};

@@ -53,7 +53,7 @@ impl Threads {
 
         process.add_thread(&thread);
 
-        listener::notify_thread(thread.id(), listener::ThreadEventType::Created);
+        listener::notify_thread(&thread, listener::ThreadEventType::Created);
 
         thread
     }

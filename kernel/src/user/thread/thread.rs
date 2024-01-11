@@ -238,7 +238,7 @@ impl Drop for Thread {
         process_remove_thread(self);
 
         debug!("Thread {} deleted (pid={})", self.id, self.process.id());
-        listener::notify_thread(self.id, listener::ThreadEventType::Deleted);
+        listener::notify_thread(self, listener::ThreadEventType::Deleted);
     }
 }
 

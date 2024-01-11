@@ -11,8 +11,8 @@ use core::{arch::asm, hint::unreachable_unchecked};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
-    self, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType, ThreadOptions,
-    ThreadPriority, TlsAllocator, PAGE_SIZE,
+    self, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType,
+    ThreadListenerFilter, ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
 };
 use libsyscalls::thread;
 use log::{debug, info};
@@ -201,8 +201,8 @@ fn listen_threads() {
     };
 
     let listen = move || {
-        let listener =
-            kobject::ThreadListener::create(None).expect("failed to create thread listener");
+        let listener = kobject::ThreadListener::create(ThreadListenerFilter::All)
+            .expect("failed to create thread listener");
 
         // Keep thread handle alive
         let thread_debugbreak = kobject::Thread::start(debugbreak, ThreadOptions::default())

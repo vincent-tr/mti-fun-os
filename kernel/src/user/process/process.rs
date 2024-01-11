@@ -264,7 +264,7 @@ impl Process {
         // All threads of the process are terminated.
         self.handles.clear();
         self.terminated.store(true, Ordering::Relaxed);
-        listener::notify_process(self.id, listener::ProcessEventType::Terminated);
+        listener::notify_process(self, listener::ProcessEventType::Terminated);
     }
 
     pub fn terminated(&self) -> bool {
@@ -299,6 +299,6 @@ impl Drop for Process {
         remove_process(self);
 
         debug!("Process {} deleted", self.id);
-        listener::notify_process(self.id, listener::ProcessEventType::Deleted);
+        listener::notify_process(self, listener::ProcessEventType::Deleted);
     }
 }

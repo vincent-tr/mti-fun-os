@@ -157,7 +157,7 @@ pub fn thread_terminate(thread: &Arc<Thread>) {
 
     syscall_clear(thread);
     update_state(thread, ThreadState::Terminated);
-    listener::notify_thread(thread.id(), listener::ThreadEventType::Terminated);
+    listener::notify_thread(&thread, listener::ThreadEventType::Terminated);
 }
 
 /// End of time slice: mark the current thread as ready, and schedule the next one
@@ -180,7 +180,7 @@ pub fn thread_error(error: Exception) {
     context_switch(SCHEDULER.schedule());
 
     update_state(&thread, ThreadState::Error(error));
-    listener::notify_thread(thread.id(), listener::ThreadEventType::Error);
+    listener::notify_thread(&thread, listener::ThreadEventType::Error);
 }
 
 /// Resume the given errored thread
@@ -191,7 +191,7 @@ pub fn thread_resume(thread: &Arc<Thread>) {
     update_state(&thread, ThreadState::Ready);
     SCHEDULER.add(thread.clone());
 
-    listener::notify_thread(thread.id(), listener::ThreadEventType::Resumed);
+    listener::notify_thread(&thread, listener::ThreadEventType::Resumed);
 }
 
 /// Wait up one thread from the wait queue

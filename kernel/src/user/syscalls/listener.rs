@@ -46,9 +46,10 @@ pub async fn create_process(context: Context) -> Result<(), Error> {
 
 pub async fn create_thread(context: Context) -> Result<(), Error> {
     let port_handle = context.arg1();
-    let tid_list_ptr = context.arg2();
-    let tid_list_size = context.arg3();
-    let handle_out_ptr = context.arg4();
+    let id_list_ptr = context.arg2();
+    let id_list_size = context.arg3();
+    let is_pids = context.arg4() > 0;
+    let handle_out_ptr = context.arg5();
 
     let thread = context.owner();
     let process = thread.process();
@@ -57,23 +58,23 @@ pub async fn create_thread(context: Context) -> Result<(), Error> {
 
     let port = process.handles().get_port_sender(port_handle.into())?;
 
-    let tid_list_access = if tid_list_size == 0 {
+    let id_list_access = if id_list_size == 0 {
         None
     } else {
         Some(process.vm_access_typed_slice::<u64>(
-            VirtAddr::new(tid_list_ptr as u64),
-            tid_list_size,
+            VirtAddr::new(id_list_ptr as u64),
+            id_list_size,
             Permissions::READ,
         )?)
     };
 
-    let tids = if let Some(access) = &tid_list_access {
+    let ids = if let Some(access) = &id_list_access {
         Some(access.get())
     } else {
         None
     };
 
-    let thread_listener = ThreadListener::new(port, tids);
+    let thread_listener = ThreadListener::new(port, ids, is_pids);
 
     let handle = process.handles().open_thread_listener(thread_listener);
 

@@ -31,7 +31,7 @@ impl Processes {
 
         self.processes.insert(id, &process);
 
-        listener::notify_process(process.id(), listener::ProcessEventType::Created);
+        listener::notify_process(&process, listener::ProcessEventType::Created);
 
         Ok(process)
     }

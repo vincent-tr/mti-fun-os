@@ -27,8 +27,8 @@ pub fn create_process(port: &Handle, pids: Option<&[u64]>) -> SyscallResult<Hand
     Ok(new_handle)
 }
 
-pub fn create_thread(port: &Handle, tids: Option<&[u64]>) -> SyscallResult<Handle> {
-    let (tid_list_ptr, tid_list_size) = if let Some(list) = tids {
+pub fn create_thread(port: &Handle, ids: Option<&[u64]>, is_pids: bool) -> SyscallResult<Handle> {
+    let (id_list_ptr, id_list_size) = if let Some(list) = ids {
         assert!(list.len() > 0);
 
         (unsafe { slice_ptr(list) }, list.len())
@@ -36,13 +36,16 @@ pub fn create_thread(port: &Handle, tids: Option<&[u64]>) -> SyscallResult<Handl
         (0, 0)
     };
 
+    let is_pids = if is_pids { 1 } else { 0 };
+
     let mut new_handle = Handle::invalid();
     let ret = unsafe {
-        syscall4(
+        syscall5(
             SyscallNumber::ListenerCreateThread,
             port.as_syscall_value(),
-            tid_list_ptr,
-            tid_list_size,
+            id_list_ptr,
+            id_list_size,
+            is_pids,
             new_handle.as_syscall_ptr(),
         )
     };

@@ -1,17 +1,18 @@
-use core::{cell::RefCell, hint::unreachable_unchecked};
+use core::hint::unreachable_unchecked;
 
 use alloc::boxed::Box;
 use libsyscalls::{thread, Handle};
+use spin::Mutex;
 
-use super::{process::Mapping, tls::TLS_SIZE, *};
+use super::{tls::TLS_SIZE, *};
 
 const STACK_SIZE: usize = PAGE_SIZE * 5;
 
 /// Thread
 #[derive(Debug)]
 pub struct Thread {
-    cached_tid: RefCell<Option<u64>>,
-    cached_pid: RefCell<Option<u64>>,
+    cached_tid: Mutex<Option<u64>>,
+    cached_pid: Mutex<Option<u64>>,
     handle: Handle,
 }
 
@@ -81,8 +82,8 @@ impl Thread {
         Box::leak(parameter);
 
         Ok(Self {
-            cached_tid: RefCell::new(None),
-            cached_pid: RefCell::new(None),
+            cached_tid: Mutex::new(None),
+            cached_pid: Mutex::new(None),
             handle,
         })
     }
@@ -103,15 +104,15 @@ impl Thread {
         let handle = thread::open(tid)?;
 
         Ok(Self {
-            cached_tid: RefCell::new(Some(tid)),
-            cached_pid: RefCell::new(None),
+            cached_tid: Mutex::new(Some(tid)),
+            cached_pid: Mutex::new(None),
             handle,
         })
     }
 
     /// Get the thread id
     pub fn tid(&self) -> u64 {
-        if let Some(value) = *self.cached_tid.borrow() {
+        if let Some(value) = *self.cached_tid.lock() {
             return value;
         }
 
@@ -120,9 +121,9 @@ impl Thread {
         info.tid
     }
 
-    /// Get ths process id of the thread
+    /// Get the process id of the thread
     pub fn pid(&self) -> u64 {
-        if let Some(value) = *self.cached_pid.borrow() {
+        if let Some(value) = *self.cached_pid.lock() {
             return value;
         }
 
@@ -131,6 +132,7 @@ impl Thread {
         info.pid
     }
 
+    /// Set thread priority
     pub fn set_priority(&self, priority: ThreadPriority) -> Result<(), Error> {
         thread::set_priority(&self.handle, priority)
     }
@@ -139,12 +141,20 @@ impl Thread {
     pub fn info(&self) -> ThreadInfo {
         let info = thread::info(&self.handle).expect("Could not get thread info");
 
-        if self.cached_tid.borrow().is_none() {
-            *self.cached_tid.borrow_mut() = Some(info.tid);
+        {
+            let mut cached_tid = self.cached_tid.lock();
+
+            if cached_tid.is_none() {
+                *cached_tid = Some(info.tid);
+            }
         }
 
-        if self.cached_pid.borrow().is_none() {
-            *self.cached_pid.borrow_mut() = Some(info.pid);
+        {
+            let mut cached_pid = self.cached_pid.lock();
+
+            if cached_pid.is_none() {
+                *cached_pid = Some(info.pid);
+            }
         }
 
         info

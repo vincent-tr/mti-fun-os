@@ -11,10 +11,9 @@ use core::{arch::asm, hint::unreachable_unchecked, ops::Range};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
-    self, Exception, Permissions, ThreadContextRegister, ThreadEventType,
-    ThreadListenerFilter, ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
+    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
+    ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
 };
-use libsyscalls::thread;
 use log::{debug, info};
 
 // Special init start: need to setup its own stack
@@ -57,7 +56,7 @@ extern "C" fn main() -> ! {
 
     //debug!("Exiting");
     //process::exit().expect("Could not exit process");
-    thread::exit().expect("Could not exit thread");
+    libsyscalls::thread::exit().expect("Could not exit thread");
     unsafe { unreachable_unchecked() };
 }
 
@@ -121,9 +120,8 @@ fn dump_processes_threads() {
     info!("pids list = {:?} (count={})", pids, count);
 
     for &pid in pids {
-        let process = libsyscalls::process::open(pid).expect("Could not open pid");
-        let info = libsyscalls::process::info(&process).expect("Could not get process info");
-        info!("  {:?}", info);
+        let process = kobject::Process::open(pid).expect("Could not open pid");
+        info!("  {:?}", process.info());
     }
 
     let mut tids_buff: [u64; 32] = [0; 32];
@@ -131,9 +129,8 @@ fn dump_processes_threads() {
     info!("tids list = {:?} (count={})", tids, count);
 
     for &tid in tids {
-        let thread = libsyscalls::thread::open(tid).expect("Could not open tid");
-        let info = libsyscalls::thread::info(&thread).expect("Could not get thread info");
-        info!("  {:?}", info);
+        let thread = kobject::Thread::open(tid).expect("Could not open tid");
+        info!("  {:?}", thread.info());
     }
 }
 
@@ -245,7 +242,6 @@ fn listen_threads() {
                     }
                     Exception::PageFault(_error_code, address) => {
                         let self_proc = kobject::Process::current();
-                        libsyscalls::process::open_self().expect("Could not open self process");
                         let page = kobject::MemoryObject::create(PAGE_SIZE)
                             .expect("Could not create page");
 

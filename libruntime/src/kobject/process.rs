@@ -1,12 +1,14 @@
 use core::ops::Range;
 
 use libsyscalls::process;
+use spin::Mutex;
 
 use super::*;
 
 /// Process
 #[derive(Debug)]
 pub struct Process {
+    cached_pid: Mutex<Option<u64>>,
     handle: Handle,
 }
 
@@ -28,14 +30,46 @@ impl Process {
 
     fn init_current() -> Self {
         let handle = process::open_self().expect("Could not open current process");
-        Self { handle }
+        Self {
+            cached_pid: Mutex::new(None),
+            handle,
+        }
     }
 
     /// Open the given process
     pub fn open(pid: u64) -> Result<Self, Error> {
         let handle = process::open(pid)?;
 
-        Ok(Self { handle })
+        Ok(Self {
+            cached_pid: Mutex::new(Some(pid)),
+            handle,
+        })
+    }
+
+    /// Get the process id
+    pub fn pid(&self) -> u64 {
+        if let Some(value) = *self.cached_pid.lock() {
+            return value;
+        }
+
+        // Will also fill cache
+        let info = self.info();
+        info.pid
+    }
+
+    /// Get process info
+    pub fn info(&self) -> ProcessInfo {
+        let info = process::info(&self.handle).expect("Could not get process info");
+
+        {
+            let mut cached_pid = self.cached_pid.lock();
+
+            if cached_pid.is_none() {
+                *cached_pid = Some(info.pid);
+            }
+        }
+
+        info
     }
 
     /// Reserve an area in the process VM, but no not back it with memory

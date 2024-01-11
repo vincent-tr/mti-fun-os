@@ -3,10 +3,9 @@ use core::{cell::RefCell, hint::unreachable_unchecked};
 use alloc::boxed::Box;
 use libsyscalls::{thread, Handle};
 
-use super::{process::Mapping, *};
+use super::{process::Mapping, tls::TLS_SIZE, *};
 
 const STACK_SIZE: usize = PAGE_SIZE * 5;
-const TLS_SIZE: usize = PAGE_SIZE;
 
 // TODO: unmap stack + tls on exit/kill
 // TODO: add guards hits to "page fault of interest" (+ auto grow of stack)
@@ -29,7 +28,6 @@ impl KObject for Thread {
 #[derive(Debug)]
 pub struct ThreadOptions {
     stack_size: usize,
-    tls_size: usize,
     priority: ThreadPriority,
 }
 
@@ -38,7 +36,6 @@ impl Default for ThreadOptions {
     fn default() -> Self {
         Self {
             stack_size: STACK_SIZE,
-            tls_size: TLS_SIZE,
             priority: ThreadPriority::Normal,
         }
     }
@@ -48,12 +45,6 @@ impl ThreadOptions {
     /// Set the size of stack for the future thread
     pub fn stack_size(&mut self, value: usize) -> &mut Self {
         self.stack_size = value;
-        self
-    }
-
-    /// Set the size of tls for the future thread
-    pub fn tls_size(&mut self, value: usize) -> &mut Self {
-        self.tls_size = value;
         self
     }
 
@@ -71,7 +62,7 @@ impl Thread {
         options: ThreadOptions,
     ) -> Result<Self, Error> {
         let stack = AllocWithGuards::new(options.stack_size)?;
-        let tls = AllocWithGuards::new(options.tls_size)?;
+        let tls = AllocWithGuards::new(TLS_SIZE)?;
         let mut parameter = Box::new(ThreadParameter::new(entry));
 
         let arg = parameter.as_mut() as *mut _ as usize;

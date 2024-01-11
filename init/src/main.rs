@@ -9,9 +9,10 @@ mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked};
 
+use alloc::sync::Arc;
 use libruntime::kobject::{
     self, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType, ThreadOptions,
-    ThreadPriority, PAGE_SIZE,
+    ThreadPriority, TlsAllocator, PAGE_SIZE,
 };
 use libsyscalls::thread;
 use log::{debug, info};
@@ -165,10 +166,14 @@ fn do_ipc() {
 }
 
 fn listen_threads() {
+    let slot = Arc::new(TlsAllocator::allocate().expect("Could not allocate tls slot"));
+
+    let cloned_slot = slot.clone();
     let debugbreak = || {
-        unsafe {
-            set_tls(42);
-        }
+        let slot = cloned_slot;
+
+        assert!(slot.get().is_none());
+        slot.set(42);
 
         let mut value = 42;
         unsafe {
@@ -176,21 +181,23 @@ fn listen_threads() {
         }
 
         debug!("debugbreak: resumed (value={value})");
-        debug!("debugbreak: tls={}", unsafe { get_tls() });
+        debug!("debugbreak: tls={}", slot.get().unwrap_or(0));
     };
 
     const PAGE_FAULT_ADDR: usize = 0x1000000;
 
+    let cloned_slot = slot.clone();
     let pagefault = || {
-        unsafe {
-            set_tls(43);
-        }
+        let slot = cloned_slot;
+
+        assert!(slot.get().is_none());
+        slot.set(43);
 
         let ptr = PAGE_FAULT_ADDR as *mut u8;
         unsafe { *ptr = 42 };
 
         debug!("page_fault: resumed");
-        debug!("page_fault: tls={}", unsafe { get_tls() });
+        debug!("page_fault: tls={}", slot.get().unwrap_or(0));
     };
 
     let listen = move || {
@@ -272,16 +279,4 @@ fn listen_threads() {
 
     kobject::Thread::start(listen, ThreadOptions::default())
         .expect("Could not create listen thread");
-}
-
-// Helpers
-
-unsafe fn set_tls(value: usize) {
-    asm!("mov fs:[0], {value};", value = in(reg)value, options(nostack, preserves_flags));
-}
-
-unsafe fn get_tls() -> usize {
-    let mut value: usize;
-    asm!("mov {value}, fs:[0];", value = out(reg)value, options(nostack, preserves_flags));
-    value
 }

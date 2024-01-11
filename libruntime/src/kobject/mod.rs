@@ -11,6 +11,7 @@ mod listener;
 mod memory;
 mod process;
 mod thread;
+mod tls;
 
 /// Trait to be implemented by all kobjects
 pub trait KObject: Debug {
@@ -23,3 +24,4 @@ pub use listener::{ProcessListener, ThreadListener};
 pub use memory::MemoryObject;
 pub use process::Process;
 pub use thread::{Thread, ThreadOptions, ThreadSupervisor};
+pub use tls::{TlsAllocator, TlsSlot};

@@ -193,5 +193,5 @@ pub fn security_exception_handler(stack: &mut InterruptStack) {
 }
 
 fn is_userland(stack: &mut InterruptStack) -> bool {
-    SegmentSelector(stack.iret.code_segment as u16) == gdt::user_code_selector()
+    SegmentSelector(stack.iret.code_segment as u16) == gdt::USER_CODE_SELECTOR
 }

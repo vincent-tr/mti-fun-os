@@ -2,6 +2,7 @@ use super::handler::InterruptStack;
 use core::arch::asm;
 use core::fmt;
 use memoffset::offset_of;
+use x86_64::structures::gdt::SegmentSelector;
 
 use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::memory::VirtAddr;
@@ -24,12 +25,12 @@ pub fn init() {
         });
     }
 
-    let cs_syscall = gdt::kernel_code_selector();
-    let ss_syscall = gdt::kernel_data_selector();
-    let cs_sysret = gdt::user_code_selector();
-    let ss_sysret = gdt::user_data_selector();
+    const CS_SYSCALL: SegmentSelector = gdt::KERNEL_CODE_SELECTOR;
+    const SS_SYSCALL: SegmentSelector = gdt::KERNEL_DATA_SELECTOR;
+    const CS_SYSRET: SegmentSelector = gdt::USER_CODE_SELECTOR;
+    const SS_SYSRET: SegmentSelector = gdt::USER_DATA_SELECTOR;
 
-    Star::write(cs_sysret, ss_sysret, cs_syscall, ss_syscall)
+        Star::write(CS_SYSRET, SS_SYSRET, CS_SYSCALL, SS_SYSCALL)
         .expect("Could not setup 'star' register");
 
     let handler = VirtAddr::from_ptr(syscall_native_handler as *const ());

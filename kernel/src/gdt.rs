@@ -12,6 +12,10 @@ pub const KERNEL_DATA_SELECTOR_INDEX: u16 = 2;
 pub const USER_DATA_SELECTOR_INDEX: u16 = 3; // Note: to configure STAR syscall register properly
 pub const USER_CODE_SELECTOR_INDEX: u16 = 4;
 
+pub const KERNEL_CODE_SELECTOR: SegmentSelector =
+    SegmentSelector::new(KERNEL_CODE_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring0);
+pub const KERNEL_DATA_SELECTOR: SegmentSelector =
+    SegmentSelector::new(KERNEL_DATA_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring0);
 pub const USER_DATA_SELECTOR: SegmentSelector =
     SegmentSelector::new(USER_DATA_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
 pub const USER_CODE_SELECTOR: SegmentSelector =
@@ -74,20 +78,4 @@ pub fn init() {
         CS::set_reg(GDT.1.kernel_code_selector);
         load_tss(GDT.1.tss_selector);
     }
-}
-
-pub fn kernel_code_selector() -> SegmentSelector {
-    GDT.1.kernel_code_selector
-}
-
-pub fn kernel_data_selector() -> SegmentSelector {
-    GDT.1.kernel_data_selector
-}
-
-pub fn user_code_selector() -> SegmentSelector {
-    GDT.1.user_code_selector
-}
-
-pub fn user_data_selector() -> SegmentSelector {
-    GDT.1.user_data_selector
 }

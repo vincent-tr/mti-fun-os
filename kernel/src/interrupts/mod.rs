@@ -6,7 +6,7 @@ mod syscalls;
 
 use core::arch::asm;
 
-use crate::gdt::{self, user_data_selector};
+use crate::gdt;
 use crate::memory::VirtAddr;
 use lazy_static::lazy_static;
 use x86_64::registers::model_specific::FsBase;
@@ -191,7 +191,7 @@ pub fn syscall_switch(syscall_number: usize) -> ! {
             "syscall;",                       // Run syscall (will never return)
         ),
 
-        user_data_seg = in(reg) user_data_selector().0,
+        user_data_seg = in(reg) gdt::USER_DATA_SELECTOR.0,
         in("rax") syscall_number,
 
         options(noreturn));

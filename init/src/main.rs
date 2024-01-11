@@ -45,13 +45,10 @@ extern "C" fn main() -> ! {
     libruntime::init();
 
     apply_memory_protections();
-
     create_idle_task();
 
     dump_processes_threads();
-
     listen_threads();
-
     do_ipc();
 
     //debug!("Exiting");
@@ -63,13 +60,20 @@ extern "C" fn main() -> ! {
 fn create_idle_task() {
     let mut options = ThreadOptions::default();
 
-    // Small stack, does not do much
-    options.stack_size(PAGE_SIZE);
     options.priority(ThreadPriority::Idle);
 
-    let idle = || {
-        // TODO: better sleep
-        loop {}
+    // Need ring0 to execute 'hlt'
+    unsafe {
+        options.privileged(true);
+    }
+
+    // Small stack, does not do much
+    options.stack_size(PAGE_SIZE);
+
+    let idle = || loop {
+        unsafe {
+            asm!("hlt", options(nomem, nostack, preserves_flags));
+        }
     };
 
     kobject::Thread::start(idle, options).expect("Could not create idle task");

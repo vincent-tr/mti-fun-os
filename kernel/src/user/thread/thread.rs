@@ -12,7 +12,9 @@ use syscalls::Error;
 pub use syscalls::ThreadPriority;
 use x86_64::registers::rflags::RFlags;
 
-use crate::gdt::{USER_CODE_SELECTOR, USER_DATA_SELECTOR};
+use crate::gdt::{
+    KERNEL_CODE_SELECTOR, KERNEL_DATA_SELECTOR, USER_CODE_SELECTOR, USER_DATA_SELECTOR,
+};
 use crate::interrupts::{
     tls_reg_read, tls_reg_write, Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS,
 };
@@ -32,13 +34,23 @@ use super::{threads::remove_thread, wait_queue::WaitQueue};
 pub fn new(
     id: u64,
     process: Arc<Process>,
+    privileged: bool,
     priority: ThreadPriority,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
     arg: usize,
     tls: VirtAddr,
 ) -> Arc<Thread> {
-    Thread::new(id, process, priority, thread_start, stack_top, arg, tls)
+    Thread::new(
+        id,
+        process,
+        privileged,
+        priority,
+        thread_start,
+        stack_top,
+        arg,
+        tls,
+    )
 }
 
 pub fn update_state(thread: &Arc<Thread>, new_state: ThreadState) {
@@ -74,7 +86,11 @@ pub unsafe fn save(thread: &Arc<Thread>) {
 
 pub unsafe fn load(thread: &Arc<Thread>) {
     let context = thread.context.lock();
-    context.load();
+    context.load(thread.privileged);
+}
+
+pub unsafe fn load_segments(thread: &Arc<Thread>) {
+    ThreadContext::load_segments(thread.privileged);
 }
 
 /// Thread of execution
@@ -82,6 +98,7 @@ pub unsafe fn load(thread: &Arc<Thread>) {
 pub struct Thread {
     id: u64,
     process: Arc<Process>,
+    privileged: bool,
     priority: AtomicU64,
     state: RwLock<ThreadState>,
     context: Mutex<ThreadContext>,
@@ -93,6 +110,7 @@ impl Thread {
     fn new(
         id: u64,
         process: Arc<Process>,
+        privileged: bool,
         priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
@@ -102,6 +120,7 @@ impl Thread {
         let thread = Arc::new(Self {
             id,
             process,
+            privileged,
             priority: AtomicU64::new(priority as u64),
             state: RwLock::new(ThreadState::Ready), // a thread is ready by default
             context: Mutex::new(ThreadContext::new(thread_start, stack_top, arg, tls)),
@@ -110,9 +129,10 @@ impl Thread {
         });
 
         debug!(
-            "Thread {} created (pid={}, priority={:?}, thread_start={:?}, stack_top={:?})",
+            "Thread {} created (pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
             thread.process.id(),
+            thread.privileged,
             thread.priority(),
             thread_start,
             stack_top,
@@ -134,6 +154,11 @@ impl Thread {
     /// Get the state of the thread
     pub fn state(&self) -> RwLockReadGuard<ThreadState> {
         self.state.read()
+    }
+
+    /// Get is the thread runs in privileged mode (ring0)
+    pub fn privileged(&self) -> bool {
+        self.privileged
     }
 
     /// Get the priority of the thread
@@ -480,7 +505,7 @@ impl ThreadContext {
     }
 
     /// Load the thread context into the interrupt stack
-    pub unsafe fn load(&self) {
+    pub unsafe fn load(&self, privileged: bool) {
         let interrupt_stack = InterruptStack::current();
 
         interrupt_stack.scratch.rax = self.rax;
@@ -502,10 +527,28 @@ impl ThreadContext {
         interrupt_stack.error_code = 0;
         interrupt_stack.iret.instruction_pointer = self.instruction_pointer;
         interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
-        interrupt_stack.iret.code_segment = u64::from(USER_CODE_SELECTOR.0);
-        interrupt_stack.iret.stack_segment = u64::from(USER_DATA_SELECTOR.0);
+        if privileged {
+            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR.0 as u64;
+            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR.0 as u64;
+        } else {
+            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR.0 as u64;
+            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR.0 as u64;
+        }
 
         tls_reg_write(self.tls);
+    }
+
+    /// Setup the interrupt stack with the right segments.
+    pub unsafe fn load_segments(privileged: bool) {
+        let interrupt_stack = InterruptStack::current();
+
+        if privileged {
+            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR.0 as u64;
+            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR.0 as u64;
+        } else {
+            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR.0 as u64;
+            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR.0 as u64;
+        }
     }
 
     pub fn to_user(&self, user: &mut syscalls::ThreadContext) {

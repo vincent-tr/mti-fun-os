@@ -3,6 +3,7 @@
 #[derive(Debug)]
 pub struct ThreadCreationParameters {
     pub process_handle: u64,
+    pub privileged: bool,
     pub priority: ThreadPriority,
     pub entry_point: usize,
     pub stack_top: usize,
@@ -55,6 +56,7 @@ pub struct ThreadInfo {
     pub tid: u64,
     pub pid: u64,
     pub priority: ThreadPriority,
+    pub privileged: bool,
     pub state: ThreadState,
     pub ticks: usize,
 }

@@ -4,10 +4,9 @@ use core::fmt;
 use memoffset::offset_of;
 use x86_64::structures::gdt::SegmentSelector;
 
-use crate::gdt::{USER_CODE_SELECTOR_INDEX, USER_DATA_SELECTOR_INDEX};
 use crate::memory::VirtAddr;
 use crate::user::execute_syscall;
-use crate::user::thread::{userland_timer_begin, userland_timer_end};
+use crate::user::thread::{thread_setup_sysret, userland_timer_begin, userland_timer_end};
 use x86_64::registers::model_specific::{Efer, EferFlags};
 use x86_64::registers::{
     model_specific::{LStar, SFMask, Star},
@@ -47,10 +46,10 @@ unsafe fn syscall_native_handler() {
         "swapgs;",                    // Swap KGSBASE with GSBASE, allowing fast TSS access - https://www.felixcloutier.com/x86/swapgs - https://wiki.osdev.org/SWAPGS
         "mov gs:[{usp}], rsp;",       // Save userland stack pointer
         "mov rsp, gs:[{ksp}];",       // Load kernel stack pointer
-        "push QWORD PTR {ss_sel};",   // Push fake userland SS (resembling iret frame)
+        "push 0;",                    // Push fake userland SS (resembling iret frame)
         "push QWORD PTR gs:[{usp}];", // Push userland rsp
         "push r11;",                  // Push userland rflags
-        "push QWORD PTR {cs_sel};",   // Push fake userland CS (resembling iret stack frame)
+        "push 0;",                    // Push fake userland CS (resembling iret stack frame)
         "push rcx;",                  // Push userland return pointer
         "push 0;",                    // Fake error code
 
@@ -66,19 +65,31 @@ unsafe fn syscall_native_handler() {
         pop_scratch!(),
 
         "swapgs;",                  // Restore user GSBASE by swapping GSBASE and KGSBASE.
+
         "add rsp,8;",               // Error code
+
+        // Test if we must return to ring0 (sysretq cannot return to ring0)
+        "test QWORD PTR [rsp + 8], {privileged_cs_sel};",
+        // If set, return using IRETQ instead.
+        "jnz 1f;",
+
         "pop rcx;",                 // Pop userland return pointer
         "add rsp, 8;",              // Pop fake userspace CS
         "pop r11;",                 // Pop rflags
         "pop rsp;",                 // Restore userland stack pointer
         "sysretq;",                 // Return into userland; RCX=>RIP,R11=>RFLAGS
+
+        // IRETQ fallback:
+        "
+1:
+        iretq
+        "
     ), 
 
     syscall_handler = sym syscall_handler,
     usp = const(offset_of!(ProcessorControlRegion, userland_stack_ptr_tmp)),
     ksp = const(offset_of!(ProcessorControlRegion, kernal_stack_ptr)),
-    ss_sel = const(USER_DATA_SELECTOR_INDEX),
-    cs_sel = const(USER_CODE_SELECTOR_INDEX),
+    privileged_cs_sel = const(gdt::KERNEL_CODE_SELECTOR.0 as u64),
 
     options(noreturn));
 }
@@ -92,6 +103,8 @@ unsafe extern "C" fn syscall_handler() {
     let context = SyscallArgs::from_stack(stack);
 
     execute_syscall(n, context);
+
+    thread_setup_sysret();
 
     userland_timer_begin();
 }

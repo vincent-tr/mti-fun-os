@@ -27,6 +27,7 @@ impl KObject for Thread {
 pub struct ThreadOptions {
     stack_size: usize,
     priority: ThreadPriority,
+    privileged: bool,
 }
 
 impl Default for ThreadOptions {
@@ -35,6 +36,7 @@ impl Default for ThreadOptions {
         Self {
             stack_size: STACK_SIZE,
             priority: ThreadPriority::Normal,
+            privileged: false,
         }
     }
 }
@@ -49,6 +51,17 @@ impl ThreadOptions {
     /// Set the priority of stack for the future thread
     pub fn priority(&mut self, value: ThreadPriority) -> &mut Self {
         self.priority = value;
+        self
+    }
+
+    /// Set if the thread runs in privileged mode (ring0)
+    ///
+    /// # Safety
+    ///
+    /// Threads in ring0 are very special, must use with care.
+    /// For example, if they trigger exception, they will panic() the kernel instead of standard thread error handling.
+    pub unsafe fn privileged(&mut self, value: bool) -> &mut Self {
+        self.privileged = value;
         self
     }
 }
@@ -69,6 +82,7 @@ impl Thread {
 
         let handle = thread::create(
             unsafe { Process::current().handle() },
+            options.privileged,
             options.priority,
             Self::thread_entry,
             stack_top_addr,

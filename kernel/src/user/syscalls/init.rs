@@ -84,6 +84,7 @@ fn create_thread(process: Arc<Process>) {
 
     user::thread::create(
         process.clone(),
+        false,
         ThreadPriority::Normal,
         entry_point,
         stack_top,

@@ -11,7 +11,7 @@ use spin::RwLock;
 
 use self::{
     scheduler::SCHEDULER,
-    thread::{add_ticks, syscall_clear, update_state, WaitQueueRef, WaitingData},
+    thread::{add_ticks, load_segments, syscall_clear, update_state, WaitQueueRef, WaitingData},
     threads::THREADS,
 };
 pub use self::{
@@ -24,13 +24,22 @@ use crate::{interrupts::Exception, memory::VirtAddr, user::listener};
 
 pub fn create(
     process: Arc<Process>,
+    privileged: bool,
     priority: ThreadPriority,
     thread_start: VirtAddr,
     stack_top: VirtAddr,
     arg: usize,
     tls: VirtAddr,
 ) -> Arc<Thread> {
-    let thread = THREADS.create(process, priority, thread_start, stack_top, arg, tls);
+    let thread = THREADS.create(
+        process,
+        privileged,
+        priority,
+        thread_start,
+        stack_top,
+        arg,
+        tls,
+    );
 
     assert!(thread.state().is_ready());
     SCHEDULER.add(thread.clone());
@@ -289,5 +298,16 @@ impl UserlandTimerInterruptScope {
 impl Drop for UserlandTimerInterruptScope {
     fn drop(&mut self) {
         userland_timer_begin();
+    }
+}
+
+/// Setup the interrupt stack with the right segments.
+///
+/// This is mandatory to detect if we should return to ring0
+pub fn thread_setup_sysret() {
+    let thread = current_thread();
+
+    unsafe {
+        load_segments(&thread);
     }
 }

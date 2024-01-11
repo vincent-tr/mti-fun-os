@@ -69,14 +69,14 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let target_process = process
         .handles()
         .get_process(params.process_handle.into())?;
-    let priority: ThreadPriority = unsafe { mem::transmute(params.priority) };
 
     // Forbid to thread threads on terminated processes
     check_arg(!target_process.terminated())?;
 
     let new_thread = thread::create(
         target_process.clone(),
-        priority,
+        params.privileged,
+        params.priority,
         check_is_userspace(VirtAddr::new(params.entry_point as u64))?,
         check_is_userspace(VirtAddr::new(params.stack_top as u64))?,
         params.arg,
@@ -150,6 +150,7 @@ pub async fn info(context: Context) -> Result<(), Error> {
     *user_access.get_mut() = ThreadInfo {
         tid: target_thread.id(),
         pid: target_thread.process().id(),
+        privileged: target_thread.privileged(),
         priority: target_thread.priority(),
         state,
         ticks: target_thread.ticks(),

@@ -32,6 +32,7 @@ impl Threads {
     pub fn create(
         &self,
         process: Arc<Process>,
+        privileged: bool,
         priority: ThreadPriority,
         thread_start: VirtAddr,
         stack_top: VirtAddr,
@@ -42,6 +43,7 @@ impl Threads {
         let thread = thread::new(
             id,
             process.clone(),
+            privileged,
             priority,
             thread_start,
             stack_top,

@@ -1,14 +1,15 @@
-use core::{cell::RefCell, hint::unreachable_unchecked, mem};
+use core::{cell::RefCell, hint::unreachable_unchecked};
 
 use alloc::boxed::Box;
 use libsyscalls::{thread, Handle};
 
-use super::*;
+use super::{process::Mapping, *};
 
 const STACK_SIZE: usize = PAGE_SIZE * 5;
 const TLS_SIZE: usize = PAGE_SIZE;
 
-// TODO: unmap stack + tls on exit
+// TODO: unmap stack + tls on exit/kill
+// TODO: add guards hits to "page fault of interest" (+ auto grow of stack)
 
 /// Thread
 #[derive(Debug)]
@@ -69,53 +70,33 @@ impl Thread {
         entry: Entry,
         options: ThreadOptions,
     ) -> Result<Self, Error> {
-        // TODO: cleanup on error
-        let stack = Self::create_alloc_with_guards(options.stack_size)?;
+        let stack = AllocWithGuards::new(options.stack_size)?;
+        let tls = AllocWithGuards::new(options.tls_size)?;
+        let mut parameter = Box::new(ThreadParameter::new(entry));
 
-        // TODO: cleanup on error
-        let tls = Self::create_alloc_with_guards(options.tls_size)?;
-
-        let arg = Box::new(ThreadParameter::new(entry));
-        let arg = Box::leak(arg) as *mut _ as usize;
-        let stack_top = stack + options.stack_size;
+        let arg = parameter.as_mut() as *mut _ as usize;
+        let stack_top_addr = stack.address() + options.stack_size;
+        let tls_addr = tls.address();
 
         let handle = thread::create(
             unsafe { Process::current().handle() },
             options.priority,
             Self::thread_entry,
-            stack_top,
+            stack_top_addr,
             arg,
-            tls,
-        )
-        .map_err(|err| {
-            // Thread not created, need to drop args
-            let arg = unsafe { Box::from_raw(arg as *mut ThreadParameter) };
-            mem::drop(arg);
+            tls_addr,
+        )?;
 
-            err
-        })?;
+        // Thread has been created properly, we can leak the allocation
+        stack.leak();
+        tls.leak();
+        Box::leak(parameter);
 
         Ok(Self {
             cached_tid: RefCell::new(None),
             cached_pid: RefCell::new(None),
             handle,
         })
-    }
-
-    fn create_alloc_with_guards(size: usize) -> Result<usize, Error> {
-        let self_proc = Process::current();
-
-        let reservation = self_proc.map_reserve(None, size + (PAGE_SIZE * 2))?;
-        let mobj = MemoryObject::create(size)?;
-        let addr = self_proc.map_mem(
-            Some(reservation + PAGE_SIZE),
-            size,
-            Permissions::READ | Permissions::WRITE,
-            &mobj,
-            0,
-        )?;
-
-        Ok(addr)
     }
 
     extern "C" fn thread_entry(arg: usize) -> ! {
@@ -179,6 +160,46 @@ impl Thread {
         }
 
         info
+    }
+}
+
+struct AllocWithGuards<'a> {
+    reservation: Mapping<'a>,
+}
+
+impl AllocWithGuards<'_> {
+    pub fn new(size: usize) -> Result<Self, Error> {
+        let self_proc = Process::current();
+
+        let reservation = self_proc.map_reserve(None, size + (PAGE_SIZE * 2))?;
+        let addr = reservation.address() + PAGE_SIZE;
+
+        let mobj = MemoryObject::create(size)?;
+
+        let mapping = self_proc.map_mem(
+            Some(addr),
+            size,
+            Permissions::READ | Permissions::WRITE,
+            &mobj,
+            0,
+        )?;
+
+        // Note: we can safely free the real mapping since the reservation is a superset of it.
+        // Droppping the reservation will drop the mapping as well
+        mapping.leak();
+
+        Ok(Self { reservation })
+    }
+
+    pub fn address(&self) -> usize {
+        self.reservation.address() + PAGE_SIZE
+    }
+
+    /// Leak the allocation.
+    ///
+    /// Consume the current object without freeing the allocated memory
+    pub fn leak(self) {
+        self.reservation.leak()
     }
 }
 

@@ -92,6 +92,7 @@ tail -f serial.log
 ## Next tasks / Notes
 
 - better object oriented syscalls lib
+- unwind
 - process creation:
   - dynamic linking
   - envp/argp

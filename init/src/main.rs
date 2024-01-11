@@ -248,7 +248,7 @@ fn listen_threads() {
                         let page = kobject::MemoryObject::create(PAGE_SIZE)
                             .expect("Could not create page");
 
-                        self_proc
+                        let mapping = self_proc
                             .map_mem(
                                 Some(address),
                                 PAGE_SIZE,
@@ -257,6 +257,7 @@ fn listen_threads() {
                                 0,
                             )
                             .expect("Could not map page");
+                        mapping.leak(); // only for testing purposes
 
                         debug!("Thread resume");
                         supervisor.resume().expect("resume failed");

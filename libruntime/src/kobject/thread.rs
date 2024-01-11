@@ -7,9 +7,6 @@ use super::{process::Mapping, tls::TLS_SIZE, *};
 
 const STACK_SIZE: usize = PAGE_SIZE * 5;
 
-// TODO: unmap stack + tls on exit/kill
-// TODO: add guards hits to "page fault of interest" (+ auto grow of stack)
-
 /// Thread
 #[derive(Debug)]
 pub struct Thread {

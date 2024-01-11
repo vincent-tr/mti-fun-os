@@ -92,6 +92,8 @@ tail -f serial.log
 ## Next tasks / Notes
 
 - better object oriented syscalls lib
+- unmap stack + tls on thread exit/kill
+- add guards hits to "page fault of interest" (+ auto grow of stack)
 - unwind
 - process creation:
   - dynamic linking

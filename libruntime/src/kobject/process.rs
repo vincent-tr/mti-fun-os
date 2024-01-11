@@ -105,6 +105,19 @@ impl<'a> Mapping<'a> {
         self.perms
     }
 
+    /// Update the permissions of the mapping
+    ///
+    /// Note: since the underlying memory object is not changed, Permissions cannot be switch with NONE
+    ///
+    /// # Safety
+    ///
+    /// Changing permissions on currently used mapping can result in page faults
+    pub unsafe fn update_permissions(&mut self, perms: Permissions) -> Result<(), Error> {
+        process::mprotect(&self.process.handle, &self.range, perms)?;
+        self.perms = perms;
+        Ok(())
+    }
+
     /// Get the range of the mapping
     pub fn range(&self) -> &Range<usize> {
         &self.range

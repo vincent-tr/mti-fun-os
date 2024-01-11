@@ -7,11 +7,11 @@ extern crate alloc;
 
 mod offsets;
 
-use core::{arch::asm, hint::unreachable_unchecked};
+use core::{arch::asm, hint::unreachable_unchecked, ops::Range};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
-    self, Exception, Handle, Permissions, ThreadContextRegister, ThreadEventType,
+    self, Exception, Permissions, ThreadContextRegister, ThreadEventType,
     ThreadListenerFilter, ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
 };
 use libsyscalls::thread;
@@ -45,9 +45,7 @@ static mut FORCE_DATA_SECTION: u8 = 0x42;
 extern "C" fn main() -> ! {
     libruntime::init();
 
-    let self_proc = libsyscalls::process::open_self().expect("Could not open self process");
-
-    apply_memory_protections(&self_proc);
+    apply_memory_protections();
 
     create_idle_task();
 
@@ -78,47 +76,43 @@ fn create_idle_task() {
     kobject::Thread::start(idle, options).expect("Could not create idle task");
 }
 
-fn apply_memory_protections(self_proc: &Handle) {
-    let text_range = offsets::text();
-    let rodata_range = offsets::rodata();
-    let data_range = offsets::data();
-
-    libsyscalls::process::mprotect(
-        &self_proc,
-        &text_range,
+fn apply_memory_protections() {
+    setup_protection(
+        "text",
+        offsets::text(),
         Permissions::READ | Permissions::EXECUTE,
-    )
-    .expect("Could not setup memory protection");
+    );
 
-    libsyscalls::process::mprotect(&self_proc, &rodata_range, Permissions::READ)
-        .expect("Could not setup memory protection");
+    setup_protection("rodata", offsets::rodata(), Permissions::READ);
 
-    libsyscalls::process::mprotect(
-        &self_proc,
-        &data_range,
+    setup_protection(
+        "data",
+        offsets::data(),
         Permissions::READ | Permissions::WRITE,
-    )
-    .expect("Could not setup memory protection");
+    );
 
-    debug!(
-        "text: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        text_range.start,
-        text_range.end,
-        text_range.len()
-    );
-    debug!(
-        "rodata: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        rodata_range.start,
-        rodata_range.end,
-        rodata_range.len()
-    );
-    debug!(
-        "data: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        data_range.start,
-        data_range.end,
-        data_range.len()
-    );
     debug!("stack_top: 0x{:016X}", offsets::stack_top());
+
+    fn setup_protection(name: &str, range: Range<usize>, perms: Permissions) {
+        // kernel has mapped one area with all permissions set
+        let initial_perms = Permissions::READ | Permissions::WRITE | Permissions::EXECUTE;
+        let process = kobject::Process::current();
+
+        unsafe {
+            let mut mapping = kobject::Mapping::unleak(process, range.clone(), initial_perms);
+            let res = mapping.update_permissions(perms);
+            mapping.leak(); // be sure to not drop the mapping, even on error, else we we have troubes to show the panic
+            res.expect("Could not setup memory protection");
+        }
+
+        debug!(
+            "{}: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
+            name,
+            range.start,
+            range.end,
+            range.len()
+        );
+    }
 }
 
 fn dump_processes_threads() {

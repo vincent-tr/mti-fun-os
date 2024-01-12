@@ -91,10 +91,15 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
+- syscall: kmem stats
+- timers (timeout)
+- thread name
+- object-oriented TLS
 - better object oriented syscalls lib
 - unmap stack + tls on thread exit/kill
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - unwind
+  - https://docs.rs/unwinding/latest/unwinding/
 - process creation:
   - dynamic linking
   - envp/argp

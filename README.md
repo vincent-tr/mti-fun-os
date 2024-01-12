@@ -102,3 +102,4 @@ tail -f serial.log
 - process creation:
   - dynamic linking : https://wiki.osdev.org/Dynamic_Linker
   - envp/argp
+  - -C prefer dynamic

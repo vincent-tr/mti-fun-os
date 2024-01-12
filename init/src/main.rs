@@ -50,6 +50,7 @@ extern "C" fn main() -> ! {
     dump_processes_threads();
     listen_threads();
     do_ipc();
+    debug!("Memory stats: {:?}", kobject::Memory::stats());
 
     //debug!("Exiting");
     //process::exit().expect("Could not exit process");

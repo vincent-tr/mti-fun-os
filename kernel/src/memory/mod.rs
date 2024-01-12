@@ -24,6 +24,7 @@ use x86_64::structures::paging::{mapper::MapToError, Size4KiB};
 pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
 
 pub type MapError = MapToError<Size4KiB>;
+pub use syscalls::{KallocStats, KvmStats, MemoryStats, PhysStats};
 pub use x86_64::structures::paging::mapper::UnmapError;
 
 use config::KERNEL_STACK_SIZE;
@@ -69,49 +70,8 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     );
 }
 
-#[derive(Debug)]
-pub struct PhysStats {
-    pub total: usize,
-    pub free: usize,
-}
-
-#[derive(Debug)]
-pub struct KvmStats {
-    /// KVM virtual space used
-    pub used: usize,
-
-    /// KVM total virtual space
-    pub total: usize,
-}
-
-#[derive(Debug)]
-pub struct KallocStats {
-    /// Size of all requests currently served by the slabs allocator
-    pub slabs_user: usize,
-
-    /// Size actually allocated to serve requests by the slabs allocator
-    pub slabs_allocated: usize,
-
-    /// Size of all requests currently served by the kvm allocator
-    pub kvm_user: usize,
-
-    /// Size actually allocated to serve requests by the kvm allocator
-    pub kvm_allocated: usize,
-}
-
-pub struct Stats {
-    /// Physical allocator stats
-    pub phys: PhysStats,
-
-    /// KVM space allocator stats
-    pub kvm: KvmStats,
-
-    /// Kernel allocator stats
-    pub kalloc: KallocStats,
-}
-
-pub fn stats() -> Stats {
-    Stats {
+pub fn stats() -> MemoryStats {
+    MemoryStats {
         phys: phys::stats(),
         kvm: kvm::stats(),
         kalloc: kalloc::ALLOC.stats(),

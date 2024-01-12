@@ -6,6 +6,7 @@ mod init;
 mod ipc;
 mod listener;
 mod logging;
+mod memory;
 mod memory_object;
 mod process;
 mod thread;
@@ -62,6 +63,8 @@ pub fn init() {
         listener::create_process,
     );
     register_syscall(SyscallNumber::ListenerCreateThread, listener::create_thread);
+
+    register_syscall(SyscallNumber::MemoryStats, memory::stats);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);
 }

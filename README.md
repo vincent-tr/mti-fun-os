@@ -91,7 +91,6 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
-- syscall: kmem stats
 - timers (timeout)
 - thread name
 - object-oriented TLS

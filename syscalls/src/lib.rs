@@ -4,20 +4,19 @@ mod error;
 mod handle;
 mod ipc;
 mod listener;
+mod memory;
 mod permissions;
 mod process;
 mod thread;
 
-pub use error::{Error, SUCCESS};
-pub use handle::HandleType;
-pub use ipc::{Message, PortInfo};
-pub use listener::{ProcessEvent, ProcessEventType, ThreadEvent, ThreadEventType};
-pub use permissions::Permissions;
-pub use process::ProcessInfo;
-pub use thread::{
-    Exception, ThreadContext, ThreadContextRegister, ThreadCreationParameters, ThreadInfo,
-    ThreadPriority, ThreadState,
-};
+pub use error::*;
+pub use handle::*;
+pub use ipc::*;
+pub use listener::*;
+pub use memory::*;
+pub use permissions::*;
+pub use process::*;
+pub use thread::*;
 
 /// List of syscall numbers
 #[repr(usize)]
@@ -67,4 +66,6 @@ pub enum SyscallNumber {
     ListenerCreateThread,
 
     InitSetup,
+
+    MemoryStats,
 }

@@ -4,6 +4,7 @@ mod handle;
 pub mod ipc;
 pub mod listener;
 mod logging;
+pub mod memory;
 pub mod memory_object;
 pub mod process;
 mod syscalls;
@@ -19,9 +20,9 @@ pub use logging::*;
 
 use ::syscalls::SUCCESS;
 pub use ::syscalls::{
-    Error, Exception, HandleType, Message, Permissions, PortInfo, ProcessEvent, ProcessEventType,
-    ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo,
-    ThreadPriority, ThreadState,
+    Error, Exception, HandleType, KallocStats, KvmStats, MemoryStats, Message, Permissions,
+    PhysStats, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext,
+    ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority, ThreadState,
 };
 
 pub type SyscallResult<T> = Result<T, Error>;

@@ -1,23 +1,15 @@
-use libsyscalls::memory_object;
+use libsyscalls::memory;
 
 use super::*;
 
-/// Memory object
-#[derive(Debug)]
-pub struct MemoryObject {
-    handle: Handle,
+/// Memory
+pub struct Memory {
+    _priv: (),
 }
 
-impl KObject for MemoryObject {
-    unsafe fn handle(&self) -> &Handle {
-        &self.handle
-    }
-}
-
-impl MemoryObject {
-    /// Create a new memory object of the specified size
-    pub fn create(size: usize) -> Result<Self, Error> {
-        let handle = memory_object::create(size)?;
-        Ok(Self { handle })
+impl Memory {
+    /// Get stats on memory usage
+    pub fn stats() -> MemoryStats {
+        memory::stats().expect("Could not get memory stats")
     }
 }

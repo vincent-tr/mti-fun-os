@@ -1,6 +1,6 @@
 use core::hint::unreachable_unchecked;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, string::String, vec::Vec};
 use libsyscalls::{thread, Handle};
 use spin::Mutex;
 
@@ -186,6 +186,34 @@ impl Thread {
         }
 
         info
+    }
+
+    /// Set the name of the thread
+    pub fn set_name(&self, name: &str) -> Result<(), Error> {
+        thread::set_name(&self.handle, name)
+    }
+
+    /// Get the name of the thread
+    pub fn name(&self) -> Result<String, Error> {
+        let mut size = ThreadInfo::NAME_LEN;
+
+        // Even if not atomic, let's consider we won't have many tries before we get a correct size
+        loop {
+            let mut buffer = Vec::with_capacity(size);
+            buffer.resize(size, 0);
+
+            let (_, new_size) = thread::get_name(&self.handle, &mut buffer)?;
+
+            if new_size > size {
+                // Retry
+                size = new_size;
+                continue;
+            }
+
+            buffer.resize(new_size, 0);
+
+            return Ok(unsafe { String::from_utf8_unchecked(buffer) });
+        }
     }
 
     /// Kill the target thread

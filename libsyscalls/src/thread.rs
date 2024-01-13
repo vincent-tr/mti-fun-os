@@ -133,6 +133,43 @@ pub fn list<'a>(array: &'a mut [u64]) -> SyscallResult<(&'a [u64], usize)> {
     Ok(list.finalize())
 }
 
+/// Set the thread name
+pub fn set_name(thread: &Handle, name: &str) -> SyscallResult<()> {
+    let name_reader = SyscallInStr::new(name);
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::ThreadSetName,
+            thread.as_syscall_value(),
+            name_reader.ptr_arg(),
+            name_reader.len_arg(),
+        )
+    };
+
+    sysret_to_result(ret)
+}
+
+/// Get the thread name
+///
+/// This can be useful is name is longer than 128 (truncated in info)
+pub fn get_name<'a>(
+    thread: &Handle,
+    name_buffer: &'a mut [u8],
+) -> SyscallResult<(&'a [u8], usize)> {
+    let mut list = unsafe { SyscallList::new(name_buffer) };
+
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::ThreadGetName,
+            thread.as_syscall_value(),
+            list.array_ptr_arg(),
+            list.count_ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(list.finalize())
+}
 /// Get the error info of the thread
 ///
 /// Note: the thread must be in error state

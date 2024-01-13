@@ -38,6 +38,8 @@ pub enum SyscallNumber {
     ProcessKill,
     ProcessInfo,
     ProcessList,
+    ProcessSetName,
+    ProcessGetName,
 
     ThreadOpenSelf,
     ThreadOpen,
@@ -47,6 +49,8 @@ pub enum SyscallNumber {
     ThreadSetPriority,
     ThreadInfo,
     ThreadList,
+    ThreadSetName,
+    ThreadGetName,
     ThreadErrorInfo,
     ThreadContext,
     ThreadUpdateContext,

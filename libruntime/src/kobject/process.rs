@@ -1,5 +1,6 @@
 use core::ops::Range;
 
+use alloc::{string::String, vec::Vec};
 use libsyscalls::process;
 use spin::Mutex;
 
@@ -80,6 +81,34 @@ impl Process {
         }
 
         info
+    }
+
+    /// Set the name of the process
+    pub fn set_name(&self, name: &str) -> Result<(), Error> {
+        process::set_name(&self.handle, name)
+    }
+
+    /// Get the name of the process
+    pub fn name(&self) -> Result<String, Error> {
+        let mut size = ProcessInfo::NAME_LEN;
+
+        // Even if not atomic, let's consider we won't have many tries before we get a correct size
+        loop {
+            let mut buffer = Vec::with_capacity(size);
+            buffer.resize(size, 0);
+
+            let (_, new_size) = process::get_name(&self.handle, &mut buffer)?;
+
+            if new_size > size {
+                // Retry
+                size = new_size;
+                continue;
+            }
+
+            buffer.resize(new_size, 0);
+
+            return Ok(unsafe { String::from_utf8_unchecked(buffer) });
+        }
     }
 
     /// Reserve an area in the process VM, but no not back it with memory

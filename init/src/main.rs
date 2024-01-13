@@ -128,6 +128,10 @@ fn dump_processes_threads() {
     for &pid in pids {
         let process = kobject::Process::open(pid).expect("Could not open pid");
         info!("  {:?}", process.info());
+        info!(
+            "  name={}",
+            process.name().expect("Could not get process name")
+        );
     }
 
     let mut tids_buff: [u64; 32] = [0; 32];
@@ -137,6 +141,10 @@ fn dump_processes_threads() {
     for &tid in tids {
         let thread = kobject::Thread::open(tid).expect("Could not open tid");
         info!("  {:?}", thread.info());
+        info!(
+            "  name={}",
+            thread.name().expect("Could not get thread name")
+        );
     }
 }
 

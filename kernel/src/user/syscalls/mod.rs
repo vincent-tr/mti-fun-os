@@ -35,6 +35,8 @@ pub fn init() {
     register_syscall(SyscallNumber::ProcessKill, process::kill);
     register_syscall(SyscallNumber::ProcessInfo, process::info);
     register_syscall(SyscallNumber::ProcessList, process::list);
+    register_syscall(SyscallNumber::ProcessSetName, process::set_name);
+    register_syscall(SyscallNumber::ProcessGetName, process::get_name);
 
     register_syscall(SyscallNumber::ThreadOpenSelf, thread::open_self);
     register_syscall(SyscallNumber::ThreadOpen, thread::open);
@@ -43,6 +45,8 @@ pub fn init() {
     register_syscall(SyscallNumber::ThreadKill, thread::kill);
     register_syscall(SyscallNumber::ThreadInfo, thread::info);
     register_syscall(SyscallNumber::ThreadList, thread::list);
+    register_syscall(SyscallNumber::ThreadSetName, thread::set_name);
+    register_syscall(SyscallNumber::ThreadGetName, thread::get_name);
     register_syscall(SyscallNumber::ThreadErrorInfo, thread::error_info);
     register_syscall(SyscallNumber::ThreadContext, thread::context);
     register_syscall(SyscallNumber::ThreadUpdateContext, thread::update_context);

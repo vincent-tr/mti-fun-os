@@ -230,3 +230,41 @@ pub async fn list(context: Context) -> Result<(), Error> {
 
     Ok(())
 }
+
+pub async fn set_name(context: Context) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let name_ptr = context.arg2();
+    let name_len = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_process = process.handles().get_process(process_handle.into())?;
+
+    let name_reader = StringReader::new(&context, name_ptr, name_len)?;
+    let name = name_reader.str()?;
+    check_arg(name.len() > 0)?;
+
+    target_process.set_name(name);
+
+    Ok(())
+}
+
+pub async fn get_name(context: Context) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let name_ptr = context.arg2();
+    let name_len = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_process = process.handles().get_process(process_handle.into())?;
+
+    let mut writer = ListOutputWriter::<u8>::new(&context, name_ptr, name_len)?;
+
+    let name = target_process.name();
+
+    writer.fill(name.as_bytes());
+
+    Ok(())
+}

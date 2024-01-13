@@ -290,7 +290,7 @@ impl Mappings {
             let area = self
                 .nodes
                 .get(&addr)
-                .expect(&format!("missing area {:?}", addr))
+                .expect(&format!("missing node {:?}", addr))
                 .next
                 .clone();
             self.replace(Area::empty(area.range.clone()));
@@ -302,23 +302,20 @@ impl Mappings {
         }
 
         // Merge all empty area inside
-        let mut addr = range.start;
         loop {
-            if addr != range.start {
-                self.merge(addr);
-            }
-
-            let area = self
+            let start_area = &self
                 .nodes
-                .get(&addr)
-                .expect(&format!("missing area {:?}", addr))
-                .next
-                .clone();
+                .get(&range.start)
+                .expect(&format!("missing node {:?}", addr))
+                .next;
 
-            addr = area.range.end;
+            let addr = start_area.range.end;
+
             if addr == range.end {
                 break;
             }
+
+            self.merge(addr);
         }
 
         // Check if we can merge with prev/next area

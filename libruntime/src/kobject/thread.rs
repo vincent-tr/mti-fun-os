@@ -201,6 +201,30 @@ impl Thread {
         info
     }
 
+    /// List the thread ids in the system
+    pub fn list() -> Result<Box<[u64]>, Error> {
+        let mut size = 1024;
+
+        // Event not atomic, let's consider that with doubling the required size between call,
+        // at some point we will be able to fetch list entirely
+        loop {
+            let mut buffer = Vec::with_capacity(size);
+            buffer.resize(size, 0);
+
+            let (_, new_size) = thread::list(&mut buffer)?;
+
+            if new_size > size {
+                // Retry with 2x requested size
+                size = new_size * 2;
+                continue;
+            }
+
+            buffer.resize(new_size, 0);
+
+            return Ok(buffer.into_boxed_slice());
+        }
+    }
+
     /// Set the name of the thread
     pub fn set_name(&self, name: &str) -> Result<(), Error> {
         thread::set_name(&self.handle, name)

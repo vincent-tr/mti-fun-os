@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use libsyscalls::process;
 use spin::Mutex;
 
@@ -81,6 +81,30 @@ impl Process {
         }
 
         info
+    }
+
+    /// List the process ids in the system
+    pub fn list() -> Result<Box<[u64]>, Error> {
+        let mut size = 1024;
+
+        // Event not atomic, let's consider that with doubling the required size between call,
+        // at some point we will be able to fetch list entirely
+        loop {
+            let mut buffer = Vec::with_capacity(size);
+            buffer.resize(size, 0);
+
+            let (_, new_size) = process::list(&mut buffer)?;
+
+            if new_size > size {
+                // Retry with 2x requested size
+                size = new_size * 2;
+                continue;
+            }
+
+            buffer.resize(new_size, 0);
+
+            return Ok(buffer.into_boxed_slice());
+        }
     }
 
     /// Set the name of the process

@@ -121,11 +121,10 @@ fn apply_memory_protections() {
 }
 
 fn dump_processes_threads() {
-    let mut pids_buff: [u64; 32] = [0; 32];
-    let (pids, count) = libsyscalls::process::list(&mut pids_buff).expect("Could not list pids");
-    info!("pids list = {:?} (count={})", pids, count);
+    let pids = kobject::Process::list().expect("Could not list pids");
+    info!("pids list = {:?}", pids);
 
-    for &pid in pids {
+    for &pid in pids.iter() {
         let process = kobject::Process::open(pid).expect("Could not open pid");
         info!("  {:?}", process.info());
         info!(
@@ -134,11 +133,10 @@ fn dump_processes_threads() {
         );
     }
 
-    let mut tids_buff: [u64; 32] = [0; 32];
-    let (tids, count) = libsyscalls::thread::list(&mut tids_buff).expect("Could not list tids");
-    info!("tids list = {:?} (count={})", tids, count);
+    let tids = kobject::Thread::list().expect("Could not list tids");
+    info!("tids list = {:?}", tids);
 
-    for &tid in tids {
+    for &tid in tids.iter() {
         let thread = kobject::Thread::open(tid).expect("Could not open tid");
         info!("  {:?}", thread.info());
         info!(

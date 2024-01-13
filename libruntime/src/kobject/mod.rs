@@ -28,3 +28,11 @@ pub use memory_object::MemoryObject;
 pub use process::{Mapping, Process};
 pub use thread::{Thread, ThreadOptions, ThreadSupervisor};
 pub use tls::{TlsAllocator, TlsSlot};
+
+pub(crate) fn init() {
+    thread::THREAD_GC.init();
+}
+
+pub(crate) fn terminate() {
+    thread::THREAD_GC.terminate();
+}

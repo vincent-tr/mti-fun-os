@@ -9,4 +9,9 @@ mod panic;
 
 pub fn init() {
     logging::init();
+    kobject::init();
+}
+
+pub fn terminate() {
+    kobject::terminate();
 }

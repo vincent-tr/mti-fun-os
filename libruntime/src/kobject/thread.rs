@@ -1,7 +1,9 @@
-use core::hint::unreachable_unchecked;
+use core::{hint::unreachable_unchecked, mem, ops::Range};
 
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use lazy_static::lazy_static;
 use libsyscalls::{thread, Handle};
+use log::debug;
 use spin::Mutex;
 
 use super::{tls::TLS_SIZE, *};
@@ -104,16 +106,27 @@ impl Thread {
             tls_addr,
         )?;
 
+        let stack_reservation = stack.reservation().clone();
+        let tls_reservation = tls.reservation().clone();
+
         // Thread has been created properly, we can leak the allocation
         stack.leak();
         tls.leak();
         Box::leak(parameter);
 
-        Ok(Self {
+        let obj = Self {
             cached_tid: Mutex::new(None),
             cached_pid: Mutex::new(None),
             handle,
-        })
+        };
+
+        THREAD_GC.add_thread(ThreadGCData::new(
+            obj.tid(),
+            stack_reservation,
+            tls_reservation,
+        ));
+
+        Ok(obj)
     }
 
     extern "C" fn thread_entry(arg: usize) -> ! {
@@ -258,6 +271,10 @@ impl AllocWithGuards<'_> {
         self.reservation.address() + PAGE_SIZE
     }
 
+    pub fn reservation(&self) -> &Range<usize> {
+        self.reservation.range()
+    }
+
     /// Leak the allocation.
     ///
     /// Consume the current object without freeing the allocated memory
@@ -313,5 +330,129 @@ impl ThreadParameter {
         Self {
             target: Box::new(entry),
         }
+    }
+}
+
+/// Cleanup TLS and Stack allocated for threads
+pub struct ThreadGC {
+    exit_port: Mutex<Option<PortSender>>,
+    data: Arc<Mutex<BTreeMap<u64, ThreadGCData>>>,
+}
+
+lazy_static! {
+    pub static ref THREAD_GC: ThreadGC = ThreadGC::new();
+}
+
+impl ThreadGC {
+    /// Construct a new GC
+    pub fn new() -> Self {
+        Self {
+            exit_port: Mutex::new(None),
+            data: Arc::new(Mutex::new(BTreeMap::new())),
+        }
+    }
+
+    /// Start the GC thread
+    pub fn init(&self) {
+        let (exit_receiver, exit_port) = Port::create(None).expect("Could not create port");
+        *self.exit_port.lock() = Some(exit_port);
+
+        let data = self.data.clone();
+
+        let mut options = ThreadOptions::default();
+        options.name("thread-gc");
+        options.priority(ThreadPriority::AboveNormal);
+
+        let entry = move || Self::worker(exit_receiver, data);
+
+        Thread::start(entry, options).expect("Could not start thread");
+    }
+
+    /// Exit the GC thread
+    pub fn terminate(&self) {
+        let mut message = Message::default();
+        let mut exit_port = self.exit_port.lock();
+
+        exit_port
+            .take()
+            .expect("Could not get exit port")
+            .send(&mut message)
+            .expect("Could not exit thread-gc");
+    }
+
+    fn add_thread(&self, item: ThreadGCData) {
+        let mut data = self.data.lock();
+
+        data.insert(item.tid, item);
+    }
+
+    fn worker(exit: PortReceiver, data: Arc<Mutex<BTreeMap<u64, ThreadGCData>>>) {
+        let pid = Process::current().pid();
+
+        let listener = ThreadListener::create(ThreadListenerFilter::Pids(&[pid]))
+            .expect("failed to create thread listener");
+
+        let mut waiter = Waiter::new(&[&exit, &listener]);
+
+        loop {
+            waiter.wait().expect("wait failed");
+            if waiter.is_ready(0) {
+                break;
+            }
+
+            assert!(waiter.is_ready(1));
+
+            let event = listener.receive().expect("could not read listener");
+
+            if let ThreadEventType::Terminated = event.r#type {
+                // Thread terminated. Can reclaim its stack/TLS
+                // Note that if the thread has been remotely created, we have no info on this
+                let mut data = data.lock();
+
+                if let Some(item) = data.remove(&event.tid) {
+                    debug!(
+                        "Dropping tid={}: stack reservation=[0x{:016X} - 0x{:016X}], TLSreservation=[0x{:016X} - 0x{:016X}]",
+                        event.tid,
+                        item.stack_reservation.start,
+                        item.stack_reservation.end,
+                        item.tls_reservation.start,
+                        item.tls_reservation.end
+                    );
+
+                    // Explicit
+                    mem::drop(item);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ThreadGCData {
+    tid: u64,
+    stack_reservation: Range<usize>,
+    tls_reservation: Range<usize>,
+}
+
+impl ThreadGCData {
+    pub fn new(tid: u64, stack_reservation: Range<usize>, tls_reservation: Range<usize>) -> Self {
+        Self {
+            tid,
+            stack_reservation,
+            tls_reservation,
+        }
+    }
+}
+
+impl Drop for ThreadGCData {
+    fn drop(&mut self) {
+        let process = Process::current();
+
+        process
+            .unmap(&self.stack_reservation)
+            .expect(&format!("Could not free stack for thread {}", self.tid));
+        process
+            .unmap(&self.tls_reservation)
+            .expect(&format!("Could not free tls for thread {}", self.tid));
     }
 }

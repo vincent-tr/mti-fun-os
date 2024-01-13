@@ -94,7 +94,6 @@ tail -f serial.log
 - timers (timeout)
 - object-oriented TLS
 - better object oriented syscalls lib
-- unmap stack + tls on thread exit/kill
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - unwind
   - https://docs.rs/unwinding/latest/unwinding/

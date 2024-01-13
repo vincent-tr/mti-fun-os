@@ -49,6 +49,8 @@ pub fn data() -> Range<usize> {
     }
 }
 
+// __init_stack_end is directly used in bootstrap asm
+#[allow(dead_code)]
 pub fn stack_top() -> usize {
     unsafe { &__init_stack_end as *const u8 as usize }
 }

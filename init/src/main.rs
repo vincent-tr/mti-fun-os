@@ -5,14 +5,15 @@
 
 extern crate alloc;
 
+mod idle;
 mod offsets;
 
-use core::{arch::asm, ops::Range, slice};
+use core::{arch::asm, ops::Range};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
-    self, Exception, KObject, Permissions, ThreadContextRegister, ThreadEventType,
-    ThreadListenerFilter, ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
+    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
+    ThreadOptions, TlsAllocator, PAGE_SIZE,
 };
 use log::{debug, info};
 
@@ -46,16 +47,7 @@ extern "C" fn main() -> ! {
 
     apply_memory_protections();
 
-    debug!("stack_top: 0x{:016X}", offsets::stack_top());
-
-    debug!(
-        "idle: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
-        offsets::idle().start,
-        offsets::idle().end,
-        offsets::idle().len()
-    );
-
-    create_idle_task();
+    idle::create_idle_process().expect("Could not create idle process");
 
     dump_processes_threads();
     listen_threads();
@@ -63,78 +55,6 @@ extern "C" fn main() -> ! {
     debug!("Memory stats: {:?}", kobject::Memory::stats());
 
     libruntime::exit();
-}
-
-fn create_idle_task() {
-    let idle_range = offsets::idle();
-    let idle_range_aligned = (idle_range.start / PAGE_SIZE * PAGE_SIZE)
-        ..(((idle_range.end + PAGE_SIZE - 1) / PAGE_SIZE) * PAGE_SIZE);
-
-    // Get memory object with section copied
-    let mobj = kobject::MemoryObject::create(idle_range_aligned.len())
-        .expect("Could not allocate memory object");
-
-    {
-        let current_process = kobject::Process::current();
-        let mapping = current_process
-            .map_mem(
-                None,
-                idle_range_aligned.len(),
-                Permissions::READ | Permissions::WRITE,
-                &mobj,
-                0,
-            )
-            .expect("Could not map memory");
-        let data = unsafe { mapping.as_buffer_mut() }.expect("Could not get mapping data");
-        // Only copy relevant part inside slide (section is not aligned)
-        let data = &mut data[(idle_range.start - idle_range_aligned.start)
-            ..(idle_range.end - idle_range_aligned.start)];
-        let source_data =
-            unsafe { slice::from_raw_parts(idle_range.start as *const u8, idle_range.len()) };
-        data.copy_from_slice(source_data);
-    }
-
-    // Create idle process
-    let process = kobject::Process::create("idle").expect("Could not create idle process");
-    let idle_mapping = process
-        .map_mem(
-            Some(idle_range_aligned.start),
-            idle_range_aligned.len(),
-            Permissions::READ | Permissions::EXECUTE,
-            &mobj,
-            0,
-        )
-        .expect("Could not map memory in idle process");
-
-    idle_mapping.leak();
-
-    // Use raw API, no runtime management
-    libsyscalls::thread::create(
-        Some("idle"),
-        unsafe { &process.handle() },
-        true, // need privileged to run "hlt"
-        ThreadPriority::Idle,
-        unsafe { core::mem::transmute(idle as unsafe extern "C" fn() -> _) },
-        0, // no stack
-        0, // no argument
-        0, // no TLS
-    )
-    .expect("Could not create idle thread");
-}
-
-// Will run as idle process
-#[naked]
-#[no_mangle]
-#[link_section = ".text_idle"]
-pub unsafe extern "C" fn idle() -> ! {
-    asm!(
-        "
-    2:
-        hlt;
-        jmp 2b;
-    ",
-        options(noreturn)
-    );
 }
 
 fn apply_memory_protections() {

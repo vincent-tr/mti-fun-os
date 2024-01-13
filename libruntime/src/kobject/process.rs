@@ -36,6 +36,16 @@ impl Process {
         }
     }
 
+    /// Create a new process
+    pub fn create(name: &str) -> Result<Self, Error> {
+        let handle = process::create(name)?;
+
+        Ok(Self {
+            cached_pid: Mutex::new(None),
+            handle,
+        })
+    }
+
     /// Open the given process
     pub fn open(pid: u64) -> Result<Self, Error> {
         let handle = process::open(pid)?;

@@ -1,3 +1,6 @@
+use core::fmt::{Debug, Formatter, Result};
+
+use core::str;
 /// Parameters to create a thread
 #[repr(C)]
 #[derive(Debug)]
@@ -51,14 +54,42 @@ pub enum ThreadState {
 
 /// Thread information
 #[repr(C)]
-#[derive(Debug)]
 pub struct ThreadInfo {
     pub tid: u64,
     pub pid: u64,
+    pub name: [u8; Self::NAME_LEN], // if name len == 0 then there is no name
     pub priority: ThreadPriority,
     pub privileged: bool,
     pub state: ThreadState,
     pub ticks: usize,
+}
+
+impl ThreadInfo {
+    pub const NAME_LEN: usize = 128;
+}
+
+impl Debug for ThreadInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.debug_struct("ThreadInfo")
+            .field("tid", &self.tid)
+            .field("pid", &self.pid)
+            .field(
+                "name",
+                &format_args!(
+                    "{}",
+                    if self.name[0] != 0 {
+                        unsafe { str::from_utf8_unchecked(&self.name) }
+                    } else {
+                        "<None>"
+                    }
+                ),
+            )
+            .field("priority", &self.priority)
+            .field("privileged", &self.privileged)
+            .field("state", &self.state)
+            .field("ticks", &self.ticks)
+            .finish()
+    }
 }
 
 #[repr(u64)]

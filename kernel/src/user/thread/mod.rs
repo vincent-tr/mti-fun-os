@@ -23,6 +23,7 @@ use super::process::Process;
 use crate::{interrupts::Exception, memory::VirtAddr, user::listener};
 
 pub fn create(
+    name: Option<&str>,
     process: Arc<Process>,
     privileged: bool,
     priority: ThreadPriority,
@@ -32,6 +33,7 @@ pub fn create(
     tls: VirtAddr,
 ) -> Arc<Thread> {
     let thread = THREADS.create(
+        name,
         process,
         privileged,
         priority,

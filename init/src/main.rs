@@ -60,6 +60,7 @@ extern "C" fn main() -> ! {
 
 fn create_idle_task() {
     let mut options = ThreadOptions::default();
+    options.name("idle");
 
     options.priority(ThreadPriority::Idle);
 
@@ -150,7 +151,10 @@ fn do_ipc() {
         echo_sender.send(&mut message).expect("send failed");
     };
 
-    kobject::Thread::start(echo, ThreadOptions::default()).expect("could not create echo thread");
+    let mut options = ThreadOptions::default();
+    options.name("echo");
+
+    kobject::Thread::start(echo, options).expect("could not create echo thread");
 
     let mut msg = unsafe { kobject::Message::new::<i32>(&42, &mut []) };
     main_sender.send(&mut msg).expect("send failed");
@@ -176,8 +180,8 @@ fn listen_threads() {
             asm!("int3", inlateout("rax") value => value, options(nostack, preserves_flags));
         }
 
-        debug!("debugbreak: resumed (value={value})");
-        debug!("debugbreak: tls={}", slot.get().unwrap_or(0));
+        debug!("resumed (value={value})");
+        debug!("tls={}", slot.get().unwrap_or(0));
     };
 
     const PAGE_FAULT_ADDR: usize = 0x1000000;
@@ -192,8 +196,8 @@ fn listen_threads() {
         let ptr = PAGE_FAULT_ADDR as *mut u8;
         unsafe { *ptr = 42 };
 
-        debug!("page_fault: resumed");
-        debug!("page_fault: tls={}", slot.get().unwrap_or(0));
+        debug!("resumed");
+        debug!("tls={}", slot.get().unwrap_or(0));
     };
 
     let listen = move || {
@@ -201,12 +205,16 @@ fn listen_threads() {
             .expect("failed to create thread listener");
 
         // Keep thread handle alive
-        let thread_debugbreak = kobject::Thread::start(debugbreak, ThreadOptions::default())
-            .expect("could not create thread");
+        let mut options = ThreadOptions::default();
+        options.name("debugbreak");
+        let thread_debugbreak =
+            kobject::Thread::start(debugbreak, options).expect("could not create thread");
 
         // Keep thread handle alive
-        let thread_pagefault = kobject::Thread::start(pagefault, ThreadOptions::default())
-            .expect("could not create thread");
+        let mut options = ThreadOptions::default();
+        options.name("pagefault");
+        let thread_pagefault =
+            kobject::Thread::start(pagefault, options).expect("could not create thread");
 
         debug!("debugbreak_tid = {}", thread_debugbreak.tid());
         debug!("pagefault_tid = {}", thread_pagefault.tid());
@@ -272,6 +280,7 @@ fn listen_threads() {
         }
     };
 
-    kobject::Thread::start(listen, ThreadOptions::default())
-        .expect("Could not create listen thread");
+    let mut options = ThreadOptions::default();
+    options.name("thread-listener");
+    kobject::Thread::start(listen, options).expect("Could not create listen thread");
 }

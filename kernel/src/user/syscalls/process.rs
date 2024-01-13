@@ -58,6 +58,7 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
     let name_reader = StringReader::new(&context, name_ptr, name_len)?;
     let name = name_reader.str()?;
+    check_arg(name.len() > 0)?;
 
     let new_process = process::create(name)?;
 
@@ -205,7 +206,8 @@ pub async fn info(context: Context) -> Result<(), Error> {
         terminated: target_process.terminated(),
     };
 
-    let src_name = target_process.name().as_bytes();
+    let process_name = target_process.name();
+    let src_name = process_name.as_bytes();
     let name_len = min(ProcessInfo::NAME_LEN, src_name.len());
     info.name[0..name_len].copy_from_slice(&src_name[0..name_len]);
 

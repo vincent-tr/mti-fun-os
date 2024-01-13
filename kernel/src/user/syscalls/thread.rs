@@ -1,4 +1,4 @@
-use core::mem;
+use core::{cmp::min, mem};
 
 use alloc::sync::Arc;
 use syscalls::{
@@ -17,7 +17,7 @@ use crate::{
 
 use super::{
     context::Context,
-    helpers::{HandleOutputWriter, ListOutputWriter},
+    helpers::{HandleOutputWriter, ListOutputWriter, StringReader},
 };
 
 pub async fn open_self(context: Context) -> Result<(), Error> {
@@ -51,11 +51,28 @@ pub async fn open(context: Context) -> Result<(), Error> {
 }
 
 pub async fn create(context: Context) -> Result<(), Error> {
-    let params_ptr = context.arg1();
-    let handle_out_ptr = context.arg2();
+    let name_ptr = context.arg1();
+    let name_len = context.arg2();
+    let params_ptr = context.arg3();
+    let handle_out_ptr = context.arg4();
 
     let thread = context.owner();
     let process = thread.process();
+
+    // Need to keep reader because name is borrowed from it
+    let name_reader = if name_ptr > 0 {
+        Some(StringReader::new(&context, name_ptr, name_len)?)
+    } else {
+        None
+    };
+
+    let name = if let Some(name_reader) = &name_reader {
+        let name = name_reader.str()?;
+        check_arg(name.len() > 0)?;
+        Some(name)
+    } else {
+        None
+    };
 
     let params_access = process.vm_access_typed::<ThreadCreationParameters>(
         VirtAddr::new(params_ptr as u64),
@@ -74,6 +91,7 @@ pub async fn create(context: Context) -> Result<(), Error> {
     check_arg(!target_process.terminated())?;
 
     let new_thread = thread::create(
+        name,
         target_process.clone(),
         params.privileged,
         params.priority,
@@ -147,14 +165,24 @@ pub async fn info(context: Context) -> Result<(), Error> {
         thread::ThreadState::Terminated => ThreadState::Terminated,
     };
 
-    *user_access.get_mut() = ThreadInfo {
+    let info = &mut *user_access.get_mut();
+
+    *info = ThreadInfo {
         tid: target_thread.id(),
         pid: target_thread.process().id(),
+        name: [0; ThreadInfo::NAME_LEN],
         privileged: target_thread.privileged(),
         priority: target_thread.priority(),
         state,
         ticks: target_thread.ticks(),
     };
+
+    let thread_name = target_thread.name();
+    if let Some(thread_name) = &*thread_name {
+        let src_name = thread_name.as_bytes();
+        let name_len = min(ThreadInfo::NAME_LEN, src_name.len());
+        info.name[0..name_len].copy_from_slice(&src_name[0..name_len]);
+    }
 
     Ok(())
 }

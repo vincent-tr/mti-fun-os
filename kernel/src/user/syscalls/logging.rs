@@ -1,3 +1,4 @@
+use alloc::{format, string::String};
 use log::Level;
 
 use crate::user::{
@@ -18,10 +19,21 @@ pub async fn log(context: Context) -> Result<(), Error> {
 
     let pid = process.id();
     let tid = thread.id();
+    let pname = process.name();
+    let tname = thread.name();
     let level = parse_level(level)?;
     let message = message_reader.str()?;
 
-    log::log!(level, "(pid={pid}, tid={tid}): {message}");
+    let thread_suffix = if let Some(name) = &*tname {
+        format!(" ({})", name)
+    } else {
+        String::new()
+    };
+
+    log::log!(
+        level,
+        "(pid={pid} ({pname}), tid={tid}{thread_suffix}): {message}"
+    );
 
     Ok(())
 }

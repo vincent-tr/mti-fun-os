@@ -4,6 +4,7 @@ use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use core::{fmt, mem};
 
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::sync::{Arc, Weak};
 use hashbrown::HashSet;
 use log::debug;
@@ -33,6 +34,7 @@ use super::{threads::remove_thread, wait_queue::WaitQueue};
 /// Note: Only Thread type is exported by thread module, not this function
 pub fn new(
     id: u64,
+    name: Option<&str>,
     process: Arc<Process>,
     privileged: bool,
     priority: ThreadPriority,
@@ -43,6 +45,7 @@ pub fn new(
 ) -> Arc<Thread> {
     Thread::new(
         id,
+        name,
         process,
         privileged,
         priority,
@@ -97,6 +100,7 @@ pub unsafe fn load_segments(thread: &Arc<Thread>) {
 #[derive(Debug)]
 pub struct Thread {
     id: u64,
+    name: RwLock<Option<String>>,
     process: Arc<Process>,
     privileged: bool,
     priority: AtomicU64,
@@ -109,6 +113,7 @@ pub struct Thread {
 impl Thread {
     fn new(
         id: u64,
+        name: Option<&str>,
         process: Arc<Process>,
         privileged: bool,
         priority: ThreadPriority,
@@ -119,6 +124,7 @@ impl Thread {
     ) -> Arc<Self> {
         let thread = Arc::new(Self {
             id,
+            name: RwLock::new(name.map(String::from)),
             process,
             privileged,
             priority: AtomicU64::new(priority as u64),
@@ -129,8 +135,9 @@ impl Thread {
         });
 
         debug!(
-            "Thread {} created (pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
+            "Thread {} created (name={:?}, pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
+            thread.name,
             thread.process.id(),
             thread.privileged,
             thread.priority(),
@@ -144,6 +151,17 @@ impl Thread {
     /// Get the thread (global) identifier
     pub fn id(&self) -> u64 {
         self.id
+    }
+
+    /// Get the thread name
+    pub fn name<'a>(&'a self) -> RwLockReadGuard<'a, Option<String>> {
+        self.name.read()
+    }
+
+    /// Set the thread name
+    pub fn set_name(&self, value: Option<&str>) {
+        let mut name = self.name.write();
+        *name = value.map(String::from);
     }
 
     /// Get the process the threaad belong to

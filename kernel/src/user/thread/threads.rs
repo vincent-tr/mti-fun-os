@@ -31,6 +31,7 @@ impl Threads {
     /// Create a new thread
     pub fn create(
         &self,
+        name: Option<&str>,
         process: Arc<Process>,
         privileged: bool,
         priority: ThreadPriority,
@@ -42,6 +43,7 @@ impl Threads {
         let id = self.id_gen.generate();
         let thread = thread::new(
             id,
+            name,
             process.clone(),
             privileged,
             priority,

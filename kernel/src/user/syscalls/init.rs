@@ -83,6 +83,7 @@ fn create_thread(process: Arc<Process>) {
     let stack_top = VirtAddr::zero();
 
     user::thread::create(
+        Some("entry"),
         process.clone(),
         false,
         ThreadPriority::Normal,

@@ -92,7 +92,8 @@ tail -f serial.log
 ## Next tasks / Notes
 
 - timers (timeout)
-- thread name
+- process get/set name (if len is greater than 128)
+- thread get/set name (if len is greater than 128)
 - object-oriented TLS
 - better object oriented syscalls lib
 - unmap stack + tls on thread exit/kill

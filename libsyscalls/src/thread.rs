@@ -3,6 +3,8 @@ use syscalls::{
     ThreadInfo, ThreadPriority,
 };
 
+use crate::SyscallInStr;
+
 use super::{
     ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallList, SyscallOutPtr, SyscallResult,
 };
@@ -32,6 +34,7 @@ pub fn open(tid: u64) -> SyscallResult<Handle> {
 }
 
 pub fn create(
+    name: Option<&str>,
     process: &Handle,
     privileged: bool,
     priority: ThreadPriority,
@@ -41,6 +44,7 @@ pub fn create(
     tls: usize,
 ) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
+    let name_reader = name.map(SyscallInStr::new);
 
     let params = ThreadCreationParameters {
         process_handle: unsafe { process.as_syscall_value() } as u64,
@@ -52,9 +56,15 @@ pub fn create(
         tls,
     };
 
+    let (ptr, len) = name_reader.as_ref().map_or((0, 0), |reader| unsafe {
+        (reader.ptr_arg(), reader.len_arg())
+    });
+
     let ret = unsafe {
-        syscall2(
+        syscall4(
             SyscallNumber::ThreadCreate,
+            ptr,
+            len,
             ref_ptr(&params),
             new_handle.as_syscall_ptr(),
         )

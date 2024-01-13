@@ -5,7 +5,7 @@ use core::{
 
 use alloc::{string::String, sync::Arc, vec::Vec};
 use log::debug;
-use spin::RwLock;
+use spin::{RwLock, RwLockReadGuard};
 
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
@@ -44,7 +44,7 @@ pub fn process_remove_thread(thread: &Thread) {
 #[derive(Debug)]
 pub struct Process {
     id: u64,
-    name: String,
+    name: RwLock<String>,
     address_space: RwLock<AddressSpace>,
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
@@ -67,7 +67,7 @@ impl Process {
 
         let process = Arc::new(Self {
             id,
-            name: String::from(name),
+            name: RwLock::new(String::from(name)),
             address_space: RwLock::new(address_space),
             mappings: RwLock::new(Mappings::new()),
             threads: WeakMap::new(),
@@ -86,8 +86,14 @@ impl Process {
     }
 
     /// Get the process name
-    pub fn name<'a>(&'a self) -> &'a str {
-        &self.name
+    pub fn name<'a>(&'a self) -> RwLockReadGuard<'a, String> {
+        self.name.read()
+    }
+
+    /// Set the process name
+    pub fn set_name(&self, value: &str) {
+        let mut name = self.name.write();
+        *name = String::from(value);
     }
 
     /// Get address space of the process

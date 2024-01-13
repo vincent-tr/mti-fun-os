@@ -24,16 +24,18 @@ impl KObject for Thread {
 
 /// Thread options
 #[derive(Debug)]
-pub struct ThreadOptions {
+pub struct ThreadOptions<'a> {
+    name: Option<&'a str>,
     stack_size: usize,
     priority: ThreadPriority,
     privileged: bool,
 }
 
-impl Default for ThreadOptions {
+impl Default for ThreadOptions<'_> {
     /// Create a new option object with default values
     fn default() -> Self {
         Self {
+            name: None,
             stack_size: STACK_SIZE,
             priority: ThreadPriority::Normal,
             privileged: false,
@@ -41,7 +43,18 @@ impl Default for ThreadOptions {
     }
 }
 
-impl ThreadOptions {
+impl<'a> ThreadOptions<'a> {
+    /// Set the name of the future thread
+    pub fn name(&mut self, value: &'a str) -> &mut Self {
+        self.name = Some(value);
+        self
+    }
+
+    pub fn clear_name(&mut self) -> &mut Self {
+        self.name = None;
+        self
+    }
+
     /// Set the size of stack for the future thread
     pub fn stack_size(&mut self, value: usize) -> &mut Self {
         self.stack_size = value;
@@ -81,6 +94,7 @@ impl Thread {
         let tls_addr = tls.address();
 
         let handle = thread::create(
+            options.name,
             unsafe { Process::current().handle() },
             options.privileged,
             options.priority,
@@ -172,6 +186,15 @@ impl Thread {
         }
 
         info
+    }
+
+    /// Kill the target thread
+    ///
+    /// # Safety
+    /// - the objects on the local stack won't be dropped. The stack memory will be freed without executing destructors
+    /// - the TLS objects won't be dropped. The TLS slots memory of the thread will be freed without executing descrutors
+    pub unsafe fn kill(&self) -> Result<(), Error> {
+        thread::kill(&self.handle)
     }
 }
 

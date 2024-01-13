@@ -60,6 +60,16 @@ extern "C" fn main() -> ! {
     libruntime::init();
 
     apply_memory_protections();
+
+    debug!("stack_top: 0x{:016X}", offsets::stack_top());
+
+    debug!(
+        "idle: 0x{:016X} -> 0x{:016X} (size=0x{:X})",
+        offsets::idle().start,
+        offsets::idle().end,
+        offsets::idle().len()
+    );
+
     create_idle_task();
 
     dump_processes_threads();
@@ -110,8 +120,6 @@ fn apply_memory_protections() {
         offsets::data(),
         Permissions::READ | Permissions::WRITE,
     );
-
-    debug!("stack_top: 0x{:016X}", offsets::stack_top());
 
     fn setup_protection(name: &str, range: Range<usize>, perms: Permissions) {
         // kernel has mapped one area with all permissions set

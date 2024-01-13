@@ -71,7 +71,7 @@ unsafe fn syscall_native_handler() {
         // Test if we must return to ring0 (sysretq cannot return to ring0)
         "test QWORD PTR [rsp + 8], {privileged_cs_sel};",
         // If set, return using IRETQ instead.
-        "jnz 1f;",
+        "jnz 2f;",
 
         "pop rcx;",                 // Pop userland return pointer
         "add rsp, 8;",              // Pop fake userspace CS
@@ -81,7 +81,7 @@ unsafe fn syscall_native_handler() {
 
         // IRETQ fallback:
         "
-1:
+2:
         iretq
         "
     ), 

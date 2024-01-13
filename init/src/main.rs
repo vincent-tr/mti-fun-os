@@ -7,12 +7,12 @@ extern crate alloc;
 
 mod offsets;
 
-use core::{arch::asm, hint::unreachable_unchecked, ops::Range};
+use core::{arch::asm, ops::Range, slice};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
-    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-    ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
+    self, Exception, KObject, Permissions, ThreadContextRegister, ThreadEventType,
+    ThreadListenerFilter, ThreadOptions, ThreadPriority, TlsAllocator, PAGE_SIZE,
 };
 use log::{debug, info};
 
@@ -33,21 +33,6 @@ pub unsafe extern "C" fn user_start() -> ! {
         stack = sym offsets::__init_stack_end,
         main = sym main,
         options(noreturn),
-    );
-}
-
-// Will run as idle process
-#[naked]
-#[no_mangle]
-#[link_section = ".text_idle"]
-pub unsafe extern "C" fn idle() -> ! {
-    asm!(
-        "
-    2:
-        hlt;
-        jmp 2b;
-    ",
-        options(noreturn)
     );
 }
 
@@ -77,33 +62,79 @@ extern "C" fn main() -> ! {
     do_ipc();
     debug!("Memory stats: {:?}", kobject::Memory::stats());
 
-    //debug!("Exiting");
-    //process::exit().expect("Could not exit process");
-    libsyscalls::thread::exit().expect("Could not exit thread");
-    unsafe { unreachable_unchecked() };
+    libruntime::exit();
 }
 
 fn create_idle_task() {
-    let mut options = ThreadOptions::default();
-    options.name("idle");
+    let idle_range = offsets::idle();
+    let idle_range_aligned = (idle_range.start / PAGE_SIZE * PAGE_SIZE)
+        ..(((idle_range.end + PAGE_SIZE - 1) / PAGE_SIZE) * PAGE_SIZE);
 
-    options.priority(ThreadPriority::Idle);
+    // Get memory object with section copied
+    let mobj = kobject::MemoryObject::create(idle_range_aligned.len())
+        .expect("Could not allocate memory object");
 
-    // Need ring0 to execute 'hlt'
-    unsafe {
-        options.privileged(true);
+    {
+        let current_process = kobject::Process::current();
+        let mapping = current_process
+            .map_mem(
+                None,
+                idle_range_aligned.len(),
+                Permissions::READ | Permissions::WRITE,
+                &mobj,
+                0,
+            )
+            .expect("Could not map memory");
+        let data = unsafe { mapping.as_buffer_mut() }.expect("Could not get mapping data");
+        // Only copy relevant part inside slide (section is not aligned)
+        let data = &mut data[(idle_range.start - idle_range_aligned.start)
+            ..(idle_range.end - idle_range_aligned.start)];
+        let source_data =
+            unsafe { slice::from_raw_parts(idle_range.start as *const u8, idle_range.len()) };
+        data.copy_from_slice(source_data);
     }
 
-    // Small stack, does not do much
-    options.stack_size(PAGE_SIZE);
+    // Create idle process
+    let process = kobject::Process::create("idle").expect("Could not create idle process");
+    let idle_mapping = process
+        .map_mem(
+            Some(idle_range_aligned.start),
+            idle_range_aligned.len(),
+            Permissions::READ | Permissions::EXECUTE,
+            &mobj,
+            0,
+        )
+        .expect("Could not map memory in idle process");
 
-    let idle = || loop {
-        unsafe {
-            asm!("hlt", options(nomem, nostack, preserves_flags));
-        }
-    };
+    idle_mapping.leak();
 
-    kobject::Thread::start(idle, options).expect("Could not create idle task");
+    // Use raw API, no runtime management
+    libsyscalls::thread::create(
+        Some("idle"),
+        unsafe { &process.handle() },
+        true, // need privileged to run "hlt"
+        ThreadPriority::Idle,
+        unsafe { core::mem::transmute(idle as unsafe extern "C" fn() -> _) },
+        0, // no stack
+        0, // no argument
+        0, // no TLS
+    )
+    .expect("Could not create idle thread");
+}
+
+// Will run as idle process
+#[naked]
+#[no_mangle]
+#[link_section = ".text_idle"]
+pub unsafe extern "C" fn idle() -> ! {
+    asm!(
+        "
+    2:
+        hlt;
+        jmp 2b;
+    ",
+        options(noreturn)
+    );
 }
 
 fn apply_memory_protections() {

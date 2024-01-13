@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::{ops::Range, slice};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 use libsyscalls::process;
@@ -223,6 +223,38 @@ impl<'a> Mapping<'a> {
     /// Get the start address of the mapping
     pub fn address(&self) -> usize {
         self.range.start
+    }
+
+    /// Get access to the mapping's data
+    ///
+    /// # Safety
+    ///
+    /// The slice remains valid as long as the mapping is not updated (eg: permissions)
+    pub unsafe fn as_buffer(&self) -> Option<&'a [u8]> {
+        if self.perms.contains(Permissions::READ) {
+            Some(slice::from_raw_parts(
+                self.address() as *const _,
+                self.len(),
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Get access to the mapping's data
+    ///
+    /// # Safety
+    ///
+    /// The slice remains valid as long as the mapping is not updated (eg: permissions)
+    pub unsafe fn as_buffer_mut(&self) -> Option<&'a mut [u8]> {
+        if self.perms.contains(Permissions::WRITE) {
+            Some(slice::from_raw_parts_mut(
+                self.address() as *mut _,
+                self.len(),
+            ))
+        } else {
+            None
+        }
     }
 
     /// Get the length in bytes of the mapping

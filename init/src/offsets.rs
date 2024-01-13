@@ -19,6 +19,10 @@ extern "C" {
     // stack in RW data
     static __init_stack_start: u8;
     pub static __init_stack_end: u8;
+
+    // idle in text
+    static __idle_start: u8;
+    static __idle_end: u8;
 }
 
 pub fn text() -> Range<usize> {
@@ -47,4 +51,12 @@ pub fn data() -> Range<usize> {
 
 pub fn stack_top() -> usize {
     unsafe { &__init_stack_end as *const u8 as usize }
+}
+
+pub fn idle() -> Range<usize> {
+    unsafe {
+        let start = &__idle_start as *const u8 as usize;
+        let end = &__idle_end as *const u8 as usize;
+        start..end
+    }
 }

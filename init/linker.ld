@@ -12,7 +12,10 @@ SECTIONS {
         __text_start = .;
 
         // Force entry point at the begining of text section
-        *(.text_entry*)
+        *(.text_entry)
+        __idle_start = .;
+        *(.text_idle)
+        __idle_end = .;
         *(.text*)
         
         . = ALIGN(4K);

@@ -20,7 +20,7 @@ use log::{debug, info};
 #[naked]
 #[no_mangle]
 #[link_section = ".text_entry"]
-pub unsafe extern "C" fn user_start() {
+pub unsafe extern "C" fn user_start() -> ! {
     asm!(
         "
         lea rsp, {stack}
@@ -33,6 +33,21 @@ pub unsafe extern "C" fn user_start() {
         stack = sym offsets::__init_stack_end,
         main = sym main,
         options(noreturn),
+    );
+}
+
+// Will run as idle process
+#[naked]
+#[no_mangle]
+#[link_section = ".text_idle"]
+pub unsafe extern "C" fn idle() -> ! {
+    asm!(
+        "
+    2:
+        hlt;
+        jmp 2b;
+    ",
+        options(noreturn)
     );
 }
 

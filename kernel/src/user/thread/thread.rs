@@ -135,9 +135,9 @@ impl Thread {
         });
 
         debug!(
-            "Thread {} created (name={:?}, pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
+            "Thread {} created (name={}, pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
-            thread.name,
+            thread.name.read().as_ref().map_or("<None>", |str| str.as_str()),
             thread.process.id(),
             thread.privileged,
             thread.priority(),

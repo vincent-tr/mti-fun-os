@@ -75,7 +75,11 @@ impl Process {
             terminated: AtomicBool::new(false),
         });
 
-        debug!("Process {} created", process.id);
+        debug!(
+            "Process {} created (name={})",
+            process.id,
+            process.name.read()
+        );
 
         Ok(process)
     }

@@ -89,14 +89,20 @@ tail -f serial.log
 
 - ( [downloaded](docs/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf) ) https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf
 
+### Futex
+
+- https://github.com/eliben/code-for-blog/blob/master/2018/futex-basics/mutex-using-futex.cpp
+- https://man7.org/linux/man-pages/man2/futex.2.html
+
 ## Next tasks / Notes
 
-- timers (timeout)
-- object-oriented TLS
-- add guards hits to "page fault of interest" (+ auto grow of stack)
 - unwind
   - https://docs.rs/unwinding/latest/unwinding/
 - process creation:
   - dynamic linking : https://wiki.osdev.org/Dynamic_Linker
   - envp/argp
   - -C prefer dynamic
+- timers (timeout)
+- object-oriented TLS
+- add guards hits to "page fault of interest" (+ auto grow of stack)
+- futex

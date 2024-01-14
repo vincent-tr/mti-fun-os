@@ -106,3 +106,5 @@ tail -f serial.log
 - object-oriented TLS
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - futex
+- vfs/fuse
+- net

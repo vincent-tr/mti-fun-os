@@ -273,6 +273,7 @@ impl Process {
 
         // All threads of the process are terminated.
         self.handles.clear();
+        self.mappings.write().clear();
         self.terminated.store(true, Ordering::Relaxed);
         listener::notify_process(self, listener::ProcessEventType::Terminated);
     }

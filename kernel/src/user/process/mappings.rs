@@ -262,7 +262,7 @@ impl Mappings {
     pub fn is_contigous_mapping(&self, range: &Range<VirtAddr>) -> bool {
         // Get a cursor starting from the node before our range
         let start_area = self.get(range.start);
-        let end_area = self.get(range.end - PAGE_SIZE);
+        let end_area = self.get(last_page(&range));
 
         Rc::ptr_eq(&start_area, &end_area) && start_area.is_used().is_some()
     }
@@ -275,14 +275,14 @@ impl Mappings {
             self.split(start_area, range.start);
         }
 
-        let end_area = self.get(range.end - PAGE_SIZE);
+        let end_area = self.get(last_page(&range));
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
         }
 
         //start_area = self.get(range.start);
-        //end_area = self.get(range.end - PAGE_SIZE);
+        //end_area = self.get(last_page(&range));
 
         // Replace all ranges inside
         let mut addr = range.start;
@@ -339,14 +339,14 @@ impl Mappings {
             self.split(start_area, range.start);
         }
 
-        let mut end_area = self.get(range.end - PAGE_SIZE);
+        let mut end_area = self.get(last_page(&range));
         if end_area.range.end > range.end {
             // need to split
             self.split(end_area, range.end);
         }
 
         start_area = self.get(range.start);
-        end_area = self.get(range.end - PAGE_SIZE);
+        end_area = self.get(last_page(&range));
 
         // Ensure there is only one range inside
         assert!(Rc::ptr_eq(&start_area, &end_area));
@@ -368,6 +368,11 @@ impl Mappings {
 
         #[cfg(debug_assertions)]
         self.check_consistency();
+    }
+
+    /// Clear all mappings on process terminate
+    pub fn clear(&mut self) {
+        self.remove_range(USER_SPACE_START..USER_SPACE_END);
     }
 
     fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {
@@ -575,4 +580,9 @@ impl Mappings {
 
         trace!("END check_consistency");
     }
+}
+
+fn last_page(range: &Range<VirtAddr>) -> VirtAddr {
+    // cf https://github.com/rust-osdev/x86_64/issues/452
+    VirtAddr::new_truncate(range.end.as_u64().checked_sub(PAGE_SIZE as u64).unwrap())
 }

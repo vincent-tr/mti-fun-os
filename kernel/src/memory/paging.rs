@@ -422,7 +422,30 @@ unsafe impl Send for AddressSpace {}
 
 impl Drop for AddressSpace {
     fn drop(&mut self) {
-        todo!("TODO: drop all user entries + drop page table itself");
+        unsafe {
+            // All user mappings should have been dropped.
+            // So the address space at this time should only contains kernel stuff.
+            // So the root page table should be the same than the kernel one
+            let page_table = self.get_page_table();
+            for (index, entry) in KERNEL_ADDRESS_SPACE.get_page_table().iter().enumerate() {
+                let kentry: u64 = mem::transmute_copy(entry);
+                let uentry: u64 = mem::transmute_copy(&page_table[index]);
+                assert!(
+                    kentry == uentry,
+                    "Page diff at {}: kernel={:?}, process={:?}",
+                    index,
+                    entry,
+                    &page_table[index]
+                );
+            }
+
+            // Drop the root page table
+            let phys_addr = VirtAddr::from_ptr(self.page_table) - PHYSICAL_MAPPING_ADDRESS;
+            let frame = FrameRef::unborrow(PhysAddr::new(phys_addr));
+
+            // Explicit
+            mem::drop(frame);
+        }
     }
 }
 

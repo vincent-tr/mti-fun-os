@@ -67,8 +67,9 @@ impl ThreadListener {
             Ok(()) => {}
             Err(err) => {
                 debug!(
-                    "Failed to send ThreadEvent message to port {:?}: {:?}",
-                    self.port, err
+                    "Failed to send ThreadEvent message to port {}: {:?}",
+                    self.port.id(),
+                    err
                 );
             }
         }

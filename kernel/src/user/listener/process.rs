@@ -63,8 +63,9 @@ impl ProcessListener {
             Ok(()) => {}
             Err(err) => {
                 debug!(
-                    "Failed to send ProcessEvent message to port {:?}: {:?}",
-                    self.port, err
+                    "Failed to send ProcessEvent message to port {}: {:?}",
+                    self.port.id(),
+                    err
                 );
             }
         }

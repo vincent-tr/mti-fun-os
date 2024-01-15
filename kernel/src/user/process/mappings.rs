@@ -1,5 +1,6 @@
 use core::{
     cell::{Ref, RefCell},
+    iter::Step,
     mem::swap,
     ops::{Bound, Range},
     panic,
@@ -583,6 +584,5 @@ impl Mappings {
 }
 
 fn last_page(range: &Range<VirtAddr>) -> VirtAddr {
-    // cf https://github.com/rust-osdev/x86_64/issues/452
-    VirtAddr::new_truncate(range.end.as_u64().checked_sub(PAGE_SIZE as u64).unwrap())
+    Step::backward(range.end, PAGE_SIZE)
 }

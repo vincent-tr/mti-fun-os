@@ -18,7 +18,9 @@ impl MemoryObject {
         check_positive(size)?;
 
         let page_count = size / PAGE_SIZE;
-        let mut object = Self { pages: Vec::new() };
+        let mut object = Self {
+            pages: Vec::with_capacity(page_count),
+        };
 
         for _ in 0..page_count {
             match phys_allocate() {

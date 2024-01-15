@@ -38,7 +38,8 @@ impl MemoryAccess {
             ..VirtAddr::new(page_aligned_up(range.end.as_u64() as usize) as u64);
         let range_offset = range.start - process_range.start;
 
-        let mut frames = Vec::new();
+        let mut frames =
+            Vec::with_capacity((process_range.end - process_range.start) as usize / PAGE_SIZE);
 
         for process_addr in process_range.step_by(PAGE_SIZE) {
             let (phys_addr, actual_perms, _) = unsafe { address_space.get_infos(process_addr) };

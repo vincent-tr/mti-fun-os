@@ -36,7 +36,7 @@ impl GlobalAllocator {
 
     fn get_page_count(layout: Layout) -> usize {
         assert!(layout.align() <= PAGE_SIZE);
-        return align_up(layout.size() as u64, PAGE_SIZE as u64) as usize;
+        return align_up(layout.size() as u64, PAGE_SIZE as u64) as usize / PAGE_SIZE;
     }
 
     pub fn stats(&self) -> KallocStats {

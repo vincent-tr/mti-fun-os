@@ -9,44 +9,43 @@ SECTIONS {
     . += SIZEOF_HEADERS;
 
     .text ALIGN(4K) : {
-        __text_start = .;
+        PROVIDE(__text_start = .);
 
         // Force entry point at the begining of text section
         *(.text_entry)
-        __idle_start = .;
+        PROVIDE(__idle_start = .);
         *(.text_idle)
-        __idle_end = .;
-        *(.text*)
+        PROVIDE(__idle_end = .);
+        KEEP(*(.text*))
         
         . = ALIGN(4K);
-        __text_end = .;
+        PROVIDE(__text_end = .);
     }
 
     .rodata ALIGN(4K) : {
-        __rodata_start = .;
+        PROVIDE(__rodata_start = .);
 
-        *(.rodata*)
+        KEEP(*(.rodata*))
 
         . = ALIGN(4K);
-        __rodata_end = .;
+        PROVIDE(__rodata_end = .);
     }
 
     .data ALIGN(4K) : {
-        __data_start = .;
+        PROVIDE(__data_start = .);
 
         *(.bss*)
 
-        __init_stack_start = .;
+        PROVIDE(__init_stack_start = .);
         . = ALIGN(4K);
         . += INIT_STACK_SIZE;
         . = ALIGN(4096);
-        __init_stack_end = .;
+        PROVIDE(__init_stack_end = .);
 
-        *(.data*)
+        KEEP(*(.data*))
 
         . = ALIGN(4K);
-        __data_end = .;
-        
+        PROVIDE(__data_end = .);
     }
 
     __end = .;

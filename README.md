@@ -96,15 +96,24 @@ tail -f serial.log
 
 ## Next tasks / Notes
 
+### kernel
+
+- timers (timeout)
+- futex
+
+### runtime
+
 - unwind
   - https://docs.rs/unwinding/latest/unwinding/
 - process creation:
   - dynamic linking : https://wiki.osdev.org/Dynamic_Linker
   - envp/argp
   - -C prefer dynamic
-- timers (timeout)
 - object-oriented TLS
 - add guards hits to "page fault of interest" (+ auto grow of stack)
-- futex
+
+### servers
+
 - vfs/fuse
 - net
+- screen/graphics

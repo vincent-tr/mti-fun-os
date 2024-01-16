@@ -4,7 +4,7 @@ use core::{
 };
 
 use alloc::{string::String, sync::Arc, vec::Vec};
-use log::debug;
+use log::{debug, trace};
 use spin::{RwLock, RwLockReadGuard};
 
 use crate::{
@@ -156,9 +156,11 @@ impl Process {
 
         mappings.add(mapping);
 
-        debug!(
+        trace!(
             "Process {}: mapped at {:?} with perms {:?}",
-            self.id, range, perms
+            self.id,
+            range,
+            perms
         );
 
         Ok(addr)
@@ -184,7 +186,7 @@ impl Process {
 
         mappings.remove_range(range.clone());
 
-        debug!("Process {}: unmapped at {:?}", self.id, range);
+        trace!("Process {}: unmapped at {:?}", self.id, range);
 
         Ok(())
     }
@@ -210,9 +212,11 @@ impl Process {
 
         mappings.update_access_range(range.clone(), perms);
 
-        debug!(
+        trace!(
             "Process {}: mprotect at {:?} -> {:?}",
-            self.id, range, perms
+            self.id,
+            range,
+            perms
         );
 
         Ok(())

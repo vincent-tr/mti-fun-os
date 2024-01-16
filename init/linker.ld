@@ -2,7 +2,7 @@ ENTRY(user_start)
 OUTPUT_FORMAT(elf64-x86-64)
 
 INIT_BASE_ADDRESS = 0x200000;
-INIT_STACK_SIZE = 0x5000;
+INIT_STACK_SIZE = 0x10000;
 
 SECTIONS {
     . = INIT_BASE_ADDRESS;
@@ -39,7 +39,7 @@ SECTIONS {
         PROVIDE(__init_stack_start = .);
         . = ALIGN(4K);
         . += INIT_STACK_SIZE;
-        . = ALIGN(4096);
+        . = ALIGN(4K);
         PROVIDE(__init_stack_end = .);
 
         KEEP(*(.data*))

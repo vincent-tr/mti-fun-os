@@ -8,7 +8,7 @@ extern crate alloc;
 mod idle;
 mod offsets;
 
-use core::{arch::asm, ops::Range};
+use core::{arch::asm, hint::unreachable_unchecked, ops::Range};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
@@ -25,28 +25,32 @@ pub unsafe extern "C" fn user_start() -> ! {
     asm!(
         "
         lea rsp, {stack}
-        mov rbp, rsp
 
-        call {main}
-        # `main` must never return.
+        call {entry}
+        # `entry` must never return.
         ud2
         ",
         stack = sym offsets::__init_stack_end,
-        main = sym main,
+        entry = sym entry,
         options(noreturn),
     );
 }
 
-// Force at least one data, so that it is laid out after bss in linker script
-// This force bss allocation in binary file
-#[used(linker)]
-static mut FORCE_DATA_SECTION: u8 = 0x42;
-
-extern "C" fn main() -> ! {
+extern "C" fn entry() -> ! {
     libruntime::init();
 
     apply_memory_protections();
 
+    // Jump to a safer thread, with better stack
+    let mut options = ThreadOptions::default();
+    options.name("main");
+    kobject::Thread::start(main, ThreadOptions::default()).expect("Could not start main thread");
+
+    libsyscalls::thread::exit().expect("Failed to exit thread");
+    unsafe { unreachable_unchecked() };
+}
+
+fn main() {
     idle::create_idle_process().expect("Could not create idle process");
 
     dump_processes_threads();

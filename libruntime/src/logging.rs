@@ -1,3 +1,4 @@
+use alloc::fmt::format;
 use log::{Metadata, Record};
 
 struct InitLogger;
@@ -63,16 +64,38 @@ impl log::Log for InitLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            let mut buf: [u8; 1024] = [0u8; 1024];
-
-            let message: &str = write_to::show(&mut buf, *record.args()).unwrap();
-
-            // If logging fails, there is not much we can do...
-            let _ = libsyscalls::log(record.level(), message);
+            // First try to format with buffer on stack, then if too big do from heap
+            if !Self::try_log_from_stack(record) {
+                Self::log_from_heap(record);
+            }
         }
     }
 
     fn flush(&self) {}
+}
+
+impl InitLogger {
+    fn try_log_from_stack(record: &Record) -> bool {
+        let mut buf: [u8; 1024] = [0u8; 1024];
+
+        match write_to::show(&mut buf, *record.args()) {
+            Ok(message) => {
+                Self::syscall(record, message);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    fn log_from_heap(record: &Record) {
+        let message = format(*record.args());
+        Self::syscall(record, &message);
+    }
+
+    fn syscall(record: &Record, message: &str) {
+        // If logging fails, there is not much we can do...
+        let _ = libsyscalls::log(record.level(), message);
+    }
 }
 
 static LOGGER: InitLogger = InitLogger;

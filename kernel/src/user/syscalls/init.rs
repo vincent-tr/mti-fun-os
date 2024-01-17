@@ -25,6 +25,9 @@ macro_rules! include_bytes_aligned {
     }};
 }
 
+// TODO: make path less static
+static BINARY: &[u8] = include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os/debug/init");
+
 pub fn setup(_context: SyscallArgs) {
     // Unregister current syscall
     unregister_syscall(SyscallNumber::InitSetup);
@@ -40,11 +43,8 @@ pub fn setup(_context: SyscallArgs) {
 }
 
 fn load() -> Arc<Process> {
-    // TODO: make path less static
-    let binary = include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os/debug/init");
-
     // Load init binary at fixed address
-    let mem_size = page_aligned_up(binary.len());
+    let mem_size = page_aligned_up(BINARY.len());
     let memory_object = MemoryObject::new(mem_size).expect("Failed to create memory object");
 
     let process = process::create("init").expect("Failed to create init process");
@@ -61,13 +61,13 @@ fn load() -> Arc<Process> {
 
     let mut access = process
         .vm_access(
-            BASE_ADDRESS..BASE_ADDRESS + binary.len(),
+            BASE_ADDRESS..BASE_ADDRESS + BINARY.len(),
             Permissions::READ | Permissions::WRITE,
         )
         .expect("Failed to access mapping");
 
     let dest = access.get_slice_mut::<u8>();
-    dest.copy_from_slice(binary);
+    dest.copy_from_slice(BINARY);
 
     mem::drop(access);
 
@@ -79,6 +79,9 @@ fn create_thread(process: Arc<Process>) {
     // entry point is laid out at the begining of .text section
     let entry_point = BASE_ADDRESS + SIZE_OF_HEADERS;
 
+    // Pass the binary size as argument (useful to load debug symbols)
+    let arg: usize = BINARY.len();
+
     // Init does setup its stack itself.
     let stack_top = VirtAddr::zero();
 
@@ -89,7 +92,7 @@ fn create_thread(process: Arc<Process>) {
         ThreadPriority::Normal,
         entry_point,
         stack_top,
-        0,
+        arg,
         VirtAddr::zero(),
     );
 }

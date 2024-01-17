@@ -1,5 +1,5 @@
 [build]
-target="x86_64-mti_fun_os.json"
+target="x86_64-mti_fun_os-static.json"
 rustflags = ["-C", "link-args=-T../../../init/linker.ld", "-C", "force-frame-pointers"]
 
 [unstable]

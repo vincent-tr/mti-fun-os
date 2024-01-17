@@ -1,7 +1,7 @@
 use core::{fmt, hint::unreachable_unchecked, panic::PanicInfo};
 
 use libsyscalls::process;
-use log::{debug, error};
+use log::error;
 
 use super::StackTrace;
 

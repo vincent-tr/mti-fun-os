@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(internal_features)]
 #![feature(panic_info_message)]
 #![feature(panic_internals)]
 #![feature(never_type)]

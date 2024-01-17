@@ -103,8 +103,6 @@ tail -f serial.log
 
 ### runtime
 
-- unwind
-  - https://docs.rs/unwinding/latest/unwinding/
 - process creation:
   - dynamic linking : https://wiki.osdev.org/Dynamic_Linker
   - envp/argp

@@ -59,9 +59,25 @@ fn main() {
     dump_processes_threads();
     listen_threads();
     do_ipc();
+    test_unwind();
     debug!("Memory stats: {:?}", kobject::Memory::stats());
 
     libruntime::exit();
+}
+
+#[inline(never)]
+fn test_unwind() {
+    test_unwind2();
+}
+
+#[inline(never)]
+fn test_unwind2() {
+    test_unwind3();
+}
+
+#[inline(never)]
+fn test_unwind3() {
+    panic!("test unwind");
 }
 
 fn apply_memory_protections(binary_len: usize) {

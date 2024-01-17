@@ -36,15 +36,15 @@ pub unsafe extern "C" fn user_start() -> ! {
     );
 }
 
-extern "C" fn entry() -> ! {
+extern "C" fn entry(binary_len: usize) -> ! {
     libruntime::init();
 
-    apply_memory_protections();
+    apply_memory_protections(binary_len);
 
     // Jump to a safer thread, with better stack
     let mut options = ThreadOptions::default();
     options.name("main");
-    kobject::Thread::start(main, ThreadOptions::default()).expect("Could not start main thread");
+    kobject::Thread::start(main, options).expect("Could not start main thread");
 
     libsyscalls::thread::exit().expect("Failed to exit thread");
     unsafe { unreachable_unchecked() };
@@ -75,6 +75,14 @@ fn apply_memory_protections() {
         offsets::data(),
         Permissions::READ | Permissions::WRITE,
     );
+
+    let unmapped_range_start = offsets::global().end;
+    let unmapped_range_end = offsets::global().start + binary_len;
+    // Align
+    let unmapped_range =
+        unmapped_range_start..(((unmapped_range_end + PAGE_SIZE - 1) / PAGE_SIZE) * PAGE_SIZE);
+
+    setup_protection("unmapped", unmapped_range, Permissions::READ);
 
     fn setup_protection(name: &str, range: Range<usize>, perms: Permissions) {
         // kernel has mapped one area with all permissions set

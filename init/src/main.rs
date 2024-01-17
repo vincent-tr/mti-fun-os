@@ -61,7 +61,7 @@ fn main() {
     libruntime::exit();
 }
 
-fn apply_memory_protections() {
+fn apply_memory_protections(binary_len: usize) {
     setup_protection(
         "text",
         offsets::text(),

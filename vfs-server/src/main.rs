@@ -6,6 +6,13 @@
 extern crate alloc;
 extern crate libruntime;
 
-fn main() {
-    // println!("Hello, world!");
+use log::info;
+
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    libruntime::init();
+
+    info!("Hello, world!");
+
+    libruntime::exit()
 }

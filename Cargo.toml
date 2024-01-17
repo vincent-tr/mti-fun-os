@@ -18,4 +18,4 @@ members = [
   "syscalls",
   "libsyscalls",
   "libruntime"
-]
+, "vfs-server"]

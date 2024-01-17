@@ -25,6 +25,13 @@ workspace = false
 cwd = "./init"
 command = "cargo"
 args = ["build"]
+dependencies = ["vfs-server-build"]
+
+[tasks.vfs-server-build]
+workspace = false
+cwd = "./vfs-server"
+command = "cargo"
+args = ["build"]
 
 [tasks.default]
 alias = "run"

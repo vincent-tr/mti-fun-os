@@ -1,0 +1,7 @@
+[build]
+target="x86_64-mti_fun_os-dynamic.json"
+rustflags = ["-C", "force-frame-pointers", "-C", "prefer-dynamic"]
+
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]

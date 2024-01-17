@@ -3,6 +3,9 @@ name = "libruntime"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["dylib", "rlib", "staticlib"]
+
 [dependencies]
 libsyscalls = { path = "../libsyscalls" }
 log = "0.4.20"

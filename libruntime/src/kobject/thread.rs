@@ -8,7 +8,7 @@ use spin::Mutex;
 
 use super::{tls::TLS_SIZE, *};
 
-const STACK_SIZE: usize = PAGE_SIZE * 5;
+const STACK_SIZE: usize = PAGE_SIZE * 20;
 
 /// Thread
 #[derive(Debug)]

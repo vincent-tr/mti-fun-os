@@ -6,6 +6,7 @@ INIT_STACK_SIZE = 0x1000;
 
 SECTIONS {
     . = INIT_BASE_ADDRESS;
+    PROVIDE(__start = .);
     . += SIZEOF_HEADERS;
 
     .text ALIGN(4K) : {
@@ -48,7 +49,7 @@ SECTIONS {
         PROVIDE(__data_end = .);
     }
 
-    __end = .;
+     PROVIDE(__end = .);
 
     /DISCARD/ : {
         *(.comment*)

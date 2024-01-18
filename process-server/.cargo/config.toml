@@ -1,6 +1,6 @@
 [build]
 target="x86_64-mti_fun_os.json"
-rustflags = ["-C", "force-frame-pointers", "-C", "prefer-dynamic"]
+rustflags = ["-C", "force-frame-pointers"]
 
 [unstable]
 build-std = ["core", "compiler_builtins", "alloc"]

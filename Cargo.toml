@@ -17,5 +17,7 @@ members = [
   "init",
   "syscalls",
   "libsyscalls",
-  "libruntime"
-, "vfs-server"]
+  "libruntime",
+  "vfs-server",
+  "process-server",
+]

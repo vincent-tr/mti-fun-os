@@ -25,11 +25,17 @@ workspace = false
 cwd = "./init"
 command = "cargo"
 args = ["build"]
-dependencies = ["vfs-server-build"]
+dependencies = ["vfs-server-build", "process-server-build"]
 
 [tasks.vfs-server-build]
 workspace = false
 cwd = "./vfs-server"
+command = "cargo"
+args = ["build"]
+
+[tasks.process-server-build]
+workspace = false
+cwd = "./process-server"
 command = "cargo"
 args = ["build"]
 

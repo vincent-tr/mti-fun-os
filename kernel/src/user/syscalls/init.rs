@@ -26,7 +26,8 @@ macro_rules! include_bytes_aligned {
 }
 
 // TODO: make path less static
-static BINARY: &[u8] = include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os/debug/init");
+static BINARY: &[u8] =
+    include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os-static/debug/init");
 
 pub fn setup(_context: SyscallArgs) {
     // Unregister current syscall

@@ -16,8 +16,8 @@ use log::info;
 
 pub use config::{KERNEL_START, PAGE_SIZE};
 pub use paging::{
-    create_adress_space, drop_initial_kernel_stack, set_current_address_space, AdditionalFlags,
-    AddressSpace, Permissions,
+    create_adress_space, drop_initial_kernel_stack, drop_initial_ramdisk,
+    set_current_address_space, AdditionalFlags, AddressSpace, Permissions,
 };
 pub use phys::{AllocatorError, FrameRef};
 use x86_64::structures::paging::{mapper::MapToError, Size4KiB};
@@ -30,9 +30,9 @@ pub use x86_64::structures::paging::mapper::UnmapError;
 use config::KERNEL_STACK_SIZE;
 use paging::phys_to_virt;
 
-pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
+pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions, ramdisk: &Range<usize>) {
     phys::init(phys_mapping, memory_regions);
-    paging::init(phys_mapping);
+    paging::init(phys_mapping, ramdisk);
 
     // Note:
     // boot_info is unmapped from here.

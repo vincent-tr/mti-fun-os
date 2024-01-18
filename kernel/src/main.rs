@@ -66,9 +66,12 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     let physical_memory_offset = VirtAddr::new(*boot_info.physical_memory_offset.as_ref().unwrap());
 
+    let ramdisk_start = *boot_info.ramdisk_addr.as_ref().expect("No ramdisk defined") as usize;
+    let ramdisk = ramdisk_start..(ramdisk_start + boot_info.ramdisk_len as usize);
+
     gdt::init();
     interrupts::init_base();
-    memory::init(physical_memory_offset, &boot_info.memory_regions);
+    memory::init(physical_memory_offset, &boot_info.memory_regions, &ramdisk);
 
     // Note:
     // boot_info is unmapped from here.
@@ -80,7 +83,15 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    interrupts::syscall_switch(SyscallNumber::InitSetup as usize);
+    interrupts::syscall_switch(
+        SyscallNumber::InitSetup as usize,
+        ramdisk.start,
+        ramdisk.end,
+        0,
+        0,
+        0,
+        0,
+    );
 }
 
 #[panic_handler]

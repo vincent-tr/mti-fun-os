@@ -1,9 +1,14 @@
-use core::mem;
+use core::cmp::min;
+use core::ops::Range;
+use core::slice;
 
 use crate::interrupts::SyscallArgs;
-use crate::memory::{drop_initial_kernel_stack, page_aligned_up, Permissions, PAGE_SIZE};
+use crate::memory::{
+    self, drop_initial_kernel_stack, drop_initial_ramdisk, is_page_aligned, page_aligned_up,
+    Permissions, PAGE_SIZE,
+};
 use crate::user;
-use crate::user::process::{self, Process};
+use crate::user::process;
 use crate::user::syscalls::engine::unregister_syscall;
 use crate::{memory::VirtAddr, user::MemoryObject};
 use alloc::sync::Arc;
@@ -13,23 +18,9 @@ use syscalls::{SyscallNumber, ThreadPriority};
 const BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
 const SIZE_OF_HEADERS: usize = PAGE_SIZE;
 
-// https://docs.rs/include_bytes_aligned/latest/src/include_bytes_aligned/lib.rs.html#1-37
-macro_rules! include_bytes_aligned {
-    ($align_to:expr, $path:expr) => {{
-        #[repr(C, align($align_to))]
-        struct __Aligned<T: ?Sized>(T);
+pub fn setup(context: SyscallArgs) {
+    let ramdisk = context.arg1()..context.arg2();
 
-        static __DATA: &'static __Aligned<[u8]> = &__Aligned(*include_bytes!($path));
-
-        &__DATA.0
-    }};
-}
-
-// TODO: make path less static
-static BINARY: &[u8] =
-    include_bytes_aligned!(8, "../../../../target/x86_64-mti_fun_os-static/debug/init");
-
-pub fn setup(_context: SyscallArgs) {
     // Unregister current syscall
     unregister_syscall(SyscallNumber::InitSetup);
 
@@ -37,51 +28,57 @@ pub fn setup(_context: SyscallArgs) {
     drop_initial_kernel_stack();
 
     info!("Loading init binary");
-    let process = load();
-    create_thread(process);
+    let mobj = load_mem(&ramdisk);
+
+    // Drop it before we create the process
+    drop_initial_ramdisk();
+
+    create_process(mobj, &ramdisk);
 
     user::thread::initial_setup_thread();
 }
 
-fn load() -> Arc<Process> {
-    // Load init binary at fixed address
-    let mem_size = page_aligned_up(BINARY.len());
-    let memory_object = MemoryObject::new(mem_size).expect("Failed to create memory object");
+fn load_mem(ramdisk: &Range<usize>) -> Arc<MemoryObject> {
+    // Load init binary memory contained in ramdisk
+    let mem_size = page_aligned_up(ramdisk.len());
+    let mobj = MemoryObject::new(mem_size).expect("Failed to create memory object");
 
+    // Copy page by page
+    assert!(is_page_aligned(ramdisk.start));
+
+    for (index, frame) in mobj.frames_iter().enumerate() {
+        let dest = unsafe { memory::access_phys(frame) };
+
+        let source_start = ramdisk.start + index * PAGE_SIZE;
+        let source_end = min(ramdisk.end, source_start + PAGE_SIZE);
+        let size = source_end - source_start;
+        let source = unsafe { slice::from_raw_parts(source_start as *const u8, size) };
+
+        dest[0..size].copy_from_slice(source);
+    }
+
+    mobj
+}
+
+fn create_process(mobj: Arc<MemoryObject>, ramdisk: &Range<usize>) {
     let process = process::create("init").expect("Failed to create init process");
 
     process
         .mmap(
             BASE_ADDRESS,
-            mem_size,
+            mobj.size(),
             Permissions::READ | Permissions::WRITE | Permissions::EXECUTE,
-            Some(memory_object),
+            Some(mobj),
             0,
         )
         .expect("Failed to map in init process");
 
-    let mut access = process
-        .vm_access(
-            BASE_ADDRESS..BASE_ADDRESS + BINARY.len(),
-            Permissions::READ | Permissions::WRITE,
-        )
-        .expect("Failed to access mapping");
-
-    let dest = access.get_slice_mut::<u8>();
-    dest.copy_from_slice(BINARY);
-
-    mem::drop(access);
-
-    process
-}
-
-fn create_thread(process: Arc<Process>) {
     // .text section is right after headers.
     // entry point is laid out at the begining of .text section
     let entry_point = BASE_ADDRESS + SIZE_OF_HEADERS;
 
     // Pass the binary size as argument (useful to load debug symbols)
-    let arg: usize = BINARY.len();
+    let arg: usize = ramdisk.len();
 
     // Init does setup its stack itself.
     let stack_top = VirtAddr::zero();

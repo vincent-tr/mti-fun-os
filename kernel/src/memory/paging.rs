@@ -65,6 +65,11 @@ pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
 // Used while after switch to another stack to drop this initial stack
 static mut INITIAL_KERNEL_STACK_L4_INDEX: Option<(PageTableIndex, Range<VirtAddr>)> = None;
 
+// Keep ramskdisk while booting
+// Filled at paging initialization
+// Used while init process is loaded
+static mut INITIAL_RAMDISK_L4_INDEX: Option<(PageTableIndex, Range<VirtAddr>)> = None;
+
 pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
     // Create new empty page table
 
@@ -90,7 +95,7 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
     }
 }
 
-pub fn init(phys_mapping: VirtAddr) {
+pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
     unsafe {
         Efer::update(|flags| {
             *flags |= EferFlags::NO_EXECUTE_ENABLE;
@@ -135,8 +140,22 @@ pub fn init(phys_mapping: VirtAddr) {
             kernel_stack_end - kernel_stack_start
         );
 
+        let (ramdisk_l4_index, ramdisk_start, ramdisk_end) =
+            prepare_mapping(page_table, VirtAddr::new(ramdisk.start as u64), true);
+        info!(
+            "Ramdisk: {:?} -> {:?} (size={})",
+            ramdisk_start,
+            ramdisk_end,
+            ramdisk_end - ramdisk_start
+        );
+
+        assert!(ramdisk_start.as_u64() as usize == ramdisk.start);
+        assert!(ramdisk_end.as_u64() as usize >= ramdisk.end);
+
         INITIAL_KERNEL_STACK_L4_INDEX =
             Some((kernel_stack_l4_index, kernel_stack_start..kernel_stack_end));
+
+        INITIAL_RAMDISK_L4_INDEX = Some((ramdisk_l4_index, ramdisk_start..ramdisk_end));
 
         // Drop everything else
 
@@ -146,6 +165,7 @@ pub fn init(phys_mapping: VirtAddr) {
             if l4_index == kernel_l4_index.into()
                 || l4_index == phys_mapping_l4_index.into()
                 || l4_index == kernel_stack_l4_index.into()
+                || l4_index == ramdisk_l4_index.into()
             {
                 continue;
             }
@@ -178,6 +198,28 @@ pub fn drop_initial_kernel_stack() {
 
         // Invalidate all stack pages
         for page_addr in stack_range.step_by(PAGE_SIZE) {
+            tlb::flush(page_addr);
+        }
+    }
+}
+
+/// Drop the initial ramdisk
+///
+/// Note: no process address space must exist at this time.
+pub fn drop_initial_ramdisk() {
+    unsafe {
+        let (l4_index, ramdisk_range) = INITIAL_RAMDISK_L4_INDEX
+            .take()
+            .expect("INITIAL_RAMDISK_L4_INDEX not set");
+
+        // Drop hierarchy in kernel address space
+        let kernel_page_table = KERNEL_ADDRESS_SPACE.get_page_table();
+        assert!(get_current_page_table() as *const _ == kernel_page_table as *const _);
+
+        drop_mapping(&mut kernel_page_table[l4_index]);
+
+        // Invalidate all stack pages
+        for page_addr in ramdisk_range.step_by(PAGE_SIZE) {
             tlb::flush(page_addr);
         }
     }

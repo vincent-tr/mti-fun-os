@@ -180,7 +180,15 @@ pub fn tls_reg_write(addr: VirtAddr) {
     FsBase::write(addr);
 }
 
-pub fn syscall_switch(syscall_number: usize) -> ! {
+pub fn syscall_switch(
+    syscall_number: usize,
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    arg4: usize,
+    arg5: usize,
+    arg6: usize,
+) -> ! {
     // Initial context switch to interrupt stack, using syscall
     unsafe {
         asm!(concat!(
@@ -193,7 +201,12 @@ pub fn syscall_switch(syscall_number: usize) -> ! {
 
         user_data_seg = in(reg) gdt::USER_DATA_SELECTOR.0,
         in("rax") syscall_number,
-
+        in("rdi") arg1,
+        in("rsi") arg2,
+        in("rdx") arg3,
+        in("r10") arg4,
+        in("r8") arg5,
+        in("r9") arg6,
         options(noreturn));
     }
 }

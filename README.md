@@ -100,6 +100,7 @@ tail -f serial.log
 
 - timers (timeout)
 - futex
+- multi-core
 
 ### runtime
 

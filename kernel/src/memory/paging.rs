@@ -1,5 +1,5 @@
 use core::{mem, ops::Range, ptr};
-use log::{info, warn};
+use log::{info, trace};
 
 use x86_64::{
     instructions::tlb,
@@ -368,7 +368,8 @@ fn prepare_page<S: PageSize>(
     }
 
     if check_frame_ref && !phys::used(frame) {
-        warn!("Frame {:?} was not marked as used.", frame);
+        // It seems sometimes pages used for tabletable by bootloader are not properly marked as used
+        trace!("Frame {:?} was not marked as used.", frame);
         unsafe {
             phys::allocate_at(frame).expect("Cannot use frame").borrow();
         }

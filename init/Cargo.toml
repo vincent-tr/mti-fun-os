@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libsyscalls = { path = "../libsyscalls" }
+libsyscalls = { path = "../libs/libsyscalls" }
+libruntime = { path = "../libs/libruntime" }
 log = "0.4.20"
 bit_field = "0.10.2"
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-libruntime = { path = "../libruntime" }

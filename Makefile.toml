@@ -29,13 +29,13 @@ dependencies = ["vfs-server-build", "process-server-build"]
 
 [tasks.vfs-server-build]
 workspace = false
-cwd = "./vfs-server"
+cwd = "./servers/vfs-server"
 command = "cargo"
 args = ["build"]
 
 [tasks.process-server-build]
 workspace = false
-cwd = "./process-server"
+cwd = "./servers/process-server"
 command = "cargo"
 args = ["build"]
 

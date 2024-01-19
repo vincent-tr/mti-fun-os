@@ -1,5 +1,5 @@
 [build]
-target="../../x86_64-mti_fun_os.json"
+target="../x86_64-mti_fun_os.json"
 rustflags = ["-C", "force-frame-pointers", "-C", "prefer-dynamic"]
 
 [unstable]

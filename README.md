@@ -105,7 +105,12 @@ tail -f serial.log
 ### runtime
 
 - process creation:
-  - dynamic linking : https://wiki.osdev.org/Dynamic_Linker
+  - dynamic linking:
+    - https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+    - https://wiki.osdev.org/Dynamic_Linker
+    - https://refspecs.linuxbase.org/elf/gabi4+/ch5.dynamic.html
+    - https://www.openbsd.org/papers/nycbsdcon08-pie/
+    - https://stackoverflow.com/questions/50303305/elf-file-type-et-exec-and-et-dyn
   - envp/argp
   - -C prefer dynamic
 - object-oriented TLS

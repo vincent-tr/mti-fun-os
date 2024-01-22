@@ -10,6 +10,8 @@ fn main() {
     // TODO: less static
     let init = PathBuf::from("target/x86_64-mti_fun_os-init/debug/init");
 
+    println!("cargo:rerun-if-changed={}", init.display());
+
     // create an UEFI disk image (optional)
     let uefi_path = out_dir.join("uefi.img");
     bootloader::UefiBoot::new(&kernel)

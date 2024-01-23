@@ -19,5 +19,5 @@ members = [
   "libs/libsyscalls",
   "libs/libruntime",
   "servers/vfs-server",
-  "servers/process-server",
+  "servers/process-server", "host-dynlinker",
 ]

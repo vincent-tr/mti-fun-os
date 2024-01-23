@@ -2,10 +2,13 @@
 #![no_main]
 #![feature(naked_functions)]
 #![feature(used_with_arg)]
+#![feature(error_in_core)]
 
 extern crate alloc;
 
+mod archive;
 mod idle;
+mod loader;
 mod offsets;
 
 use core::{arch::asm, hint::unreachable_unchecked, ops::Range, slice};
@@ -56,11 +59,14 @@ extern "C" fn entry(binary_len: usize) -> ! {
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");
 
-    dump_processes_threads();
-    listen_threads();
-    do_ipc();
-    kmem_stats();
-    test_unwind();
+    // dump_processes_threads();
+    // listen_threads();
+    // do_ipc();
+    // kmem_stats();
+    // test_unwind();
+
+    debug!("flan");
+    loader::load(archive::PROCESS_SERVER).expect("Pan");
 
     libruntime::exit();
 }

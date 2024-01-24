@@ -16,7 +16,6 @@
 # gcc -nostdlib -Wno-builtin-declaration-mismatch -o hello hello_nolibc.c
 
 # no libc shared
+# run with LD_LIBRARY_PATH=. ./hello
 gcc -nostdlib -Wno-builtin-declaration-mismatch -shared -o shared.so shared_nolibc.c
 gcc -nostdlib -Wno-builtin-declaration-mismatch -L. -l:shared.so -o hello hello_dyn_nolibc.c
-
-# run with LD_LIBRARY_PATH=. ./hello

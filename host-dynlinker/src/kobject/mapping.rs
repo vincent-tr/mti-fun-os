@@ -1,6 +1,6 @@
 // same api than kobject
 
-use core::{ops::Range, ptr, slice};
+use core::{fmt, ops::Range, ptr, slice};
 
 use bitflags::bitflags;
 
@@ -35,6 +35,40 @@ pub enum Error {
     ObjectClosed,
     ObjectNotReady,
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Error::InvalidArgument => write!(formatter, "InvalidArgument"),
+            Error::OutOfMemory => write!(formatter, "OutOfMemory"),
+            Error::NotSupported => write!(formatter, "NotSupported"),
+            Error::MemoryAccessDenied => write!(formatter, "MemoryAccessDenied"),
+            Error::ObjectNotFound => write!(formatter, "ObjectNotFound"),
+            Error::ObjectNameDuplicate => write!(formatter, "ObjectNameDuplicate"),
+            Error::ObjectClosed => write!(formatter, "ObjectClosed"),
+            Error::ObjectNotReady => write!(formatter, "ObjectNotReady"),
+        }
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        "description() is deprecated; use Display"
+    }
+
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        self.source()
+    }
+
+    fn provide<'a>(&'a self, _request: &mut std::error::Request<'a>) {
+        // ...
+    }
+}
+
 pub struct Process {
     _priv: (),
 }
@@ -51,24 +85,29 @@ impl Process {
 
     /// Reserve an area in the process VM, but no not back it with memory
     pub fn map_reserve(&self, addr: Option<usize>, size: usize) -> Result<Mapping, Error> {
-        let addr = addr.unwrap_or_default() as *mut _;
+        let caddr = addr.unwrap_or_default() as *mut _;
 
-        let addr = unsafe {
+        let mut flags = libc::MAP_PRIVATE | libc::MAP_ANONYMOUS;
+        if let Some(_) = addr {
+            flags |= libc::MAP_FIXED;
+        }
+
+        let caddr = unsafe {
             libc::mmap(
-                addr,
+                caddr,
                 size,
                 libc::PROT_NONE,
-                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                flags,
                 -1,
                 0,
             )
         };
 
-        if addr == ptr::null_mut() {
+        if caddr == ptr::null_mut() {
             return Err(Error::InvalidArgument);
         }
 
-        let addr = addr as usize;
+        let addr = caddr as usize;
 
         Ok(unsafe { Mapping::unleak(self, addr..(addr + size), Permissions::NONE) })
     }
@@ -83,24 +122,29 @@ impl Process {
         //offset: usize,
     ) -> Result<Mapping, Error> {
         let cperms = cperms(perms);
-        let addr = addr.unwrap_or_default() as *mut _;
+        let caddr = addr.unwrap_or_default() as *mut _;
 
-        let addr = unsafe {
+        let mut flags = libc::MAP_PRIVATE | libc::MAP_ANONYMOUS;
+        if let Some(_) = addr {
+            flags |= libc::MAP_FIXED;
+        }
+
+        let caddr = unsafe {
             libc::mmap(
-                addr,
+                caddr,
                 size,
                 cperms,
-                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                flags,
                 -1,
                 0,
             )
         };
 
-        if addr == ptr::null_mut() {
+        if caddr == ptr::null_mut() {
             return Err(Error::InvalidArgument);
         }
 
-        let addr = addr as usize;
+        let addr = caddr as usize;
 
         Ok(unsafe { Mapping::unleak(self, addr..(addr + size), perms) })
     }

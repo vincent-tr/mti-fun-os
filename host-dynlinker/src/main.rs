@@ -1,23 +1,29 @@
 #![feature(error_in_core)]
+#![feature(error_generic_member_access)]
+#![allow(dead_code)]
 
-mod mapping;
+// https://github.com/rust-osdev/bootloader/blob/main/common/src/load_kernel.rs
 
-use core::{fmt, error::Error, mem::size_of, cmp::{self, min}, ops::Range};
+mod helpers;
+mod kobject;
+mod program;
+mod segment;
+
+use core::error::Error;
 use log::debug;
-use xmas_elf::{
-    header, program,
-    sections::{SectionData, ShType},
-    symbol_table::{DynEntry32, DynEntry64},
-    ElfFile, P64,
-};
-use zero::read;
+use xmas_elf::{sections::SectionData, ElfFile};
+
+pub use helpers::*;
+pub use program::Program;
+pub use segment::Segment;
+
+const BINARY_PATH: &str = "static/hello";
 
 pub fn main() -> Result<(), Box<dyn Error>> {
-    
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-    
-    use std::{io::Read, fs::File};
-    let mut file = File::open("/bin/ls").unwrap();
+
+    use std::{fs::File, io::Read};
+    let mut file = File::open(BINARY_PATH).unwrap();
     let mut buff = Vec::new();
     file.read_to_end(&mut buff).unwrap();
 
@@ -26,81 +32,47 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
-    let elf_file = wrap_res(xmas_elf::ElfFile::new(binary))?;
+pub fn load(binary: &[u8]) -> Result<(), Box<dyn Error>> {
+    let program = Program::load(binary)?;
 
-    for program_header in elf_file.program_iter() {
-        wrap_res(program::sanity_check(program_header, &elf_file))?;
-    }
+    //resolve_dependencies(&elf_file);
 
-    match elf_file.header.pt2.type_().as_type() {
-        header::Type::None => Err(LoaderError::BadObjectType("none"))?,
-        header::Type::Relocatable => Err(LoaderError::BadObjectType("relocatable"))?,
-        header::Type::Executable => Err(LoaderError::BadObjectType("executable"))?,
-        header::Type::SharedObject => (),
-        header::Type::Core => Err(LoaderError::BadObjectType("core"))?,
-        header::Type::ProcessorSpecific(_) => {
-            Err(LoaderError::BadObjectType("processor-specific"))?
-        }
-    };
-/*
-    for program_header in elf_file.program_iter() {
-        debug!("SEGMENT {:?}", program_header);
-    }
+    let entry_func = program.entry();
 
-    for section in elf_file.section_iter() {
-        if wrap_res(section.get_type())? != ShType::Null {
-            debug!(
-                "SECTION name={} {:?}",
-                section.get_name(&elf_file).unwrap(),
-                section
-            );
-        }
-    }
-*/
-    let range = get_vm_range(&elf_file)?;
-    debug!("range = 0x{0:016X}", range.start);
-    debug!("range = 0x{0:016X}", range.end);
+    debug!("Let go!");
 
-    
+    //let args = &["hello"];
 
-    //libc::mmap()
-
-    assert!(range.start == 0);
-
-    resolve_dependencies(&elf_file);
-
-    Ok(())
+    start(entry_func);
 }
 
-fn get_vm_range(elf_file: &ElfFile) -> Result<Range<u64>, LoaderError> {
-    let mut min = u64::MAX;
-    let mut max = u64::MIN;
-    for program_header in elf_file.program_iter() {
-        if let program::Type::Load = wrap_res(program_header.get_type())? {
-            debug!("PROGRAM {:?}", program_header);
+fn start(entry_func: extern "C" fn() -> !) -> ! {
+    unsafe {
+        core::arch::asm!("
+        // All this registers seems to be = 0 at startup
+        // mov rax, 0
+        mov rbx, 0
+        mov rcx, 0
+        mov rdx, 0
+        mov rsi, 0
+        mov rdi, 0
+        mov rbp, 0
+        mov r8 , 0
+        mov r9 , 0
+        mov r10, 0
+        mov r11, 0
+        mov r12, 0
+        mov r13, 0
+        mov r14, 0
+        mov r15, 0
+        // int 3
+        call rax
+        ", 
+        in("rax") entry_func,
 
-            let start = align_down(program_header.virtual_addr(), program_header.align());
-            let end = align_up(program_header.virtual_addr() + program_header.mem_size(), program_header.align());
-            
-            min = cmp::min(min, start);
-            max = cmp::max(max, end);
-        }
+        options(noreturn)
+        );
     }
-
-    Ok(min..max)
-}
-
-fn align_down(value: u64, align: u64) -> u64 {
-    value / align * align
-}
-
-fn align_up(value: u64, align: u64) -> u64 {
-    (value + align - 1) / align * align
-}
-
-fn load_program(elf_file: &ElfFile, base_addr: usize) {
-
 }
 
 fn resolve_dependencies(elf_file: &ElfFile) -> Result<bool, LoaderError> {
@@ -139,39 +111,4 @@ fn resolve_dependencies(elf_file: &ElfFile) -> Result<bool, LoaderError> {
         };
     }
     Ok(true)
-}
-
-fn load_segments(elf_file: &ElfFile) {}
-
-fn wrap_res<T>(res: Result<T, &'static str>) -> Result<T, LoaderError> {
-    res.map_err(|str| LoaderError::ElfReaderError(str))
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LoaderError {
-    ElfReaderError(&'static str),
-    BadObjectType(&'static str),
-    BadDynamicSection,
-}
-
-impl fmt::Display for LoaderError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            LoaderError::ElfReaderError(str) => {
-                write!(formatter, "elf reader error: {}", str)
-            }
-            LoaderError::BadObjectType(typ) => {
-                write!(formatter, "bad object type: '{}'", typ)
-            }
-            LoaderError::BadDynamicSection => {
-                write!(formatter, "bad dynamic section")
-            }
-        }
-    }
-}
-
-impl Error for LoaderError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

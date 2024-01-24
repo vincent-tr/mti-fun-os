@@ -20,6 +20,7 @@ pub struct Program<'a> {
     mapping: Mapping<'static>,
     is_pie: bool,
     addr_offset: usize,
+    needed: Vec<&'a str>,
 }
 
 impl<'a> Program<'a> {
@@ -82,20 +83,27 @@ impl<'a> Program<'a> {
 
         debug!("addr base = 0x{0:016X}", mapping.address());
 
-        let prog = Self {
+        let mut prog = Self {
             elf_file,
             mapping,
             is_pie,
             addr_offset,
+            needed: Vec::new(),
         };
 
         let segments = prog.load_segments()?;
 
+        let mut dyn_header = None;
+
         for program_header in prog.elf_file.program_iter() {
             if let program::Type::Dynamic = wrap_res(program_header.get_type())? {
-                debug!("Process dynamic segment");
-                prog.process_dynamic_segment(program_header)?;
+                dyn_header = Some(program_header);
             }
+        }
+
+        if let Some(dyn_header) = dyn_header.take() {
+            debug!("Process dynamic segment");
+            prog.process_dynamic_segment(dyn_header)?;
         }
 
         for segment in segments {
@@ -129,7 +137,7 @@ impl<'a> Program<'a> {
         Ok(min..max)
     }
 
-    fn load_segments(&self) -> Result<Vec<Segment>, Box<dyn Error>> {
+    fn load_segments(&self) -> Result<Vec<Segment<'static>>, Box<dyn Error>> {
         let mut segments = Vec::new();
 
         for program_header in self.elf_file.program_iter() {
@@ -154,7 +162,7 @@ impl<'a> Program<'a> {
     }
 
     fn process_dynamic_segment(
-        &self,
+        &mut self,
         segment: program::ProgramHeader,
     ) -> Result<(), Box<dyn Error>> {
         let data = if let program::SegmentData::Dynamic64(data) =
@@ -166,6 +174,7 @@ impl<'a> Program<'a> {
         };
 
         self.process_relocations(data)?;
+        self.process_needed(data)?;
 
         Ok(())
     }
@@ -295,6 +304,22 @@ impl<'a> Program<'a> {
         Ok(())
     }
 
+    fn process_needed(&mut self, data: &[dynamic::Dynamic<u64>]) -> Result<(), Box<dyn Error>> {
+        for item in data {
+            let tag = item.get_tag()?;
+            match tag {
+                dynamic::Tag::Needed => {
+                    let index = wrap_res(item.get_val())? as u32;
+                    let value = self.elf_file.get_dyn_string(index)?;
+                    self.needed.push(value);
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
     fn check_is_in_load(&self, virt_offset: u64) -> Result<(), LoaderError> {
         for program_header in self.elf_file.program_iter() {
             if let program::Type::Load = wrap_res(program_header.get_type())? {
@@ -307,6 +332,10 @@ impl<'a> Program<'a> {
             }
         }
         Err(LoaderError::BadDynamicSection)
+    }
+
+    pub fn needed(&self) -> &[&str] {
+        &self.needed
     }
 
     pub fn entry(&self) -> extern "C" fn() -> ! {

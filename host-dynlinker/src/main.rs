@@ -35,13 +35,11 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 pub fn load(binary: &[u8]) -> Result<(), Box<dyn Error>> {
     let program = Program::load(binary)?;
 
-    //resolve_dependencies(&elf_file);
+    debug!("deps: {:?}", program.needed());
 
     let entry_func = program.entry();
 
     debug!("Let go!");
-
-    //let args = &["hello"];
 
     start(entry_func);
 }

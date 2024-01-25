@@ -10,38 +10,47 @@ mod program;
 mod segment;
 
 use core::error::Error;
+use std::collections::HashMap;
 use log::debug;
-use xmas_elf::{sections::SectionData, ElfFile};
 
 pub use helpers::*;
 pub use program::Program;
 pub use segment::Segment;
 
 const BINARY_PATH: &str = "static/hello";
+const SHARED_PATH: &str = "static/shared.so";
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
+    let hello_content = read_file(BINARY_PATH);
+    let shared_content = read_file(SHARED_PATH);
+
+    let mut objects = HashMap::new();
+
+    debug!("loading hello");
+    objects.insert("hello", Program::load(&hello_content)?);
+    debug!("loaded hello");
+
+    // TODO: recursive
+    debug!("loading shared.so");
+    objects.insert("shared.so", Program::load(&shared_content)?);
+    debug!("loaded shared.so");
+
+    let entry = objects.get("hello").unwrap();
+
+    let entry_func = entry.entry();
+    debug!("Let go!");
+    start(entry_func);
+}
+
+fn read_file(path: &str) -> Vec<u8> {
     use std::{fs::File, io::Read};
-    let mut file = File::open(BINARY_PATH).unwrap();
+    let mut file = File::open(path).unwrap();
     let mut buff = Vec::new();
     file.read_to_end(&mut buff).unwrap();
 
-    load(&buff)?;
-
-    Ok(())
-}
-
-pub fn load(binary: &[u8]) -> Result<(), Box<dyn Error>> {
-    let program = Program::load(binary)?;
-
-    debug!("deps: {:?}", program.needed());
-
-    let entry_func = program.entry();
-
-    debug!("Let go!");
-
-    start(entry_func);
+    buff
 }
 
 fn start(entry_func: extern "C" fn() -> !) -> ! {
@@ -71,42 +80,4 @@ fn start(entry_func: extern "C" fn() -> !) -> ! {
         options(noreturn)
         );
     }
-}
-
-fn resolve_dependencies(elf_file: &ElfFile) -> Result<bool, LoaderError> {
-    let section = {
-        if let Some(section) = elf_file.find_section_by_name(".dynamic") {
-            section
-        } else {
-            return Ok(false);
-        }
-    };
-
-    let data = {
-        if let SectionData::Dynamic64(data) = wrap_res(section.get_data(&elf_file))? {
-            data
-        } else {
-            return Err(LoaderError::BadDynamicSection);
-        }
-    };
-
-    for entry in data {
-        match wrap_res(entry.get_tag())? {
-            xmas_elf::dynamic::Tag::Null => {
-                // this mark the end of the section
-                break;
-            }
-
-            xmas_elf::dynamic::Tag::Needed => {
-                // dynamic library to load
-                let str = wrap_res(elf_file.get_dyn_string(wrap_res(entry.get_val())? as u32))?;
-                debug!("NEEDED: {str}");
-            }
-            _ => {
-                // process later
-                debug!(".dynamic entry: {:?}", entry);
-            }
-        };
-    }
-    Ok(true)
 }

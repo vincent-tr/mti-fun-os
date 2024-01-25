@@ -106,6 +106,8 @@ impl<'a> Program<'a> {
             prog.process_dynamic_segment(dyn_header)?;
         }
 
+        debug!("deps: {:?}", prog.needed());
+
         for segment in segments {
             segment.finalize()?;
         }

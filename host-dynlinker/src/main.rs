@@ -1,12 +1,13 @@
 #![feature(error_in_core)]
 #![feature(error_generic_member_access)]
+#![feature(let_chains)]
 #![allow(dead_code)]
 
 // https://github.com/rust-osdev/bootloader/blob/main/common/src/load_kernel.rs
 
 mod helpers;
 mod kobject;
-mod program;
+mod object;
 mod segment;
 
 use core::error::Error;
@@ -14,7 +15,7 @@ use std::collections::HashMap;
 use log::debug;
 
 pub use helpers::*;
-pub use program::Program;
+pub use object::Object;
 pub use segment::Segment;
 
 const BINARY_PATH: &str = "static/hello";
@@ -29,13 +30,19 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut objects = HashMap::new();
 
     debug!("loading hello");
-    objects.insert("hello", Program::load(&hello_content)?);
+    objects.insert("hello", Object::load(&hello_content)?);
     debug!("loaded hello");
 
     // TODO: recursive
     debug!("loading shared.so");
-    objects.insert("shared.so", Program::load(&shared_content)?);
+    objects.insert("shared.so", Object::load(&shared_content)?);
     debug!("loaded shared.so");
+
+    for obj in objects.values() {
+        obj.process_jump_relocations(&objects)?;
+    }
+
+    // TODO: DT_INIT, DT_FINI
 
     let entry = objects.get("hello").unwrap();
 
@@ -52,7 +59,7 @@ fn read_file(path: &str) -> Vec<u8> {
 
     buff
 }
-
+// strlen@got.plt
 fn start(entry_func: extern "C" fn() -> !) -> ! {
     unsafe {
         core::arch::asm!("
@@ -72,7 +79,7 @@ fn start(entry_func: extern "C" fn() -> !) -> ! {
         mov r13, 0
         mov r14, 0
         mov r15, 0
-        // int 3
+        int 3
         call rax
         ", 
         in("rax") entry_func,

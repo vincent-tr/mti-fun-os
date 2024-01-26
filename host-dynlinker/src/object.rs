@@ -63,8 +63,6 @@ impl<'a> Object<'a> {
         };
 
         let vm_range = Self::get_vm_range(&elf_file)?;
-        debug!("vm_range = 0x{0:016X}", vm_range.start);
-        debug!("vm_range = 0x{0:016X}", vm_range.end);
 
         if is_pie {
             assert!(vm_range.start == 0);
@@ -76,10 +74,9 @@ impl<'a> Object<'a> {
 
         // Reserve a region anywhere there is vmspace
         let mapping = Process::current().map_reserve(reserv_addr, vm_range.len())?;
-
         let addr_offset = if is_pie { mapping.address() } else { 0 };
 
-        debug!("addr base = 0x{0:016X}", mapping.address());
+        debug!("mapping 0x{:016X} -> 0x{:016X}", mapping.range().start, mapping.range().end);
 
         let mut prog = Self {
             elf_file,
@@ -117,8 +114,6 @@ impl<'a> Object<'a> {
         let mut max = usize::MIN;
         for program_header in elf_file.program_iter() {
             if let program::Type::Load = wrap_res(program_header.get_type())? {
-                debug!("PROGRAM {:?}", program_header);
-
                 let start = align_down(
                     program_header.virtual_addr() as usize,
                     program_header.align() as usize,

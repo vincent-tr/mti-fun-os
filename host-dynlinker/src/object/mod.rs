@@ -1,18 +1,32 @@
+mod dynamic_section;
+mod func_array;
+mod relocation;
+mod relocation_table;
+mod segment;
+mod symbols;
+
 use crate::{
     align_down, align_up,
     kobject::{Mapping, Process},
 };
 use core::{cell::RefCell, cmp, error::Error, mem, ops::Range};
 use log::debug;
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
 use xmas_elf::{
     dynamic, header, program,
     sections::{self},
-    symbol_table::{self, DynEntry64, Entry, Visibility},
-    ElfFile, P64,
+    symbol_table::{self, Entry, Visibility},
+    ElfFile,
 };
 
-pub use crate::{wrap_res, LoaderError, Segment};
+pub use crate::{wrap_res, LoaderError};
+
+use dynamic_section::*;
+use func_array::*;
+use relocation::*;
+use relocation_table::*;
+use segment::*;
+use symbols::*;
 
 #[derive(Debug)]
 pub struct ExportedSymbol<'a> {
@@ -362,15 +376,7 @@ impl<'a> Object<'a> {
             return Err(LoaderError::BadDynamicSection);
         }
 
-        let base_address = self.addr_offset + table_offset;
-        let count = table_size / mem::size_of::<Relocation>();
-
-        Ok(Some(RelocationTable {
-            base_address,
-            count,
-            _marker1: PhantomData,
-            _marker2: PhantomData,
-        }))
+        Ok(Some(RelocationTable::new(self, table_offset, table_size)))
     }
 
     fn process_relocation(
@@ -379,7 +385,7 @@ impl<'a> Object<'a> {
         symbols: &Option<Symbols>,
         relocation: Relocation,
     ) -> Result<(), LoaderError> {
-        match relocation.r#type {
+        match relocation.r#type() {
             RelocationType::R_X86_64_NONE => Ok(()),
             //RelocationType::R_X86_64_64 => todo!(),
             //RelocationType::R_X86_64_PC32 => todo!(),
@@ -390,7 +396,7 @@ impl<'a> Object<'a> {
             RelocationType::R_X86_64_JUMP_SLOT => {
                 let symbols = symbols.as_ref().ok_or(LoaderError::BadRelocation)?;
 
-                let symbol = symbols.entry(relocation.symbol_table_index);
+                let symbol = symbols.entry(relocation.symbol_table_index());
                 let sym_name = wrap_res(symbol.get_name(&self.elf_file))?;
 
                 let resolve = |object: &Object| -> Result<bool, LoaderError> {
@@ -431,7 +437,7 @@ impl<'a> Object<'a> {
             RelocationType::R_X86_64_RELATIVE => {
                 // Calculate the relocated value.
                 let value =
-                    self.addr_offset + relocation.addend.ok_or(LoaderError::BadRelocation)?;
+                    self.addr_offset + relocation.addend().ok_or(LoaderError::BadRelocation)?;
 
                 relocation.apply(self, value)?;
 
@@ -526,298 +532,6 @@ impl<'a> Object<'a> {
     pub fn run_fini(&self) {
         if let Some(funcs) = &self.fini {
             funcs.run();
-        }
-    }
-}
-
-#[derive(Debug)]
-struct DynamicSection<'a> {
-    data: &'a [dynamic::Dynamic<P64>],
-}
-
-impl<'a> DynamicSection<'a> {
-    pub fn find(elf_file: &ElfFile<'a>) -> Result<Option<Self>, LoaderError> {
-        let section = if let Some(section) = elf_file.find_section_by_name(".dynamic") {
-            section
-        } else {
-            return Ok(None);
-        };
-
-        let data = wrap_res(section.get_data(elf_file))?;
-
-        if let sections::SectionData::Dynamic64(data) = data {
-            Ok(Some(Self { data }))
-        } else {
-            Err(LoaderError::BadDynamicSection)
-        }
-    }
-
-    pub fn find_all(
-        &self,
-        tag: dynamic::Tag<u64>,
-    ) -> Result<Vec<&'a dynamic::Dynamic<u64>>, LoaderError> {
-        let mut res = Vec::new();
-
-        for item in self.data {
-            let item_tag = wrap_res(item.get_tag())?;
-
-            if item_tag == tag {
-                res.push(item);
-            }
-        }
-
-        Ok(res)
-    }
-
-    pub fn find_unique(
-        &self,
-        tag: dynamic::Tag<u64>,
-    ) -> Result<Option<&'a dynamic::Dynamic<u64>>, LoaderError> {
-        let vec = self.find_all(tag)?;
-
-        match vec.len() {
-            0 => Ok(None),
-            1 => Ok(Some(vec[0])),
-            _ => Err(LoaderError::BadDynamicSection),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Symbols<'a> {
-    entries: &'a [DynEntry64],
-}
-
-impl<'a> Symbols<'a> {
-    pub fn find(
-        prog: &Object<'a>,
-        dyn_section: &DynamicSection<'a>,
-    ) -> Result<Option<Self>, LoaderError> {
-        let offset = if let Some(symbols_tag) = dyn_section.find_unique(dynamic::Tag::SymTab)? {
-            wrap_res(symbols_tag.get_ptr())? as usize
-        } else {
-            return Ok(None);
-        };
-
-        let section = prog
-            .find_section_by_offset(offset)
-            .ok_or(LoaderError::BadDynamicSection)?;
-
-        let entries = if let sections::SectionData::DynSymbolTable64(entries) =
-            wrap_res(section.get_data(&prog.elf_file))?
-        {
-            entries
-        } else {
-            return Err(LoaderError::BadSymbolsSection);
-        };
-
-        Ok(Some(Self { entries }))
-    }
-
-    pub fn entries(&self) -> &[DynEntry64] {
-        self.entries
-    }
-
-    pub fn entry(&self, index: usize) -> &DynEntry64 {
-        &self.entries[index]
-    }
-}
-
-#[derive(Debug)]
-struct RelocationTable<'a, Relocation> {
-    base_address: usize,
-    count: usize,
-    _marker1: PhantomData<&'a ()>, // Note: this way we ensure that address remain valid
-    _marker2: PhantomData<Relocation>,
-}
-
-impl<'a, Relocation> RelocationTable<'a, Relocation> {
-    pub fn size(&self) -> usize {
-        self.count
-    }
-
-    pub fn entry(&self, index: usize) -> Relocation {
-        assert!(index < self.count);
-
-        let address = self.base_address + index * mem::size_of::<Relocation>();
-
-        unsafe { core::ptr::read_unaligned(address as *const Relocation) }
-    }
-
-    pub fn iter(&self) -> RelocationTableIter<'a, Relocation> {
-        RelocationTableIter {
-            base_address: self.base_address,
-            end_address: self.base_address + self.count * mem::size_of::<Relocation>(),
-            _marker1: PhantomData,
-            _marker2: PhantomData,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct RelocationTableIter<'a, Relocation> {
-    base_address: usize,
-    end_address: usize,
-    _marker1: PhantomData<&'a ()>, // Note: this way we ensure that address remain valid
-    _marker2: PhantomData<Relocation>,
-}
-
-impl<'a, Relocation> Iterator for RelocationTableIter<'a, Relocation> {
-    type Item = Relocation;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.base_address == self.end_address {
-            return None;
-        }
-
-        let entry = unsafe { core::ptr::read_unaligned(self.base_address as *const Relocation) };
-
-        self.base_address += mem::size_of::<Relocation>();
-        assert!(self.base_address <= self.end_address);
-
-        Some(entry)
-    }
-}
-
-#[derive(Debug)]
-#[repr(u32)]
-#[allow(non_camel_case_types)]
-enum RelocationType {
-    R_X86_64_NONE = 0,      // No reloc
-    R_X86_64_64 = 1,        // Direct 64 bit
-    R_X86_64_PC32 = 2,      // PC relative 32 bit signed
-    R_X86_64_GOT32 = 3,     // 32 bit GOT entry
-    R_X86_64_PLT32 = 4,     // 32 bit PLT address
-    R_X86_64_COPY = 5,      // Copy symbol at runtime
-    R_X86_64_GLOB_DAT = 6,  // Create GOT entry
-    R_X86_64_JUMP_SLOT = 7, // Create PLT entry
-    R_X86_64_RELATIVE = 8,  // Adjust by program base
-    R_X86_64_GOTPCREL = 9,  // 32 bit signed pc relative offset to GOT
-    R_X86_64_32 = 10,       // Direct 32 bit zero extended
-    R_X86_64_32S = 11,      // Direct 32 bit sign extended
-    R_X86_64_16 = 12,       // Direct 16 bit zero extended
-    R_X86_64_PC16 = 13,     // 16 bit sign extended pc relative
-    R_X86_64_8 = 14,        // Direct 8 bit sign extended
-    R_X86_64_PC8 = 15,      // 8 bit sign extended pc relative
-    R_X86_64_PC64 = 24,     // Place relative 64-bit signed
-}
-
-// https://stackoverflow.com/questions/28028854/how-do-i-match-enum-values-with-an-integer
-impl TryFrom<u32> for RelocationType {
-    type Error = LoaderError;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            x if x == RelocationType::R_X86_64_NONE as u32 => Ok(RelocationType::R_X86_64_NONE),
-            x if x == RelocationType::R_X86_64_64 as u32 => Ok(RelocationType::R_X86_64_64),
-            x if x == RelocationType::R_X86_64_PC32 as u32 => Ok(RelocationType::R_X86_64_PC32),
-            x if x == RelocationType::R_X86_64_GOT32 as u32 => Ok(RelocationType::R_X86_64_GOT32),
-            x if x == RelocationType::R_X86_64_PLT32 as u32 => Ok(RelocationType::R_X86_64_PLT32),
-            x if x == RelocationType::R_X86_64_COPY as u32 => Ok(RelocationType::R_X86_64_COPY),
-            x if x == RelocationType::R_X86_64_GLOB_DAT as u32 => {
-                Ok(RelocationType::R_X86_64_GLOB_DAT)
-            }
-            x if x == RelocationType::R_X86_64_JUMP_SLOT as u32 => {
-                Ok(RelocationType::R_X86_64_JUMP_SLOT)
-            }
-            x if x == RelocationType::R_X86_64_RELATIVE as u32 => {
-                Ok(RelocationType::R_X86_64_RELATIVE)
-            }
-            x if x == RelocationType::R_X86_64_GOTPCREL as u32 => {
-                Ok(RelocationType::R_X86_64_GOTPCREL)
-            }
-            x if x == RelocationType::R_X86_64_32 as u32 => Ok(RelocationType::R_X86_64_32),
-            x if x == RelocationType::R_X86_64_32S as u32 => Ok(RelocationType::R_X86_64_32S),
-            x if x == RelocationType::R_X86_64_16 as u32 => Ok(RelocationType::R_X86_64_16),
-            x if x == RelocationType::R_X86_64_PC16 as u32 => Ok(RelocationType::R_X86_64_PC16),
-            x if x == RelocationType::R_X86_64_8 as u32 => Ok(RelocationType::R_X86_64_8),
-            x if x == RelocationType::R_X86_64_PC8 as u32 => Ok(RelocationType::R_X86_64_PC8),
-            x if x == RelocationType::R_X86_64_PC64 as u32 => Ok(RelocationType::R_X86_64_PC64),
-            _ => Err(LoaderError::BadRelocation),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct Relocation {
-    offset: usize,
-    addend: Option<usize>,
-    symbol_table_index: usize,
-    r#type: RelocationType,
-}
-
-impl Relocation {
-    pub fn apply(&self, object: &Object, value: usize) -> Result<(), LoaderError> {
-        object.check_is_in_load(self.offset as u64)?;
-
-        let address = object.addr_offset + self.offset;
-        unsafe { core::ptr::write_unaligned(address as *mut _, value) };
-        Ok(())
-    }
-}
-
-impl TryFrom<sections::Rela<u64>> for Relocation {
-    type Error = LoaderError;
-
-    fn try_from(value: sections::Rela<u64>) -> Result<Self, Self::Error> {
-        Ok(Self {
-            offset: value.get_offset() as usize,
-            addend: Some(value.get_addend() as usize),
-            symbol_table_index: value.get_symbol_table_index() as usize,
-            r#type: value.get_type().try_into()?,
-        })
-    }
-}
-
-impl TryFrom<sections::Rel<u64>> for Relocation {
-    type Error = LoaderError;
-
-    fn try_from(value: sections::Rel<u64>) -> Result<Self, Self::Error> {
-        Ok(Self {
-            offset: value.get_offset() as usize,
-            addend: None,
-            symbol_table_index: value.get_symbol_table_index() as usize,
-            r#type: value.get_type().try_into()?,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct FuncArray<'a> {
-    addr_offset: usize,
-    array: &'a [u64],
-}
-
-impl<'a> FuncArray<'a> {
-    pub fn from_section(
-        object: &Object<'a>,
-        header: sections::SectionHeader<'a>,
-    ) -> Result<Self, LoaderError> {
-        let array = if let sections::SectionData::FnArray64(array) =
-            wrap_res(header.get_data(&object.elf_file))?
-        {
-            array
-        } else {
-            return Err(LoaderError::BadInitFiniSection);
-        };
-
-        Ok(Self {
-            addr_offset: object.addr_offset,
-            array,
-        })
-    }
-
-    pub fn run(&self) {
-        for &entry in self.array {
-            if entry != 0 {
-                let addr = self.addr_offset + entry as usize;
-                debug!("self.addr_offset = 0x{:016X}", self.addr_offset);
-                debug!("entry = 0x{:016X}", entry);
-                debug!("addr = 0x{:016X}", addr);
-                let func: extern "C" fn() = unsafe { mem::transmute(addr) };
-
-                func();
-            }
         }
     }
 }

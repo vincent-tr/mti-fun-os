@@ -112,6 +112,7 @@ tail -f serial.log
     - https://www.openbsd.org/papers/nycbsdcon08-pie/
     - https://stackoverflow.com/questions/50303305/elf-file-type-et-exec-and-et-dyn
     - ( [downloaded](docs/ELF_Format.pdf) ) http://www.skyfree.org/linux/references/ELF_Format.pdf
+    - https://gitlab.redox-os.org/redox-os/relibc/-/tree/master/src/ld_so
   - envp/argp
   - -C prefer dynamic
 - object-oriented TLS

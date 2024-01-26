@@ -14,13 +14,16 @@ use xmas_elf::{
 
 pub use crate::{wrap_res, LoaderError, Segment};
 
+#[derive(Debug)]
 pub struct ExportedSymbol<'a> {
     name: &'a str,
     binding: symbol_table::Binding,
     address: usize,
 }
 
+#[derive(Debug)]
 pub struct Object<'a> {
+    name: &'a str,
     elf_file: ElfFile<'a>,
     mapping: Mapping<'static>,
     segments: Option<Vec<Segment<'a>>>, // Needed to fix permissions after relocations
@@ -33,7 +36,7 @@ pub struct Object<'a> {
 }
 
 impl<'a> Object<'a> {
-    pub fn load(binary: &'a [u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn load(name: &'a str, binary: &'a [u8]) -> Result<Self, Box<dyn Error>> {
         let elf_file = wrap_res(xmas_elf::ElfFile::new(binary))?;
 
         for program_header in elf_file.program_iter() {
@@ -78,6 +81,7 @@ impl<'a> Object<'a> {
         );
 
         let mut prog = Self {
+            name,
             elf_file,
             mapping,
             segments: None,
@@ -317,14 +321,7 @@ impl<'a> Object<'a> {
         ent: Option<dynamic::Tag<u64>>,
     ) -> Result<Option<RelocationTable<'a, Relocation>>, LoaderError> {
         let table_offset = if let Some(entry) = dyn_section.find_unique(offset)? {
-            // Looks buggy: JmpRel points to a table, Rel or Rela too.
-            let res = if let dynamic::Tag::JmpRel = wrap_res(entry.get_tag())? {
-                entry.get_ptr()
-            } else {
-                entry.get_val()
-            };
-
-            wrap_res(res)? as usize
+            wrap_res(entry.get_ptr())? as usize
         } else {
             return Ok(None);
         };
@@ -383,20 +380,33 @@ impl<'a> Object<'a> {
                 let symbol = symbols.entry(relocation.symbol_table_index);
                 let sym_name = wrap_res(symbol.get_name(&self.elf_file))?;
 
-                // Walk through needed until we find export
-                for needed in self.needed() {
-                    let dependency = objects
-                        .get(needed)
-                        .expect(&format!("dependency not loaded {needed}"));
-
-                    if let Some(sym) = dependency.borrow().exports().get(sym_name) {
+                let resolve = |object: &Object| -> Result<bool, LoaderError> {
+                    if let Some(sym) = object.exports().get(sym_name) {
                         debug!(
                             "found match for symbol '{}' in '{}' at 0x{:016X}",
-                            sym_name, needed, sym.address
+                            sym_name, object.name(), sym.address
                         );
 
                         relocation.apply(self, sym.address)?;
 
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
+                };
+
+                // First try to find in self (some missing symbols seems to be self-resolved..)
+                if resolve(self)? {
+                    return Ok(());
+                }
+
+                // Walk through needed until we find export
+                for obj_name in self.needed() {
+                    let dependency = objects
+                        .get(obj_name)
+                        .expect(&format!("dependency not loaded {obj_name}"));
+
+                    if resolve(&dependency.borrow())? {
                         return Ok(());
                     }
                 }
@@ -458,6 +468,10 @@ impl<'a> Object<'a> {
         Err(LoaderError::BadDynamicSection)
     }
 
+    pub fn name(&self) -> &str {
+        self.name
+    }
+
     pub fn needed(&self) -> &[&str] {
         &self.needed
     }
@@ -475,6 +489,7 @@ impl<'a> Object<'a> {
     }
 }
 
+#[derive(Debug)]
 struct DynamicSection<'a> {
     data: &'a [dynamic::Dynamic<P64>],
 }
@@ -527,6 +542,7 @@ impl<'a> DynamicSection<'a> {
     }
 }
 
+#[derive(Debug)]
 struct Symbols<'a> {
     entries: &'a [DynEntry64],
 }
@@ -566,6 +582,7 @@ impl<'a> Symbols<'a> {
     }
 }
 
+#[derive(Debug)]
 struct RelocationTable<'a, Relocation> {
     base_address: usize,
     count: usize,
@@ -596,6 +613,7 @@ impl<'a, Relocation> RelocationTable<'a, Relocation> {
     }
 }
 
+#[derive(Debug)]
 struct RelocationTableIter<'a, Relocation> {
     base_address: usize,
     end_address: usize,

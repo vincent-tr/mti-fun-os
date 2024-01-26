@@ -48,3 +48,21 @@ _Noreturn void exit(int code)
             : "%rax", "%rdi");
     }
 }
+
+static void before_main(void) __attribute__((constructor));
+static void after_main(void) __attribute__((destructor));
+
+static void before_main(void)
+{
+    const char *msg = "Hello before_main!\n";
+
+    write(STDOUT, msg, strlen(msg));
+
+}
+
+static void after_main(void)
+{
+    const char *msg = "Hello after_main!\n";
+
+    write(STDOUT, msg, strlen(msg));
+}

@@ -30,11 +30,21 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut objects = HashMap::new();
 
     debug!("loading hello");
-    objects.insert("hello", RefCell::new(Object::load(&hello_content)?));
+    objects.insert(
+        "hello",
+        RefCell::new(Object::load("hello", &hello_content)?),
+    );
 
     // TODO: recursive
     debug!("loading shared.so");
-    objects.insert("shared.so", RefCell::new(Object::load(&shared_content)?));
+    objects.insert(
+        "shared.so",
+        RefCell::new(Object::load("shared.so", &shared_content)?),
+    );
+
+    for (name, obj) in objects.iter() {
+        debug!("EXPORTS: '{}' -> {:?}", name, obj.borrow().exports());
+    }
 
     for (name, obj) in objects.iter() {
         let mut obj = obj.borrow_mut();

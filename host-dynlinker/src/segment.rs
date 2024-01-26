@@ -2,6 +2,7 @@ use crate::{align_down, align_up, kobject::{Mapping, Permissions, Process}, PAGE
 use core::ops::Range;
 use xmas_elf::program;
 
+#[derive(Debug)]
 pub struct Segment<'a> {
     vm_rel_segment: Range<usize>,
     buffer_in_mapping: Range<usize>,

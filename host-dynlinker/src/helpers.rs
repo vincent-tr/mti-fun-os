@@ -21,6 +21,7 @@ pub enum LoaderError {
     BadDynamicSection,
     BadSymbolsSection,
     BadRelocation,
+    BadInitFiniSection,
     MissingSymbol(String),
 }
 
@@ -41,6 +42,9 @@ impl fmt::Display for LoaderError {
             }
             LoaderError::BadRelocation => {
                 write!(formatter, "bad relocation")
+            }
+            LoaderError::BadInitFiniSection => {
+                write!(formatter, "bad init/fini section")
             }
             LoaderError::MissingSymbol(name) => {
                 write!(formatter, "missing symbol '{name}'")

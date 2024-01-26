@@ -53,7 +53,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         obj.finalize()?;
     }
 
-    // TODO: DT_INIT, DT_FINI
+    // TODO: order
+    objects.get("shared.so").unwrap().borrow().run_init();
+    objects.get("hello").unwrap().borrow().run_init();
 
     let entry = objects.get("hello").unwrap();
 

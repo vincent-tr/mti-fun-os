@@ -2,7 +2,7 @@ use crate::{
     align_down, align_up,
     kobject::{Mapping, Process},
 };
-use core::{cell::RefCell, cmp, error::Error, mem::size_of, ops::Range};
+use core::{cell::RefCell, cmp, error::Error, mem, ops::Range};
 use log::debug;
 use std::{collections::HashMap, marker::PhantomData};
 use xmas_elf::{
@@ -31,8 +31,8 @@ pub struct Object<'a> {
     addr_offset: usize,
     needed: Vec<&'a str>,
     exports: HashMap<&'a str, ExportedSymbol<'a>>,
-    init: Option<usize>,
-    fini: Option<usize>,
+    init: Option<FuncArray<'a>>,
+    fini: Option<FuncArray<'a>>,
 }
 
 impl<'a> Object<'a> {
@@ -97,17 +97,7 @@ impl<'a> Object<'a> {
 
         prog.build_needed()?;
         prog.build_exports()?;
-        /*
-                if let Some(dyn_section) = DynamicSection::find(&prog.elf_file)? {
-                    debug!("Process dynamic section");
-                    prog.process_relocations(&dyn_section)?;
-                    prog.process_needed(&dyn_section)?;
-                    prog.process_exports(&dyn_section)?;
-                }
-
-                debug!("deps: {:?}", prog.needed());
-                debug!("exports: {:?}", prog.exports());
-        */
+        prog.build_init_fini()?;
 
         Ok(prog)
     }
@@ -213,6 +203,29 @@ impl<'a> Object<'a> {
                 );
             }
         }
+
+        Ok(())
+    }
+
+    fn build_init_fini(&mut self) -> Result<(), LoaderError> {
+        let init = if let Some(init_array_section) =
+            self.find_section_by_type(sections::ShType::InitArray)?
+        {
+            Some(FuncArray::from_section(self, init_array_section)?)
+        } else {
+            None
+        };
+
+        let fini = if let Some(fini_array_section) =
+            self.find_section_by_type(sections::ShType::FiniArray)?
+        {
+            Some(FuncArray::from_section(self, fini_array_section)?)
+        } else {
+            None
+        };
+
+        self.init = init;
+        self.fini = fini;
 
         Ok(())
     }
@@ -337,7 +350,7 @@ impl<'a> Object<'a> {
                 let entry_size = wrap_res(entry.get_val())? as usize;
 
                 // Make sure that the reported size matches our `Rela<u64>`.
-                if entry_size != size_of::<Relocation>() {
+                if entry_size != mem::size_of::<Relocation>() {
                     return Err(LoaderError::BadDynamicSection);
                 }
             } else {
@@ -345,12 +358,12 @@ impl<'a> Object<'a> {
             };
         }
 
-        if table_size % size_of::<Relocation>() > 0 {
+        if table_size % mem::size_of::<Relocation>() > 0 {
             return Err(LoaderError::BadDynamicSection);
         }
 
         let base_address = self.addr_offset + table_offset;
-        let count = table_size / size_of::<Relocation>();
+        let count = table_size / mem::size_of::<Relocation>();
 
         Ok(Some(RelocationTable {
             base_address,
@@ -384,7 +397,9 @@ impl<'a> Object<'a> {
                     if let Some(sym) = object.exports().get(sym_name) {
                         debug!(
                             "found match for symbol '{}' in '{}' at 0x{:016X}",
-                            sym_name, object.name(), sym.address
+                            sym_name,
+                            object.name(),
+                            sym.address
                         );
 
                         relocation.apply(self, sym.address)?;
@@ -415,7 +430,8 @@ impl<'a> Object<'a> {
             }
             RelocationType::R_X86_64_RELATIVE => {
                 // Calculate the relocated value.
-                let value = self.addr_offset + relocation.addend.ok_or(LoaderError::BadRelocation)?;
+                let value =
+                    self.addr_offset + relocation.addend.ok_or(LoaderError::BadRelocation)?;
 
                 relocation.apply(self, value)?;
 
@@ -454,6 +470,19 @@ impl<'a> Object<'a> {
         None
     }
 
+    fn find_section_by_type(
+        &self,
+        r#type: sections::ShType,
+    ) -> Result<Option<sections::SectionHeader<'a>>, LoaderError> {
+        for section_header in self.elf_file.section_iter() {
+            if wrap_res(section_header.get_type())? == r#type {
+                return Ok(Some(section_header));
+            }
+        }
+
+        Ok(None)
+    }
+
     fn check_is_in_load(&self, virt_offset: u64) -> Result<(), LoaderError> {
         for program_header in self.elf_file.program_iter() {
             if let program::Type::Load = wrap_res(program_header.get_type())? {
@@ -486,6 +515,18 @@ impl<'a> Object<'a> {
         debug!("entry_addr = 0x{0:016X}", entry_addr);
 
         unsafe { std::mem::transmute(entry_addr) }
+    }
+
+    pub fn run_init(&self) {
+        if let Some(funcs) = &self.init {
+            funcs.run();
+        }
+    }
+
+    pub fn run_fini(&self) {
+        if let Some(funcs) = &self.fini {
+            funcs.run();
+        }
     }
 }
 
@@ -598,7 +639,7 @@ impl<'a, Relocation> RelocationTable<'a, Relocation> {
     pub fn entry(&self, index: usize) -> Relocation {
         assert!(index < self.count);
 
-        let address = self.base_address + index * size_of::<Relocation>();
+        let address = self.base_address + index * mem::size_of::<Relocation>();
 
         unsafe { core::ptr::read_unaligned(address as *const Relocation) }
     }
@@ -606,7 +647,7 @@ impl<'a, Relocation> RelocationTable<'a, Relocation> {
     pub fn iter(&self) -> RelocationTableIter<'a, Relocation> {
         RelocationTableIter {
             base_address: self.base_address,
-            end_address: self.base_address + self.count * size_of::<Relocation>(),
+            end_address: self.base_address + self.count * mem::size_of::<Relocation>(),
             _marker1: PhantomData,
             _marker2: PhantomData,
         }
@@ -631,7 +672,7 @@ impl<'a, Relocation> Iterator for RelocationTableIter<'a, Relocation> {
 
         let entry = unsafe { core::ptr::read_unaligned(self.base_address as *const Relocation) };
 
-        self.base_address += size_of::<Relocation>();
+        self.base_address += mem::size_of::<Relocation>();
         assert!(self.base_address <= self.end_address);
 
         Some(entry)
@@ -727,6 +768,7 @@ impl TryFrom<sections::Rela<u64>> for Relocation {
         })
     }
 }
+
 impl TryFrom<sections::Rel<u64>> for Relocation {
     type Error = LoaderError;
 
@@ -737,5 +779,45 @@ impl TryFrom<sections::Rel<u64>> for Relocation {
             symbol_table_index: value.get_symbol_table_index() as usize,
             r#type: value.get_type().try_into()?,
         })
+    }
+}
+
+#[derive(Debug)]
+struct FuncArray<'a> {
+    addr_offset: usize,
+    array: &'a [u64],
+}
+
+impl<'a> FuncArray<'a> {
+    pub fn from_section(
+        object: &Object<'a>,
+        header: sections::SectionHeader<'a>,
+    ) -> Result<Self, LoaderError> {
+        let array = if let sections::SectionData::FnArray64(array) =
+            wrap_res(header.get_data(&object.elf_file))?
+        {
+            array
+        } else {
+            return Err(LoaderError::BadInitFiniSection);
+        };
+
+        Ok(Self {
+            addr_offset: object.addr_offset,
+            array,
+        })
+    }
+
+    pub fn run(&self) {
+        for &entry in self.array {
+            if entry != 0 {
+                let addr = self.addr_offset + entry as usize;
+                debug!("self.addr_offset = 0x{:016X}", self.addr_offset);
+                debug!("entry = 0x{:016X}", entry);
+                debug!("addr = 0x{:016X}", addr);
+                let func: extern "C" fn() = unsafe { mem::transmute(addr) };
+
+                func();
+            }
+        }
     }
 }

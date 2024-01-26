@@ -2,9 +2,9 @@ use crate::{
     align_down, align_up,
     kobject::{Mapping, Process},
 };
-use core::{cmp, error::Error, mem::size_of, ops::Range, cell::RefCell};
+use core::{cell::RefCell, cmp, error::Error, mem::size_of, ops::Range};
 use log::debug;
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData};
 use xmas_elf::{
     dynamic, header, program,
     sections::{self},
@@ -13,11 +13,6 @@ use xmas_elf::{
 };
 
 pub use crate::{wrap_res, LoaderError, Segment};
-
-const R_X86_64_RELATIVE: u32 = 8;
-const R_X86_64_IRELATIVE: u32 = 37;
-
-const R_X86_64_JUMP_SLOT: u32 = 7;
 
 pub struct ExportedSymbol<'a> {
     name: &'a str,
@@ -76,7 +71,11 @@ impl<'a> Object<'a> {
         let mapping = Process::current().map_reserve(reserv_addr, vm_range.len())?;
         let addr_offset = if is_pie { mapping.address() } else { 0 };
 
-        debug!("mapping 0x{:016X} -> 0x{:016X}", mapping.range().start, mapping.range().end);
+        debug!(
+            "mapping 0x{:016X} -> 0x{:016X}",
+            mapping.range().start,
+            mapping.range().end
+        );
 
         let mut prog = Self {
             elf_file,
@@ -94,17 +93,17 @@ impl<'a> Object<'a> {
 
         prog.build_needed()?;
         prog.build_exports()?;
-/*
-        if let Some(dyn_section) = DynamicSection::find(&prog.elf_file)? {
-            debug!("Process dynamic section");
-            prog.process_relocations(&dyn_section)?;
-            prog.process_needed(&dyn_section)?;
-            prog.process_exports(&dyn_section)?;
-        }
+        /*
+                if let Some(dyn_section) = DynamicSection::find(&prog.elf_file)? {
+                    debug!("Process dynamic section");
+                    prog.process_relocations(&dyn_section)?;
+                    prog.process_needed(&dyn_section)?;
+                    prog.process_exports(&dyn_section)?;
+                }
 
-        debug!("deps: {:?}", prog.needed());
-        debug!("exports: {:?}", prog.exports());
-*/
+                debug!("deps: {:?}", prog.needed());
+                debug!("exports: {:?}", prog.exports());
+        */
 
         Ok(prog)
     }
@@ -200,7 +199,14 @@ impl<'a> Object<'a> {
                 && symbol.value() != 0
             {
                 let address = self.addr_offset + value;
-                self.exports.insert(name, ExportedSymbol { name, binding, address });
+                self.exports.insert(
+                    name,
+                    ExportedSymbol {
+                        name,
+                        binding,
+                        address,
+                    },
+                );
             }
         }
 
@@ -208,9 +214,215 @@ impl<'a> Object<'a> {
     }
 
     // relocations : rel, rela, pltrel
-    pub fn process_relocations(&self, objects: &HashMap<&str, RefCell<Object>>) -> Result<(), Box<dyn Error>> {
+    pub fn relocate(&self, objects: &HashMap<&str, RefCell<Object>>) -> Result<(), LoaderError> {
+        let dyn_section = if let Some(dyn_section) = DynamicSection::find(&self.elf_file)? {
+            dyn_section
+        } else {
+            return Ok(());
+        };
+
+        let symbols = Symbols::find(self, &dyn_section)?;
+
+        if let Some(table) = self.get_relocation_table::<sections::Rel<u64>>(
+            &dyn_section,
+            dynamic::Tag::Rel,
+            dynamic::Tag::RelSize,
+            Some(dynamic::Tag::RelEnt),
+        )? {
+            for entry in table.iter() {
+                let relocation = Relocation::try_from(entry)?;
+                debug!("rel {relocation:?}");
+                self.process_relocation(objects, &symbols, relocation)?;
+            }
+        }
+
+        if let Some(table) = self.get_relocation_table::<sections::Rela<u64>>(
+            &dyn_section,
+            dynamic::Tag::Rela,
+            dynamic::Tag::RelaSize,
+            Some(dynamic::Tag::RelaEnt),
+        )? {
+            for entry in table.iter() {
+                let relocation = Relocation::try_from(entry)?;
+                debug!("rela {relocation:?}");
+                self.process_relocation(objects, &symbols, relocation)?;
+            }
+        }
+
+        // DT_JMPREL => offset of table
+        // DT_PLTREL => type of jump_rel (rel or rela)
+        // DT_PLTRELSZ => size of table
+
+        if let Some(plt_rel_type) = dyn_section.find_unique(dynamic::Tag::PltRel)? {
+            // we have a PLT relocation table
+            let plt_rel_type = wrap_res(plt_rel_type.get_val())?;
+
+            const DT_RELA: u64 = 7;
+            const DT_REL: u64 = 17;
+
+            match plt_rel_type {
+                DT_REL => {
+                    if let Some(table) = self.get_relocation_table::<sections::Rel<u64>>(
+                        &dyn_section,
+                        dynamic::Tag::JmpRel,
+                        dynamic::Tag::PltRelSize,
+                        None,
+                    )? {
+                        for entry in table.iter() {
+                            let relocation = Relocation::try_from(entry)?;
+                            debug!("plt rel {relocation:?}");
+                            self.process_relocation(objects, &symbols, relocation)?;
+                        }
+                    }
+                }
+                DT_RELA => {
+                    if let Some(table) = self.get_relocation_table::<sections::Rela<u64>>(
+                        &dyn_section,
+                        dynamic::Tag::JmpRel,
+                        dynamic::Tag::PltRelSize,
+                        None,
+                    )? {
+                        for entry in table.iter() {
+                            let relocation = Relocation::try_from(entry)?;
+                            debug!("plt rela {relocation:?}");
+                            self.process_relocation(objects, &symbols, relocation)?;
+                        }
+                    }
+                }
+                _ => {
+                    return Err(LoaderError::BadDynamicSection);
+                }
+            }
+        }
+
+        if let Some(table) = self.get_relocation_table::<sections::Rel<u64>>(
+            &dyn_section,
+            dynamic::Tag::Rel,
+            dynamic::Tag::RelSize,
+            None,
+        )? {
+            for entry in table.iter() {
+                debug!("REL {entry:?}");
+            }
+        }
 
         Ok(())
+    }
+
+    fn get_relocation_table<Relocation>(
+        &self,
+        dyn_section: &DynamicSection<'_>,
+        offset: dynamic::Tag<u64>,
+        size: dynamic::Tag<u64>,
+        ent: Option<dynamic::Tag<u64>>,
+    ) -> Result<Option<RelocationTable<'a, Relocation>>, LoaderError> {
+        let table_offset = if let Some(entry) = dyn_section.find_unique(offset)? {
+            // Looks buggy: JmpRel points to a table, Rel or Rela too.
+            let res = if let dynamic::Tag::JmpRel = wrap_res(entry.get_tag())? {
+                entry.get_ptr()
+            } else {
+                entry.get_val()
+            };
+
+            wrap_res(res)? as usize
+        } else {
+            return Ok(None);
+        };
+
+        let table_size = if let Some(entry) = dyn_section.find_unique(size)? {
+            wrap_res(entry.get_val())? as usize
+        } else {
+            return Err(LoaderError::BadDynamicSection);
+        };
+
+        if let Some(ent) = ent {
+            if let Some(entry) = dyn_section.find_unique(ent)? {
+                let entry_size = wrap_res(entry.get_val())? as usize;
+
+                // Make sure that the reported size matches our `Rela<u64>`.
+                if entry_size != size_of::<Relocation>() {
+                    return Err(LoaderError::BadDynamicSection);
+                }
+            } else {
+                return Err(LoaderError::BadDynamicSection);
+            };
+        }
+
+        if table_size % size_of::<Relocation>() > 0 {
+            return Err(LoaderError::BadDynamicSection);
+        }
+
+        let base_address = self.addr_offset + table_offset;
+        let count = table_size / size_of::<Relocation>();
+
+        Ok(Some(RelocationTable {
+            base_address,
+            count,
+            _marker1: PhantomData,
+            _marker2: PhantomData,
+        }))
+    }
+
+    fn process_relocation(
+        &self,
+        objects: &HashMap<&str, RefCell<Object>>,
+        symbols: &Option<Symbols>,
+        relocation: Relocation,
+    ) -> Result<(), LoaderError> {
+        match relocation.r#type {
+            RelocationType::R_X86_64_NONE => Ok(()),
+            //RelocationType::R_X86_64_64 => todo!(),
+            //RelocationType::R_X86_64_PC32 => todo!(),
+            //RelocationType::R_X86_64_GOT32 => todo!(),
+            //RelocationType::R_X86_64_PLT32 => todo!(),
+            //RelocationType::R_X86_64_COPY => todo!(),
+            //RelocationType::R_X86_64_GLOB_DAT => todo!(),
+            RelocationType::R_X86_64_JUMP_SLOT => {
+                let symbols = symbols.as_ref().ok_or(LoaderError::BadRelocation)?;
+
+                let symbol = symbols.entry(relocation.symbol_table_index);
+                let sym_name = wrap_res(symbol.get_name(&self.elf_file))?;
+
+                // Walk through needed until we find export
+                for needed in self.needed() {
+                    let dependency = objects
+                        .get(needed)
+                        .expect(&format!("dependency not loaded {needed}"));
+
+                    if let Some(sym) = dependency.borrow().exports().get(sym_name) {
+                        debug!(
+                            "found match for symbol '{}' in '{}' at 0x{:016X}",
+                            sym_name, needed, sym.address
+                        );
+
+                        relocation.apply(self, sym.address)?;
+
+                        return Ok(());
+                    }
+                }
+
+                Err(LoaderError::MissingSymbol(String::from(sym_name)))
+            }
+            RelocationType::R_X86_64_RELATIVE => {
+                // Calculate the relocated value.
+                let value = self.addr_offset + relocation.addend.ok_or(LoaderError::BadRelocation)?;
+
+                relocation.apply(self, value)?;
+
+                Ok(())
+            }
+            //RelocationType::R_X86_64_GOTPCREL => todo!(),
+            //RelocationType::R_X86_64_32 => todo!(),
+            //RelocationType::R_X86_64_32S => todo!(),
+            //RelocationType::R_X86_64_16 => todo!(),
+            //RelocationType::R_X86_64_PC16 => todo!(),
+            //RelocationType::R_X86_64_8 => todo!(),
+            //RelocationType::R_X86_64_PC8 => todo!(),
+            //RelocationType::R_X86_64_PC64 => todo!(),
+            r#type => {
+                unimplemented!("Unimplemented relocation of type {type:?}");
+            }
+        }
     }
 
     pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
@@ -220,201 +432,6 @@ impl<'a> Object<'a> {
         }
 
         Ok(())
-    }
-
-    fn process_relocationszz(&self, dyn_section: &DynamicSection<'a>) -> Result<(), Box<dyn Error>> {
-        // Find the `Rela`, `RelaSize` and `RelaEnt` entries.
-        let rela = if let Some(entry) = dyn_section.find_unique(dynamic::Tag::Rela)? {
-            Some(entry.get_val()? as usize)
-        } else {
-            None
-        };
-
-        let rela_size = if let Some(entry) = dyn_section.find_unique(dynamic::Tag::RelaSize)? {
-            Some(entry.get_val()? as usize)
-        } else {
-            None
-        };
-
-        let rela_ent = if let Some(entry) = dyn_section.find_unique(dynamic::Tag::RelaEnt)? {
-            Some(entry.get_val()? as usize)
-        } else {
-            None
-        };
-
-        // dyn_section.find_unique(dynamic::Tag::Relr)
-
-        let offset = if let Some(offset) = rela {
-            offset
-        } else {
-            // The section doesn't contain any relocations.
-
-            if rela_size.is_some() || rela_ent.is_some() {
-                return Err(Box::new(LoaderError::BadDynamicSection));
-            }
-
-            return Ok(());
-        };
-
-        // We should have relocation only on PIE
-        assert!(self.is_pie);
-
-        let base_addr = self.mapping.address();
-
-        let total_size = rela_size.ok_or(Box::new(LoaderError::BadDynamicSection))?;
-        let entry_size = rela_ent.ok_or(Box::new(LoaderError::BadDynamicSection))?;
-
-        // Make sure that the reported size matches our `Rela<u64>`.
-        if entry_size != size_of::<sections::Rela<u64>>() {
-            return Err(Box::new(LoaderError::BadDynamicSection));
-        }
-
-        // Apply the relocations.
-        let num_entries = total_size / entry_size;
-        debug!("Process {num_entries} relocations");
-        for idx in 0..num_entries {
-            let rela = Self::read_relocation(offset, idx, base_addr);
-            self.apply_relocation(rela)?;
-        }
-
-        Ok(())
-    }
-
-    /// Reads a relocation from a relocation table.
-    fn read_relocation(
-        relocation_table: usize,
-        idx: usize,
-        base_addr: usize,
-    ) -> sections::Rela<u64> {
-        // Calculate the address of the entry in the relocation table.
-        let offset = relocation_table + size_of::<sections::Rela<u64>>() * idx;
-        let addr = base_addr + offset;
-
-        unsafe { core::ptr::read_unaligned(addr as *const sections::Rela<u64>) }
-    }
-
-    fn apply_relocation(&self, rela: sections::Rela<u64>) -> Result<(), LoaderError> {
-        let base_addr = self.mapping.address();
-        let symbol_idx = rela.get_symbol_table_index();
-        assert_eq!(
-            symbol_idx, 0,
-            "relocations using the symbol table are not supported"
-        );
-
-        match rela.get_type() {
-            R_X86_64_RELATIVE | R_X86_64_IRELATIVE => {
-                // Make sure that the relocation happens in memory mapped
-                // by a Load segment.
-                self.check_is_in_load(rela.get_offset())?;
-
-                // Calculate the destination of the relocation.
-                let addr = (base_addr + rela.get_offset() as usize) as *mut _;
-
-                // Calculate the relocated value.
-                let value = base_addr + rela.get_addend() as usize;
-
-                // Write the relocated value to memory.
-                // SAFETY: We just verified that the address is in a Load segment.
-                unsafe { core::ptr::write_unaligned(addr, value) };
-
-                let typestr = match rela.get_type() {
-                    R_X86_64_RELATIVE => "R_X86_64_RELATIVE",
-                    R_X86_64_IRELATIVE => "R_X86_64_IRELATIVE",
-                    _ => "??",
-                };
-
-                debug!(
-                    "Relocation {} : 0x{:016X} => 0x{:016X}",
-                    typestr, addr as usize, value
-                );
-            }
-
-            ty => unimplemented!("relocation type {} not supported", ty),
-        }
-
-        Ok(())
-    }
-
-    pub fn process_jump_relocations(
-        &self,
-        objects: &HashMap<&str, Object>,
-    ) -> Result<(), Box<dyn Error>> {
-        let dyn_section = if let Some(dyn_section) = DynamicSection::find(&self.elf_file)? {
-            dyn_section
-        } else {
-            return Ok(());
-        };
-
-        let offset = if let Some(symbols_tag) = dyn_section.find_unique(dynamic::Tag::JmpRel)? {
-            wrap_res(symbols_tag.get_ptr())? as usize
-        } else {
-            debug!("no symbol");
-            return Ok(());
-        };
-
-        let section = self
-            .find_section_by_offset(offset)
-            .ok_or(LoaderError::BadDynamicSection)?;
-
-        let entries = if let sections::SectionData::Rela64(entries) =
-            wrap_res(section.get_data(&self.elf_file))?
-        {
-            entries
-        } else {
-            return Err(Box::new(LoaderError::BadRelocationsSection));
-        };
-
-        let symbols = Symbols::find(self, &dyn_section)?;
-
-        for entry in entries {
-            match entry.get_type() {
-                R_X86_64_JUMP_SLOT => {
-                    let symbols = if let Some(symbols) = &symbols {
-                        symbols
-                    } else {
-                        return Err(Box::new(LoaderError::BadRelocationsSection));
-                    };
-
-                    self.apply_jump_relocation(objects, symbols, entry)?;
-                }
-                ty => unimplemented!("jump relocation type {} not supported", ty),
-            }
-        }
-
-        debug!("Process relocations: {entries:?}");
-
-        Ok(())
-    }
-
-    fn apply_jump_relocation(
-        &self,
-        objects: &HashMap<&str, Object>,
-        symbols: &Symbols,
-        entry: &sections::Rela<u64>,
-    ) -> Result<(), Box<dyn Error>> {
-        let sym_index = entry.get_symbol_table_index() as usize;
-        let symbol = symbols.entry(sym_index);
-        let sym_name = wrap_res(symbol.get_name(&self.elf_file))?;
-        let offset = entry.get_offset() as usize;
-        debug!("R_X86_64_JUMP_SLOT {sym_name} => 0x{offset:016X}");
-
-        // Walk through needed until we find export
-        for needed in self.needed() {
-            let dependency = objects
-                .get(needed)
-                .expect(&format!("dependency not loaded {needed}"));
-
-            if let Some(sym) = dependency.exports().get(sym_name) {
-                let addr = sym.address;
-                debug!("found match in {needed} at 0x{addr:016X}");
-                let relo_addr = self.addr_offset + offset;
-                unsafe { core::ptr::write_unaligned(relo_addr as *mut _, addr) };
-
-                return Ok(());
-            }
-        }
-
-        Err(Box::new(LoaderError::MissingSymbol(String::from(sym_name))))
     }
 
     fn find_section_by_offset(&self, offset: usize) -> Option<sections::SectionHeader<'a>> {
@@ -482,11 +499,11 @@ impl<'a> DynamicSection<'a> {
     pub fn find_all(
         &self,
         tag: dynamic::Tag<u64>,
-    ) -> Result<Vec<&'a dynamic::Dynamic<u64>>, Box<dyn Error>> {
+    ) -> Result<Vec<&'a dynamic::Dynamic<u64>>, LoaderError> {
         let mut res = Vec::new();
 
         for item in self.data {
-            let item_tag = item.get_tag()?;
+            let item_tag = wrap_res(item.get_tag())?;
 
             if item_tag == tag {
                 res.push(item);
@@ -499,13 +516,13 @@ impl<'a> DynamicSection<'a> {
     pub fn find_unique(
         &self,
         tag: dynamic::Tag<u64>,
-    ) -> Result<Option<&'a dynamic::Dynamic<u64>>, Box<dyn Error>> {
+    ) -> Result<Option<&'a dynamic::Dynamic<u64>>, LoaderError> {
         let vec = self.find_all(tag)?;
 
         match vec.len() {
             0 => Ok(None),
             1 => Ok(Some(vec[0])),
-            _ => Err(Box::new(LoaderError::BadDynamicSection)),
+            _ => Err(LoaderError::BadDynamicSection),
         }
     }
 }
@@ -518,7 +535,7 @@ impl<'a> Symbols<'a> {
     pub fn find(
         prog: &Object<'a>,
         dyn_section: &DynamicSection<'a>,
-    ) -> Result<Option<Self>, Box<dyn Error>> {
+    ) -> Result<Option<Self>, LoaderError> {
         let offset = if let Some(symbols_tag) = dyn_section.find_unique(dynamic::Tag::SymTab)? {
             wrap_res(symbols_tag.get_ptr())? as usize
         } else {
@@ -534,7 +551,7 @@ impl<'a> Symbols<'a> {
         {
             entries
         } else {
-            return Err(Box::new(LoaderError::BadSymbolsSection));
+            return Err(LoaderError::BadSymbolsSection);
         };
 
         Ok(Some(Self { entries }))
@@ -546,5 +563,161 @@ impl<'a> Symbols<'a> {
 
     pub fn entry(&self, index: usize) -> &DynEntry64 {
         &self.entries[index]
+    }
+}
+
+struct RelocationTable<'a, Relocation> {
+    base_address: usize,
+    count: usize,
+    _marker1: PhantomData<&'a ()>, // Note: this way we ensure that address remain valid
+    _marker2: PhantomData<Relocation>,
+}
+
+impl<'a, Relocation> RelocationTable<'a, Relocation> {
+    pub fn size(&self) -> usize {
+        self.count
+    }
+
+    pub fn entry(&self, index: usize) -> Relocation {
+        assert!(index < self.count);
+
+        let address = self.base_address + index * size_of::<Relocation>();
+
+        unsafe { core::ptr::read_unaligned(address as *const Relocation) }
+    }
+
+    pub fn iter(&self) -> RelocationTableIter<'a, Relocation> {
+        RelocationTableIter {
+            base_address: self.base_address,
+            end_address: self.base_address + self.count * size_of::<Relocation>(),
+            _marker1: PhantomData,
+            _marker2: PhantomData,
+        }
+    }
+}
+
+struct RelocationTableIter<'a, Relocation> {
+    base_address: usize,
+    end_address: usize,
+    _marker1: PhantomData<&'a ()>, // Note: this way we ensure that address remain valid
+    _marker2: PhantomData<Relocation>,
+}
+
+impl<'a, Relocation> Iterator for RelocationTableIter<'a, Relocation> {
+    type Item = Relocation;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.base_address == self.end_address {
+            return None;
+        }
+
+        let entry = unsafe { core::ptr::read_unaligned(self.base_address as *const Relocation) };
+
+        self.base_address += size_of::<Relocation>();
+        assert!(self.base_address <= self.end_address);
+
+        Some(entry)
+    }
+}
+
+#[derive(Debug)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+enum RelocationType {
+    R_X86_64_NONE = 0,      // No reloc
+    R_X86_64_64 = 1,        // Direct 64 bit
+    R_X86_64_PC32 = 2,      // PC relative 32 bit signed
+    R_X86_64_GOT32 = 3,     // 32 bit GOT entry
+    R_X86_64_PLT32 = 4,     // 32 bit PLT address
+    R_X86_64_COPY = 5,      // Copy symbol at runtime
+    R_X86_64_GLOB_DAT = 6,  // Create GOT entry
+    R_X86_64_JUMP_SLOT = 7, // Create PLT entry
+    R_X86_64_RELATIVE = 8,  // Adjust by program base
+    R_X86_64_GOTPCREL = 9,  // 32 bit signed pc relative offset to GOT
+    R_X86_64_32 = 10,       // Direct 32 bit zero extended
+    R_X86_64_32S = 11,      // Direct 32 bit sign extended
+    R_X86_64_16 = 12,       // Direct 16 bit zero extended
+    R_X86_64_PC16 = 13,     // 16 bit sign extended pc relative
+    R_X86_64_8 = 14,        // Direct 8 bit sign extended
+    R_X86_64_PC8 = 15,      // 8 bit sign extended pc relative
+    R_X86_64_PC64 = 24,     // Place relative 64-bit signed
+}
+
+// https://stackoverflow.com/questions/28028854/how-do-i-match-enum-values-with-an-integer
+impl TryFrom<u32> for RelocationType {
+    type Error = LoaderError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == RelocationType::R_X86_64_NONE as u32 => Ok(RelocationType::R_X86_64_NONE),
+            x if x == RelocationType::R_X86_64_64 as u32 => Ok(RelocationType::R_X86_64_64),
+            x if x == RelocationType::R_X86_64_PC32 as u32 => Ok(RelocationType::R_X86_64_PC32),
+            x if x == RelocationType::R_X86_64_GOT32 as u32 => Ok(RelocationType::R_X86_64_GOT32),
+            x if x == RelocationType::R_X86_64_PLT32 as u32 => Ok(RelocationType::R_X86_64_PLT32),
+            x if x == RelocationType::R_X86_64_COPY as u32 => Ok(RelocationType::R_X86_64_COPY),
+            x if x == RelocationType::R_X86_64_GLOB_DAT as u32 => {
+                Ok(RelocationType::R_X86_64_GLOB_DAT)
+            }
+            x if x == RelocationType::R_X86_64_JUMP_SLOT as u32 => {
+                Ok(RelocationType::R_X86_64_JUMP_SLOT)
+            }
+            x if x == RelocationType::R_X86_64_RELATIVE as u32 => {
+                Ok(RelocationType::R_X86_64_RELATIVE)
+            }
+            x if x == RelocationType::R_X86_64_GOTPCREL as u32 => {
+                Ok(RelocationType::R_X86_64_GOTPCREL)
+            }
+            x if x == RelocationType::R_X86_64_32 as u32 => Ok(RelocationType::R_X86_64_32),
+            x if x == RelocationType::R_X86_64_32S as u32 => Ok(RelocationType::R_X86_64_32S),
+            x if x == RelocationType::R_X86_64_16 as u32 => Ok(RelocationType::R_X86_64_16),
+            x if x == RelocationType::R_X86_64_PC16 as u32 => Ok(RelocationType::R_X86_64_PC16),
+            x if x == RelocationType::R_X86_64_8 as u32 => Ok(RelocationType::R_X86_64_8),
+            x if x == RelocationType::R_X86_64_PC8 as u32 => Ok(RelocationType::R_X86_64_PC8),
+            x if x == RelocationType::R_X86_64_PC64 as u32 => Ok(RelocationType::R_X86_64_PC64),
+            _ => Err(LoaderError::BadRelocation),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Relocation {
+    offset: usize,
+    addend: Option<usize>,
+    symbol_table_index: usize,
+    r#type: RelocationType,
+}
+
+impl Relocation {
+    pub fn apply(&self, object: &Object, value: usize) -> Result<(), LoaderError> {
+        object.check_is_in_load(self.offset as u64)?;
+
+        let address = object.addr_offset + self.offset;
+        unsafe { core::ptr::write_unaligned(address as *mut _, value) };
+        Ok(())
+    }
+}
+
+impl TryFrom<sections::Rela<u64>> for Relocation {
+    type Error = LoaderError;
+
+    fn try_from(value: sections::Rela<u64>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            offset: value.get_offset() as usize,
+            addend: Some(value.get_addend() as usize),
+            symbol_table_index: value.get_symbol_table_index() as usize,
+            r#type: value.get_type().try_into()?,
+        })
+    }
+}
+impl TryFrom<sections::Rel<u64>> for Relocation {
+    type Error = LoaderError;
+
+    fn try_from(value: sections::Rel<u64>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            offset: value.get_offset() as usize,
+            addend: None,
+            symbol_table_index: value.get_symbol_table_index() as usize,
+            r#type: value.get_type().try_into()?,
+        })
     }
 }

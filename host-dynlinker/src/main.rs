@@ -31,16 +31,15 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     debug!("loading hello");
     objects.insert("hello", RefCell::new(Object::load(&hello_content)?));
-    debug!("loaded hello");
 
     // TODO: recursive
     debug!("loading shared.so");
     objects.insert("shared.so", RefCell::new(Object::load(&shared_content)?));
-    debug!("loaded shared.so");
 
-    for obj in objects.values() {
+    for (name, obj) in objects.iter() {
         let mut obj = obj.borrow_mut();
-        obj.process_relocations(&objects)?;
+        debug!("relocate {name}");
+        obj.relocate(&objects)?;
         obj.finalize()?;
     }
 
@@ -81,7 +80,7 @@ fn start(entry_func: extern "C" fn() -> !) -> ! {
         mov r13, 0
         mov r14, 0
         mov r15, 0
-        int 3
+        // int 3
         call rax
         ", 
         in("rax") entry_func,

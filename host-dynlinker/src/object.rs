@@ -2,13 +2,13 @@ use crate::{
     align_down, align_up,
     kobject::{Mapping, Process},
 };
-use core::{cell::RefCell, cmp, error::Error, mem::size_of, ops::Range};
+use core::{cmp, error::Error, mem::size_of, ops::Range, cell::RefCell};
 use log::debug;
 use std::collections::HashMap;
 use xmas_elf::{
     dynamic, header, program,
     sections::{self},
-    symbol_table::{DynEntry64, Entry, Visibility},
+    symbol_table::{self, DynEntry64, Entry, Visibility},
     ElfFile, P64,
 };
 
@@ -19,13 +19,20 @@ const R_X86_64_IRELATIVE: u32 = 37;
 
 const R_X86_64_JUMP_SLOT: u32 = 7;
 
+pub struct ExportedSymbol<'a> {
+    name: &'a str,
+    binding: symbol_table::Binding,
+    address: usize,
+}
+
 pub struct Object<'a> {
     elf_file: ElfFile<'a>,
     mapping: Mapping<'static>,
+    segments: Option<Vec<Segment<'a>>>, // Needed to fix permissions after relocations
     is_pie: bool,
     addr_offset: usize,
-    needed: RefCell<Vec<&'a str>>,
-    exports: RefCell<HashMap<&'a str, usize>>,
+    needed: Vec<&'a str>,
+    exports: HashMap<&'a str, ExportedSymbol<'a>>,
     init: Option<usize>,
     fini: Option<usize>,
 }
@@ -74,19 +81,23 @@ impl<'a> Object<'a> {
 
         debug!("addr base = 0x{0:016X}", mapping.address());
 
-        let prog = Self {
+        let mut prog = Self {
             elf_file,
             mapping,
+            segments: None,
             is_pie,
             addr_offset,
-            needed: RefCell::new(Vec::new()),
-            exports: RefCell::new(HashMap::new()),
+            needed: Vec::new(),
+            exports: HashMap::new(),
             init: None,
             fini: None,
         };
 
-        let segments = prog.load_segments()?;
+        prog.load_segments()?;
 
+        prog.build_needed()?;
+        prog.build_exports()?;
+/*
         if let Some(dyn_section) = DynamicSection::find(&prog.elf_file)? {
             debug!("Process dynamic section");
             prog.process_relocations(&dyn_section)?;
@@ -95,12 +106,8 @@ impl<'a> Object<'a> {
         }
 
         debug!("deps: {:?}", prog.needed());
-
         debug!("exports: {:?}", prog.exports());
-
-        for segment in segments {
-            segment.finalize()?;
-        }
+*/
 
         Ok(prog)
     }
@@ -129,7 +136,7 @@ impl<'a> Object<'a> {
         Ok(min..max)
     }
 
-    fn load_segments(&self) -> Result<Vec<Segment<'static>>, Box<dyn Error>> {
+    fn load_segments(&mut self) -> Result<(), Box<dyn Error>> {
         let mut segments = Vec::new();
 
         for program_header in self.elf_file.program_iter() {
@@ -150,10 +157,77 @@ impl<'a> Object<'a> {
             }
         }
 
-        Ok(segments)
+        self.segments = Some(segments);
+
+        Ok(())
     }
 
-    fn process_relocations(&self, dyn_section: &DynamicSection<'a>) -> Result<(), Box<dyn Error>> {
+    fn build_needed(&mut self) -> Result<(), Box<dyn Error>> {
+        let dyn_section = if let Some(dyn_section) = DynamicSection::find(&self.elf_file)? {
+            dyn_section
+        } else {
+            return Ok(());
+        };
+
+        let items = dyn_section.find_all(dynamic::Tag::Needed)?;
+
+        for item in items {
+            let index = wrap_res(item.get_val())? as u32;
+            let value = self.elf_file.get_dyn_string(index)?;
+            self.needed.push(value);
+        }
+
+        Ok(())
+    }
+
+    fn build_exports(&mut self) -> Result<(), Box<dyn Error>> {
+        let dyn_section = if let Some(dyn_section) = DynamicSection::find(&self.elf_file)? {
+            dyn_section
+        } else {
+            return Ok(());
+        };
+
+        let symbols = if let Some(symbols) = Symbols::find(self, &dyn_section)? {
+            symbols
+        } else {
+            return Ok(());
+        };
+
+        for symbol in symbols.entries() {
+            // should use get_name but it has wrong liftime specifier
+            let name = self.elf_file.get_dyn_string(symbol.name())?;
+
+            let binding = wrap_res(symbol.get_binding())?;
+            let visibility = symbol.get_other();
+            let value = symbol.value() as usize;
+
+            if let Visibility::Default = visibility
+                && symbol.value() != 0
+            {
+                let address = self.addr_offset + value;
+                self.exports.insert(name, ExportedSymbol { name, binding, address });
+            }
+        }
+
+        Ok(())
+    }
+
+    // relocations : rel, rela, pltrel
+    pub fn process_relocations(&self, objects: &HashMap<&str, RefCell<Object>>) -> Result<(), Box<dyn Error>> {
+
+        Ok(())
+    }
+
+    pub fn finalize(&mut self) -> Result<(), Box<dyn Error>> {
+        // Now we can apply permissions on segments
+        for segment in self.segments.take().unwrap() {
+            segment.finalize()?;
+        }
+
+        Ok(())
+    }
+
+    fn process_relocationszz(&self, dyn_section: &DynamicSection<'a>) -> Result<(), Box<dyn Error>> {
         // Find the `Rela`, `RelaSize` and `RelaEnt` entries.
         let rela = if let Some(entry) = dyn_section.find_unique(dynamic::Tag::Rela)? {
             Some(entry.get_val()? as usize)
@@ -172,6 +246,8 @@ impl<'a> Object<'a> {
         } else {
             None
         };
+
+        // dyn_section.find_unique(dynamic::Tag::Relr)
 
         let offset = if let Some(offset) = rela {
             offset
@@ -264,34 +340,6 @@ impl<'a> Object<'a> {
         Ok(())
     }
 
-    fn process_exports(&self, dyn_section: &DynamicSection<'a>) -> Result<(), Box<dyn Error>> {
-        let symbols = if let Some(symbols) = Symbols::find(self, dyn_section)? {
-            symbols
-        } else {
-            debug!("no symbol");
-            return Ok(());
-        };
-
-        for symbol in symbols.entries() {
-            // should use get_name but it has wrong liftime specifier
-            let name = self.elf_file.get_dyn_string(symbol.name())?;
-            let binding = wrap_res(symbol.get_binding())?;
-            let visibility = symbol.get_other();
-            let value = symbol.value() as usize;
-
-            debug!("SYMBOL {name} {binding:?} {visibility:?} 0x{value:016X}");
-
-            if let Visibility::Default = visibility
-                && symbol.value() != 0
-            {
-                let addr = self.addr_offset + value;
-                self.exports.borrow_mut().insert(name, addr);
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn process_jump_relocations(
         &self,
         objects: &HashMap<&str, Object>,
@@ -361,7 +409,8 @@ impl<'a> Object<'a> {
                 .get(needed)
                 .expect(&format!("dependency not loaded {needed}"));
 
-            if let Some(addr) = dependency.exports().get(sym_name) {
+            if let Some(sym) = dependency.exports().get(sym_name) {
+                let addr = sym.address;
                 debug!("found match in {needed} at 0x{addr:016X}");
                 let relo_addr = self.addr_offset + offset;
                 unsafe { core::ptr::write_unaligned(relo_addr as *mut _, addr) };
@@ -383,19 +432,6 @@ impl<'a> Object<'a> {
         None
     }
 
-    fn process_needed(&self, dyn_section: &DynamicSection<'a>) -> Result<(), Box<dyn Error>> {
-        let items = dyn_section.find_all(dynamic::Tag::Needed)?;
-        let mut needed = self.needed.borrow_mut();
-
-        for item in items {
-            let index = wrap_res(item.get_val())? as u32;
-            let value = self.elf_file.get_dyn_string(index)?;
-            needed.push(value);
-        }
-
-        Ok(())
-    }
-
     fn check_is_in_load(&self, virt_offset: u64) -> Result<(), LoaderError> {
         for program_header in self.elf_file.program_iter() {
             if let program::Type::Load = wrap_res(program_header.get_type())? {
@@ -410,12 +446,12 @@ impl<'a> Object<'a> {
         Err(LoaderError::BadDynamicSection)
     }
 
-    pub fn needed(&self) -> Vec<&str> {
-        self.needed.borrow().clone()
+    pub fn needed(&self) -> &[&str] {
+        &self.needed
     }
 
-    pub fn exports(&self) -> HashMap<&str, usize> {
-        self.exports.borrow().clone()
+    pub fn exports(&self) -> &HashMap<&str, ExportedSymbol> {
+        &self.exports
     }
 
     pub fn entry(&self) -> extern "C" fn() -> ! {

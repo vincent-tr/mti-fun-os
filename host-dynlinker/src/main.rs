@@ -10,9 +10,9 @@ mod kobject;
 mod object;
 mod segment;
 
-use core::error::Error;
-use std::collections::HashMap;
+use core::{cell::RefCell, error::Error};
 use log::debug;
+use std::collections::HashMap;
 
 pub use helpers::*;
 pub use object::Object;
@@ -30,23 +30,25 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut objects = HashMap::new();
 
     debug!("loading hello");
-    objects.insert("hello", Object::load(&hello_content)?);
+    objects.insert("hello", RefCell::new(Object::load(&hello_content)?));
     debug!("loaded hello");
 
     // TODO: recursive
     debug!("loading shared.so");
-    objects.insert("shared.so", Object::load(&shared_content)?);
+    objects.insert("shared.so", RefCell::new(Object::load(&shared_content)?));
     debug!("loaded shared.so");
 
     for obj in objects.values() {
-        obj.process_jump_relocations(&objects)?;
+        let mut obj = obj.borrow_mut();
+        obj.process_relocations(&objects)?;
+        obj.finalize()?;
     }
 
     // TODO: DT_INIT, DT_FINI
 
     let entry = objects.get("hello").unwrap();
 
-    let entry_func = entry.entry();
+    let entry_func = entry.borrow().entry();
     debug!("Let go!");
     start(entry_func);
 }

@@ -101,6 +101,9 @@ tail -f serial.log
 - timers (timeout)
 - futex
 - multi-core
+- ioport to userland
+- iomem to userland
+- irq to userland
 
 ### runtime
 

@@ -19,6 +19,21 @@ pub use object::Object;
 const BINARY_PATH: &str = "static/hello";
 const SHARED_PATH: &str = "static/shared.so";
 
+/*
+
+TODO:
+once mapped, we should be able to release "binary: &'a [u8]"
+=> better lifetime management
+Object ready image: mapping, exported symbols (for reuse), dependencies (for keeping them loaded) init, fini, entry. Everything else can be dropped (elf_file, and so)
+Note: writable sections need to be kept in a template, and instanciated in each process
+
+Partage memoire :
+Regarder la resolution de symbol elf pour savoir si un symbol est toujours resolu pareil (on oublie LD_PRELOAD ou LD_LIBRARY_PATH ou quoi)
+Si c'est OK on peut partager text + data et ne faire qu'une fois la resolution de symbols par binaire
+Si c'est pas OK il faut voir si la resolution de symbols est localise au meme endroit (GOT/PLT ?) et n'instancier que ca
+Sinon on ne peut pas partager
+*/
+
 pub struct Program<'a> {
     entry: &'a str,
     objects: HashMap<&'a str, RefCell<Object<'a>>>,

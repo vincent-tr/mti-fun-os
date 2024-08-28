@@ -1,4 +1,8 @@
-use crate::{align_down, align_up, kobject::{Mapping, Permissions, Process}, PAGE_SIZE};
+use crate::{
+    align_down, align_up,
+    kobject::{Mapping, Permissions, Process},
+    PAGE_SIZE,
+};
 use core::ops::Range;
 use xmas_elf::program;
 

@@ -93,16 +93,7 @@ impl Process {
             flags |= libc::MAP_FIXED;
         }
 
-        let caddr = unsafe {
-            libc::mmap(
-                caddr,
-                size,
-                libc::PROT_NONE,
-                flags,
-                -1,
-                0,
-            )
-        };
+        let caddr = unsafe { libc::mmap(caddr, size, libc::PROT_NONE, flags, -1, 0) };
 
         if caddr == ptr::null_mut() {
             return Err(Error::InvalidArgument);
@@ -130,16 +121,7 @@ impl Process {
             flags |= libc::MAP_FIXED;
         }
 
-        let caddr = unsafe {
-            libc::mmap(
-                caddr,
-                size,
-                cperms,
-                flags,
-                -1,
-                0,
-            )
-        };
+        let caddr = unsafe { libc::mmap(caddr, size, cperms, flags, -1, 0) };
 
         if caddr == ptr::null_mut() {
             return Err(Error::InvalidArgument);

@@ -203,7 +203,6 @@ impl<T> OnceLock<T> {
     {
         match self.get_or_try_init(|| Ok::<T, !>(f())) {
             Ok(val) => val,
-            Err(_) => unsafe { core::hint::unreachable_unchecked() },
         }
     }
 

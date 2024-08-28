@@ -16,7 +16,7 @@ fn do_panic(info: &PanicInfo) -> ! {
     let stacktrace = StackTrace::capture();
     error!("PANIC: {}", PanicDisplay::new(info, stacktrace));
 
-    // Note: if case we failed exit, we cannot do much more.
+    // Note: in case we failed exit, we cannot do much more.
     let _ = process::exit();
     unsafe { unreachable_unchecked() }
 }
@@ -34,14 +34,7 @@ impl<'a> PanicDisplay<'a> {
 
 impl fmt::Display for PanicDisplay<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // From PanicInfo source
-        if let Some(message) = self.info.message() {
-            formatter.write_fmt(*message)?;
-        } else if let Some(payload) = self.info.payload().downcast_ref::<&'static str>() {
-            formatter.write_str(payload)?;
-        }
-        // The payload is a String when `std::panic!` is called with multiple arguments,
-        // but in that case the message is also available.
+        self.info.message().fmt(formatter)?;
 
         formatter.write_str("\n")?;
 

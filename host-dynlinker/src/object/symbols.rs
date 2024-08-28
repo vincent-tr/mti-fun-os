@@ -1,8 +1,4 @@
-use xmas_elf::{
-  dynamic,
-  sections,
-  symbol_table::DynEntry64,
-};
+use xmas_elf::{dynamic, sections, symbol_table::DynEntry64};
 
 use super::{DynamicSection, Object};
 pub use crate::{wrap_res, LoaderError};

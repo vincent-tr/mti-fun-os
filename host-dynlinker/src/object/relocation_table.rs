@@ -1,5 +1,5 @@
-use core::mem;
 use core::marker::PhantomData;
+use core::mem;
 
 use super::Object;
 

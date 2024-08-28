@@ -239,14 +239,17 @@ impl Mappings {
     }
 
     pub fn overlaps(&self, range: &Range<VirtAddr>) -> bool {
-        // Get a cursor starting from the node before our range
-        let mut cursor = self.nodes.upper_bound(Bound::Included(&range.start));
-        loop {
-            if cursor.value().is_none() {
-                return false;
-            }
-
-            let (addr, node) = cursor.key_value().unwrap(); // checked above
+        // find node before range
+        let (&before, _) = self
+            .nodes
+            .range((Bound::Unbounded, Bound::Excluded(&range.start)))
+            .last()
+            .unwrap();
+        // Get an iterator starting from the node before our range
+        for (addr, node) in self
+            .nodes
+            .range((Bound::Included(before), Bound::Unbounded))
+        {
             if *addr >= range.end {
                 return false;
             }
@@ -254,9 +257,9 @@ impl Mappings {
             if !area.is_empty() {
                 return true;
             }
-
-            cursor.move_next()
         }
+
+        return false;
     }
 
     /// Check that the given range is only part of one mapping area
@@ -504,13 +507,12 @@ impl Mappings {
     }
 
     fn get(&self, addr: VirtAddr) -> Rc<Area> {
-        let area = self
+        let (_, node) = self
             .nodes
-            .upper_bound(Bound::Included(&addr))
-            .value()
-            .expect(&format!("no area corresponding to address {:?}", addr))
-            .next
-            .clone();
+            .range((Bound::Unbounded, Bound::Included(&addr)))
+            .last()
+            .expect(&format!("no area corresponding to address {:?}", addr));
+        let area = node.next.clone();
         assert!(area.range.contains(&addr));
         area
     }

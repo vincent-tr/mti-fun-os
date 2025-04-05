@@ -11,7 +11,12 @@ mod idle;
 mod loader;
 mod offsets;
 
-use core::{arch::asm, hint::unreachable_unchecked, ops::Range, slice};
+use core::{
+    arch::{asm, naked_asm},
+    hint::unreachable_unchecked,
+    ops::Range,
+    slice,
+};
 
 use alloc::sync::Arc;
 use libruntime::kobject::{
@@ -25,7 +30,7 @@ use log::{debug, info};
 #[no_mangle]
 #[link_section = ".text_entry"]
 pub unsafe extern "C" fn user_start() -> ! {
-    asm!(
+    naked_asm!(
         "
         lea rsp, {stack}
 
@@ -35,7 +40,7 @@ pub unsafe extern "C" fn user_start() -> ! {
         ",
         stack = sym offsets::__init_stack_end,
         entry = sym entry,
-        options(noreturn),
+        // options(noreturn),
     );
 }
 

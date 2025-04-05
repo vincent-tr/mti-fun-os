@@ -1,4 +1,4 @@
-use core::{arch::asm, ops::Range, slice};
+use core::{arch::naked_asm, ops::Range, slice};
 
 use libruntime::kobject::{self, Error, KObject, Permissions, ThreadPriority, PAGE_SIZE};
 
@@ -68,12 +68,12 @@ fn prepare_mobj() -> Result<(kobject::MemoryObject, Range<usize>), Error> {
 #[no_mangle]
 #[link_section = ".text_idle"]
 unsafe extern "C" fn idle() -> ! {
-    asm!(
+    naked_asm!(
         "
   2:
       hlt;
       jmp 2b;
   ",
-        options(noreturn)
+        // options(noreturn)
     );
 }

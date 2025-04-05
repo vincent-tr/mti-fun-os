@@ -15,5 +15,6 @@
   "panic-strategy": "abort",
   "disable-redzone": true,
   "features": "-mmx,-sse,+soft-float",
-  "position-independent-executables": true
+  "position-independent-executables": true,
+  "rustc-abi": "x86-softfloat"
 }

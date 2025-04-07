@@ -197,7 +197,7 @@ impl Handles {
         let handle = Handle(self.id_gen.generate());
 
         let mut handles = self.handles.write();
-        handles.insert_unique_unchecked(handle, handle_impl);
+        unsafe { handles.insert_unique_unchecked(handle, handle_impl) };
 
         handle
     }

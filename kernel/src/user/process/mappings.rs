@@ -231,7 +231,7 @@ impl Mappings {
             let area = &node.next;
             if area.is_empty() && area.size() >= size {
                 let addr = area.range.start;
-                return Ok(addr..addr + size);
+                return Ok(addr..addr + (size as u64));
             }
         }
 

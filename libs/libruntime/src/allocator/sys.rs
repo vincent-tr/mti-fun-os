@@ -1,5 +1,5 @@
 use libsyscalls::{memory_object, process, Error, Permissions};
-use log::{error, trace};
+use log::{debug, error};
 
 use crate::kobject;
 
@@ -15,7 +15,7 @@ impl System {
     }
 
     fn mmap(&self, size: usize) -> Result<*mut u8, Error> {
-        trace!("mmap size={size}");
+        debug!("mmap size={size}");
 
         let self_proc = process::open_self()?;
 
@@ -29,11 +29,14 @@ impl System {
             0,
         )?;
 
+        let aaddr = addr as *mut u8;
+        debug!("mmap addr={aaddr:?}");
+
         Ok(addr as *mut u8)
     }
 
     fn munmap(&self, addr: *mut u8, size: usize) -> Result<(), Error> {
-        trace!("munmap addr={addr:?} size={size}");
+        debug!("munmap addr={addr:?} size={size}");
 
         let self_proc = process::open_self()?;
 

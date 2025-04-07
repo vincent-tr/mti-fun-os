@@ -1,12 +1,10 @@
-use core::{error::Error, fmt, mem::size_of};
+use core::{error::Error, fmt};
 use log::debug;
 use xmas_elf::{
     header, program,
     sections::{SectionData, ShType},
-    symbol_table::{DynEntry32, DynEntry64},
-    ElfFile, P64,
+    ElfFile,
 };
-use zero::read;
 
 pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
     let elf_file = wrap_res(xmas_elf::ElfFile::new(binary))?;
@@ -40,7 +38,7 @@ pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
         }
     }
 
-    resolve_dependencies(&elf_file);
+    resolve_dependencies(&elf_file)?;
 
     Ok(())
 }

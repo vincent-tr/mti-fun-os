@@ -1,5 +1,5 @@
 use super::handler::InterruptStack;
-use core::arch::asm;
+use core::arch::naked_asm;
 use core::fmt;
 use memoffset::offset_of;
 use x86_64::structures::gdt::SegmentSelector;
@@ -42,7 +42,7 @@ pub fn init() {
 #[naked]
 #[allow(undefined_naked_function_abi)]
 unsafe fn syscall_native_handler() {
-    asm!(concat!(
+    naked_asm!(concat!(
         "swapgs;",                    // Swap KGSBASE with GSBASE, allowing fast TSS access - https://www.felixcloutier.com/x86/swapgs - https://wiki.osdev.org/SWAPGS
         "mov gs:[{usp}], rsp;",       // Save userland stack pointer
         "mov rsp, gs:[{ksp}];",       // Load kernel stack pointer
@@ -89,9 +89,7 @@ unsafe fn syscall_native_handler() {
     syscall_handler = sym syscall_handler,
     usp = const(offset_of!(ProcessorControlRegion, userland_stack_ptr_tmp)),
     ksp = const(offset_of!(ProcessorControlRegion, kernal_stack_ptr)),
-    privileged_cs_sel = const(gdt::KERNEL_CODE_SELECTOR.0 as u64),
-
-    options(noreturn));
+    privileged_cs_sel = const(gdt::KERNEL_CODE_SELECTOR.0 as u64));
 }
 
 unsafe extern "C" fn syscall_handler() {

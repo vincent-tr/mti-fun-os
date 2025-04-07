@@ -119,7 +119,7 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
                     .pop()
                     .expect("missed block to split");
                 unsafe {
-                    let half_address = (*item).address() + self.get_size(cur_class - 1);
+                    let half_address = (*item).address() + self.get_size(cur_class - 1) as u64;
                     let split_item = self.alloc_node(half_address);
                     self.free_list[cur_class - 1].push(split_item);
                     self.free_list[cur_class - 1].push(item);

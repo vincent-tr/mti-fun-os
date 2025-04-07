@@ -45,11 +45,11 @@ lazy_static! {
     static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
         let selectors = Selectors {
-            kernel_code_selector: gdt.add_entry(Descriptor::kernel_code_segment()),
-            kernel_data_selector: gdt.add_entry(Descriptor::kernel_data_segment()),
-            user_data_selector: gdt.add_entry(Descriptor::user_data_segment()),
-            user_code_selector: gdt.add_entry(Descriptor::user_code_segment()),
-            tss_selector: gdt.add_entry(Descriptor::tss_segment(&TSS)),
+            kernel_code_selector: gdt.append(Descriptor::kernel_code_segment()),
+            kernel_data_selector: gdt.append(Descriptor::kernel_data_segment()),
+            user_data_selector: gdt.append(Descriptor::user_data_segment()),
+            user_code_selector: gdt.append(Descriptor::user_code_segment()),
+            tss_selector: gdt.append(Descriptor::tss_segment(&TSS)),
         };
 
         assert!(selectors.kernel_code_selector.index() == KERNEL_CODE_SELECTOR_INDEX);

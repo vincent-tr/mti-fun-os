@@ -111,7 +111,7 @@ pub fn general_protection_fault_handler(stack: &mut InterruptStack) {
 pub fn page_fault_handler(stack: &mut InterruptStack) {
     use x86_64::registers::control::Cr2;
 
-    let accessed_address = Cr2::read();
+    let accessed_address = Cr2::read().expect("Failed to read CR2 register");
 
     if !is_userland(stack) {
         let error_code = PageFaultErrorCode::from_bits_retain(stack.error_code as u64);
@@ -193,5 +193,5 @@ pub fn security_exception_handler(stack: &mut InterruptStack) {
 }
 
 fn is_userland(stack: &mut InterruptStack) -> bool {
-    SegmentSelector(stack.iret.code_segment as u16) == gdt::USER_CODE_SELECTOR
+    SegmentSelector(stack.iret.code_segment.0) == gdt::USER_CODE_SELECTOR
 }

@@ -75,7 +75,7 @@ fn create_process(mobj: Arc<MemoryObject>, ramdisk: &Range<usize>) {
 
     // .text section is right after headers.
     // entry point is laid out at the begining of .text section
-    let entry_point = BASE_ADDRESS + SIZE_OF_HEADERS;
+    let entry_point = BASE_ADDRESS + SIZE_OF_HEADERS as u64;
 
     // Pass the binary size as argument (useful to load debug symbols)
     let arg: usize = ramdisk.len();

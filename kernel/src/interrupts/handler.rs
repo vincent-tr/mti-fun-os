@@ -26,7 +26,7 @@ impl InterruptStack {
     /// - Returned data is only valid during the current interrupt handler/syscall handler
     pub unsafe fn current() -> &'static mut Self {
         // InterruptStack is on top of kernel stack
-        let stack_addr = Self::interrupt_stack_top() - size_of::<InterruptStack>();
+        let stack_addr = Self::interrupt_stack_top() - (size_of::<InterruptStack>() as u64);
         let stack_ptr: *mut InterruptStack = stack_addr.as_mut_ptr();
         &mut *stack_ptr
     }
@@ -172,7 +172,7 @@ macro_rules! native_handler {
             #[allow(undefined_naked_function_abi)]
             unsafe fn handler() {
                 unsafe {
-                    asm!(concat!(
+                    core::arch::naked_asm!(concat!(
                         "push 0;",                    // Fake error code
 
                         "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
@@ -190,9 +190,7 @@ macro_rules! native_handler {
                         "iretq;",                   // Back to userland
                     ),
 
-                    interrupt_handler = sym wrapper,
-
-                    options(noreturn));
+                    interrupt_handler = sym wrapper);
                 }
             }
 
@@ -218,7 +216,7 @@ macro_rules! native_error_handler {
             #[allow(undefined_naked_function_abi)]
             unsafe fn handler() {
                 unsafe {
-                    asm!(concat!(
+                    core::arch::naked_asm!(concat!(
                         "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
                         push_scratch!(),
@@ -234,9 +232,7 @@ macro_rules! native_error_handler {
                         "iretq;",                   // Back to userland
                     ),
 
-                    interrupt_handler = sym wrapper,
-
-                    options(noreturn));
+                    interrupt_handler = sym wrapper);
                 }
             }
 

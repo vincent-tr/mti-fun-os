@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(naked_functions)]
 #![feature(used_with_arg)]
-#![feature(error_in_core)]
 
 extern crate alloc;
 

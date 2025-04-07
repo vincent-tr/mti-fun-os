@@ -517,7 +517,7 @@ impl ThreadContext {
         self.r14 = interrupt_stack.preserved.r14;
         self.r15 = interrupt_stack.preserved.r15;
         self.instruction_pointer = interrupt_stack.iret.instruction_pointer;
-        self.cpu_flags = RFlags::from_bits_retain(interrupt_stack.iret.cpu_flags);
+        self.cpu_flags = interrupt_stack.iret.cpu_flags;
 
         self.tls = tls_reg_read();
     }
@@ -544,13 +544,13 @@ impl ThreadContext {
         interrupt_stack.preserved.r15 = self.r15;
         interrupt_stack.error_code = 0;
         interrupt_stack.iret.instruction_pointer = self.instruction_pointer;
-        interrupt_stack.iret.cpu_flags = self.cpu_flags.bits();
+        interrupt_stack.iret.cpu_flags = self.cpu_flags;
         if privileged {
-            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR.0 as u64;
-            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR.0 as u64;
+            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR;
+            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR;
         } else {
-            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR.0 as u64;
-            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR.0 as u64;
+            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR;
+            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR;
         }
 
         tls_reg_write(self.tls);
@@ -561,11 +561,11 @@ impl ThreadContext {
         let interrupt_stack = InterruptStack::current();
 
         if privileged {
-            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR.0 as u64;
-            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR.0 as u64;
+            interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR;
+            interrupt_stack.iret.stack_segment = KERNEL_DATA_SELECTOR;
         } else {
-            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR.0 as u64;
-            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR.0 as u64;
+            interrupt_stack.iret.code_segment = USER_CODE_SELECTOR;
+            interrupt_stack.iret.stack_segment = USER_DATA_SELECTOR;
         }
     }
 

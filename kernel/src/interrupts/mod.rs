@@ -5,6 +5,7 @@ mod irqs;
 mod syscalls;
 
 use core::arch::asm;
+use core::intrinsics::unreachable;
 
 use crate::gdt;
 use crate::memory::VirtAddr;
@@ -147,12 +148,12 @@ lazy_static! {
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
 
-            idt[Irq::LocalApicTimer as usize]
+            idt[Irq::LocalApicTimer as u8]
                 .set_handler_addr(native_handler!(irqs::lapic_timer_interrupt_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
-            idt[Irq::LocalApicError as usize]
+            idt[Irq::LocalApicError as u8]
                 .set_handler_addr(native_handler!(irqs::lapic_error_interrupt_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
@@ -208,5 +209,7 @@ pub fn syscall_switch(
         in("r8") arg5,
         in("r9") arg6,
         options(noreturn));
+
+        unreachable();
     }
 }

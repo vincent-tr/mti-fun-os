@@ -177,7 +177,7 @@ pub fn create_typed<T>(
     addr: VirtAddr,
     perms: Permissions,
 ) -> Result<TypedMemoryAccess<T>, Error> {
-    let range = addr..addr + size_of::<T>();
+    let range = addr..addr + size_of::<T>() as u64;
     let access = MemoryAccess::create(address_space, range, perms)?;
 
     Ok(TypedMemoryAccess {
@@ -215,7 +215,7 @@ pub fn create_typed_slice<T>(
     count: usize,
     perms: Permissions,
 ) -> Result<TypedSliceMemoryAccess<T>, Error> {
-    let range = addr..addr + (count * size_of::<T>());
+    let range = addr..addr + ((count * size_of::<T>()) as u64);
     let access = MemoryAccess::create(address_space, range, perms)?;
 
     Ok(TypedSliceMemoryAccess {

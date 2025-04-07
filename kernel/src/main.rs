@@ -2,21 +2,17 @@
 #![no_main]
 #![allow(dead_code)]
 #![feature(abi_x86_interrupt)]
-#![feature(ptr_sub_ptr)]
 #![feature(slice_ptr_get)]
-#![feature(const_slice_from_raw_parts_mut)]
 #![feature(allocator_api)]
-#![feature(const_mut_refs)]
 #![feature(btree_cursors)]
 #![feature(let_chains)]
 #![feature(const_trait_impl)]
 #![feature(naked_functions)]
 #![feature(linked_list_cursors)]
 #![feature(trait_alias)]
-#![feature(async_closure)]
-#![feature(noop_waker)]
 #![feature(never_type)]
 #![feature(step_trait)]
+#![feature(core_intrinsics)]
 
 extern crate alloc;
 extern crate bootloader_api;

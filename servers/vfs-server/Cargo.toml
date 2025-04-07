@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 libruntime = { path = "../../libs/libruntime" }
-log = "0.4.20"
+log = "0.4.27"

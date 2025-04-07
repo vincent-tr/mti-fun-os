@@ -363,8 +363,8 @@ fn prepare_page<S: PageSize>(
         *begin = address;
     }
 
-    if address + PAGE_SIZE > *end {
-        *end = address + PAGE_SIZE;
+    if address + PAGE_SIZE as u64 > *end {
+        *end = address + PAGE_SIZE as u64;
     }
 
     if check_frame_ref && !phys::used(frame) {

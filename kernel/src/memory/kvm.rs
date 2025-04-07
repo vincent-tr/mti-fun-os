@@ -174,7 +174,7 @@ impl<'a> Allocator<'a> {
                 return Err(AllocatorError::NoMemory);
             }
 
-            let page_addr = addr + page_index * PAGE_SIZE;
+            let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             let mut frame = frame_res.unwrap();
             let perms = Permissions::READ | Permissions::WRITE;
 
@@ -210,7 +210,7 @@ impl<'a> Allocator<'a> {
         frames: &mut [FrameRef],
     ) -> Result<(), AllocatorError> {
         for (page_index, frame) in frames.iter_mut().enumerate() {
-            let page_addr = addr + page_index * PAGE_SIZE;
+            let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             let perms = Permissions::READ | Permissions::WRITE;
 
             if let Err(err) =
@@ -246,8 +246,8 @@ impl<'a> Allocator<'a> {
         perms: Permissions,
     ) -> Result<(), AllocatorError> {
         for page_index in 0..page_count {
-            let page_addr = addr + page_index * PAGE_SIZE;
-            let frame_addr = phys_addr + page_index * PAGE_SIZE;
+            let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
+            let frame_addr = phys_addr + ((page_index * PAGE_SIZE) as u64);
 
             // Strongly uncacheable
             let mut iomem_flags = AdditionalFlags::new();
@@ -279,7 +279,7 @@ impl<'a> Allocator<'a> {
 
     fn unmap_phys(&mut self, addr: VirtAddr, page_count: usize) {
         for page_index in 0..page_count {
-            let page_addr = addr + page_index * PAGE_SIZE;
+            let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             let phys_addr = unsafe {
                 paging::KERNEL_ADDRESS_SPACE
                     .unmap(page_addr)
@@ -294,7 +294,7 @@ impl<'a> Allocator<'a> {
 
     fn unmap_iomem(&mut self, addr: VirtAddr, page_count: usize) {
         for page_index in 0..page_count {
-            let page_addr = addr + page_index * PAGE_SIZE;
+            let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             unsafe {
                 paging::KERNEL_ADDRESS_SPACE
                     .unmap(page_addr)

@@ -154,7 +154,7 @@ impl Allocator {
 
     unsafe fn init_descriptors(&mut self, buffer: VirtAddr, buffer_size: usize) {
         assert!(buffer.is_aligned(PAGE_SIZE as u64));
-        assert!((buffer + buffer_size).is_aligned(PAGE_SIZE as u64));
+        assert!((buffer + buffer_size as u64).is_aligned(PAGE_SIZE as u64));
 
         let data: *mut Descriptor = buffer.as_mut_ptr();
         let count = buffer_size / size_of::<Descriptor>();
@@ -235,7 +235,7 @@ impl Allocator {
     }
 
     unsafe fn desc_to_frame(&self, desc: *mut Descriptor) -> PhysAddr {
-        let index = desc.sub_ptr(self.descriptors.as_mut_ptr());
+        let index = desc.offset_from(self.descriptors.as_mut_ptr()) as usize;
         PhysAddr::new((index * PAGE_SIZE) as u64)
     }
 
@@ -262,7 +262,7 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
     let count = end as usize / PAGE_SIZE;
     let buffer_size = Allocator::needed_buffer_size(count);
     let buffer_phys = find_usable_region(memory_regions, buffer_size);
-    let buffer_phys_end = buffer_phys + buffer_size;
+    let buffer_phys_end = buffer_phys + buffer_size as u64;
     let buffer: VirtAddr = phys_mapping + buffer_phys.as_u64();
 
     info!(
@@ -295,7 +295,7 @@ pub fn init(phys_mapping: VirtAddr, memory_regions: &MemoryRegions) {
                     }
                 }
 
-                frame += PAGE_SIZE;
+                frame += PAGE_SIZE as u64;
             }
         }
     }
@@ -321,7 +321,7 @@ fn find_usable_region(memory_regions: &MemoryRegions, buffer_size: usize) -> Phy
             continue;
         }
 
-        if !start.is_null() && start + size == region_start {
+        if !start.is_null() && start + (size as u64) == region_start {
             // Contigous: merge
             size += region_size;
             continue;

@@ -153,18 +153,18 @@ impl LocalApic {
         assert!(reg_value.enabled);
 
         self.base_addr = map_iomem(
-            reg_value.address..reg_value.address + PAGE_SIZE,
+            reg_value.address..reg_value.address + PAGE_SIZE as u64,
             Permissions::READ | Permissions::WRITE,
         )
         .expect("could not map page into kernel space");
     }
 
     unsafe fn read(&self, reg: usize) -> u32 {
-        read_volatile((self.base_addr + reg).as_ptr())
+        read_volatile((self.base_addr + reg as u64).as_ptr())
     }
 
     unsafe fn write(&self, reg: usize, value: u32) {
-        write_volatile((self.base_addr + reg).as_mut_ptr(), value);
+        write_volatile((self.base_addr + reg as u64).as_mut_ptr(), value);
     }
 
     /// Local APIC ID

@@ -126,7 +126,7 @@ impl Process {
         if !addr.is_null() {
             check_is_userspace(addr)?;
             check_page_alignment(addr.as_u64() as usize)?;
-            check_is_userspace(addr + size)?;
+            check_is_userspace(addr + (size as u64))?;
         }
 
         if let Some(ref mobj) = memory_object {
@@ -144,7 +144,7 @@ impl Process {
         let range = if addr.is_null() {
             mappings.find_space(size)?
         } else {
-            let range = addr..addr + size;
+            let range = addr..addr + (size as u64);
             // Unmap the range first.
             // TODO: if the mapping fails, we cannot map back what was previously
             mappings.remove_range(range.clone());
@@ -178,11 +178,11 @@ impl Process {
         check_page_alignment(size)?;
         check_is_userspace(addr)?;
         check_page_alignment(addr.as_u64() as usize)?;
-        check_is_userspace(addr + size)?;
+        check_is_userspace(addr + size as u64)?;
 
         let mut mappings = self.mappings.write();
 
-        let range = addr..addr + size;
+        let range = addr..addr + size as u64;
 
         mappings.remove_range(range.clone());
 
@@ -201,12 +201,12 @@ impl Process {
         check_page_alignment(size)?;
         check_is_userspace(addr)?;
         check_page_alignment(addr.as_u64() as usize)?;
-        check_is_userspace(addr + size)?;
+        check_is_userspace(addr + size as u64)?;
         check_any_permissions(perms)?;
 
         let mut mappings = self.mappings.write();
 
-        let range = addr..addr + size;
+        let range = addr..addr + size as u64;
 
         check_arg(mappings.is_contigous_mapping(&range))?;
 

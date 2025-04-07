@@ -63,7 +63,7 @@ impl<T: Sized + Copy> ListOutputWriter<T> {
         let array_addr = VirtAddr::new(array_ptr as u64);
 
         let array_access = process.vm_access(
-            array_addr..array_addr + (size_of::<T>() * array_count),
+            array_addr..array_addr + ((size_of::<T>() * array_count) as u64),
             Permissions::READ | Permissions::WRITE,
         )?;
 

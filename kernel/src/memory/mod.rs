@@ -240,7 +240,7 @@ impl Debug for KernelStack {
         let mut writer = f.debug_struct("KernelStack");
 
         for counter in 0..50 {
-            let addr = self.stack_top() - ((counter + 1) * mem::size_of::<u64>());
+            let addr = self.stack_top() - (((counter + 1) * mem::size_of::<u64>()) as u64);
             let value = unsafe { *addr.as_ptr::<u64>() };
 
             writer.field(&format!("{counter}"), &format_args!("{value:#016x}"));

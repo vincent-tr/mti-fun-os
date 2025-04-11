@@ -253,25 +253,21 @@ impl Debug for KernelStack {
 
 /// This forces allocation in kernel binary in RW data section
 #[derive(Debug)]
-pub struct StaticKernelStack {
-    stack: RefCell<KernelStack>,
-}
+pub struct StaticKernelStack(RefCell<KernelStack>);
 
 unsafe impl Sync for StaticKernelStack {}
 unsafe impl Send for StaticKernelStack {}
 
 impl StaticKernelStack {
     pub const fn new() -> Self {
-        StaticKernelStack {
-            stack: RefCell::new(KernelStack::new()),
-        }
+        StaticKernelStack(RefCell::new(KernelStack::new()))
     }
 
     pub fn address(&self) -> VirtAddr {
-        self.stack.borrow().address()
+        self.0.borrow().address()
     }
 
     pub fn stack_top(&self) -> VirtAddr {
-        self.stack.borrow().stack_top()
+        self.0.borrow().stack_top()
     }
 }

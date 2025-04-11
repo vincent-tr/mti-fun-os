@@ -2,6 +2,7 @@
 // - https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/arch/x86_64/interrupt/handler.rs
 // - https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/arch/x86_64/interrupt/syscall.rs
 
+use core::cell::RefCell;
 use core::{fmt, mem::size_of};
 
 use log::debug;
@@ -32,10 +33,7 @@ impl InterruptStack {
     }
 
     /// Get the current interrupt kernel stack top
-    ///
-    /// # Safety
-    /// - No access are checked
-    pub unsafe fn interrupt_stack_top() -> VirtAddr {
+    pub fn interrupt_stack_top() -> VirtAddr {
         let top = KERNEL_STACK.stack_top();
 
         // Interrupt stacks must be 16 bytes aligned, or the processor will change rsp to align on enter
@@ -265,21 +263,33 @@ impl ProcessorControlRegion {
     }
 }
 
+/// This forces allocation in kernel binary in RW data section
+struct StaticProcessorControlRegion(RefCell<ProcessorControlRegion>);
+
+unsafe impl Sync for StaticProcessorControlRegion {}
+unsafe impl Send for StaticProcessorControlRegion {}
+
+impl StaticProcessorControlRegion {
+    pub const fn new() -> Self {
+        Self(RefCell::new(ProcessorControlRegion::new()))
+    }
+}
+
 // Kernel stack used when entering kernel from userland (syscall, exception, irq)
 // remove pub
-pub static mut KERNEL_STACK: StaticKernelStack = StaticKernelStack::new();
+static KERNEL_STACK: StaticKernelStack = StaticKernelStack::new();
 
 // Structure will be setup so that it's easily addressable durign syscalls
-pub static mut PROCESSOR_CONTROL_REGION: ProcessorControlRegion = ProcessorControlRegion::new();
+static PROCESSOR_CONTROL_REGION: StaticProcessorControlRegion = StaticProcessorControlRegion::new();
 
 // Setup KernelGsBase so that we can use ProcessorControlRegion using swapgs
 pub fn init_process_control_region() {
-    let processor_control_region = unsafe { &mut PROCESSOR_CONTROL_REGION };
-    let kernel_stack = unsafe { &mut KERNEL_STACK };
+    let processor_control_region = PROCESSOR_CONTROL_REGION.0.as_ptr();
 
     KernelGsBase::write(VirtAddr::from_ptr(processor_control_region));
 
-    processor_control_region.kernal_stack_ptr = kernel_stack.stack_top().as_u64() as usize;
+    PROCESSOR_CONTROL_REGION.0.borrow_mut().kernal_stack_ptr =
+        KERNEL_STACK.stack_top().as_u64() as usize;
 
     debug!(
         "Processor control region: {:?}",

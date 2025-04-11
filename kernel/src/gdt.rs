@@ -29,12 +29,12 @@ lazy_static! {
 
         tss.interrupt_stack_table[FATAL_FAULT_IST_INDEX as usize] = {
             // Special stack for double fault, so that we cannot stack overflow to print to correct info
-            unsafe { FATAL_FAULT_STACK.stack_top() }
+            FATAL_FAULT_STACK.stack_top()
         };
 
         tss.interrupt_stack_table[INTERRUPT_IST_INDEX as usize] = {
             // Stack for normal interrupt handling
-            unsafe { InterruptStack::interrupt_stack_top() }
+            InterruptStack::interrupt_stack_top()
         };
 
         tss

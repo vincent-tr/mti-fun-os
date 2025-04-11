@@ -51,8 +51,6 @@ extern "C" fn entry(binary_len: usize) -> ! {
     let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
     libruntime::debug::init_memory_binary(binary);
 
-    debug!("still here?");
-
     apply_memory_protections(binary_len);
 
     // Jump to a safer thread, with better stack

@@ -1,5 +1,5 @@
 use libsyscalls::{memory_object, process, Error, Permissions};
-use log::{debug, error, trace};
+use log::{error, trace};
 
 use crate::kobject;
 

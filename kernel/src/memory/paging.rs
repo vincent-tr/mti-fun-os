@@ -262,7 +262,7 @@ unsafe fn prepare_mapping(
         fix_flags(l3_entry);
 
         if l3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-            prepare_page::<Size1GiB>(
+            if !prepare_page::<Size1GiB>(
                 l4_index.into(),
                 l3_index,
                 0,
@@ -271,7 +271,11 @@ unsafe fn prepare_mapping(
                 &mut begin,
                 &mut end,
                 check_frame_refs,
-            );
+            ) {
+                // Drop the entry if it is not valid
+                l3_entry.set_unused();
+                // TODO: drop the whole hierarchy if unused
+            }
             continue;
         }
 
@@ -291,7 +295,7 @@ unsafe fn prepare_mapping(
             fix_flags(l2_entry);
 
             if l2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-                prepare_page::<Size2MiB>(
+                if !prepare_page::<Size2MiB>(
                     l4_index.into(),
                     l3_index,
                     l2_index,
@@ -300,7 +304,11 @@ unsafe fn prepare_mapping(
                     &mut begin,
                     &mut end,
                     check_frame_refs,
-                );
+                ) {
+                    // Drop the entry if it is not valid
+                    l2_entry.set_unused();
+                    // TODO: drop the whole hierarchy if unused
+                }
                 continue;
             }
 
@@ -319,7 +327,7 @@ unsafe fn prepare_mapping(
 
                 fix_flags(l1_entry);
 
-                prepare_page::<Size4KiB>(
+                if !prepare_page::<Size4KiB>(
                     l4_index.into(),
                     l3_index,
                     l2_index,
@@ -328,7 +336,11 @@ unsafe fn prepare_mapping(
                     &mut begin,
                     &mut end,
                     check_frame_refs,
-                );
+                ) {
+                    // Drop the entry if it is not valid
+                    l1_entry.set_unused();
+                    // TODO: drop the whole hierarchy if unused
+                }
             }
         }
     }
@@ -345,7 +357,7 @@ fn prepare_page<S: PageSize>(
     begin: &mut VirtAddr,
     end: &mut VirtAddr,
     check_frame_ref: bool,
-) {
+) -> bool {
     let address = Page::from_page_table_indices(
         PageTableIndex::new(u16::try_from(l4_index).unwrap()),
         PageTableIndex::new(u16::try_from(l3_index).unwrap()),
@@ -354,10 +366,22 @@ fn prepare_page<S: PageSize>(
     )
     .start_address();
 
-    debug_assert!(
-        phys::check_frame(frame),
-        "frame {frame:?} (address={address:?}) is not valid."
-    );
+    if check_frame_ref {
+        debug_assert!(
+            phys::check_frame(frame),
+            "frame {frame:?} (address={address:?}) is not valid."
+        );
+    } else {
+        // The bootloader can create a bigger phys mem mapping than the phys mem size.
+        //
+        // Entry cannot point outside of physical memory.
+        // If this is the case, remove the entry
+
+        if !phys::check_frame(frame) {
+            trace!("Frame {frame:?} (address={address:?}) is not valid, dropping the mapping.");
+            return false;
+        }
+    }
 
     if address < *begin {
         *begin = address;
@@ -368,12 +392,14 @@ fn prepare_page<S: PageSize>(
     }
 
     if check_frame_ref && !phys::used(frame) {
-        // It seems sometimes pages used for tabletable by bootloader are not properly marked as used
+        // It seems sometimes pages used for pagetable by bootloader are not properly marked as used
         trace!("Frame {:?} was not marked as used.", frame);
         unsafe {
             phys::allocate_at(frame).expect("Cannot use frame").borrow();
         }
     }
+
+    true
 }
 
 fn fix_flags(entry: &mut PageTableEntry) {

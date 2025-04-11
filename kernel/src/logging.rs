@@ -33,5 +33,5 @@ static LOGGER: KernelLogger = KernelLogger;
 pub fn init() {
     // Note: if set logger fails, there is not much we can do since panic also use the logger
     let _ = log::set_logger(&LOGGER);
-    log::set_max_level(log::LevelFilter::Trace); // Trace is very verbose
+    log::set_max_level(log::LevelFilter::Debug); // Trace is very verbose
 }

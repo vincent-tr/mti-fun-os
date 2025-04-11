@@ -74,6 +74,5 @@ unsafe extern "C" fn idle() -> ! {
       hlt;
       jmp 2b;
   ",
-        // options(noreturn)
     );
 }

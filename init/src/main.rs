@@ -18,9 +18,12 @@ use core::{
 };
 
 use alloc::sync::Arc;
-use libruntime::kobject::{
-    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-    ThreadOptions, TlsAllocator, PAGE_SIZE,
+use libruntime::{
+    debug,
+    kobject::{
+        self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
+        ThreadOptions, TlsAllocator, PAGE_SIZE,
+    },
 };
 use log::{debug, info};
 
@@ -39,7 +42,6 @@ pub unsafe extern "C" fn user_start() -> ! {
         ",
         stack = sym offsets::__init_stack_end,
         entry = sym entry,
-        // options(noreturn),
     );
 }
 
@@ -48,6 +50,8 @@ extern "C" fn entry(binary_len: usize) -> ! {
 
     let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
     libruntime::debug::init_memory_binary(binary);
+
+    debug!("still here?");
 
     apply_memory_protections(binary_len);
 

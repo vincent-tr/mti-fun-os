@@ -1,5 +1,5 @@
 use crate::interrupts::InterruptStack;
-use crate::memory::KernelStack;
+use crate::memory::StaticKernelStack;
 use lazy_static::lazy_static;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
@@ -21,7 +21,7 @@ pub const USER_DATA_SELECTOR: SegmentSelector =
 pub const USER_CODE_SELECTOR: SegmentSelector =
     SegmentSelector::new(USER_CODE_SELECTOR_INDEX, x86_64::PrivilegeLevel::Ring3);
 
-static mut FATAL_FAULT_STACK: KernelStack = KernelStack::new();
+static FATAL_FAULT_STACK: StaticKernelStack = StaticKernelStack::new();
 
 lazy_static! {
     static ref TSS: TaskStateSegment = {

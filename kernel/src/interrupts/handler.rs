@@ -7,7 +7,7 @@ use core::{fmt, mem::size_of};
 use log::debug;
 use x86_64::{registers::model_specific::KernelGsBase, structures::idt::InterruptStackFrameValue};
 
-use crate::memory::{KernelStack, VirtAddr};
+use crate::memory::{StaticKernelStack, VirtAddr};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -267,7 +267,7 @@ impl ProcessorControlRegion {
 
 // Kernel stack used when entering kernel from userland (syscall, exception, irq)
 // remove pub
-pub static mut KERNEL_STACK: KernelStack = KernelStack::new();
+pub static mut KERNEL_STACK: StaticKernelStack = StaticKernelStack::new();
 
 // Structure will be setup so that it's easily addressable durign syscalls
 pub static mut PROCESSOR_CONTROL_REGION: ProcessorControlRegion = ProcessorControlRegion::new();

@@ -178,9 +178,9 @@ impl<'a> Allocator<'a> {
             let mut frame = frame_res.unwrap();
             let perms = Permissions::READ | Permissions::WRITE;
 
-            if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms, None) }
-            {
+            if let Err(err) = unsafe {
+                paging::get_kernel_address_space().map(page_addr, frame.frame(), perms, None)
+            } {
                 // Remove pages allocated so far
                 if page_index > 0 {
                     self.unmap_phys(addr, page_index);
@@ -213,9 +213,9 @@ impl<'a> Allocator<'a> {
             let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             let perms = Permissions::READ | Permissions::WRITE;
 
-            if let Err(err) =
-                unsafe { paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame.frame(), perms, None) }
-            {
+            if let Err(err) = unsafe {
+                paging::get_kernel_address_space().map(page_addr, frame.frame(), perms, None)
+            } {
                 // Remove pages allocated so far
                 if page_index > 0 {
                     self.unmap_phys(addr, page_index);
@@ -255,7 +255,12 @@ impl<'a> Allocator<'a> {
             iomem_flags.no_cache(true);
 
             if let Err(err) = unsafe {
-                paging::KERNEL_ADDRESS_SPACE.map(page_addr, frame_addr, perms, Some(iomem_flags))
+                paging::get_kernel_address_space().map(
+                    page_addr,
+                    frame_addr,
+                    perms,
+                    Some(iomem_flags),
+                )
             } {
                 // Remove pages allocated so far
                 if page_index > 0 {
@@ -281,7 +286,7 @@ impl<'a> Allocator<'a> {
         for page_index in 0..page_count {
             let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             let phys_addr = unsafe {
-                paging::KERNEL_ADDRESS_SPACE
+                paging::get_kernel_address_space()
                     .unmap(page_addr)
                     .expect("could not unmap page")
             };
@@ -296,7 +301,7 @@ impl<'a> Allocator<'a> {
         for page_index in 0..page_count {
             let page_addr = addr + ((page_index * PAGE_SIZE) as u64);
             unsafe {
-                paging::KERNEL_ADDRESS_SPACE
+                paging::get_kernel_address_space()
                     .unmap(page_addr)
                     .expect("could not unmap page")
             };

@@ -5,7 +5,6 @@ mod irqs;
 mod syscalls;
 
 use core::arch::asm;
-use core::intrinsics::unreachable;
 
 use crate::gdt;
 use crate::memory::VirtAddr;
@@ -209,7 +208,5 @@ pub fn syscall_switch(
         in("r8") arg5,
         in("r9") arg6,
         options(noreturn));
-
-        unreachable();
     }
 }

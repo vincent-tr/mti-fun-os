@@ -1,5 +1,8 @@
-use core::{mem, ops::Range, ptr};
+use core::{mem, ops::Range};
 use log::{info, trace};
+
+use crate::util::OnceLock;
+use spin::{Mutex, MutexGuard};
 
 use x86_64::{
     instructions::tlb,
@@ -54,21 +57,23 @@ This 2 entries needs to be copied to all Page Tables created for user processes
 
 */
 
-static mut PHYSICAL_MAPPING_ADDRESS: VirtAddr = VirtAddr::zero();
+static PHYSICAL_MAPPING_ADDRESS: OnceLock<VirtAddr> = OnceLock::new();
 
-pub static mut KERNEL_ADDRESS_SPACE: AddressSpace = AddressSpace {
-    page_table: ptr::null_mut(),
-};
+static KERNEL_ADDRESS_SPACE: Mutex<AddressSpace> = Mutex::new(AddressSpace {
+    page_table: core::ptr::null_mut(),
+});
 
 // Keep the initial kernel stack L4 index while booting
 // Filled at paging initialization
 // Used while after switch to another stack to drop this initial stack
-static mut INITIAL_KERNEL_STACK_L4_INDEX: Option<(PageTableIndex, Range<VirtAddr>)> = None;
+static INITIAL_KERNEL_STACK_L4_INDEX: Mutex<Option<(PageTableIndex, Range<VirtAddr>)>> =
+    Mutex::new(None);
 
 // Keep ramskdisk while booting
 // Filled at paging initialization
 // Used while init process is loaded
-static mut INITIAL_RAMDISK_L4_INDEX: Option<(PageTableIndex, Range<VirtAddr>)> = None;
+static INITIAL_RAMDISK_L4_INDEX: Mutex<Option<(PageTableIndex, Range<VirtAddr>)>> =
+    Mutex::new(None);
 
 pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
     // Create new empty page table
@@ -77,7 +82,7 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
         let mut frame = phys::allocate()?;
         access_phys(&frame).fill(0);
 
-        let virt = PHYSICAL_MAPPING_ADDRESS + frame.borrow().as_u64();
+        let virt = *PHYSICAL_MAPPING_ADDRESS.get() + frame.borrow().as_u64();
 
         let address_space = AddressSpace {
             page_table: virt.as_mut_ptr(),
@@ -85,7 +90,11 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
 
         // Clone L4 entries from kernel address space
         let page_table = address_space.get_page_table();
-        for (index, entry) in KERNEL_ADDRESS_SPACE.get_page_table().iter().enumerate() {
+        for (index, entry) in get_kernel_address_space()
+            .get_page_table()
+            .iter()
+            .enumerate()
+        {
             if !entry.is_unused() {
                 page_table[index] = entry.clone();
             }
@@ -95,14 +104,18 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
     }
 }
 
+pub fn get_kernel_address_space() -> MutexGuard<'static, AddressSpace> {
+    KERNEL_ADDRESS_SPACE.lock()
+}
+
 pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
     unsafe {
         Efer::update(|flags| {
             *flags |= EferFlags::NO_EXECUTE_ENABLE;
         });
 
-        PHYSICAL_MAPPING_ADDRESS = phys_mapping;
-        KERNEL_ADDRESS_SPACE.page_table = get_current_page_table();
+        PHYSICAL_MAPPING_ADDRESS.set(phys_mapping);
+        KERNEL_ADDRESS_SPACE.lock().page_table = get_current_page_table();
 
         // Only keep mapping of:
         // - Kernel
@@ -111,7 +124,8 @@ pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
 
         // Ensure physical memory is really marked as used for this 3 entries + set proper flags
         let stack_var = 42;
-        let page_table = KERNEL_ADDRESS_SPACE.get_page_table();
+        let kernel_address_space = get_kernel_address_space();
+        let page_table = kernel_address_space.get_page_table();
 
         let (kernel_l4_index, kernel_start, kernel_end) =
             prepare_mapping(page_table, KERNEL_START, true);
@@ -123,7 +137,7 @@ pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
         );
 
         let (phys_mapping_l4_index, phys_mapping_start, phys_mapping_end) =
-            prepare_mapping(page_table, PHYSICAL_MAPPING_ADDRESS, false);
+            prepare_mapping(page_table, *PHYSICAL_MAPPING_ADDRESS.get(), false);
         info!(
             "Physical mapping: {:?} -> {:?} (size={})",
             phys_mapping_start,
@@ -152,10 +166,10 @@ pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
         assert!(ramdisk_start.as_u64() as usize == ramdisk.start);
         assert!(ramdisk_end.as_u64() as usize >= ramdisk.end);
 
-        INITIAL_KERNEL_STACK_L4_INDEX =
+        *(INITIAL_KERNEL_STACK_L4_INDEX.lock()) =
             Some((kernel_stack_l4_index, kernel_stack_start..kernel_stack_end));
 
-        INITIAL_RAMDISK_L4_INDEX = Some((ramdisk_l4_index, ramdisk_start..ramdisk_end));
+        *(INITIAL_RAMDISK_L4_INDEX.lock()) = Some((ramdisk_l4_index, ramdisk_start..ramdisk_end));
 
         // Drop everything else
 
@@ -187,11 +201,13 @@ pub fn init(phys_mapping: VirtAddr, ramdisk: &Range<usize>) {
 pub fn drop_initial_kernel_stack() {
     unsafe {
         let (l4_index, stack_range) = INITIAL_KERNEL_STACK_L4_INDEX
+            .lock()
             .take()
             .expect("INITIAL_KERNEL_STACK_L4_INDEX not set");
 
         // Drop hierarchy in kernel address space
-        let kernel_page_table = KERNEL_ADDRESS_SPACE.get_page_table();
+        let kernel_address_space = get_kernel_address_space();
+        let kernel_page_table = kernel_address_space.get_page_table();
         assert!(get_current_page_table() as *const _ == kernel_page_table as *const _);
 
         drop_mapping(&mut kernel_page_table[l4_index]);
@@ -209,11 +225,13 @@ pub fn drop_initial_kernel_stack() {
 pub fn drop_initial_ramdisk() {
     unsafe {
         let (l4_index, ramdisk_range) = INITIAL_RAMDISK_L4_INDEX
+            .lock()
             .take()
             .expect("INITIAL_RAMDISK_L4_INDEX not set");
 
         // Drop hierarchy in kernel address space
-        let kernel_page_table = KERNEL_ADDRESS_SPACE.get_page_table();
+        let kernel_address_space = get_kernel_address_space();
+        let kernel_page_table = kernel_address_space.get_page_table();
         assert!(get_current_page_table() as *const _ == kernel_page_table as *const _);
 
         drop_mapping(&mut kernel_page_table[l4_index]);
@@ -496,7 +514,11 @@ impl Drop for AddressSpace {
             // So the address space at this time should only contains kernel stuff.
             // So the root page table should be the same than the kernel one
             let page_table = self.get_page_table();
-            for (index, entry) in KERNEL_ADDRESS_SPACE.get_page_table().iter().enumerate() {
+            for (index, entry) in get_kernel_address_space()
+                .get_page_table()
+                .iter()
+                .enumerate()
+            {
                 let kentry: u64 = mem::transmute_copy(entry);
                 let uentry: u64 = mem::transmute_copy(&page_table[index]);
                 assert!(
@@ -509,7 +531,7 @@ impl Drop for AddressSpace {
             }
 
             // Drop the root page table
-            let phys_addr = VirtAddr::from_ptr(self.page_table) - PHYSICAL_MAPPING_ADDRESS;
+            let phys_addr = VirtAddr::from_ptr(self.page_table) - *PHYSICAL_MAPPING_ADDRESS.get();
             let frame = FrameRef::unborrow(PhysAddr::new(phys_addr));
 
             // Explicit
@@ -525,7 +547,7 @@ impl AddressSpace {
     }
 
     fn create_manager<'a>(&'a self) -> OffsetPageTable<'a> {
-        unsafe { OffsetPageTable::new(self.get_page_table(), PHYSICAL_MAPPING_ADDRESS) }
+        unsafe { OffsetPageTable::new(self.get_page_table(), *PHYSICAL_MAPPING_ADDRESS.get()) }
     }
 
     pub unsafe fn map(
@@ -784,7 +806,7 @@ fn create_parent_flags(addr: VirtAddr) -> PageTableFlags {
 
 #[inline]
 unsafe fn phys_frame_to_page_table(frame: PhysAddr) -> &'static mut PageTable {
-    let virt = PHYSICAL_MAPPING_ADDRESS + frame.as_u64();
+    let virt = *PHYSICAL_MAPPING_ADDRESS.get() + frame.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
 
     &mut *page_table_ptr
@@ -793,7 +815,7 @@ unsafe fn phys_frame_to_page_table(frame: PhysAddr) -> &'static mut PageTable {
 #[inline]
 unsafe fn page_table_to_phys_frame(page_table: &PageTable) -> PhysAddr {
     let page_table_ptr: *const PageTable = page_table;
-    return PhysAddr::new(VirtAddr::from_ptr(page_table_ptr) - PHYSICAL_MAPPING_ADDRESS);
+    return PhysAddr::new(VirtAddr::from_ptr(page_table_ptr) - *PHYSICAL_MAPPING_ADDRESS.get());
 }
 
 /// Helper to get a virtual address from physical one.
@@ -801,5 +823,5 @@ unsafe fn page_table_to_phys_frame(page_table: &PageTable) -> PhysAddr {
 /// Return a virtual address that corresponds to a view of the physical address, using the physical memory mapping
 #[inline]
 pub fn phys_to_virt(addr: PhysAddr) -> VirtAddr {
-    return unsafe { PHYSICAL_MAPPING_ADDRESS } + addr.as_u64();
+    return *PHYSICAL_MAPPING_ADDRESS.get() + addr.as_u64();
 }

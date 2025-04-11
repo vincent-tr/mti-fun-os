@@ -12,11 +12,12 @@
 #![feature(trait_alias)]
 #![feature(never_type)]
 #![feature(step_trait)]
-#![feature(core_intrinsics)]
 
 extern crate alloc;
 extern crate bootloader_api;
 extern crate lazy_static;
+
+mod util;
 
 mod devices;
 mod gdt;

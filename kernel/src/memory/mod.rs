@@ -6,6 +6,7 @@ mod paging;
 mod phys;
 mod slab;
 
+use core::cell::RefCell;
 use core::fmt::{self, Debug};
 use core::ops::Range;
 use core::{mem, slice};
@@ -247,5 +248,30 @@ impl Debug for KernelStack {
         }
 
         writer.finish()
+    }
+}
+
+/// This forces allocation in kernel binary in RW data section
+#[derive(Debug)]
+pub struct StaticKernelStack {
+    stack: RefCell<KernelStack>,
+}
+
+unsafe impl Sync for StaticKernelStack {}
+unsafe impl Send for StaticKernelStack {}
+
+impl StaticKernelStack {
+    pub const fn new() -> Self {
+        StaticKernelStack {
+            stack: RefCell::new(KernelStack::new()),
+        }
+    }
+
+    pub fn address(&self) -> VirtAddr {
+        self.stack.borrow().address()
+    }
+
+    pub fn stack_top(&self) -> VirtAddr {
+        self.stack.borrow().stack_top()
     }
 }

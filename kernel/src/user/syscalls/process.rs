@@ -95,9 +95,6 @@ pub async fn mmap(context: Context) -> Result<(), Error> {
         Permissions::READ | Permissions::WRITE,
     )?;
 
-    let p = Permissions::from_bits_retain(perms as u64);
-    log::debug!("mmap {size:?} {p:?}");
-
     let addr = target_process.mmap(
         *addr_access.get(),
         size,
@@ -105,8 +102,6 @@ pub async fn mmap(context: Context) -> Result<(), Error> {
         memory_object,
         offset,
     )?;
-
-    log::debug!("mmap ok {addr:?}");
 
     *addr_access.get_mut() = addr;
     Ok(())

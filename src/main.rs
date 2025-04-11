@@ -21,7 +21,8 @@ fn main() {
         .arg("-monitor")
         .arg("stdio")
         .arg("-serial")
-        .arg("file:serial.log");
+        .arg("file:serial.log")
+        .arg("-s");
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }

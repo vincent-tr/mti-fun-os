@@ -75,6 +75,7 @@ fn main() {
     libruntime::exit();
 }
 
+#[allow(dead_code)]
 #[inline(never)]
 fn test_unwind() {
     test_unwind2();
@@ -135,6 +136,7 @@ fn apply_memory_protections(binary_len: usize) {
     }
 }
 
+#[allow(dead_code)]
 fn dump_processes_threads() {
     let pids = kobject::Process::list().expect("Could not list pids");
     info!("pids list = {:?}", pids);
@@ -161,6 +163,7 @@ fn dump_processes_threads() {
     }
 }
 
+#[allow(dead_code)]
 fn do_ipc() {
     // create thread, send data and wait back
 
@@ -186,6 +189,7 @@ fn do_ipc() {
     debug!("IPC ALL GOOD");
 }
 
+#[allow(dead_code)]
 fn listen_threads() {
     let slot = Arc::new(TlsAllocator::allocate().expect("Could not allocate tls slot"));
 
@@ -306,6 +310,7 @@ fn listen_threads() {
     kobject::Thread::start(listen, options).expect("Could not create listen thread");
 }
 
+#[allow(dead_code)]
 fn kmem_stats() {
     let stats = kobject::Memory::stats();
     const MEGA: usize = 1 * 1024 * 1024;

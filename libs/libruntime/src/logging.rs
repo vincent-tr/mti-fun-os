@@ -76,7 +76,7 @@ impl log::Log for InitLogger {
 
 impl InitLogger {
     fn try_log_from_stack(record: &Record) -> bool {
-        let mut buf: [u8; 1024] = [0u8; 1024];
+        let mut buf: [u8; 128] = [0u8; 128];
 
         match write_to::show(&mut buf, *record.args()) {
             Ok(message) => {

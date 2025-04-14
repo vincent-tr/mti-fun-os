@@ -71,7 +71,6 @@ fn main() {
     // kmem_stats();
     // test_unwind();
 
-    debug!("flan");
     loader::load(archive::PROCESS_SERVER).expect("Pan");
 
     libruntime::exit();

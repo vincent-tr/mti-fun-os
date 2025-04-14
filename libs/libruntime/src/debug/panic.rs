@@ -45,7 +45,7 @@ impl fmt::Display for PanicDisplay<'_> {
                 if let Some(info) = frame.location()
                     && let Some(function) = info.function_name()
                 {
-                    if function == "rust_begin_unwind" {
+                    if function.contains("rust_begin_unwind") {
                         // this marks the end of the stack inner panic handling stuff
                         skipping = false;
                     }

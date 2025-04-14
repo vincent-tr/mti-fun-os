@@ -10,6 +10,7 @@ use typed_arena::Arena;
 use crate::sync::OnceLock;
 
 /// Indicate information on a location
+#[derive(Debug, Clone)]
 pub struct LocationInfo<'a> {
     function_name: Option<&'a str>,
     source_location: Option<Location<'a>>,

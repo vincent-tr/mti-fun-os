@@ -34,6 +34,24 @@ impl MemoryAccess {
     ) -> Result<Self, Error> {
         assert!(perms != Permissions::NONE);
 
+        // Special case for empty range
+        // Allow them to have invalid pointer.
+        // Rust actually emits "" as a slice of 0 length and 0x1 address
+        //
+        // We could handle that and force to always provide a valid pointer,
+        // but the that would lead to map a page for nothing here.
+        //
+        // Note: to be able to use slice::from_raw_parts() on it, pointer needs to be non null
+        // and aligned. We don't know the type yet, so let's give it 0x10 so that it's aligned for most types.
+        if range.start == range.end {
+            return Ok(Self {
+                alloc: VirtAddr::zero(),
+                pages: 0,
+                base: VirtAddr::new(0x10),
+                size: 0,
+            });
+        }
+
         let process_range = VirtAddr::new(page_aligned_down(range.start.as_u64() as usize) as u64)
             ..VirtAddr::new(page_aligned_up(range.end.as_u64() as usize) as u64);
         let range_offset = range.start - process_range.start;
@@ -111,7 +129,9 @@ impl MemoryAccess {
 
 impl Drop for MemoryAccess {
     fn drop(&mut self) {
-        memory::unmap_phys(self.alloc, self.pages);
+        if !self.alloc.is_null() {
+            memory::unmap_phys(self.alloc, self.pages);
+        }
     }
 }
 

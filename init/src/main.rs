@@ -46,10 +46,10 @@ pub unsafe extern "C" fn user_start() -> ! {
 }
 
 extern "C" fn entry(binary_len: usize) -> ! {
-    libruntime::init();
-
     let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
     libruntime::debug::init_memory_binary(binary);
+
+    libruntime::init();
 
     apply_memory_protections(binary_len);
 

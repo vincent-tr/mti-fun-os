@@ -11,8 +11,12 @@ fn main() {
             .expect("CARGO_BIN_FILE_KERNEL_kernel not set"),
     );
 
-    // TODO: less static
-    let init = PathBuf::from("target/x86_64-mti_fun_os-init/debug/init");
+    let base_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let profile =
+        std::env::var("MTI_FUN_OS_INIT_PROFILE").expect("MTI_FUN_OS_INIT_PROFILE not set");
+    let target = std::env::var("MTI_FUN_OS_INIT_TARGET").expect("MTI_FUN_OS_INIT_TARGET not set");
+
+    let init = PathBuf::from(format!("{base_dir}/target/{target}/{profile}/init"));
 
     println!("cargo:rerun-if-changed={}", init.display());
 

@@ -2,10 +2,14 @@ use std::path::PathBuf;
 
 fn main() {
     // set by cargo, build scripts should use this directory for output files
-    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR not set"));
+
     // set by cargo's artifact dependency feature, see
     // https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#artifact-dependencies
-    let kernel = PathBuf::from(std::env::var_os("CARGO_BIN_FILE_KERNEL_kernel").unwrap());
+    let kernel = PathBuf::from(
+        std::env::var("CARGO_BIN_FILE_KERNEL_kernel")
+            .expect("CARGO_BIN_FILE_KERNEL_kernel not set"),
+    );
 
     // TODO: less static
     let init = PathBuf::from("target/x86_64-mti_fun_os-init/debug/init");

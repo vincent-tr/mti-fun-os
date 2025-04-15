@@ -2,7 +2,7 @@
 MTI_FUN_OS_KERNEL_PROFILE = "release" # or dev
 MTI_FUN_OS_KERNEL_TARGET = "x86_64-unknown-none"
 MTI_FUN_OS_INIT_PROFILE = "release"
-MTI_FUN_OS_INIT_TARGET = "x86_64-mti-fun-os-init"
+MTI_FUN_OS_INIT_TARGET = "x86_64-mti_fun_os-init"
 MTI_FUN_OS_SERVERS_PROFILE = "release"
 MTI_FUN_OS_SERVERS_TARGET = "x86_64-mti_fun_os"
 

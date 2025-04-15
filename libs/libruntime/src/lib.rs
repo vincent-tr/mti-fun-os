@@ -24,13 +24,9 @@ pub fn init() {
     kobject::init();
 }
 
-pub fn terminate() {
-    kobject::terminate();
-}
-
 pub fn exit() -> ! {
     debug!("exit");
-    terminate();
+    kobject::terminate();
 
     process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };

@@ -1,4 +1,3 @@
-#![feature(error_in_core)]
 #![feature(error_generic_member_access)]
 #![feature(let_chains)]
 #![allow(dead_code)]

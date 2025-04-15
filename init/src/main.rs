@@ -71,7 +71,7 @@ fn main() {
     // kmem_stats();
     // test_unwind();
 
-    loader::load(archive::PROCESS_SERVER).expect("Pan");
+    loader::load(archive::PROCESS_SERVER).expect("Could not load process server");
 
     libruntime::exit();
 }

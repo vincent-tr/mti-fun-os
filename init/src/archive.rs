@@ -19,10 +19,20 @@ macro_rules! include_elf_bytes {
     }};
 }
 
-// TODO: make path less static
-pub static PROCESS_SERVER: &[u8] =
-    include_elf_bytes!("../../target/x86_64-mti_fun_os/debug/process-server");
-pub static LIBRUNTIME: &[u8] =
-    include_elf_bytes!("../../target/x86_64-mti_fun_os/debug/libruntime.so");
-pub static VFS_SERVER: &[u8] =
-    include_elf_bytes!("../../target/x86_64-mti_fun_os/debug/vfs-server");
+macro_rules! include_userland_binary {
+    ($name:expr) => {{
+        include_elf_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../target/",
+            env!("MTI_FUN_OS_SERVERS_TARGET"),
+            "/",
+            env!("MTI_FUN_OS_SERVERS_PROFILE"),
+            "/",
+            $name
+        ))
+    }};
+}
+
+pub static PROCESS_SERVER: &[u8] = include_userland_binary!("process-server");
+pub static LIBRUNTIME: &[u8] = include_userland_binary!("libruntime.so");
+pub static VFS_SERVER: &[u8] = include_userland_binary!("vfs-server");

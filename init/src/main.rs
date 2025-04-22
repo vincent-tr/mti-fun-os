@@ -71,6 +71,7 @@ fn main() {
     // kmem_stats();
     // test_unwind();
 
+    loader::load(archive::LIBRUNTIME).expect("Could not load runtime library");
     loader::load(archive::PROCESS_SERVER).expect("Could not load process server");
 
     libruntime::exit();

@@ -6,6 +6,9 @@ use xmas_elf::{
     ElfFile,
 };
 
+// Very simple loader.
+// It must load libruntime.so, then load process-server, which can only depends on libruntime.so.
+
 pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
     let elf_file = wrap_res(xmas_elf::ElfFile::new(binary))?;
 

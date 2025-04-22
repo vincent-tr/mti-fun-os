@@ -4,7 +4,7 @@
 #![feature(never_type)]
 #![feature(let_chains)]
 
-use core::hint::unreachable_unchecked;
+use core::{hint::unreachable_unchecked, panicking::panic};
 
 use libsyscalls::process;
 use log::debug;
@@ -30,4 +30,23 @@ pub fn exit() -> ! {
 
     process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };
+}
+
+/// Program entry point
+/// This entry is expected to run
+/// - init()
+/// - library constructors
+/// - actual program entry point `main()`
+/// - library destructors
+/// - exit()
+pub fn main() -> ! {
+    // TODO: args:
+    // - init function array
+    // - fini function array
+    // - program entry point
+    // will be passer by the linker into a mapped memory page.
+    // arg will be the address of the mapped memory page.
+    // This api has to free the mapping after use.
+
+    panic("TODO: libruntime::main()");
 }

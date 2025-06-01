@@ -127,3 +127,9 @@ tail -f serial.log
 - vfs/fuse
 - net
 - screen/graphics
+
+a voir : 
+
+https://wiki.osdev.org/Rust_Bare_Bones
+Relocation model
+Pre link args

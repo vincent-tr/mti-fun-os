@@ -133,3 +133,9 @@ a voir :
 https://wiki.osdev.org/Rust_Bare_Bones
 Relocation model
 Pre link args
+
+test build en PE
+-> dllimport/dllexport ?
+-> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
+
+static binaries?

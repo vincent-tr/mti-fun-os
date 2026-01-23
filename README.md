@@ -3,7 +3,6 @@
 ## Setup
 
 ```shell
-cargo install cargo-make
 pacman -S extra/qemu-base # archlinux
 sudo apt install qemu-system-x86 # ubuntu
 rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
@@ -12,7 +11,7 @@ rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
 ## Build image
 
 ```shell
-cargo make build
+make build
 ```
 
 ## Run kernel in QEmu
@@ -20,8 +19,8 @@ cargo make build
 ### Shell 1
 
 ```shell
-cargo make run
-# or cargo make
+make run
+# or make
 ```
 
 ### Shell 2

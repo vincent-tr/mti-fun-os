@@ -7,7 +7,7 @@
   "target-c-int-width": "32",
   "os": "none",
   "executables": true,
-  "dynamic-linking": false,
+  "dynamic-linking": true,
   "dll-prefix": "",
   "dll-suffix": ".so",
   "linker-flavor": "ld.lld",
@@ -15,7 +15,6 @@
   "panic-strategy": "abort",
   "disable-redzone": true,
   "features": "-mmx,-sse,+soft-float",
-  "position-independent-executables": false,
-  "relocation-model": "static",
+  "position-independent-executables": true,
   "rustc-abi": "x86-softfloat"
 }

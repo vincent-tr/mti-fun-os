@@ -44,7 +44,7 @@ pub fn main() -> ! {
     // - init function array
     // - fini function array
     // - program entry point
-    // will be passer by the linker into a mapped memory page.
+    // will be passed by the linker into a mapped memory page.
     // arg will be the address of the mapped memory page.
     // This api has to free the mapping after use.
 

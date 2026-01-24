@@ -18,12 +18,9 @@ use core::{
 };
 
 use alloc::sync::Arc;
-use libruntime::{
-    debug,
-    kobject::{
-        self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-        ThreadOptions, TlsAllocator, PAGE_SIZE,
-    },
+use libruntime::kobject::{
+    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
+    ThreadOptions, TlsAllocator, PAGE_SIZE,
 };
 use log::{debug, info};
 
@@ -71,8 +68,8 @@ fn main() {
     // kmem_stats();
     // test_unwind();
 
-    loader::load(archive::LIBRUNTIME).expect("Could not load runtime library");
     loader::load(archive::PROCESS_SERVER).expect("Could not load process server");
+    loader::load(archive::VFS_SERVER).expect("Could not load vfs server");
 
     libruntime::exit();
 }

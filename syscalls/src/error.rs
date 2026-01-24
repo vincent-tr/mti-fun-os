@@ -1,5 +1,5 @@
 /// List of errors
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
 pub enum Error {
     InvalidArgument = 1,

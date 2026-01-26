@@ -55,6 +55,7 @@ pub fn exit() -> ! {
 /// - actual program entry point `main()`
 /// - library destructors
 /// - exit()
+#[allow(dead_code)]
 extern "C" fn runtime_entry() -> ! {
     // TODO: args:
     // - init function array

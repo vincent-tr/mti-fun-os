@@ -68,8 +68,8 @@ fn main() {
     // kmem_stats();
     // test_unwind();
 
-    loader::load(archive::PROCESS_SERVER).expect("Could not load process server");
-    loader::load(archive::VFS_SERVER).expect("Could not load vfs server");
+    loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
+    loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
 
     libruntime::exit();
 }

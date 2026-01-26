@@ -4,7 +4,7 @@
 #![feature(never_type)]
 #![feature(let_chains)]
 
-use core::{hint::unreachable_unchecked, panicking::panic};
+use core::{hint::unreachable_unchecked};
 
 use libsyscalls::process;
 use log::debug;
@@ -48,24 +48,20 @@ pub fn exit() -> ! {
     unsafe { unreachable_unchecked() };
 }
 
+extern "Rust" {
+    fn main();
+}
+
 /// Program entry point
-/// This entry is expected to run
-/// - init()
-/// - library constructors
-/// - actual program entry point `main()`
-/// - library destructors
-/// - exit()
 #[allow(dead_code)]
 extern "C" fn runtime_entry() -> ! {
-    // TODO: args:
-    // - init function array
-    // - fini function array
-    // - program entry point
-    // will be passed by the linker into a mapped memory page.
-    // arg will be the address of the mapped memory page.
-    // This api has to free the mapping after use.
+    init();
 
-    panic("TODO: libruntime::main()");
+    // TODO: fetch context (env, args)
+    unsafe { main() };
+    // TODO: report exit code
+
+    exit();
 }
 
 // Defined by linker script

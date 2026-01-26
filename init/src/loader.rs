@@ -5,7 +5,7 @@ use xmas_elf::{header, program, ElfFile};
 
 // Very simple loader.
 // It only loads static binaries for now, with no checks
-pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
+pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
     let elf_file = xmas_elf::ElfFile::new(binary)?;
 
     for program_header in elf_file.program_iter() {
@@ -23,51 +23,99 @@ pub fn load(binary: &[u8]) -> Result<(), LoaderError> {
         }
     };
 
-    load_segments(&elf_file)?;
+    let process = kobject::Process::create(name)?;
+
+    load_segments(&process, &elf_file)?;
 
     Ok(())
 }
 
-fn load_segments(elf_file: &ElfFile) -> Result<(), LoaderError> {
+fn load_segments(process: &kobject::Process, elf_file: &ElfFile) -> Result<(), LoaderError> {
     for program_header in elf_file.program_iter() {
         if !matches!(program_header.get_type()?, program::Type::Load) {
             continue;
         }
 
-        let vaddr = program_header.virtual_addr() as usize;
-        let paddr = program_header.physical_addr() as usize;
-        let memsz = program_header.mem_size() as usize;
-        let filesz = program_header.file_size() as usize;
+        let virtual_addr = program_header.virtual_addr() as usize;
+        let file_addr = program_header.offset() as usize;
+        let virtual_size = program_header.mem_size() as usize;
+        let file_size = program_header.file_size() as usize;
+        let align = program_header.align() as usize;
 
         debug!(
-            "Loading segment: paddr={:#x}, memsz={:#x}, filesz={:#x}, flags={:?}",
-            paddr,
-            memsz,
-            filesz,
+            "Loading segment: virtual_addr={:#x}, virtual_size={:#x}, file_addr={:#x}, file_size={:#x}, align={:#x}, flags={:?}",
+            virtual_addr,
+            virtual_size,
+            file_addr,
+            file_size,
+            align,
             program_header.flags()
         );
 
         assert!(program_header.align() as usize >= kobject::PAGE_SIZE);
 
-        
-        // TODO: align addresses
+        let start = align_down(virtual_addr, align);
+        let end = align_up(virtual_addr + virtual_size, align);
+        let size = end - start;
 
-        assert!(vaddr % kobject::PAGE_SIZE == 0);
-        assert!(memsz % kobject::PAGE_SIZE == 0);
+        let offset = virtual_addr - start;
+        let segment_data = &elf_file.input[file_addr..(file_addr + file_size)];
+        let mem_obj = create_segment_data(segment_data, offset, size)?;
 
-        let mem_obj = kobject::MemoryObject::create(memsz)?;
-        let process = kobject::Process::current();
-        let mapping = process.map_mem(
-            None,
-            memsz,
-            kobject::Permissions::READ | kobject::Permissions::WRITE,
-            &mem_obj,
-            0,
-        )?;
-        let data = unsafe { mapping.as_buffer_mut().expect("Buffer not writable") };
+        let mut perms = kobject::Permissions::empty();
+        let flags = program_header.flags();
+        if flags.is_read() {
+            perms |= kobject::Permissions::READ;
+        }
+        if flags.is_write() {
+            perms |= kobject::Permissions::WRITE;
+        }
+        if flags.is_execute() {
+            perms |= kobject::Permissions::EXECUTE;
+        }
+
+        let mapping = process.map_mem(Some(start), size, perms, &mem_obj, 0)?;
+        mapping.leak();
     }
 
+    // Setup stack
+
+    // Prepare context
+
+    // Call entry point
+
     panic!("unimplemented");
+}
+
+fn create_segment_data(
+    data: &[u8],
+    offset: usize,
+    size: usize,
+) -> Result<kobject::MemoryObject, LoaderError> {
+    let mem_obj = kobject::MemoryObject::create(size)?;
+
+    let process = kobject::Process::current();
+    let mapping = process.map_mem(
+        None,
+        size,
+        kobject::Permissions::READ | kobject::Permissions::WRITE,
+        &mem_obj,
+        0,
+    )?;
+
+    let mem_data = unsafe { mapping.as_buffer_mut().expect("Buffer not writable") };
+
+    mem_data[offset..(offset + data.len())].copy_from_slice(data);
+
+    Ok(mem_obj)
+}
+
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
+fn align_down(addr: usize, align: usize) -> usize {
+    addr & !(align - 1)
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -231,14 +231,17 @@ impl<'a> Mapping<'a> {
     ///
     /// The slice remains valid as long as the mapping is not updated (eg: permissions)
     pub unsafe fn as_buffer(&self) -> Option<&'a [u8]> {
-        if self.perms.contains(Permissions::READ) {
-            Some(slice::from_raw_parts(
-                self.address() as *const _,
-                self.len(),
-            ))
-        } else {
-            None
+        if self.process.pid() != Process::current().pid() {
+            return None;
         }
+        if !self.perms.contains(Permissions::READ) {
+            return None;
+        }
+
+        Some(slice::from_raw_parts(
+            self.address() as *const _,
+            self.len(),
+        ))
     }
 
     /// Get access to the mapping's data
@@ -247,14 +250,17 @@ impl<'a> Mapping<'a> {
     ///
     /// The slice remains valid as long as the mapping is not updated (eg: permissions)
     pub unsafe fn as_buffer_mut(&self) -> Option<&'a mut [u8]> {
-        if self.perms.contains(Permissions::WRITE) {
-            Some(slice::from_raw_parts_mut(
-                self.address() as *mut _,
-                self.len(),
-            ))
-        } else {
-            None
+        if self.process.pid() != Process::current().pid() {
+            return None;
         }
+        if !self.perms.contains(Permissions::WRITE) {
+            return None;
+        }
+
+        Some(slice::from_raw_parts_mut(
+            self.address() as *mut _,
+            self.len(),
+        ))
     }
 
     /// Get the length in bytes of the mapping

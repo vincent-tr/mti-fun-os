@@ -8,7 +8,7 @@ use spin::Mutex;
 
 use super::{tls::TLS_SIZE, *};
 
-const STACK_SIZE: usize = PAGE_SIZE * 20;
+pub const STACK_SIZE: usize = PAGE_SIZE * 20;
 
 /// Thread
 #[derive(Debug)]
@@ -263,20 +263,18 @@ impl Thread {
     }
 }
 
-struct AllocWithGuards<'a> {
+pub struct AllocWithGuards<'a> {
     reservation: Mapping<'a>,
 }
 
-impl AllocWithGuards<'_> {
-    pub fn new(size: usize) -> Result<Self, Error> {
-        let self_proc = Process::current();
-
-        let reservation = self_proc.map_reserve(None, size + (PAGE_SIZE * 2))?;
+impl<'a> AllocWithGuards<'a> {
+    pub fn new_remote(size: usize, process: &'a Process) -> Result<Self, Error> {
+        let reservation = process.map_reserve(None, size + (PAGE_SIZE * 2))?;
         let addr = reservation.address() + PAGE_SIZE;
 
         let mobj = MemoryObject::create(size)?;
 
-        let mapping = self_proc.map_mem(
+        let mapping = process.map_mem(
             Some(addr),
             size,
             Permissions::READ | Permissions::WRITE,
@@ -289,6 +287,10 @@ impl AllocWithGuards<'_> {
         mapping.leak();
 
         Ok(Self { reservation })
+    }
+
+    pub fn new(size: usize) -> Result<Self, Error> {
+        Self::new_remote(size, &Process::current())
     }
 
     pub fn address(&self) -> usize {

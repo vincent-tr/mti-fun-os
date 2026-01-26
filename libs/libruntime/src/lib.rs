@@ -4,7 +4,7 @@
 #![feature(never_type)]
 #![feature(let_chains)]
 
-use core::{hint::unreachable_unchecked};
+use core::hint::unreachable_unchecked;
 
 use libsyscalls::process;
 use log::debug;
@@ -13,6 +13,8 @@ extern crate alloc;
 
 mod allocator;
 pub mod debug;
+#[cfg(feature = "entry")]
+mod entry;
 pub mod kobject;
 mod logging;
 pub mod sync;
@@ -46,22 +48,6 @@ pub fn exit() -> ! {
 
     process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };
-}
-
-extern "Rust" {
-    fn main();
-}
-
-/// Program entry point
-#[allow(dead_code)]
-extern "C" fn runtime_entry() -> ! {
-    init();
-
-    // TODO: fetch context (env, args)
-    unsafe { main() };
-    // TODO: report exit code
-
-    exit();
 }
 
 // Defined by linker script

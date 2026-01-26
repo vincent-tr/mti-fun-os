@@ -1,5 +1,5 @@
-use core::{error::Error, fmt, panic};
-use libruntime::kobject;
+use core::{error::Error, fmt};
+use libruntime::kobject::{self, KObject};
 use log::debug;
 use xmas_elf::{header, program, ElfFile};
 
@@ -26,6 +26,43 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
     let process = kobject::Process::create(name)?;
 
     load_segments(&process, &elf_file)?;
+
+    let stack_size = kobject::helpers::STACK_SIZE;
+    let entry_point = unsafe {
+        *((&elf_file.header.pt2.entry_point()) as *const u64 as *const extern "C" fn(usize) -> !)
+    };
+
+    let stack = kobject::helpers::AllocWithGuards::new_remote(stack_size, &process)?;
+    let tls = kobject::helpers::AllocWithGuards::new_remote(kobject::helpers::TLS_SIZE, &process)?;
+
+    // TODO: Prepare context
+    let ctx_addr: usize = 0;
+
+    let stack_top_addr = stack.address() + stack_size;
+    let tls_addr = tls.address();
+
+    debug!(
+        "Creating main thread: entry_point={:#x}, stack_top={:#x}, tls={:#x}, ctx={:#x}",
+        entry_point as usize, stack_top_addr, tls_addr, ctx_addr
+    );
+
+    // Use syscall directory to create remote thread
+    let thread_handle = libsyscalls::thread::create(
+        Some("main"),
+        unsafe { process.handle() },
+        false,
+        kobject::ThreadPriority::Normal,
+        entry_point,
+        stack_top_addr,
+        ctx_addr,
+        tls_addr,
+    )?;
+
+    // Everything is ready, we can leak the allocations and close the handles
+    stack.leak();
+    tls.leak();
+    drop(thread_handle);
+    drop(process);
 
     Ok(())
 }
@@ -78,13 +115,7 @@ fn load_segments(process: &kobject::Process, elf_file: &ElfFile) -> Result<(), L
         mapping.leak();
     }
 
-    // Setup stack
-
-    // Prepare context
-
-    // Call entry point
-
-    panic!("unimplemented");
+    Ok(())
 }
 
 fn create_segment_data(

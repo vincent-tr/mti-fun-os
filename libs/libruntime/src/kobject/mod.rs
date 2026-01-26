@@ -29,6 +29,12 @@ pub use process::{Mapping, Process};
 pub use thread::{Thread, ThreadOptions, ThreadSupervisor};
 pub use tls::{TlsAllocator, TlsSlot};
 
+pub mod helpers {
+    // Used by init loader to setup process initial thread
+    pub use super::thread::{AllocWithGuards, STACK_SIZE};
+    pub use super::tls::TLS_SIZE;
+}
+
 pub(crate) fn init() {
     thread::THREAD_GC.init();
 }

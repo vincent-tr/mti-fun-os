@@ -15,3 +15,7 @@ spin = "0.10.0"
 # addr2line = { version = "0.24.2", default-features = false, features = ["rustc-demangle", "loader"] }
 addr2line = { version = "0.21.0", default-features = false, features = ["rustc-demangle", "object"] }
 typed-arena = { version = "2.0.2", default-features = false }
+
+[features]
+default = ["entry"]
+entry = []

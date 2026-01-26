@@ -5,7 +5,7 @@ use core::{
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
-use libsyscalls::ipc;
+use libsyscalls::{ipc, HandleType};
 
 type SysMessage = libsyscalls::Message;
 
@@ -21,8 +21,8 @@ impl Port {
         let (receiver, sender) = ipc::create(name)?;
 
         Ok((
-            PortReceiver::from_handle(receiver),
-            PortSender::from_handle(sender),
+            unsafe { PortReceiver::from_handle_unchecked(receiver) },
+            unsafe { PortSender::from_handle_unchecked(sender) },
         ))
     }
 }
@@ -40,8 +40,20 @@ impl KObject for PortSender {
 }
 
 impl PortSender {
-    fn from_handle(handle: Handle) -> Self {
+    /// Safety: caller must ensure the handle is a valid port sender handle
+    pub unsafe fn from_handle_unchecked(handle: Handle) -> Self {
         Self { handle }
+    }
+
+    pub fn from_handle(handle: Handle) -> Result<Self, Error> {
+        if !handle.valid() {
+            return Err(Error::InvalidArgument);
+        }
+        if handle.r#type() != HandleType::PortSender {
+            return Err(Error::InvalidArgument);
+        }
+
+        Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
 
     /// Send a message in the port
@@ -87,8 +99,20 @@ impl KWaitable for PortReceiver {
 }
 
 impl PortReceiver {
-    fn from_handle(handle: Handle) -> Self {
+    /// Safety: caller must ensure the handle is a valid port receiver handle
+    pub unsafe fn from_handle_unchecked(handle: Handle) -> Self {
         Self { handle }
+    }
+
+    pub fn from_handle(handle: Handle) -> Result<Self, Error> {
+        if !handle.valid() {
+            return Err(Error::InvalidArgument);
+        }
+        if handle.r#type() != HandleType::PortReceiver {
+            return Err(Error::InvalidArgument);
+        }
+
+        Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
 
     /// Receive a message from the port

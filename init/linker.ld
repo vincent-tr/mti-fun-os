@@ -18,7 +18,17 @@ SECTIONS {
         *(.text_idle)
         PROVIDE(__idle_end = .);
         KEEP(*(.text*))
-        
+
+        . = ALIGN(8);
+        PROVIDE(__init_array_start = .);
+        KEEP(*(.init_array))
+        PROVIDE(__init_array_end = .);
+
+        . = ALIGN(8);
+        PROVIDE(__fini_array_start = .);
+        KEEP(*(.fini_array))
+        PROVIDE(__fini_array_end = .);
+
         . = ALIGN(4K);
         PROVIDE(__text_end = .);
     }

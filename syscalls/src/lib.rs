@@ -57,6 +57,7 @@ pub enum SyscallNumber {
     ThreadResume,
 
     MemoryObjectCreate,
+    MemoryObjectSize,
 
     PortCreate,
     PortOpen,

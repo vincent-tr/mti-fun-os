@@ -3,7 +3,7 @@ use core::arch::asm;
 use alloc::sync::Arc;
 use libruntime::kobject::{
     self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-    ThreadOptions, TlsAllocator, PAGE_SIZE,
+    ThreadOptions, Timer, TlsAllocator, PAGE_SIZE,
 };
 use log::{debug, info};
 
@@ -228,4 +228,20 @@ pub fn kmem_stats() {
         stats.kalloc.kvm_allocated,
         stats.kalloc.kvm_allocated / MEGA
     );
+}
+
+#[allow(dead_code)]
+pub fn interval_second() {
+    let timer = Timer::create(42).expect("failed to create timer");
+
+    const DELAY: u64 = 1_000_000_000; // 1 second in nanoseconds
+
+    loop {
+        let now = Timer::now().expect("failed to get current time");
+        timer.arm(now + DELAY).expect("failed to arm timer");
+        let msg = timer
+            .blocking_receive()
+            .expect("failed to receive timer event");
+        info!("tick armed at {}, fired at {}", now, msg.now);
+    }
 }

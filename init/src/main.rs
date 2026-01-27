@@ -54,11 +54,12 @@ extern "C" fn entry(binary_len: usize) -> ! {
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");
 
-    tests::dump_processes_threads();
-    tests::listen_threads();
-    tests::do_ipc();
-    tests::kmem_stats();
-    tests::test_unwind();
+    // tests::dump_processes_threads();
+    // tests::listen_threads();
+    // tests::do_ipc();
+    // tests::kmem_stats();
+    // tests::test_unwind();
+    tests::interval_second();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");

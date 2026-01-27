@@ -59,7 +59,7 @@ fn main() {
     // tests::do_ipc();
     // tests::kmem_stats();
     // tests::test_unwind();
-    tests::interval_second();
+    // tests::interval_second();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");

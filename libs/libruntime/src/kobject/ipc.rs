@@ -259,7 +259,7 @@ pub struct Message {
     ///
     /// Set to invalid if no handle
     ///
-    pub handles: [Handle; Self::HANDLE_COUNT],
+    handles: [Handle; Self::HANDLE_COUNT],
 }
 
 #[derive(Debug)]
@@ -358,6 +358,15 @@ impl Message {
         let mut handle = Handle::invalid();
         mem::swap(&mut handle, &mut self.handles[index]);
         handle
+    }
+
+    pub fn take_all_handles(&mut self) -> [Handle; Self::HANDLE_COUNT] {
+        let mut handles: [Handle; Self::HANDLE_COUNT] =
+            [const { Handle::invalid() }; Self::HANDLE_COUNT];
+        for index in 0..Self::HANDLE_COUNT {
+            mem::swap(&mut handles[index], &mut self.handles[index]);
+        }
+        handles
     }
 
     fn to_send_syscall(&self) -> SysMessage {

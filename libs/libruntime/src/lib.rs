@@ -15,6 +15,7 @@ mod allocator;
 pub mod debug;
 #[cfg(feature = "entry")]
 mod entry;
+pub mod ipc;
 pub mod kobject;
 mod logging;
 pub mod sync;

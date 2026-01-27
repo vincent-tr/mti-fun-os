@@ -11,7 +11,7 @@ use syscalls::Permissions;
 pub async fn create(context: Context) -> Result<(), Error> {
     let port_handle = context.arg1();
     let id = context.arg2();
-    let handle_out_ptr = context.arg4();
+    let handle_out_ptr = context.arg3();
 
     let thread = context.owner();
     let process = thread.process();

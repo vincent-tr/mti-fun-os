@@ -54,8 +54,14 @@ impl ThreadListenerFilterOwner {
 #[derive(Debug)]
 pub struct ThreadListener {
     filter: ThreadListenerFilterOwner,
-    _listener: Handle,
+    listener: Handle,
     reader: PortReceiver,
+}
+
+impl KObject for ThreadListener {
+    unsafe fn handle(&self) -> &Handle {
+        &self.listener
+    }
 }
 
 impl KWaitable for ThreadListener {
@@ -77,7 +83,7 @@ impl ThreadListener {
 
         Ok(Self {
             filter: ThreadListenerFilterOwner::from(filter),
-            _listener: listener,
+            listener,
             reader,
         })
     }
@@ -150,8 +156,14 @@ impl ProcessListenerFilterOwner {
 #[derive(Debug)]
 pub struct ProcessListener {
     filter: ProcessListenerFilterOwner,
-    _listener: Handle,
+    listener: Handle,
     reader: PortReceiver,
+}
+
+impl KObject for ProcessListener {
+    unsafe fn handle(&self) -> &Handle {
+        &self.listener
+    }
 }
 
 impl KWaitable for ProcessListener {
@@ -173,7 +185,7 @@ impl ProcessListener {
 
         Ok(Self {
             filter: ProcessListenerFilterOwner::from(filter),
-            _listener: listener,
+            listener,
             reader,
         })
     }

@@ -5,9 +5,12 @@ use lazy_static::lazy_static;
 use log::debug;
 use syscalls::{ThreadEvent, ThreadEventType};
 
-use crate::user::{ipc::PortSender, thread::Thread};
+use crate::user::{
+    ipc::{MessageBuilder, PortSender},
+    thread::Thread,
+};
 
-use super::{message_builder::MessageBuilder, ListenerList};
+use super::ListenerList;
 
 lazy_static! {
     static ref LISTENERS: ListenerList<ThreadListener> = ListenerList::new();

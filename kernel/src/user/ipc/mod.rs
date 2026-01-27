@@ -1,3 +1,4 @@
+mod message_builder;
 mod port;
 mod port_access;
 mod ports;
@@ -8,6 +9,7 @@ use syscalls::Error;
 pub use self::port::Port;
 pub use self::port_access::{PortReceiver, PortSender};
 use self::ports::PORTS;
+pub use message_builder::MessageBuilder;
 
 pub fn create(name: Option<&str>) -> Result<(Arc<PortReceiver>, Arc<PortSender>), Error> {
     PORTS.create(name)

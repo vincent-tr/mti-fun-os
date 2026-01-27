@@ -1,6 +1,5 @@
 mod filters;
 mod list;
-mod message_builder;
 mod process;
 mod thread;
 

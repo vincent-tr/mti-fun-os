@@ -123,6 +123,7 @@ tail -f serial.log
 
 ### servers
 
+- process
 - vfs/fuse
 - net
 - screen/graphics
@@ -136,5 +137,4 @@ Pre link args
 test build en PE
 -> dllimport/dllexport ?
 -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
-
 static binaries?

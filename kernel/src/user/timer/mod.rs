@@ -2,6 +2,7 @@ mod timer;
 mod timers;
 
 pub use timer::Timer;
+use timers::TIMERS;
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -19,7 +20,7 @@ pub fn tick() {
     // before is the previous value, rebuild the current time
     let now = before + NS_PER_TICK;
 
-    timers::TIMERS.tick(now);
+    TIMERS.tick(now);
 }
 
 pub fn now() -> u64 {

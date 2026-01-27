@@ -1,13 +1,15 @@
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::{
+    pin::Pin,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use alloc::sync::Arc;
 use log::debug;
 use syscalls::TimerEvent;
 
-use crate::user::{
-    ipc::{MessageBuilder, PortSender},
-    Error,
-};
+use crate::user::ipc::{MessageBuilder, PortSender};
+
+use super::TIMERS;
 
 /// Represent a disabled deadline, by setting a value that is never reachable (too far in the future)
 const DISABLED_DEADLINE: u64 = u64::MAX;
@@ -22,12 +24,16 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new timer
-    pub fn new(port: Arc<PortSender>, id: u64) -> Result<Arc<Self>, Error> {
-        Ok(Arc::new(Self {
+    pub fn new(port: Arc<PortSender>, id: u64) -> Pin<Arc<Self>> {
+        let timer = Arc::pin(Self {
             port,
             id,
             deadline: AtomicU64::new(DISABLED_DEADLINE),
-        }))
+        });
+
+        TIMERS.add(&timer);
+
+        timer
     }
 
     pub fn arm(&self, deadline: u64) {
@@ -64,6 +70,12 @@ impl Timer {
                 );
             }
         }
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        TIMERS.remove(self);
     }
 }
 

@@ -18,7 +18,7 @@ pub async fn create(context: Context) -> Result<(), Error> {
     let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
     let port = process.handles().get_port_sender(port_handle.into())?;
 
-    let timer = Timer::new(port, id as u64)?;
+    let timer = Timer::new(port, id as u64);
 
     let handle = process.handles().open_timer(timer);
 

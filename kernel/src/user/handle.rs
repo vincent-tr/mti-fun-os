@@ -61,7 +61,7 @@ pub enum KernelHandle {
     PortSenderHandle(Arc<PortSender>),
     ProcessListenerHandle(Pin<Arc<ProcessListener>>),
     ThreadListenerHandle(Pin<Arc<ThreadListener>>),
-    TimerHandle(Arc<Timer>),
+    TimerHandle(Pin<Arc<Timer>>),
 }
 
 impl KernelHandle {
@@ -136,7 +136,9 @@ impl KernelHandle {
             }
             KernelHandle::TimerHandle(self_obj) => {
                 if let KernelHandle::TimerHandle(other_obj) = other {
-                    Arc::ptr_eq(self_obj, other_obj)
+                    let self_ptr: *const _ = self_obj.as_ref().get_ref();
+                    let other_ptr: *const _ = other_obj.as_ref().get_ref();
+                    core::ptr::addr_eq(self_ptr, other_ptr)
                 } else {
                     false
                 }
@@ -203,7 +205,7 @@ impl Handles {
     }
 
     /// Open the given timer in the process
-    pub fn open_timer(&self, timer: Arc<Timer>) -> Handle {
+    pub fn open_timer(&self, timer: Pin<Arc<Timer>>) -> Handle {
         self.open(KernelHandle::TimerHandle(timer))
     }
 
@@ -350,7 +352,7 @@ impl Handles {
     }
 
     /// Retrieve the timer from the handle
-    pub fn get_timer(&self, handle: Handle) -> Result<Arc<Timer>, Error> {
+    pub fn get_timer(&self, handle: Handle) -> Result<Pin<Arc<Timer>>, Error> {
         let handles = self.handles.read();
 
         let handle_impl = check_arg_opt(handles.get(&handle))?;

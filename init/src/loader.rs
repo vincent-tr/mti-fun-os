@@ -35,9 +35,6 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
     let stack = kobject::helpers::AllocWithGuards::new_remote(stack_size, &process)?;
     let tls = kobject::helpers::AllocWithGuards::new_remote(kobject::helpers::TLS_SIZE, &process)?;
 
-    // TODO: Prepare context
-    let ctx_addr: usize = 0;
-
     let stack_top_addr = stack.address() + stack_size;
     let tls_addr = tls.address();
 
@@ -54,7 +51,7 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
         kobject::ThreadPriority::Normal,
         entry_point,
         stack_top_addr,
-        ctx_addr,
+        0, // arg not used
         tls_addr,
     )?;
 

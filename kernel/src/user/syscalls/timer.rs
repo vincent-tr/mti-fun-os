@@ -31,7 +31,7 @@ pub async fn arm(context: Context) -> Result<(), Error> {
 
     let timer = process.handles().get_timer(handle.into())?;
 
-    timer.arm(deadline as u64)?;
+    timer.arm(deadline as u64);
 
     Ok(())
 }
@@ -44,7 +44,7 @@ pub async fn cancel(context: Context) -> Result<(), Error> {
 
     let timer = process.handles().get_timer(handle.into())?;
 
-    timer.cancel()?;
+    timer.cancel();
 
     Ok(())
 }

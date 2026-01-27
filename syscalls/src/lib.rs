@@ -75,6 +75,7 @@ pub enum SyscallNumber {
     TimerCreate,
     TimerArm,
     TimerCancel,
+    TimerNow,
 
     InitSetup,
 

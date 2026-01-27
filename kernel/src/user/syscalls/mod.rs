@@ -73,6 +73,7 @@ pub fn init() {
     register_syscall(SyscallNumber::TimerCreate, timer::create);
     register_syscall(SyscallNumber::TimerArm, timer::arm);
     register_syscall(SyscallNumber::TimerCancel, timer::cancel);
+    register_syscall(SyscallNumber::TimerNow, timer::now);
 
     register_syscall(SyscallNumber::MemoryStats, memory::stats);
 

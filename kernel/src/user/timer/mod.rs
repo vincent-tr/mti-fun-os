@@ -21,3 +21,7 @@ pub fn tick() {
 
     timers::TIMERS.tick(now);
 }
+
+pub fn now() -> u64 {
+    MONOTONIC_NS.load(Ordering::SeqCst)
+}

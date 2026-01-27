@@ -56,4 +56,25 @@ impl Timer {
     pub fn id(&self) -> u64 {
         self.id
     }
+
+    /// Receive a timer event
+    ///
+    /// Note: the call does not block, it returns ObjectNotReady if no message is waiting
+    pub fn receive(&self) -> Result<TimerEvent, Error> {
+        let msg = self.reader.receive()?;
+
+        Ok(unsafe { msg.data::<TimerEvent>().clone() })
+    }
+
+    /// Block until a timer event is received
+    pub fn blocking_receive(&self) -> Result<TimerEvent, Error> {
+        let msg = self.reader.blocking_receive()?;
+
+        Ok(unsafe { msg.data::<TimerEvent>().clone() })
+    }
+
+    /// Get the current monotonic time
+    pub fn now() -> Result<u64, Error> {
+        timer::now()
+    }
 }

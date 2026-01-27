@@ -4,7 +4,7 @@ use core::fmt::Debug;
 pub use libsyscalls::{
     Error, Exception, Handle, KallocStats, KvmStats, MemoryStats, Permissions, PhysStats,
     ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent,
-    ThreadEventType, ThreadInfo, ThreadPriority,
+    ThreadEventType, ThreadInfo, ThreadPriority, TimerEvent,
 };
 
 mod ipc;
@@ -13,6 +13,7 @@ mod memory;
 mod memory_object;
 mod process;
 mod thread;
+mod timer;
 mod tls;
 
 /// Trait to be implemented by all kobjects
@@ -27,6 +28,7 @@ pub use memory::Memory;
 pub use memory_object::MemoryObject;
 pub use process::{Mapping, Process};
 pub use thread::{Thread, ThreadOptions, ThreadSupervisor};
+pub use timer::Timer;
 pub use tls::{TlsAllocator, TlsSlot};
 
 pub mod helpers {

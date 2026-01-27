@@ -9,6 +9,7 @@ pub mod memory_object;
 pub mod process;
 mod syscalls;
 pub mod thread;
+pub mod timer;
 
 use core::{
     cmp::min,
@@ -23,6 +24,7 @@ pub use ::syscalls::{
     Error, Exception, HandleType, KallocStats, KvmStats, MemoryStats, Message, Permissions,
     PhysStats, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext,
     ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority, ThreadState,
+    TimerEvent,
 };
 
 pub type SyscallResult<T> = Result<T, Error>;

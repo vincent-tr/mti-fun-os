@@ -10,6 +10,7 @@ mod memory;
 mod memory_object;
 mod process;
 mod thread;
+mod timer;
 
 pub use self::context::Context;
 use self::engine::{register_syscall, register_syscall_raw};
@@ -68,6 +69,10 @@ pub fn init() {
         listener::create_process,
     );
     register_syscall(SyscallNumber::ListenerCreateThread, listener::create_thread);
+
+    register_syscall(SyscallNumber::TimerCreate, timer::create);
+    register_syscall(SyscallNumber::TimerArm, timer::arm);
+    register_syscall(SyscallNumber::TimerCancel, timer::cancel);
 
     register_syscall(SyscallNumber::MemoryStats, memory::stats);
 

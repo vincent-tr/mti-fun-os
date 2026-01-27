@@ -7,6 +7,7 @@ mod memory_object;
 pub mod process;
 mod syscalls;
 pub mod thread;
+mod timer;
 mod weak_map;
 
 pub use error::Error;

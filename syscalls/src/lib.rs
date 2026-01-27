@@ -8,6 +8,7 @@ mod memory;
 mod permissions;
 mod process;
 mod thread;
+mod timer;
 
 pub use error::*;
 pub use handle::*;
@@ -17,6 +18,7 @@ pub use memory::*;
 pub use permissions::*;
 pub use process::*;
 pub use thread::*;
+pub use timer::*;
 
 /// List of syscall numbers
 #[repr(usize)]
@@ -69,6 +71,10 @@ pub enum SyscallNumber {
 
     ListenerCreateProcess,
     ListenerCreateThread,
+
+    TimerCreate,
+    TimerArm,
+    TimerCancel,
 
     InitSetup,
 

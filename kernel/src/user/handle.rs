@@ -12,6 +12,7 @@ use super::{
     listener::{ProcessListener, ThreadListener},
     process::Process,
     thread::Thread,
+    timer::Timer,
     Error, MemoryObject,
 };
 
@@ -60,6 +61,7 @@ pub enum KernelHandle {
     PortSenderHandle(Arc<PortSender>),
     ProcessListenerHandle(Pin<Arc<ProcessListener>>),
     ThreadListenerHandle(Pin<Arc<ThreadListener>>),
+    TimerHandle(Arc<Timer>),
 }
 
 impl KernelHandle {
@@ -72,6 +74,7 @@ impl KernelHandle {
             KernelHandle::PortSenderHandle(_) => HandleType::PortSender,
             KernelHandle::ProcessListenerHandle(_) => HandleType::ProcessListener,
             KernelHandle::ThreadListenerHandle(_) => HandleType::ThreadListener,
+            KernelHandle::TimerHandle(_) => HandleType::Timer,
         }
     }
 
@@ -127,6 +130,13 @@ impl KernelHandle {
                     let self_ptr: *const _ = self_obj.as_ref().get_ref();
                     let other_ptr: *const _ = other_obj.as_ref().get_ref();
                     core::ptr::addr_eq(self_ptr, other_ptr)
+                } else {
+                    false
+                }
+            }
+            KernelHandle::TimerHandle(self_obj) => {
+                if let KernelHandle::TimerHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
                 } else {
                     false
                 }
@@ -190,6 +200,11 @@ impl Handles {
     /// Open the given thread listener in the process
     pub fn open_thread_listener(&self, listener: Pin<Arc<ThreadListener>>) -> Handle {
         self.open(KernelHandle::ThreadListenerHandle(listener))
+    }
+
+    /// Open the given timer in the process
+    pub fn open_timer(&self, timer: Arc<Timer>) -> Handle {
+        self.open(KernelHandle::TimerHandle(timer))
     }
 
     /// Open raw kernel handle
@@ -329,6 +344,19 @@ impl Handles {
 
         if let KernelHandle::ThreadListenerHandle(thread_listener) = handle_impl {
             Ok(thread_listener.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the timer from the handle
+    pub fn get_timer(&self, handle: Handle) -> Result<Arc<Timer>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::TimerHandle(timer) = handle_impl {
+            Ok(timer.clone())
         } else {
             Err(invalid_argument())
         }

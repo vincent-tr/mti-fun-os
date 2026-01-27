@@ -39,8 +39,8 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
     let tls_addr = tls.address();
 
     debug!(
-        "Creating main thread: entry_point={:#x}, stack_top={:#x}, tls={:#x}, ctx={:#x}",
-        entry_point as usize, stack_top_addr, tls_addr, ctx_addr
+        "Creating main thread: entry_point={:#x}, stack_top={:#x}, tls={:#x}",
+        entry_point as usize, stack_top_addr, tls_addr
     );
 
     // Use syscall directory to create remote thread

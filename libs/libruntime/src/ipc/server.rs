@@ -1,13 +1,10 @@
 use super::messages::{
-    QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
+    Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::kobject;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap};
 use libsyscalls::Error;
 use log::error;
-
-/// Type alias for array of handles extracted from a message.
-pub type Handles = [kobject::Handle; kobject::Message::HANDLE_COUNT];
 
 /// Builder for an IPC server.
 #[derive(Debug)]
@@ -28,16 +25,17 @@ impl ServerBuilder {
     }
 
     /// Adds a message handler without reply for the given message type.
-    pub fn with_handler_without_reply<QueryParameters>(
+    pub fn with_handler_no_reply<QueryParameters, MessageType>(
         mut self,
-        message_type: u16,
+        message_type: MessageType,
         handler: fn(QueryParameters, Handles),
     ) -> Self
     where
         QueryParameters: Copy + 'static,
+        MessageType: Into<u16>,
     {
         self.handlers.insert(
-            message_type,
+            message_type.into(),
             Box::new(MessageHandlerWithoutReply::new(handler)),
         );
         self
@@ -46,18 +44,19 @@ impl ServerBuilder {
     /// Adds a message handler with reply for the given message type.
     ///
     /// Note: handles[0] is reserved for the reply port, and will be set to invalid before calling the handler.
-    pub fn with_handler_with_reply<QueryParameters, ReplyContent, ReplyError>(
+    pub fn with_handler<QueryParameters, ReplyContent, ReplyError, MessageType>(
         mut self,
-        message_type: u16,
+        message_type: MessageType,
         handler: fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
     ) -> Self
     where
         QueryParameters: Copy + 'static,
         ReplyContent: Copy + 'static,
         ReplyError: Copy + 'static,
+        MessageType: Into<u16>,
     {
         self.handlers.insert(
-            message_type,
+            message_type.into(),
             Box::new(MessageHandlerWithReply::new(handler)),
         );
         self

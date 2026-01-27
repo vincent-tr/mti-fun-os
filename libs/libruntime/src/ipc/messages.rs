@@ -1,3 +1,8 @@
+use crate::kobject;
+
+/// Type alias for array of handles extracted from a message.
+pub type Handles = [kobject::Handle; kobject::Message::HANDLE_COUNT];
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct QueryHeader {

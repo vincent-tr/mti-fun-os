@@ -1,3 +1,5 @@
+use alloc::fmt;
+
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "process-server";
 
@@ -26,6 +28,14 @@ impl From<Type> for u16 {
 #[repr(usize)]
 pub enum ProcessServerError {
     InvalidArgument = 1,
+}
+
+impl fmt::Display for ProcessServerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProcessServerError::InvalidArgument => write!(f, "InvalidArgument"),
+        }
+    }
 }
 
 /// Parameters for the CreateProcess message.

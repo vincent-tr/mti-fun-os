@@ -62,7 +62,22 @@ fn main() {
     // tests::interval_second();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
-    loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
+
+    // wait for the process server to create its port
+    loop {
+        match (kobject::Port::open_by_name(libruntime::process::messages::PORT_NAME)) {
+            Ok(_) => break,
+            Err(kobject::Error::ObjectNotFound) => {
+                libruntime::timer::sleep(libruntime::timer::Duration::from_milliseconds(100));
+                debug!("waiting for process server port...");
+            }
+            Err(e) => panic!("Could not open process server port: {}", e),
+        }
+    }
+
+    libruntime::process::Process::spawn("vfs-server");
+
+    //loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
 
     libruntime::exit();
 }

@@ -32,7 +32,7 @@ pub enum ProcessServerError {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateProcessQueryParameters {
-    name: Buffer,
+    pub name: Buffer,
     // Handle[1]: name mem_obj
     // Handle[2]: binary mem_obj - process-server will take ownership - data must start at offset 0
     // Handle[3]: env mem_obj - process-server will take ownership - data must start at offset 0
@@ -43,9 +43,9 @@ pub struct CreateProcessQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateProcessReply {
-    pid: u32,
+    pub pid: u32,
     // Handle[0]: create process handle, must close when done
-    tid: u32,
+    pub tid: u32,
     // Handle[1]: main thread handle, must close when done
 }
 
@@ -54,6 +54,6 @@ pub struct CreateProcessReply {
 #[repr(C)]
 pub struct Buffer {
     // will take a handle slot for MemoryObject
-    offset: usize,
-    size: usize,
+    pub offset: usize,
+    pub size: usize,
 }

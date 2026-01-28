@@ -127,6 +127,33 @@ pub fn mprotect(process: &Handle, range: &Range<usize>, perms: Permissions) -> S
     sysret_to_result(ret)
 }
 
+/// Get information about a virtual address in the process address space
+pub fn minfo(process: &Handle, addr: usize) -> SyscallResult<(Permissions, Option<Handle>)> {
+    let mut perms_out = Permissions::empty();
+    let mut mem_obj_handle_out = Handle::invalid();
+
+    let ret = unsafe {
+        syscall4(
+            SyscallNumber::ProcessMInfo,
+            process.as_syscall_value(),
+            addr as usize,
+            &mut perms_out as *mut _ as usize,
+            mem_obj_handle_out.as_syscall_ptr(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    // Getting an invalid handle means no memory object
+    let mem_obj_handle_out = if mem_obj_handle_out.valid() {
+        Some(mem_obj_handle_out)
+    } else {
+        None
+    };
+
+    Ok((perms_out, mem_obj_handle_out))
+}
+
 pub fn exit() -> SyscallResult<()> {
     let ret = unsafe { syscall0(SyscallNumber::ProcessExit) };
 

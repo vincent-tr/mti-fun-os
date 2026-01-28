@@ -6,11 +6,11 @@ use core::{
     panic,
 };
 
-use alloc::{collections::BTreeMap, format, rc::Rc};
+use alloc::{collections::BTreeMap, format, rc::Rc, sync::Arc};
 
 use crate::{
     memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
-    user::{error::out_of_memory, Error},
+    user::{error::out_of_memory, Error, MemoryObject},
 };
 
 use super::mapping::Mapping;
@@ -377,6 +377,14 @@ impl Mappings {
     /// Clear all mappings on process terminate
     pub fn clear(&mut self) {
         self.remove_range(USER_SPACE_START..USER_SPACE_END);
+    }
+
+    /// Get information about a virtual address in the process address space
+    pub fn info(&self, addr: VirtAddr) -> (Permissions, Option<Arc<MemoryObject>>) {
+        match self.get(addr).is_used() {
+            Some(mapping) => (mapping.permissions(), mapping.memory_object().cloned()),
+            None => (Permissions::NONE, None),
+        }
     }
 
     fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {

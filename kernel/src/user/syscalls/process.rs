@@ -138,6 +138,36 @@ pub async fn mprotect(context: Context) -> Result<(), Error> {
     )
 }
 
+pub async fn minfo(context: Context) -> Result<(), Error> {
+    let process_handle = context.arg1();
+    let addr = context.arg2();
+    let perms_out_ptr = context.arg3();
+    let handle_out_ptr = context.arg4();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let target_process = process.handles().get_process(process_handle.into())?;
+
+    let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
+    let mut perms_user_access = process.vm_access_typed::<Permissions>(
+        VirtAddr::new(perms_out_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    let (perm, mem_obj) = target_process.minfo(VirtAddr::new(addr as u64));
+    let handle = if let Some(memory_object) = mem_obj {
+        process.handles().open_memory_object(memory_object)
+    } else {
+        Handle::invalid()
+    };
+
+    *perms_user_access.get_mut() = perm;
+    handle_out.set(handle);
+
+    Ok(())
+}
+
 pub async fn exit(context: Context) -> Result<(), Error> {
     let thread = context.owner();
     let process = thread.process();

@@ -222,6 +222,13 @@ impl Process {
         Ok(())
     }
 
+    /// Get information about a virtual address in the process address space
+    pub fn minfo(&self, addr: VirtAddr) -> (Permissions, Option<Arc<MemoryObject>>) {
+        let mappings = self.mappings.read();
+
+        mappings.info(addr)
+    }
+
     /// Create a new memory access to a part of the process VM
     ///
     /// permissions are at least expected permission in address space.

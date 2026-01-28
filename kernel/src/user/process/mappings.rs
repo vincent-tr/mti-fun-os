@@ -41,6 +41,12 @@ enum AreaContentType {
     Used,
 }
 
+pub struct AddressInfo {
+    pub perms: Permissions,
+    pub mobj: Option<Arc<MemoryObject>>,
+    pub offset: usize, // Offset inside the memory object, if any
+}
+
 impl Area {
     pub fn from_mapping(mapping: Mapping) -> Rc<Self> {
         Rc::new(Self {
@@ -380,11 +386,24 @@ impl Mappings {
     }
 
     /// Get information about a virtual address in the process address space
-    pub fn info(&self, addr: VirtAddr) -> (Permissions, Option<Arc<MemoryObject>>) {
-        match self.get(addr).is_used() {
-            Some(mapping) => (mapping.permissions(), mapping.memory_object().cloned()),
-            None => (Permissions::NONE, None),
+    pub fn info(&self, addr: VirtAddr) -> AddressInfo {
+        let mut info = AddressInfo {
+            perms: Permissions::empty(),
+            mobj: None,
+            offset: 0,
+        };
+
+        if let Some(mapping) = self.get(addr).is_used() {
+            info.perms = mapping.permissions();
+
+            if let Some(mobj) = mapping.memory_object() {
+                info.mobj = Some(mobj.clone());
+                let mapping_offset = (addr - mapping.range().start) as usize;
+                info.offset = mapping.offset() + mapping_offset;
+            }
         }
+
+        info
     }
 
     fn split(&mut self, area: Rc<Area>, addr: VirtAddr) {

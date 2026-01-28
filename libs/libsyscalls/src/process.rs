@@ -127,31 +127,45 @@ pub fn mprotect(process: &Handle, range: &Range<usize>, perms: Permissions) -> S
     sysret_to_result(ret)
 }
 
+/// Address info in a process
+#[derive(Debug)]
+pub struct AddressInfo {
+    pub perms: Permissions,
+    pub mobj: Option<Handle>,
+    pub offset: usize,
+}
+
 /// Get information about a virtual address in the process address space
-pub fn minfo(process: &Handle, addr: usize) -> SyscallResult<(Permissions, Option<Handle>)> {
-    let mut perms_out = Permissions::empty();
-    let mut mem_obj_handle_out = Handle::invalid();
+pub fn minfo(process: &Handle, addr: usize) -> SyscallResult<AddressInfo> {
+    let mut info_out = syscalls::AddressInfo {
+        perms: Permissions::NONE,
+        mobj: unsafe { Handle::invalid().as_syscall_value() } as u64,
+        offset: 0,
+    };
 
     let ret = unsafe {
-        syscall4(
+        syscall3(
             SyscallNumber::ProcessMInfo,
             process.as_syscall_value(),
             addr as usize,
-            &mut perms_out as *mut _ as usize,
-            mem_obj_handle_out.as_syscall_ptr(),
+            &mut info_out as *mut _ as usize,
         )
     };
 
     sysret_to_result(ret)?;
 
-    // Getting an invalid handle means no memory object
-    let mem_obj_handle_out = if mem_obj_handle_out.valid() {
-        Some(mem_obj_handle_out)
+    let mobj_handle = unsafe { Handle::from_raw(info_out.mobj) };
+    let mobj_handle = if mobj_handle.valid() {
+        Some(mobj_handle)
     } else {
         None
     };
 
-    Ok((perms_out, mem_obj_handle_out))
+    Ok(AddressInfo {
+        perms: info_out.perms,
+        mobj: mobj_handle,
+        offset: info_out.offset,
+    })
 }
 
 pub fn exit() -> SyscallResult<()> {

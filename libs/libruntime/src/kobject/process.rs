@@ -175,6 +175,28 @@ impl Process {
 
         Ok(())
     }
+
+    pub fn map_info(&self, addr: usize) -> Result<AddressInfo, Error> {
+        let info = process::minfo(&self.handle, addr)?;
+
+        let mobj = info
+            .mobj
+            .map(|handle| unsafe { MemoryObject::from_handle_unchecked(handle) });
+
+        Ok(AddressInfo {
+            perms: info.perms,
+            mobj,
+            offset: info.offset,
+        })
+    }
+}
+
+/// Address info in a process
+#[derive(Debug)]
+pub struct AddressInfo {
+    pub perms: Permissions,
+    pub mobj: Option<MemoryObject>,
+    pub offset: usize, // Offset inside the memory object, if any
 }
 
 /// Mapping of memory

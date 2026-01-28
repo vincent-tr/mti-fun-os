@@ -2,6 +2,8 @@ use core::fmt::{Debug, Formatter, Result};
 
 use core::str;
 
+use crate::Permissions;
+
 /// Process information
 #[repr(C)]
 pub struct ProcessInfo {
@@ -31,4 +33,12 @@ impl Debug for ProcessInfo {
             .field("terminated", &self.terminated)
             .finish()
     }
+}
+
+/// Address info in a process
+#[repr(C)]
+pub struct AddressInfo {
+    pub perms: Permissions,
+    pub mobj: u64, // Handle value of the memory object
+    pub offset: usize,
 }

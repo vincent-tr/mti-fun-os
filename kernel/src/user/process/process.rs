@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     mapping::Mapping,
-    mappings::Mappings,
+    mappings::{AddressInfo, Mappings},
     memory_access::{self, TypedMemoryAccess, TypedSliceMemoryAccess},
     processes::remove_process,
     MemoryAccess,
@@ -223,7 +223,7 @@ impl Process {
     }
 
     /// Get information about a virtual address in the process address space
-    pub fn minfo(&self, addr: VirtAddr) -> (Permissions, Option<Arc<MemoryObject>>) {
+    pub fn minfo(&self, addr: VirtAddr) -> AddressInfo {
         let mappings = self.mappings.read();
 
         mappings.info(addr)

@@ -21,12 +21,20 @@ impl KObject for MemoryObject {
 }
 
 impl MemoryObject {
+    /// Safety: caller must ensure the handle is a valid memory object handle
+    pub unsafe fn from_handle_unchecked(handle: Handle) -> Self {
+        Self {
+            handle,
+            cached_size: Mutex::new(None),
+        }
+    }
+
     /// Create a new memory object of the specified size
     pub fn create(size: usize) -> Result<Self, Error> {
         let handle = memory_object::create(size)?;
         Ok(Self {
             handle,
-            cached_size: Mutex::new(None),
+            cached_size: Mutex::new(Some(size)),
         })
     }
 

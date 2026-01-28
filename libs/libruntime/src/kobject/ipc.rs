@@ -17,6 +17,8 @@ pub struct Port {
 
 impl Port {
     /// Create a new port
+    ///
+    /// Note: the name only describe the sender part. If it is dropped, the name will be freed, even if the receiver still exists
     pub fn create(name: Option<&str>) -> Result<(PortReceiver, PortSender), Error> {
         let (receiver, sender) = ipc::create(name)?;
 

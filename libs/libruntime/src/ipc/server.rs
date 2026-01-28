@@ -73,6 +73,7 @@ impl ServerBuilder {
 #[derive(Debug)]
 pub struct Server {
     receiver: kobject::PortReceiver,
+    sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
     version: u16,
     handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
 }
@@ -83,13 +84,21 @@ impl Server {
         version: u16,
         handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
     ) -> Result<Self, kobject::Error> {
-        let (receiver, _) = kobject::Port::create(Some(name))?;
+        let (receiver, sender) = kobject::Port::create(Some(name))?;
 
         Ok(Self {
             receiver,
+            sender: Some(sender),
             version,
             handlers,
         })
+    }
+
+    /// Releases the name of the server port.
+    ///
+    /// The server will still respond to already "connected" clients, but will be unreachable for new lookups.
+    pub fn release_name(&mut self) {
+        self.sender = None;
     }
 
     /// Runs the server.

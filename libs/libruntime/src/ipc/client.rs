@@ -1,7 +1,4 @@
-use core::{
-    fmt,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::fmt;
 
 use super::messages::{
     Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
@@ -37,17 +34,12 @@ impl<ReplyError: fmt::Display + fmt::Debug> core::error::Error for CallError<Rep
 pub struct Client {
     name: &'static str,
     version: u16,
-    transaction_gen: AtomicU32,
 }
 
 impl Client {
     /// Creates a new IPC client connected to the server with the given name and version.
     pub fn new(name: &'static str, version: u16) -> Self {
-        Self {
-            name,
-            version,
-            transaction_gen: AtomicU32::new(1),
-        }
+        Self { name, version }
     }
 
     /// Calls a message on the server and waits for a reply.
@@ -65,7 +57,6 @@ impl Client {
     {
         let port = kobject::Port::open_by_name(self.name)?;
         let (reply_reader, reply_sender) = kobject::Port::create(None)?;
-        let transaction = self.transaction_gen.fetch_add(1, Ordering::SeqCst);
 
         query_handles[0] = reply_sender.into_handle();
 
@@ -73,7 +64,7 @@ impl Client {
             header: QueryHeader {
                 version: self.version,
                 r#type: message_type.into(),
-                transaction,
+                transaction: 0, // One port per reply, no need for transaction ID
             },
             parameters: query,
         };
@@ -86,7 +77,6 @@ impl Client {
         let mut reply = reply_reader.blocking_receive()?;
 
         let header = unsafe { reply.data::<ReplyHeader>() };
-        assert!(header.transaction == transaction);
 
         if header.success {
             let handles = reply.take_all_handles();

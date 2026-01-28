@@ -7,7 +7,6 @@ mod processes;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-pub use self::mappings::AddressInfo;
 pub use self::memory_access::{MemoryAccess, TypedMemoryAccess};
 pub use self::process::{process_remove_thread, Process};
 use self::processes::PROCESSES;

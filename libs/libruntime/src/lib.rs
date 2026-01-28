@@ -6,7 +6,6 @@
 
 use core::hint::unreachable_unchecked;
 
-use libsyscalls::process;
 use log::debug;
 
 extern crate alloc;
@@ -18,6 +17,7 @@ mod entry;
 pub mod ipc;
 pub mod kobject;
 mod logging;
+pub mod process;
 pub mod sync;
 
 pub fn init() {
@@ -47,7 +47,7 @@ pub fn exit() -> ! {
     debug!("exit");
     kobject::terminate();
 
-    process::exit().expect("Could not exit process");
+    libsyscalls::process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };
 }
 

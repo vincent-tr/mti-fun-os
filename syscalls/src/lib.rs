@@ -36,6 +36,7 @@ pub enum SyscallNumber {
     ProcessMMap,
     ProcessMUnmap,
     ProcessMProtect,
+    ProcessMInfo,
     ProcessExit,
     ProcessKill,
     ProcessInfo,

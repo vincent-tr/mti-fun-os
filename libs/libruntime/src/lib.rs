@@ -19,6 +19,7 @@ pub mod kobject;
 mod logging;
 pub mod process;
 pub mod sync;
+pub mod timer;
 
 pub fn init() {
     logging::init();

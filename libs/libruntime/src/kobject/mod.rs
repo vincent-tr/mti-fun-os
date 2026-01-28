@@ -21,6 +21,7 @@ mod tls;
 pub trait KObject: Debug {
     /// Get the internal handle of the object
     unsafe fn handle(&self) -> &Handle;
+    fn into_handle(self) -> Handle;
 }
 
 pub use error::Error;

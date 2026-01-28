@@ -17,6 +17,10 @@ impl KObject for Process {
     unsafe fn handle(&self) -> &Handle {
         &self.handle
     }
+
+    fn into_handle(self) -> Handle {
+        self.handle
+    }
 }
 
 impl Process {

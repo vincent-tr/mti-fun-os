@@ -14,6 +14,10 @@ impl KObject for Timer {
     unsafe fn handle(&self) -> &Handle {
         &self.timer
     }
+
+    fn into_handle(self) -> Handle {
+        self.timer
+    }
 }
 
 impl KWaitable for Timer {

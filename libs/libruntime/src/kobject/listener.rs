@@ -62,6 +62,10 @@ impl KObject for ThreadListener {
     unsafe fn handle(&self) -> &Handle {
         &self.listener
     }
+
+    fn into_handle(self) -> Handle {
+        self.listener
+    }
 }
 
 impl KWaitable for ThreadListener {
@@ -163,6 +167,10 @@ pub struct ProcessListener {
 impl KObject for ProcessListener {
     unsafe fn handle(&self) -> &Handle {
         &self.listener
+    }
+
+    fn into_handle(self) -> Handle {
+        self.listener
     }
 }
 

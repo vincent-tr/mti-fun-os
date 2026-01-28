@@ -25,6 +25,20 @@ impl Port {
             unsafe { PortSender::from_handle_unchecked(sender) },
         ))
     }
+
+    /// Open an existing port by name
+    pub fn open_by_name(name: &str) -> Result<PortSender, Error> {
+        let sender = ipc::open(ipc::NameOrId::Name(name))?;
+
+        Ok(unsafe { PortSender::from_handle_unchecked(sender) })
+    }
+
+    /// Open an existing port by id
+    pub fn open_by_id(id: u64) -> Result<PortSender, Error> {
+        let sender = ipc::open(ipc::NameOrId::Id(id))?;
+
+        Ok(unsafe { PortSender::from_handle_unchecked(sender) })
+    }
 }
 
 /// Port sender
@@ -36,6 +50,10 @@ pub struct PortSender {
 impl KObject for PortSender {
     unsafe fn handle(&self) -> &Handle {
         &self.handle
+    }
+
+    fn into_handle(self) -> Handle {
+        self.handle
     }
 }
 
@@ -78,6 +96,10 @@ pub struct PortReceiver {
 impl KObject for PortReceiver {
     unsafe fn handle(&self) -> &Handle {
         &self.handle
+    }
+
+    fn into_handle(self) -> Handle {
+        self.handle
     }
 }
 

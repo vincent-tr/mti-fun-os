@@ -14,6 +14,10 @@ impl KObject for MemoryObject {
     unsafe fn handle(&self) -> &Handle {
         &self.handle
     }
+
+    fn into_handle(self) -> Handle {
+        self.handle
+    }
 }
 
 impl MemoryObject {

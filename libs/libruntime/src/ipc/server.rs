@@ -3,7 +3,6 @@ use super::messages::{
 };
 use crate::kobject;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap};
-use libsyscalls::Error;
 use log::error;
 
 /// Builder for an IPC server.
@@ -63,7 +62,7 @@ impl ServerBuilder {
     }
 
     /// Builds the server.
-    pub fn build(self) -> Result<Server, Error> {
+    pub fn build(self) -> Result<Server, kobject::Error> {
         Server::new(self.name, self.version, self.handlers)
     }
 }
@@ -83,7 +82,7 @@ impl Server {
         name: &str,
         version: u16,
         handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, kobject::Error> {
         let (receiver, _) = kobject::Port::create(Some(name))?;
 
         Ok(Self {

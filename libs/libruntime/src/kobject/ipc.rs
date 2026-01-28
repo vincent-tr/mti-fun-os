@@ -209,7 +209,9 @@ impl<'a> Waiter<'a> {
     ///
     /// After this call returns, the ready list is updated
     pub fn wait(&mut self) -> Result<(), Error> {
-        ipc::wait(&self.handles, &mut self.ready)
+        ipc::wait(&self.handles, &mut self.ready)?;
+
+        Ok(())
     }
 
     /// Set all reeady flags to fals

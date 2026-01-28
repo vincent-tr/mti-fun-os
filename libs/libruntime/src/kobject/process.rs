@@ -109,7 +109,9 @@ impl Process {
 
     /// Set the name of the process
     pub fn set_name(&self, name: &str) -> Result<(), Error> {
-        process::set_name(&self.handle, name)
+        process::set_name(&self.handle, name)?;
+
+        Ok(())
     }
 
     /// Get the name of the process
@@ -165,7 +167,9 @@ impl Process {
 
     /// Unmap an area in the process VM
     pub fn unmap(&self, range: &Range<usize>) -> Result<(), Error> {
-        process::munmap(&self.handle, range)
+        process::munmap(&self.handle, range)?;
+
+        Ok(())
     }
 }
 

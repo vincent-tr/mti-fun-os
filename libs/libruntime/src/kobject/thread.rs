@@ -175,7 +175,9 @@ impl Thread {
 
     /// Set thread priority
     pub fn set_priority(&self, priority: ThreadPriority) -> Result<(), Error> {
-        thread::set_priority(&self.handle, priority)
+        thread::set_priority(&self.handle, priority)?;
+
+        Ok(())
     }
 
     /// Get thread info
@@ -227,7 +229,9 @@ impl Thread {
 
     /// Set the name of the thread
     pub fn set_name(&self, name: &str) -> Result<(), Error> {
-        thread::set_name(&self.handle, name)
+        thread::set_name(&self.handle, name)?;
+
+        Ok(())
     }
 
     /// Get the name of the thread
@@ -259,7 +263,9 @@ impl Thread {
     /// - the objects on the local stack won't be dropped. The stack memory will be freed without executing destructors
     /// - the TLS objects won't be dropped. The TLS slots memory of the thread will be freed without executing descrutors
     pub unsafe fn kill(&self) -> Result<(), Error> {
-        thread::kill(&self.handle)
+        thread::kill(&self.handle)?;
+
+        Ok(())
     }
 }
 
@@ -328,22 +334,30 @@ impl<'a> ThreadSupervisor<'a> {
 
     /// When the thread is in error state, get the error details
     pub fn error_info(&self) -> Result<Exception, Error> {
-        thread::error_info(unsafe { &self.target.handle() })
+        let info = thread::error_info(unsafe { &self.target.handle() })?;
+
+        Ok(info)
     }
 
     /// When the thread is in error state, resume it
     pub fn resume(&self) -> Result<(), Error> {
-        thread::resume(unsafe { &self.target.handle() })
+        thread::resume(unsafe { &self.target.handle() })?;
+
+        Ok(())
     }
 
     /// When the thread is in error state, get its context
     pub fn context(&self) -> Result<ThreadContext, Error> {
-        thread::context(unsafe { &self.target.handle() })
+        let context = thread::context(unsafe { &self.target.handle() })?;
+
+        Ok(context)
     }
 
     /// When the thread is in error state, update its context
     pub fn update_context(&self, regs: &[(ThreadContextRegister, usize)]) -> Result<(), Error> {
-        thread::update_context(unsafe { &self.target.handle() }, regs)
+        thread::update_context(unsafe { &self.target.handle() }, regs)?;
+
+        Ok(())
     }
 }
 

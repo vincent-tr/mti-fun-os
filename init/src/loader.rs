@@ -159,6 +159,12 @@ impl From<kobject::Error> for LoaderError {
     }
 }
 
+impl From<libsyscalls::Error> for LoaderError {
+    fn from(err: libsyscalls::Error) -> LoaderError {
+        LoaderError::Error(kobject::Error::from(err))
+    }
+}
+
 impl From<&'static str> for LoaderError {
     fn from(err: &'static str) -> LoaderError {
         LoaderError::ElfReaderError(err)

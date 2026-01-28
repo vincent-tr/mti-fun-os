@@ -75,6 +75,8 @@ impl Timer {
 
     /// Get the current monotonic time
     pub fn now() -> Result<u64, Error> {
-        timer::now()
+        let now = timer::now()?;
+
+        Ok(now)
     }
 }

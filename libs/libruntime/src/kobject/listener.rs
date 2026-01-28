@@ -1,3 +1,5 @@
+use core::panic;
+
 use alloc::vec::Vec;
 use libsyscalls::listener;
 
@@ -65,6 +67,14 @@ impl KObject for ThreadListener {
 
     fn into_handle(self) -> Handle {
         self.listener
+    }
+
+    unsafe fn from_handle_unchecked(_handle: Handle) -> Self {
+        panic!("ThreadListener cannot be created from handle directly");
+    }
+
+    fn from_handle(_handle: Handle) -> Result<Self, Error> {
+        Err(Error::NotSupported)
     }
 }
 
@@ -171,6 +181,14 @@ impl KObject for ProcessListener {
 
     fn into_handle(self) -> Handle {
         self.listener
+    }
+
+    unsafe fn from_handle_unchecked(_handle: Handle) -> Self {
+        panic!("ThreadListener cannot be created from handle directly");
+    }
+
+    fn from_handle(_handle: Handle) -> Result<Self, Error> {
+        Err(Error::NotSupported)
     }
 }
 

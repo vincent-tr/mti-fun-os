@@ -55,15 +55,12 @@ impl KObject for PortSender {
     fn into_handle(self) -> Handle {
         self.handle
     }
-}
 
-impl PortSender {
-    /// Safety: caller must ensure the handle is a valid port sender handle
-    pub unsafe fn from_handle_unchecked(handle: Handle) -> Self {
+    unsafe fn from_handle_unchecked(handle: Handle) -> Self {
         Self { handle }
     }
 
-    pub fn from_handle(handle: Handle) -> Result<Self, Error> {
+    fn from_handle(handle: Handle) -> Result<Self, Error> {
         if !handle.valid() {
             return Err(Error::InvalidArgument);
         }
@@ -73,7 +70,9 @@ impl PortSender {
 
         Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
+}
 
+impl PortSender {
     /// Send a message in the port
     pub fn send(&self, message: &mut Message) -> Result<(), Error> {
         let msg = message.to_send_syscall();
@@ -100,6 +99,21 @@ impl KObject for PortReceiver {
 
     fn into_handle(self) -> Handle {
         self.handle
+    }
+
+    unsafe fn from_handle_unchecked(handle: Handle) -> Self {
+        Self { handle }
+    }
+
+    fn from_handle(handle: Handle) -> Result<Self, Error> {
+        if !handle.valid() {
+            return Err(Error::InvalidArgument);
+        }
+        if handle.r#type() != HandleType::PortReceiver {
+            return Err(Error::InvalidArgument);
+        }
+
+        Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
 }
 

@@ -1,3 +1,5 @@
+use core::panic;
+
 use libsyscalls::timer;
 
 use super::*;
@@ -17,6 +19,14 @@ impl KObject for Timer {
 
     fn into_handle(self) -> Handle {
         self.timer
+    }
+
+    unsafe fn from_handle_unchecked(_handle: Handle) -> Self {
+        panic!("Timer cannot be created from handle directly");
+    }
+
+    fn from_handle(_handle: Handle) -> Result<Self, Error> {
+        Err(Error::NotSupported)
     }
 }
 

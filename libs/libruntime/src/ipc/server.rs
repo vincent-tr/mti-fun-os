@@ -1,7 +1,7 @@
 use super::messages::{
     Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
-use crate::kobject;
+use crate::kobject::{self, KObject};
 use alloc::{boxed::Box, collections::btree_map::BTreeMap};
 use log::error;
 

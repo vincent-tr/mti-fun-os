@@ -21,7 +21,17 @@ mod tls;
 pub trait KObject: Debug {
     /// Get the internal handle of the object
     unsafe fn handle(&self) -> &Handle;
+
+    /// Consume the object and return its handle
     fn into_handle(self) -> Handle;
+
+    /// Safety: caller must ensure the handle is a valid handle of the implementing type
+    unsafe fn from_handle_unchecked(handle: Handle) -> Self;
+
+    /// Create the object from a handle
+    fn from_handle(handle: Handle) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 pub use error::Error;

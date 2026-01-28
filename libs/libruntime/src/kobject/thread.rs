@@ -2,7 +2,7 @@ use core::{hint::unreachable_unchecked, mem, ops::Range};
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use lazy_static::lazy_static;
-use libsyscalls::{thread, Handle};
+use libsyscalls::{thread, Handle, HandleType};
 use log::debug;
 use spin::Mutex;
 
@@ -25,6 +25,25 @@ impl KObject for Thread {
 
     fn into_handle(self) -> Handle {
         self.handle
+    }
+
+    unsafe fn from_handle_unchecked(handle: Handle) -> Self {
+        Self {
+            handle,
+            cached_tid: Mutex::new(None),
+            cached_pid: Mutex::new(None),
+        }
+    }
+
+    fn from_handle(handle: Handle) -> Result<Self, Error> {
+        if !handle.valid() {
+            return Err(Error::InvalidArgument);
+        }
+        if handle.r#type() != HandleType::Thread {
+            return Err(Error::InvalidArgument);
+        }
+
+        Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
 }
 

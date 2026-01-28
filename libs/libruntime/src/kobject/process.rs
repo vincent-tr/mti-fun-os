@@ -1,7 +1,7 @@
 use core::{ops::Range, slice};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use libsyscalls::process;
+use libsyscalls::{process, HandleType};
 use spin::Mutex;
 
 use super::*;
@@ -20,6 +20,24 @@ impl KObject for Process {
 
     fn into_handle(self) -> Handle {
         self.handle
+    }
+
+    unsafe fn from_handle_unchecked(handle: Handle) -> Self {
+        Self {
+            cached_pid: Mutex::new(None),
+            handle,
+        }
+    }
+
+    fn from_handle(handle: Handle) -> Result<Self, Error> {
+        if !handle.valid() {
+            return Err(Error::InvalidArgument);
+        }
+        if handle.r#type() != HandleType::Process {
+            return Err(Error::InvalidArgument);
+        }
+
+        Ok(unsafe { Self::from_handle_unchecked(handle) })
     }
 }
 

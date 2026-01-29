@@ -41,6 +41,7 @@ enum AreaContentType {
     Used,
 }
 
+#[derive(Debug, Clone)]
 pub struct AddressInfo {
     pub perms: Permissions,
     pub mobj: Option<Arc<MemoryObject>>,

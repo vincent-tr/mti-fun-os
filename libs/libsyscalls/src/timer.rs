@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallOutPtr, SyscallResult};
+use super::{syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallResult};
 
 pub fn create(port: &Handle, id: u64) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -41,7 +41,7 @@ pub fn cancel(timer: &Handle) -> SyscallResult<()> {
 }
 
 pub fn now() -> SyscallResult<u64> {
-    let size = SyscallOutPtr::new();
+    let size = SyscallInOutPtr::default();
     let ret = unsafe { syscall1(SyscallNumber::TimerNow, size.ptr_arg()) };
 
     sysret_to_result(ret)?;

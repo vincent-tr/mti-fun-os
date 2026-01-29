@@ -1,7 +1,7 @@
 use syscalls::{Message, PortInfo, SyscallNumber};
 
 use super::{
-    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInStr, SyscallList, SyscallOutPtr,
+    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallInStr, SyscallList,
     SyscallResult,
 };
 
@@ -83,7 +83,7 @@ pub fn send(port: &Handle, msg: &Message) -> SyscallResult<()> {
 
 /// Receive a message from a port
 pub fn receive(port: &Handle) -> SyscallResult<Message> {
-    let msg = SyscallOutPtr::new();
+    let msg = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(
@@ -123,7 +123,7 @@ pub fn wait(ports: &[usize], ready_buffer: &mut [u8]) -> SyscallResult<()> {
 
 /// Get info about the port (can use sender or receiver)
 pub fn info(port: &Handle) -> SyscallResult<PortInfo> {
-    let info = SyscallOutPtr::new();
+    let info = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(

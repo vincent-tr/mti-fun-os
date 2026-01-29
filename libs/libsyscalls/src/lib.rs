@@ -98,13 +98,19 @@ impl<'a, T: Sized + Copy> SyscallList<'a, T> {
     }
 }
 
-struct SyscallOutPtr<T: Sized> {
+struct SyscallInOutPtr<T: Sized> {
     value: T,
 }
 
-impl<T> SyscallOutPtr<T> {
-    pub const fn new() -> Self {
+impl<T> Default for SyscallInOutPtr<T> {
+    fn default() -> Self {
         let value: T = unsafe { MaybeUninit::uninit().assume_init() };
+        Self::new(value)
+    }
+}
+
+impl<T> SyscallInOutPtr<T> {
+    pub const fn new(value: T) -> Self {
         Self { value }
     }
 

@@ -3,8 +3,8 @@ use core::ops::Range;
 use syscalls::SyscallNumber;
 
 use super::{
-    syscalls::*, sysret_to_result, Handle, Permissions, ProcessInfo, SyscallInStr, SyscallList,
-    SyscallOutPtr, SyscallResult,
+    syscalls::*, sysret_to_result, Handle, Permissions, ProcessInfo, SyscallInOutPtr, SyscallInStr,
+    SyscallList, SyscallResult,
 };
 
 pub fn open_self() -> SyscallResult<Handle> {
@@ -182,7 +182,7 @@ pub fn kill(process: &Handle) -> SyscallResult<()> {
 
 /// Get info about the process
 pub fn info(process: &Handle) -> SyscallResult<ProcessInfo> {
-    let info = SyscallOutPtr::new();
+    let info = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(

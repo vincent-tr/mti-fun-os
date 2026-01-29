@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallOutPtr, SyscallResult};
+use super::{syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallResult};
 
 pub fn create(size: usize) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -18,7 +18,7 @@ pub fn create(size: usize) -> SyscallResult<Handle> {
 }
 
 pub fn size(memory_object: &Handle) -> SyscallResult<usize> {
-    let size = SyscallOutPtr::new();
+    let size = SyscallInOutPtr::default();
     let ret = unsafe {
         syscall2(
             SyscallNumber::MemoryObjectSize,

@@ -6,7 +6,7 @@ use syscalls::{
 use crate::SyscallInStr;
 
 use super::{
-    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallList, SyscallOutPtr, SyscallResult,
+    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallList, SyscallResult,
 };
 
 pub fn open_self() -> SyscallResult<Handle> {
@@ -101,7 +101,7 @@ pub fn set_priority(thread: &Handle, priority: ThreadPriority) -> SyscallResult<
 
 /// Get info about the thread
 pub fn info(thread: &Handle) -> SyscallResult<ThreadInfo> {
-    let info = SyscallOutPtr::new();
+    let info = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(
@@ -174,7 +174,7 @@ pub fn get_name<'a>(
 ///
 /// Note: the thread must be in error state
 pub fn error_info(thread: &Handle) -> SyscallResult<Exception> {
-    let error = SyscallOutPtr::new();
+    let error = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(
@@ -193,7 +193,7 @@ pub fn error_info(thread: &Handle) -> SyscallResult<Exception> {
 ///
 /// Note: the thread must be in error state
 pub fn context(thread: &Handle) -> SyscallResult<ThreadContext> {
-    let context = SyscallOutPtr::new();
+    let context = SyscallInOutPtr::default();
 
     let ret = unsafe {
         syscall2(

@@ -1,4 +1,5 @@
 mod error;
+mod futex;
 mod handle;
 mod id_gen;
 pub mod ipc;

@@ -1,5 +1,6 @@
 mod context;
 mod engine;
+mod futex;
 mod handle;
 mod helpers;
 mod init;
@@ -77,6 +78,9 @@ pub fn init() {
     register_syscall(SyscallNumber::TimerNow, timer::now);
 
     register_syscall(SyscallNumber::MemoryStats, memory::stats);
+
+    register_syscall(SyscallNumber::FutexWait, futex::wait);
+    register_syscall(SyscallNumber::FutexWake, futex::wake);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);
 }

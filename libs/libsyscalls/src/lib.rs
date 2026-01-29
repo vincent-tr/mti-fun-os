@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod futex;
 mod handle;
 pub mod ipc;
 pub mod listener;

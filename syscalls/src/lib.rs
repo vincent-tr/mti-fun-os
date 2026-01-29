@@ -81,4 +81,7 @@ pub enum SyscallNumber {
     InitSetup,
 
     MemoryStats,
+
+    FutexWait,
+    FutexWake,
 }

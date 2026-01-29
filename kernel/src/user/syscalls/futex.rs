@@ -24,13 +24,8 @@ pub async fn wait(context: Context) -> Result<(), Error> {
     }
 
     let uaddr_info = process.minfo(vuaddr);
-
-    let wait_queue = futex::get_waitqueue(uaddr_info.clone(), true)
-        .expect("failed to get or create futex wait queue");
-
+    let wait_queue = futex::get_waitqueue(uaddr_info);
     super::sleep(&context, vec![wait_queue]).await;
-
-    futex::clean(uaddr_info);
 
     // Note: we can have been woken by wake, but also because address has been unmapped.
 
@@ -57,17 +52,8 @@ pub async fn wake(context: Context) -> Result<(), Error> {
     )?;
 
     let max_count = *count_access.get();
-    let mut woken_count = 0;
 
-    if let Some(wait_queue) = futex::get_waitqueue(uaddr_info, false) {
-        for _ in 0..max_count {
-            if !thread::wait_queue_wake_one(&wait_queue) {
-                break;
-            }
-
-            woken_count += 1;
-        }
-    }
+    let woken_count = futex::wake(uaddr_info, max_count);
 
     *count_access.get_mut() = woken_count;
 

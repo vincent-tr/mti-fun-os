@@ -1,3 +1,5 @@
+use core::ops::Range;
+
 use alloc::sync::Arc;
 use hashbrown::HashMap;
 
@@ -31,32 +33,42 @@ impl FutexKey {
     }
 }
 
-pub fn get_waitqueue(uaddr: AddressInfo, create: bool) -> Option<Arc<WaitQueue>> {
+pub fn get_waitqueue(uaddr: AddressInfo) -> Arc<WaitQueue> {
     let key = FutexKey::new(uaddr);
     let mut queues = FUTEX_WAIT_QUEUES.lock();
 
     if let Some(queue) = queues.get(&key) {
-        return Some(queue.clone());
+        return queue.clone();
     }
 
-    if create {
-        let queue = Arc::new(WaitQueue::new());
-        queues.insert(key, queue.clone());
-        return Some(queue);
-    }
-
-    None
+    let queue = Arc::new(WaitQueue::new());
+    queues.insert(key, queue.clone());
+    queue
 }
 
-pub fn clean(uaddr: AddressInfo) {
+pub fn wake(uaddr: AddressInfo, max_count: usize) -> usize {
     let key = FutexKey::new(uaddr);
+    let mut woken_count = 0;
+
     let mut queues = FUTEX_WAIT_QUEUES.lock();
 
     let Some(queue) = queues.get(&key) else {
-        return;
+        return 0;
     };
 
+    for _ in 0..max_count {
+        if queue.wake().is_none() {
+            break;
+        }
+        woken_count += 1;
+    }
+
+    // Clean empty queue
     if queue.empty() {
         queues.remove(&key);
     }
+
+    woken_count
 }
+
+pub fn wake_all_region(mobj: &Arc<MemoryObject>, range: Range<usize>) {}

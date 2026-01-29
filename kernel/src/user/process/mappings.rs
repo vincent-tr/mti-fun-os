@@ -10,7 +10,7 @@ use alloc::{collections::BTreeMap, format, rc::Rc, sync::Arc};
 
 use crate::{
     memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
-    user::{error::out_of_memory, Error, MemoryObject},
+    user::{error::out_of_memory, futex, Error, MemoryObject},
 };
 
 use super::mapping::Mapping;
@@ -304,6 +304,10 @@ impl Mappings {
                 .expect(&format!("missing node {:?}", addr))
                 .next
                 .clone();
+
+            // Wake up all futexes inside this area
+            futex_wake_area(&area);
+
             self.replace(Area::empty(area.range.clone()));
 
             addr = area.range.end;
@@ -615,4 +619,13 @@ impl Mappings {
 
 fn last_page(range: &Range<VirtAddr>) -> VirtAddr {
     Step::backward(range.end, PAGE_SIZE)
+}
+
+fn futex_wake_area(area: &Rc<Area>) {
+    if let Some(mapping) = area.is_used() {
+        if let Some(mobj) = mapping.memory_object() {
+            let range = mapping.offset()..mapping.offset() + mapping.size();
+            futex::wake_all_region(&mobj, range);
+        }
+    }
 }

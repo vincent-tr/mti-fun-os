@@ -65,7 +65,7 @@ fn main() {
 
     // wait for the process server to create its port
     loop {
-        match (kobject::Port::open_by_name(libruntime::process::messages::PORT_NAME)) {
+        match kobject::Port::open_by_name(libruntime::process::messages::PORT_NAME) {
             Ok(_) => break,
             Err(kobject::Error::ObjectNotFound) => {
                 libruntime::timer::sleep(libruntime::timer::Duration::from_milliseconds(100));

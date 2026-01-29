@@ -97,8 +97,6 @@ tail -f serial.log
 
 ### kernel
 
-- timers (timeout)
-  - delta queue de ticks de task switch
 - futex
 - multi-core
 - ioport to userland

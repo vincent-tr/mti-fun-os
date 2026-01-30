@@ -7,7 +7,7 @@ use alloc::borrow::Cow;
 use core::panic::Location;
 use typed_arena::Arena;
 
-use crate::sync::OnceLock;
+use crate::sync::spin::OnceLock;
 
 /// Indicate information on a location
 #[derive(Debug, Clone)]

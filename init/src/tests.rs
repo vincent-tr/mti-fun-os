@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec};
 use libruntime::{
     kobject::{
         self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
@@ -452,4 +452,305 @@ pub fn test_futex() {
     }
 
     info!("All futex tests PASSED!");
+}
+
+#[allow(dead_code)]
+pub fn test_mutex() {
+    use alloc::sync::Arc;
+    use libruntime::sync::Mutex;
+
+    info!("Testing Mutex operations...");
+
+    // Test 1: Basic lock/unlock
+    info!("Test 1: Basic lock/unlock");
+    {
+        let mutex = Mutex::new(0);
+        {
+            let mut guard = mutex.lock();
+            *guard = 42;
+        }
+        let guard = mutex.lock();
+        assert_eq!(*guard, 42);
+        info!("Test 1: PASSED");
+    }
+
+    // Test 2: try_lock
+    info!("Test 2: try_lock");
+    {
+        let mutex = Mutex::new(0);
+        let guard1 = mutex.lock();
+        assert!(
+            mutex.try_lock().is_none(),
+            "try_lock should fail when locked"
+        );
+        drop(guard1);
+        assert!(
+            mutex.try_lock().is_some(),
+            "try_lock should succeed when unlocked"
+        );
+        info!("Test 2: PASSED");
+    }
+
+    // Test 3: Multiple threads contention
+    info!("Test 3: Multiple threads contention");
+    {
+        let mutex = Arc::new(Mutex::new(0));
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let done_sender = Arc::new(done_sender);
+
+        const NUM_THREADS: usize = 5;
+        const INCREMENTS_PER_THREAD: usize = 100;
+
+        for i in 0..NUM_THREADS {
+            let mutex = Arc::clone(&mutex);
+            let done_sender = Arc::clone(&done_sender);
+
+            let worker = move || {
+                for _ in 0..INCREMENTS_PER_THREAD {
+                    let mut guard = mutex.lock();
+                    *guard += 1;
+                }
+
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+                done_sender.send(&mut msg).expect("send failed");
+            };
+
+            let mut options = ThreadOptions::default();
+            let name = alloc::format!("mutex-worker-{}", i);
+            options.name(&name);
+            kobject::Thread::start(worker, options).expect("failed to start thread");
+        }
+
+        // Wait for all threads
+        for _ in 0..NUM_THREADS {
+            done_reader.blocking_receive().expect("receive failed");
+        }
+
+        let final_value = *mutex.lock();
+        assert_eq!(
+            final_value,
+            (NUM_THREADS * INCREMENTS_PER_THREAD) as i32,
+            "mutex failed to protect shared data"
+        );
+        info!("Test 3: PASSED");
+    }
+
+    // Test 4: Lock ordering (no deadlock with single mutex)
+    info!("Test 4: Lock ordering");
+    {
+        let mutex = Arc::new(Mutex::new(0));
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+
+        let mutex_clone = Arc::clone(&mutex);
+        let worker = move || {
+            for _ in 0..10 {
+                let _guard = mutex_clone.lock();
+                timer::sleep(Duration::from_milliseconds(1));
+            }
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("mutex-sleeper");
+        kobject::Thread::start(worker, options).expect("failed to start thread");
+
+        // Main thread also acquires lock
+        for _ in 0..10 {
+            let _guard = mutex.lock();
+            timer::sleep(Duration::from_milliseconds(1));
+        }
+
+        done_reader.blocking_receive().expect("receive failed");
+        info!("Test 4: PASSED");
+    }
+
+    info!("All Mutex tests PASSED!");
+}
+
+#[allow(dead_code)]
+pub fn test_rwlock() {
+    use alloc::sync::Arc;
+    use libruntime::sync::RwLock;
+
+    info!("Testing RwLock operations...");
+
+    // Test 1: Basic read/write
+    info!("Test 1: Basic read/write");
+    {
+        let lock = RwLock::new(vec![1, 2, 3]);
+        {
+            let r = lock.read();
+            assert_eq!(*r, vec![1, 2, 3]);
+        }
+        {
+            let mut w = lock.write();
+            w.push(4);
+        }
+        {
+            let r = lock.read();
+            assert_eq!(*r, vec![1, 2, 3, 4]);
+        }
+        info!("Test 1: PASSED");
+    }
+
+    // Test 2: Multiple concurrent readers
+    info!("Test 2: Multiple concurrent readers");
+    {
+        let lock = Arc::new(RwLock::new(42));
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let done_sender = Arc::new(done_sender);
+
+        const NUM_READERS: usize = 10;
+
+        for i in 0..NUM_READERS {
+            let lock = Arc::clone(&lock);
+            let done_sender = Arc::clone(&done_sender);
+
+            let reader = move || {
+                let guard = lock.read();
+                assert_eq!(*guard, 42);
+                timer::sleep(Duration::from_milliseconds(10));
+
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+                done_sender.send(&mut msg).expect("send failed");
+            };
+
+            let mut options = ThreadOptions::default();
+            let name = alloc::format!("reader-{}", i);
+            options.name(&name);
+            kobject::Thread::start(reader, options).expect("failed to start thread");
+        }
+
+        // Wait for all readers
+        for _ in 0..NUM_READERS {
+            done_reader.blocking_receive().expect("receive failed");
+        }
+
+        info!("Test 2: PASSED");
+    }
+
+    // Test 3: Writer excludes readers
+    info!("Test 3: Writer excludes readers");
+    {
+        let lock = Arc::new(RwLock::new(0));
+        let (ready_reader, ready_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+
+        let lock_clone = Arc::clone(&lock);
+        let reader = move || {
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            ready_sender.send(&mut msg).expect("send failed");
+
+            let guard = lock_clone.read();
+            let value = *guard;
+            assert!(
+                value == 0 || value == 100,
+                "reader saw intermediate value: {}",
+                value
+            );
+
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("reader");
+        kobject::Thread::start(reader, options).expect("failed to start thread");
+
+        // Wait for reader to be ready
+        ready_reader.blocking_receive().expect("receive failed");
+
+        // Acquire write lock
+        let mut guard = lock.write();
+        *guard = 100;
+        timer::sleep(Duration::from_milliseconds(50));
+        drop(guard);
+
+        // Wait for reader
+        done_reader.blocking_receive().expect("receive failed");
+        info!("Test 3: PASSED");
+    }
+
+    // Test 4: Reader/writer alternation
+    info!("Test 4: Reader/writer alternation");
+    {
+        let lock = Arc::new(RwLock::new(0));
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let done_sender = Arc::new(done_sender);
+
+        // Start writer thread
+        let lock_clone = Arc::clone(&lock);
+        let done_sender_clone = Arc::clone(&done_sender);
+        let writer = move || {
+            for i in 0..5 {
+                let mut guard = lock_clone.write();
+                *guard = i * 10;
+                timer::sleep(Duration::from_milliseconds(5));
+            }
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender_clone.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("writer");
+        kobject::Thread::start(writer, options).expect("failed to start thread");
+
+        // Start reader thread
+        let lock_clone = Arc::clone(&lock);
+        let reader = move || {
+            for _ in 0..5 {
+                let guard = lock_clone.read();
+                let value = *guard;
+                assert!(value % 10 == 0, "reader saw invalid value: {}", value);
+                timer::sleep(Duration::from_milliseconds(5));
+            }
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("reader");
+        kobject::Thread::start(reader, options).expect("failed to start thread");
+
+        // Wait for both
+        done_reader.blocking_receive().expect("receive failed");
+        done_reader.blocking_receive().expect("receive failed");
+
+        info!("Test 4: PASSED");
+    }
+
+    // Test 5: try_read and try_write
+    info!("Test 5: try_read and try_write");
+    {
+        let lock = RwLock::new(0);
+
+        let r1 = lock.try_read();
+        assert!(r1.is_some(), "try_read should succeed");
+
+        let r2 = lock.try_read();
+        assert!(r2.is_some(), "multiple try_read should succeed");
+
+        let w = lock.try_write();
+        assert!(w.is_none(), "try_write should fail with active readers");
+
+        drop(r1);
+        drop(r2);
+
+        let w = lock.try_write();
+        assert!(w.is_some(), "try_write should succeed when unlocked");
+
+        let r = lock.try_read();
+        assert!(r.is_none(), "try_read should fail with active writer");
+
+        info!("Test 5: PASSED");
+    }
+
+    info!("All RwLock tests PASSED!");
 }

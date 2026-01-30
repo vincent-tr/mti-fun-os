@@ -60,7 +60,9 @@ fn main() {
     // tests::kmem_stats();
     // tests::test_unwind();
     // tests::interval_second();
-    tests::test_futex();
+    // tests::test_futex();
+    tests::test_mutex();
+    tests::test_rwlock();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
 

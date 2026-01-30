@@ -136,7 +136,7 @@ pub fn wake(uaddr: AddressInfo, max_count: usize) -> usize {
     };
 
     for _ in 0..max_count {
-        if queue.wake().is_none() {
+        if !thread::wait_queue_wake_one(&queue) {
             break;
         }
         woken_count += 1;

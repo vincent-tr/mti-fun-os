@@ -13,6 +13,7 @@ use log::{error, info};
 use libruntime::{
     ipc,
     kobject::{self, KObject, Permissions},
+    memory,
     process::messages,
 };
 
@@ -58,8 +59,8 @@ impl BufferReader {
         // align mapping to page boundaries
         let buffer_begin = buffer.offset;
         let buffer_end = buffer.offset + buffer.size;
-        let mapping_begin = align_down(buffer_begin, kobject::PAGE_SIZE);
-        let mapping_end = align_up(buffer_end, kobject::PAGE_SIZE);
+        let mapping_begin = memory::align_down(buffer_begin, kobject::PAGE_SIZE);
+        let mapping_end = memory::align_up(buffer_end, kobject::PAGE_SIZE);
         let mapping_size = mapping_end - mapping_begin;
 
         let mapping = process.map_mem(
@@ -83,13 +84,4 @@ impl BufferReader {
         unsafe { self.mapping.as_buffer() }.expect("failed to get buffer")[self.range.clone()]
             .as_ref()
     }
-}
-
-// FIXME: factorize
-fn align_up(addr: usize, align: usize) -> usize {
-    (addr + align - 1) & !(align - 1)
-}
-
-fn align_down(addr: usize, align: usize) -> usize {
-    addr & !(align - 1)
 }

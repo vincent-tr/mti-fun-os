@@ -7,6 +7,8 @@ use core::cmp;
 use core::mem;
 use core::ptr;
 
+use crate::memory;
+
 use super::Allocator;
 
 pub struct Dlmalloc<A> {
@@ -62,11 +64,6 @@ struct Segment {
     size: usize,
     next: *mut Segment,
     flags: u32,
-}
-
-fn align_up(a: usize, alignment: usize) -> usize {
-    debug_assert!(alignment.is_power_of_two());
-    (a + (alignment - 1)) & !(alignment - 1)
 }
 
 fn left_bits(x: u32) -> u32 {
@@ -145,7 +142,7 @@ impl<A: Allocator> Dlmalloc<A> {
 
     // TODO: dox
     fn min_chunk_size(&self) -> usize {
-        align_up(mem::size_of::<Chunk>(), self.malloc_alignment())
+        memory::align_up(mem::size_of::<Chunk>(), self.malloc_alignment())
     }
 
     // TODO: dox
@@ -173,7 +170,7 @@ impl<A: Allocator> Dlmalloc<A> {
     }
 
     fn pad_request(&self, amt: usize) -> usize {
-        align_up(amt + self.chunk_overhead(), self.malloc_alignment())
+        memory::align_up(amt + self.chunk_overhead(), self.malloc_alignment())
     }
 
     fn small_index(&self, size: usize) -> u32 {
@@ -197,7 +194,7 @@ impl<A: Allocator> Dlmalloc<A> {
     }
 
     fn align_offset_usize(&self, addr: usize) -> usize {
-        align_up(addr, self.malloc_alignment()) - (addr as usize)
+        memory::align_up(addr, self.malloc_alignment()) - (addr as usize)
     }
 
     fn top_foot_size(&self) -> usize {
@@ -357,7 +354,7 @@ impl<A: Allocator> Dlmalloc<A> {
     unsafe fn sys_alloc(&mut self, size: usize) -> *mut u8 {
         self.check_malloc_state();
         // keep in sync with max_request
-        let asize = align_up(
+        let asize = memory::align_up(
             size + self.top_foot_size() + self.malloc_alignment(),
             DEFAULT_GRANULARITY,
         );
@@ -565,7 +562,7 @@ impl<A: Allocator> Dlmalloc<A> {
     }
 
     fn mmap_align(&self, a: usize) -> usize {
-        align_up(a, self.system_allocator.page_size())
+        memory::align_up(a, self.system_allocator.page_size())
     }
 
     // Only call this with power-of-two alignment and alignment >
@@ -628,7 +625,7 @@ impl<A: Allocator> Dlmalloc<A> {
 
         let mem = Chunk::to_mem(p);
         debug_assert!(Chunk::size(p) >= nb);
-        debug_assert_eq!(align_up(mem as usize, alignment), mem as usize);
+        debug_assert_eq!(memory::align_up(mem as usize, alignment), mem as usize);
         self.check_inuse_chunk(p);
         return mem;
     }
@@ -1396,7 +1393,7 @@ impl<A: Allocator> Dlmalloc<A> {
         let p = Chunk::from_mem(mem);
         let sz = (*p).head & !INUSE;
         self.check_inuse_chunk(p);
-        debug_assert_eq!(align_up(sz, self.malloc_alignment()), sz);
+        debug_assert_eq!(memory::align_up(sz, self.malloc_alignment()), sz);
         debug_assert!(sz >= self.min_chunk_size());
         debug_assert!(sz >= s);
         debug_assert!(Chunk::mmapped(p) || sz < (s + self.min_chunk_size()));
@@ -1424,7 +1421,10 @@ impl<A: Allocator> Dlmalloc<A> {
         );
         debug_assert!(p as *mut u8 >= self.least_addr);
         debug_assert!(!self.is_small(sz));
-        debug_assert_eq!(align_up(len, self.system_allocator.page_size()), len);
+        debug_assert_eq!(
+            memory::align_up(len, self.system_allocator.page_size()),
+            len
+        );
         debug_assert_eq!((*Chunk::plus_offset(p, sz)).head, Chunk::fencepost_head());
         debug_assert_eq!(
             (*Chunk::plus_offset(p, sz + mem::size_of::<usize>())).head,
@@ -1444,7 +1444,7 @@ impl<A: Allocator> Dlmalloc<A> {
         debug_assert!(!Chunk::mmapped(p));
         if p != self.dv && p != self.top {
             if sz >= self.min_chunk_size() {
-                debug_assert_eq!(align_up(sz, self.malloc_alignment()), sz);
+                debug_assert_eq!(memory::align_up(sz, self.malloc_alignment()), sz);
                 debug_assert!(self.is_aligned(Chunk::to_mem(p) as usize));
                 debug_assert_eq!((*next).prev_foot, sz);
                 debug_assert!(Chunk::pinuse(p));

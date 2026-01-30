@@ -1,5 +1,8 @@
 use core::{error::Error, fmt};
-use libruntime::kobject::{self, KObject};
+use libruntime::{
+    kobject::{self, KObject},
+    memory,
+};
 use log::debug;
 use xmas_elf::{header, program, ElfFile};
 
@@ -88,8 +91,8 @@ fn load_segments(process: &kobject::Process, elf_file: &ElfFile) -> Result<(), L
 
         assert!(program_header.align() as usize >= kobject::PAGE_SIZE);
 
-        let start = align_down(virtual_addr, align);
-        let end = align_up(virtual_addr + virtual_size, align);
+        let start = memory::align_down(virtual_addr, align);
+        let end = memory::align_up(virtual_addr + virtual_size, align);
         let size = end - start;
 
         let offset = virtual_addr - start;
@@ -136,14 +139,6 @@ fn create_segment_data(
     mem_data[offset..(offset + data.len())].copy_from_slice(data);
 
     Ok(mem_obj)
-}
-
-fn align_up(addr: usize, align: usize) -> usize {
-    (addr + align - 1) & !(align - 1)
-}
-
-fn align_down(addr: usize, align: usize) -> usize {
-    addr & !(align - 1)
 }
 
 #[derive(Debug, Clone, Copy)]

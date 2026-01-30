@@ -17,6 +17,7 @@ mod entry;
 pub mod ipc;
 pub mod kobject;
 mod logging;
+pub mod memory;
 pub mod process;
 pub mod sync;
 pub mod timer;

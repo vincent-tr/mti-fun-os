@@ -404,6 +404,7 @@ version = "0.1.0"
 dependencies = [
  "addr2line",
  "bit_field",
+ "hashbrown",
  "lazy_static",
  "libsyscalls",
  "log",
@@ -533,6 +534,7 @@ dependencies = [
 name = "process-server"
 version = "0.1.0"
 dependencies = [
+ "hashbrown",
  "libruntime",
  "log",
 ]

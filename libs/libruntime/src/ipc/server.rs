@@ -2,7 +2,8 @@ use super::messages::{
     Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::kobject::{self, KObject};
-use alloc::{boxed::Box, collections::btree_map::BTreeMap};
+use alloc::boxed::Box;
+use hashbrown::HashMap;
 use log::error;
 
 /// Builder for an IPC server.
@@ -10,7 +11,7 @@ use log::error;
 pub struct ServerBuilder {
     name: &'static str,
     version: u16,
-    handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
+    handlers: HashMap<u16, Box<dyn MessageHandler>>,
 }
 
 impl ServerBuilder {
@@ -19,7 +20,7 @@ impl ServerBuilder {
         Self {
             name,
             version,
-            handlers: BTreeMap::new(),
+            handlers: HashMap::new(),
         }
     }
 
@@ -75,14 +76,14 @@ pub struct Server {
     receiver: kobject::PortReceiver,
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
     version: u16,
-    handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
+    handlers: HashMap<u16, Box<dyn MessageHandler>>,
 }
 
 impl Server {
     fn new(
         name: &str,
         version: u16,
-        handlers: BTreeMap<u16, Box<dyn MessageHandler>>,
+        handlers: HashMap<u16, Box<dyn MessageHandler>>,
     ) -> Result<Self, kobject::Error> {
         let (receiver, sender) = kobject::Port::create(Some(name))?;
 

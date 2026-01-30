@@ -10,6 +10,7 @@ crate-type = ["dylib", "rlib", "staticlib"]
 libsyscalls = { path = "../libsyscalls" }
 log = "0.4.27"
 bit_field = "0.10.2"
+hashbrown = "0.15.2"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 spin = "0.10.0"
 # addr2line = { version = "0.24.2", default-features = false, features = ["rustc-demangle", "loader"] }

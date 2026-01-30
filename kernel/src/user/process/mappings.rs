@@ -6,11 +6,11 @@ use core::{
     panic,
 };
 
-use alloc::{collections::BTreeMap, format, rc::Rc, sync::Arc};
+use alloc::{collections::BTreeMap, format, rc::Rc, sync::Arc, vec::Vec};
 
 use crate::{
     memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
-    user::{error::out_of_memory, futex, Error, MemoryObject},
+    user::{error::out_of_memory, Error, MemoryObject},
 };
 
 use super::mapping::Mapping;
@@ -278,7 +278,13 @@ impl Mappings {
         Rc::ptr_eq(&start_area, &end_area) && start_area.is_used().is_some()
     }
 
-    pub fn remove_range(&mut self, range: Range<VirtAddr>) {
+    /// Remove all mappings in the given range.
+    ///
+    /// Returns a list of (MemoryObject, Range) tuples representing the unmapped regions.
+    pub fn remove_range(
+        &mut self,
+        range: Range<VirtAddr>,
+    ) -> Vec<(Arc<MemoryObject>, Range<usize>)> {
         // Make entries fit perfectly on boundaries
         let start_area = self.get(range.start);
         if start_area.range.start < range.start {
@@ -295,6 +301,8 @@ impl Mappings {
         //start_area = self.get(range.start);
         //end_area = self.get(last_page(&range));
 
+        let mut unmapped_regions = Vec::new();
+
         // Replace all ranges inside
         let mut addr = range.start;
         loop {
@@ -305,8 +313,12 @@ impl Mappings {
                 .next
                 .clone();
 
-            // Wake up all futexes inside this area
-            futex_wake_area(&area);
+            if let Some(mapping) = area.is_used() {
+                if let Some(mobj) = mapping.memory_object() {
+                    let range = mapping.offset()..mapping.offset() + mapping.size();
+                    unmapped_regions.push((mobj.clone(), range));
+                }
+            }
 
             self.replace(Area::empty(area.range.clone()));
 
@@ -344,6 +356,8 @@ impl Mappings {
 
         #[cfg(debug_assertions)]
         self.check_consistency();
+
+        unmapped_regions
     }
 
     pub fn update_access_range(&mut self, range: Range<VirtAddr>, perms: Permissions) {
@@ -619,13 +633,4 @@ impl Mappings {
 
 fn last_page(range: &Range<VirtAddr>) -> VirtAddr {
     Step::backward(range.end, PAGE_SIZE)
-}
-
-fn futex_wake_area(area: &Rc<Area>) {
-    if let Some(mapping) = area.is_used() {
-        if let Some(mobj) = mapping.memory_object() {
-            let range = mapping.offset()..mapping.offset() + mapping.size();
-            futex::wake_all_region(&mobj, range);
-        }
-    }
 }

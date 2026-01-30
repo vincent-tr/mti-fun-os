@@ -10,7 +10,8 @@ use spin::{RwLock, RwLockReadGuard};
 use crate::{
     memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
     user::{
-        error::check_any_permissions, handle::Handles, listener, thread::Thread, weak_map::WeakMap,
+        error::check_any_permissions, futex, handle::Handles, listener, thread::Thread,
+        weak_map::WeakMap,
     },
 };
 
@@ -173,7 +174,7 @@ impl Process {
     /// - addr or addr+size may be in the middle of a mapping
     /// - part of the specified area my not be mapped. In consequence, calling unmap() on an unmapped area is a successful noop.
     ///
-    pub fn munmap(&self, addr: VirtAddr, size: usize) -> Result<(), Error> {
+    pub fn munmap(self: &Arc<Self>, addr: VirtAddr, size: usize) -> Result<(), Error> {
         check_positive(size)?;
         check_page_alignment(size)?;
         check_is_userspace(addr)?;
@@ -184,7 +185,11 @@ impl Process {
 
         let range = addr..addr + size as u64;
 
-        mappings.remove_range(range.clone());
+        let unmapped_regions = mappings.remove_range(range.clone());
+
+        for (mobj, range) in unmapped_regions {
+            futex::wake_process_region(self, &mobj, range);
+        }
 
         trace!("Process {}: unmapped at {:?}", self.id, range);
 

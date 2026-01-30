@@ -1,9 +1,12 @@
 use core::arch::asm;
 
 use alloc::sync::Arc;
-use libruntime::kobject::{
-    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-    ThreadOptions, Timer, TlsAllocator, PAGE_SIZE,
+use libruntime::{
+    kobject::{
+        self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
+        ThreadOptions, Timer, TlsAllocator, PAGE_SIZE,
+    },
+    timer::{self, Duration},
 };
 use log::{debug, info};
 
@@ -244,4 +247,209 @@ pub fn interval_second() {
             .expect("failed to receive timer event");
         info!("tick armed at {}, fired at {}", now, msg.now);
     }
+}
+
+#[allow(dead_code)]
+pub fn test_futex() {
+    use core::sync::atomic::{AtomicU32, Ordering};
+    use libsyscalls::futex;
+
+    info!("Testing futex operations...");
+
+    // Allocate shared memory for futex
+    let futex_var = AtomicU32::new(0);
+    let futex_ptr = &futex_var as *const AtomicU32 as *const u32;
+    let futex = unsafe { &*futex_ptr };
+
+    // Test 1: Basic wait/wake
+    info!("Test 1: Basic wait/wake");
+    {
+        let (ready_reader, ready_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+
+        let futex_addr = futex_ptr as usize;
+        let waiter = move || {
+            let futex = unsafe { &*(futex_addr as *const u32) };
+            let futex_atomic = unsafe { &*(futex_addr as *const AtomicU32) };
+
+            // Signal ready
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            ready_sender.send(&mut msg).expect("send failed");
+
+            // Wait on futex
+            let result = futex::wait(futex, 0);
+            assert!(result.is_ok(), "futex wait failed: {:?}", result);
+
+            // Check value changed
+            assert_eq!(futex_atomic.load(Ordering::SeqCst), 1);
+
+            // Signal done
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("futex-waiter");
+        let _thread = kobject::Thread::start(waiter, options).expect("failed to start thread");
+
+        // Wait for waiter to be ready
+        ready_reader.blocking_receive().expect("receive failed");
+
+        // Give it time to sleep on futex
+        timer::sleep(Duration::from_milliseconds(100));
+
+        // Change value and wake
+        futex_var.store(1, Ordering::SeqCst);
+        let woken = futex::wake(futex, 1).expect("futex wake failed");
+        assert_eq!(woken, 1, "should have woken 1 thread");
+
+        // Wait for completion
+        done_reader.blocking_receive().expect("receive failed");
+        info!("Test 1: PASSED");
+    }
+
+    // Test 2: Wake with no waiters
+    info!("Test 2: Wake with no waiters");
+    {
+        let woken = futex::wake(futex, 1).expect("futex wake failed");
+        assert_eq!(woken, 0, "should have woken 0 threads");
+        info!("Test 2: PASSED");
+    }
+
+    // Test 3: Multiple waiters
+    info!("Test 3: Multiple waiters (wake all)");
+    {
+        futex_var.store(0, Ordering::SeqCst);
+
+        const NUM_WAITERS: usize = 5;
+        let mut done_readers = alloc::vec::Vec::new();
+
+        for i in 0..NUM_WAITERS {
+            let (ready_reader, ready_sender) =
+                kobject::Port::create(None).expect("failed to create port");
+            let (done_reader, done_sender) =
+                kobject::Port::create(None).expect("failed to create port");
+            done_readers.push(done_reader);
+
+            let futex_addr = futex_ptr as usize;
+            let waiter = move || {
+                let futex = unsafe { &*(futex_addr as *const u32) };
+
+                // Signal ready
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+                ready_sender.send(&mut msg).expect("send failed");
+
+                // Wait on futex
+                let result = futex::wait(futex, 0);
+                assert!(result.is_ok(), "futex wait failed: {:?}", result);
+
+                // Signal done
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+                done_sender.send(&mut msg).expect("send failed");
+            };
+
+            let mut options = ThreadOptions::default();
+            let name = alloc::format!("futex-waiter-{}", i);
+            options.name(&name);
+            kobject::Thread::start(waiter, options).expect("failed to start thread");
+
+            ready_reader.blocking_receive().expect("receive failed");
+        }
+
+        // Give them time to sleep
+        timer::sleep(Duration::from_milliseconds(100));
+
+        // Wake all
+        let woken = futex::wake(futex, NUM_WAITERS).expect("futex wake failed");
+        assert_eq!(woken, NUM_WAITERS, "should have woken all threads");
+
+        // Wait for all to complete
+        for done_reader in done_readers {
+            done_reader.blocking_receive().expect("receive failed");
+        }
+        info!("Test 3: PASSED");
+    }
+
+    // Test 4: Value changed (spurious wakeup check)
+    info!("Test 4: Value mismatch");
+    {
+        futex_var.store(42, Ordering::SeqCst);
+
+        let result = futex::wait(futex, 0);
+        assert!(result.is_err(), "futex wait should fail on value mismatch");
+        info!("Test 4: PASSED");
+    }
+
+    // Test 5: Unmap wakes blocked threads
+    info!("Test 5: Unmap wakes blocked threads");
+    {
+        use kobject::{MemoryObject, Process};
+
+        // Create shared memory for futex
+        let mem_obj = MemoryObject::create(PAGE_SIZE).expect("failed to create memory object");
+        let process = Process::current();
+
+        let mapping = process
+            .map_mem(
+                None,
+                PAGE_SIZE,
+                Permissions::READ | Permissions::WRITE,
+                &mem_obj,
+                0,
+            )
+            .expect("failed to map memory");
+
+        let mapped_futex_addr = mapping.address() as *mut AtomicU32;
+        let mapped_futex = unsafe { &*mapped_futex_addr };
+
+        // Initialize futex value
+        mapped_futex.store(0, Ordering::SeqCst);
+
+        let (ready_reader, ready_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+        let (done_reader, done_sender) =
+            kobject::Port::create(None).expect("failed to create port");
+
+        let futex_addr = mapped_futex_addr as usize;
+        let waiter = move || {
+            let futex = unsafe { &*(futex_addr as *const u32) };
+
+            // Signal ready
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            ready_sender.send(&mut msg).expect("send failed");
+
+            // Wait on futex - should be woken by unmap
+            let result = futex::wait(futex, 0);
+            assert!(
+                result.is_ok(),
+                "futex wait should succeed when woken by unmap: {:?}",
+                result
+            );
+
+            // Signal done
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, &mut []) };
+            done_sender.send(&mut msg).expect("send failed");
+        };
+
+        let mut options = ThreadOptions::default();
+        options.name("futex-unmap-waiter");
+        let _thread = kobject::Thread::start(waiter, options).expect("failed to start thread");
+
+        // Wait for waiter to be ready
+        ready_reader.blocking_receive().expect("receive failed");
+
+        // Give it time to sleep on futex
+        timer::sleep(Duration::from_milliseconds(100));
+
+        // Unmap the region - this should wake the waiter
+        drop(mapping);
+
+        // Wait for completion
+        done_reader.blocking_receive().expect("receive failed");
+        info!("Test 5: PASSED");
+    }
+
+    info!("All futex tests PASSED!");
 }

@@ -71,7 +71,7 @@ impl Port {
         data.message_queue.push_back(message);
 
         // Wake up any waiting receiver
-        thread::wait_queue_wake_all(&self.receiver_queue);
+        thread::wait_queue_wake_all(&self.receiver_queue, &|_thread| true);
 
         Ok(())
     }
@@ -101,7 +101,7 @@ impl Port {
         data.message_queue.clear();
 
         // Wait up any sleeping receivers (They won't be able to receive)
-        thread::wait_queue_wake_all(&self.receiver_queue);
+        thread::wait_queue_wake_all(&self.receiver_queue, &|_thread| true);
     }
 
     /// Prepare a wait

@@ -214,6 +214,27 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
         None => return false,
     };
 
+    wake_thread(thread, wait_queue);
+
+    return true;
+}
+
+/// Wait up all threads from the wait queue
+pub fn wait_queue_wake_all(
+    wait_queue: &Arc<WaitQueue>,
+    predicate: &dyn Fn(&Arc<Thread>) -> bool,
+) -> usize {
+    let threads = wait_queue.wake_all(predicate);
+    let count = threads.len();
+
+    for thread in threads {
+        wake_thread(thread, wait_queue);
+    }
+
+    count
+}
+
+fn wake_thread(thread: Arc<Thread>, wait_queue: &Arc<WaitQueue>) {
     let wait_context = {
         let state = thread.state();
         let data = state.is_waiting().expect("thread not waiting");
@@ -235,13 +256,6 @@ pub fn wait_queue_wake_one(wait_queue: &Arc<WaitQueue>) -> bool {
 
     // Resume it
     wait_context.wakeup(wait_queue);
-
-    return true;
-}
-
-/// Wait up all threads from the wait queue
-pub fn wait_queue_wake_all(wait_queue: &Arc<WaitQueue>) {
-    while wait_queue_wake_one(wait_queue) {}
 }
 
 /// Set the thread priority

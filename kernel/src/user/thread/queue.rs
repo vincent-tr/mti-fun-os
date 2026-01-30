@@ -1,6 +1,6 @@
 use core::ptr::null_mut;
 
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
 use super::Thread;
@@ -116,6 +116,22 @@ impl Queue {
         } else {
             false
         }
+    }
+
+    /// Find all threads in queue matching the given predicate, in queue order
+    pub fn list_predicate(&mut self, predicate: &dyn Fn(&Arc<Thread>) -> bool) -> Vec<Arc<Thread>> {
+        let mut list = Vec::new();
+        let mut current_ptr = self.tail;
+
+        // Iterate through the queue from tail to head
+        while let Some(node) = current_ptr.as_ref() {
+            if predicate(&node.thread) {
+                list.push(node.thread.clone());
+            }
+            current_ptr = node.prev;
+        }
+
+        list
     }
 
     /// Pop the next thread from the queue

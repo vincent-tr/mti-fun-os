@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 use spin::RwLock;
 
 use super::{queue::Queue, Thread};
@@ -35,6 +35,19 @@ impl WaitQueue {
     pub fn wake(&self) -> Option<Arc<Thread>> {
         let mut queue = self.queue.write();
         queue.pop()
+    }
+
+    /// Wake up all threads from this wait queue matching the given predicate
+    pub fn wake_all(&self, predicate: &dyn Fn(&Arc<Thread>) -> bool) -> Vec<Arc<Thread>> {
+        let mut queue = self.queue.write();
+
+        let threads = queue.list_predicate(predicate);
+
+        for thread in &threads {
+            queue.remove(&thread);
+        }
+
+        threads
     }
 
     /// Get the number of waiting threads in this queue

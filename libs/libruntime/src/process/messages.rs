@@ -11,10 +11,9 @@ pub const VERSION: u16 = 1;
 #[repr(u16)]
 pub enum Type {
     CreateProcess = 1,
-    GetStartupInfo = 3,
-    UpdateProcessName = 2,
-    UpdateEnv = 4,
-    SetExitCode = 5,
+    GetStartupInfo = 2,
+    UpdateEnv = 3,
+    SetExitCode = 4,
 }
 
 impl From<Type> for u16 {

@@ -16,12 +16,16 @@ impl WaitQueue {
     }
 
     /// Add a new thread to this wait queue
+    ///
+    /// Note: do not use queue API directly, use thread::* functions instead
     pub fn add(&self, thread: Arc<Thread>) {
         let mut queue = self.queue.write();
         queue.add(thread);
     }
 
     /// Remove a thread from the wait queue
+    ///
+    /// Note: do not use queue API directly, use thread::* functions instead
     pub fn remove(&self, thread: &Arc<Thread>) {
         let mut queue = self.queue.write();
         assert!(
@@ -32,12 +36,16 @@ impl WaitQueue {
     }
 
     /// Wake up a thread to this wait queue
+    ///
+    /// Note: do not use queue API directly, use thread::* functions instead
     pub fn wake(&self) -> Option<Arc<Thread>> {
         let mut queue = self.queue.write();
         queue.pop()
     }
 
     /// Wake up all threads from this wait queue matching the given predicate
+    ///
+    /// Note: do not use queue API directly, use thread::* functions instead
     pub fn wake_all(&self, predicate: &dyn Fn(&Arc<Thread>) -> bool) -> Vec<Arc<Thread>> {
         let mut queue = self.queue.write();
 

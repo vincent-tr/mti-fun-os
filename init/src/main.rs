@@ -54,15 +54,15 @@ extern "C" fn entry(binary_len: usize) -> ! {
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");
 
-    // tests::dump_processes_threads();
-    // tests::listen_threads();
-    // tests::do_ipc();
-    // tests::kmem_stats();
-    // tests::test_unwind();
-    // tests::interval_second();
-    // tests::test_futex();
-    tests::test_mutex();
-    tests::test_rwlock();
+    tests::thread::dump_processes_threads();
+    tests::thread::listen_threads();
+    tests::ipc::do_ipc();
+    tests::basic::kmem_stats();
+    tests::basic::test_unwind();
+    tests::thread::interval_second();
+    tests::sync::test_futex();
+    tests::sync::test_mutex();
+    tests::sync::test_rwlock();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
 

@@ -13,8 +13,11 @@ mod tests;
 
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 
-use libruntime::kobject::{self, Permissions, ThreadOptions, PAGE_SIZE};
-use log::debug;
+use libruntime::{
+    kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
+    process,
+};
+use log::{debug, info};
 
 // Special init start: need to setup its own stack
 #[naked]
@@ -54,31 +57,20 @@ extern "C" fn entry(binary_len: usize) -> ! {
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");
 
-    tests::thread::dump_processes_threads();
-    tests::thread::listen_threads();
-    tests::ipc::do_ipc();
-    tests::basic::kmem_stats();
-    tests::basic::test_unwind();
-    tests::thread::interval_second();
-    tests::sync::test_futex();
-    tests::sync::test_mutex();
-    tests::sync::test_rwlock();
+    // tests::thread::dump_processes_threads();
+    // tests::thread::listen_threads();
+    // tests::ipc::do_ipc();
+    // tests::basic::kmem_stats();
+    // tests::basic::test_unwind();
+    // tests::thread::interval_second();
+    // tests::sync::test_futex();
+    // tests::sync::test_mutex();
+    // tests::sync::test_rwlock();
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
+    wait_port(process::messages::PORT_NAME);
 
-    // wait for the process server to create its port
-    loop {
-        match kobject::Port::open_by_name(libruntime::process::messages::PORT_NAME) {
-            Ok(_) => break,
-            Err(kobject::Error::ObjectNotFound) => {
-                libruntime::timer::sleep(libruntime::timer::Duration::from_milliseconds(100));
-                debug!("waiting for process server port...");
-            }
-            Err(e) => panic!("Could not open process server port: {}", e),
-        }
-    }
-
-    libruntime::process::Process::spawn("vfs-server");
+    process::Process::spawn("vfs-server");
 
     //loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
 
@@ -128,4 +120,20 @@ fn apply_memory_protections(binary_len: usize) {
             range.len()
         );
     }
+}
+
+/// Wait for a server port to be available
+fn wait_port(name: &'static str) {
+    loop {
+        match kobject::Port::open_by_name(name) {
+            Ok(_) => break,
+            Err(kobject::Error::ObjectNotFound) => {
+                libruntime::timer::sleep(libruntime::timer::Duration::from_milliseconds(100));
+                debug!("waiting for '{}' port...", name);
+            }
+            Err(e) => panic!("Could not open '{}' port: {}", name, e),
+        }
+    }
+
+    info!("found '{}' port", name);
 }

@@ -38,6 +38,16 @@ impl KObject for MemoryObject {
     }
 }
 
+impl Clone for MemoryObject {
+    fn clone(&self) -> Self {
+        let handle = self.handle.clone();
+        Self {
+            handle,
+            cached_size: Mutex::new(*self.cached_size.lock()),
+        }
+    }
+}
+
 impl MemoryObject {
     /// Create a new memory object of the specified size
     pub fn create(size: usize) -> Result<Self, Error> {

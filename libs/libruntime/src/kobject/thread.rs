@@ -47,6 +47,18 @@ impl KObject for Thread {
     }
 }
 
+impl Clone for Thread {
+    fn clone(&self) -> Self {
+        let handle = self.handle.clone();
+
+        Self {
+            handle,
+            cached_tid: Mutex::new(*self.cached_tid.lock()),
+            cached_pid: Mutex::new(*self.cached_pid.lock()),
+        }
+    }
+}
+
 /// Thread options
 #[derive(Debug)]
 pub struct ThreadOptions<'a> {

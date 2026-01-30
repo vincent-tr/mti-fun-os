@@ -41,6 +41,17 @@ impl KObject for Process {
     }
 }
 
+impl Clone for Process {
+    fn clone(&self) -> Self {
+        let handle = self.handle.clone();
+
+        Self {
+            cached_pid: Mutex::new(*self.cached_pid.lock()),
+            handle,
+        }
+    }
+}
+
 impl Process {
     /// Get the current process
     pub fn current() -> &'static Self {

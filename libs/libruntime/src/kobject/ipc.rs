@@ -44,7 +44,7 @@ impl Port {
 }
 
 /// Port sender
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PortSender {
     handle: Handle,
 }
@@ -89,7 +89,10 @@ impl PortSender {
 }
 
 /// Port receiver
-#[derive(Debug)]
+///
+/// Note: cloning the receiver duplicates the underlying handle only
+/// This means that for each clone, messages may be received in any of the clones, NOT all of them
+#[derive(Debug, Clone)]
 pub struct PortReceiver {
     handle: Handle,
 }

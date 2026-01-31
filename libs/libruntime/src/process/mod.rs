@@ -4,7 +4,7 @@ pub mod messages;
 pub use kvblock::KVBlock;
 
 use crate::{
-    ipc::{self, buffer::Buffer, Handles},
+    ipc::{self, buffer::Buffer, CallError, Handles},
     kobject::{self, KObject},
     process::messages::CreateProcessReply,
 };
@@ -13,9 +13,11 @@ lazy_static::lazy_static! {
     static ref IPC_CLIENT: ipc::Client = ipc::Client::new(messages::PORT_NAME, messages::VERSION);
 }
 
+type ProcessServerError = CallError<messages::ProcessServerError>;
+
 #[derive(Debug)]
 pub struct Process {
-    // TODO
+    kobj: kobject::Process,
 }
 
 impl Process {
@@ -24,8 +26,8 @@ impl Process {
         binary: Buffer<'_>,
         env: &[(&str, &str)],
         args: &[(&str, &str)],
-    ) -> Self {
-        let (name_memobj, name_buffer) = Buffer::from(name.as_bytes()).into_shared();
+    ) -> Result<Self, ProcessServerError> {
+        let (name_memobj, name_buffer) = Buffer::new_local(name.as_bytes()).into_shared();
         let (binary_mobj, binary_buffer) = binary.into_shared();
 
         let env = KVBlock::build(env);
@@ -45,9 +47,7 @@ impl Process {
         query_handles[messages::CreateProcessQueryParameters::HANDLE_ARGS_MOBJ] =
             args.into_handle();
 
-        let res = IPC_CLIENT.call::<messages::Type, messages::CreateProcessQueryParameters, messages::CreateProcessReply, messages::ProcessServerError>(messages::Type::CreateProcess, query_params, query_handles);
-
-        let (reply, mut reply_handles) = res.expect("failed to create process");
+        let (reply, mut reply_handles) = IPC_CLIENT.call::<messages::Type, messages::CreateProcessQueryParameters, messages::CreateProcessReply, messages::ProcessServerError>(messages::Type::CreateProcess, query_params, query_handles)?;
 
         let process =
             kobject::Process::from_handle(reply_handles.take(CreateProcessReply::HANDLE_PROCESS))
@@ -57,11 +57,11 @@ impl Process {
         )
         .expect("failed to get main thread handle");
 
-        // TODO
-        let _ = reply;
-        let _ = process;
+        // Not used for now
+        let _ = reply.pid;
+        let _ = reply.tid;
         let _ = main_thread;
 
-        Self {}
+        Ok(Self { kobj: process })
     }
 }

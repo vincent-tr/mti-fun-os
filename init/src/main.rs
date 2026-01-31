@@ -14,6 +14,7 @@ mod tests;
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 
 use libruntime::{
+    ipc::buffer::Buffer,
     kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
     process,
 };
@@ -70,7 +71,15 @@ fn main() {
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::messages::PORT_NAME);
 
-    // process::Process::spawn("vfs-server");
+    let process = process::Process::spawn(
+        "vfs-server",
+        Buffer::new_local(archive::VFS_SERVER),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn vfs server");
+
+    let _ = process;
 
     //loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
 

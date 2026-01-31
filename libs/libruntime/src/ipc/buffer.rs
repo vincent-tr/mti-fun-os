@@ -23,13 +23,11 @@ pub enum Buffer<'a> {
     Shared((kobject::MemoryObject, messages::Buffer)),
 }
 
-impl<'a> From<&'a [u8]> for Buffer<'a> {
-    fn from(value: &'a [u8]) -> Self {
-        Buffer::Local(value)
+impl<'a> Buffer<'a> {
+    pub fn new_local(data: &'a [u8]) -> Self {
+        Self::Local(data)
     }
-}
 
-impl Buffer<'_> {
     pub fn new_shared(mobj: kobject::MemoryObject, offset: usize, size: usize) -> Self {
         Self::Shared((mobj, messages::Buffer { offset, size }))
     }

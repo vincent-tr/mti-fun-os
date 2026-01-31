@@ -58,8 +58,8 @@ impl CreateProcessQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateProcessReply {
-    pub pid: u32,
-    pub tid: u32,
+    pub pid: u64,
+    pub tid: u64,
 }
 
 impl CreateProcessReply {

@@ -70,7 +70,7 @@ fn main() {
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::messages::PORT_NAME);
 
-    process::Process::spawn("vfs-server");
+    // process::Process::spawn("vfs-server");
 
     //loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
 

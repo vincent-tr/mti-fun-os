@@ -29,12 +29,14 @@ impl From<Type> for u16 {
 #[repr(usize)]
 pub enum ProcessServerError {
     InvalidArgument = 1,
+    InvalidBinaryFormat = 2,
 }
 
 impl fmt::Display for ProcessServerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProcessServerError::InvalidArgument => write!(f, "InvalidArgument"),
+            ProcessServerError::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
         }
     }
 }

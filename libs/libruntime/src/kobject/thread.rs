@@ -186,6 +186,16 @@ impl Thread {
         })
     }
 
+    pub fn open_self() -> Result<Self, Error> {
+        let handle = thread::open_self()?;
+
+        Ok(Self {
+            cached_tid: Mutex::new(None),
+            cached_pid: Mutex::new(None),
+            handle,
+        })
+    }
+
     /// Get the thread id
     pub fn tid(&self) -> u64 {
         if let Some(value) = *self.cached_tid.lock() {

@@ -16,13 +16,18 @@ pub struct KVBlock {
 
 impl KVBlock {
     /// Creates a KVBlock from a list of key-value string entries.
-    pub fn from_entries(entries: &[(&str, &str)]) -> Self {
+    pub fn build<I, K, V>(entries: I) -> MemoryObject
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
         // Calculate total size
         let mut total_size = mem::size_of::<Header>();
         for (key, value) in entries {
             total_size += mem::size_of::<KVEntry>();
-            total_size += key.len();
-            total_size += value.len();
+            total_size += key.as_ref().len();
+            total_size += value.as_ref().len();
             total_size = align_up(total_size, mem::align_of::<KVEntry>());
         }
 
@@ -30,10 +35,10 @@ impl KVBlock {
 
         builder.set_header(VERSION, entries.len() as u32);
         for (key, value) in entries {
-            builder.add_entry(key, value);
+            builder.add_entry(key.as_ref(), value.as_ref());
         }
 
-        Self::from_memory_object(builder.build())
+        builder.build()
     }
 
     /// Creates a KVBlock from a memory object.

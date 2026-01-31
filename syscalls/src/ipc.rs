@@ -25,8 +25,8 @@ pub struct Message {
 }
 
 impl Message {
-    pub const DATA_SIZE: usize = 8;
-    pub const HANDLE_COUNT: usize = 4;
+    pub const DATA_SIZE: usize = 16;
+    pub const HANDLE_COUNT: usize = 8;
 }
 
 /// Process information

@@ -48,9 +48,31 @@ impl Manager {
 
     pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
         let builder = ipc::ServerBuilder::new(messages::PORT_NAME, messages::VERSION);
-        let builder =
-            self.add_handler(builder, messages::Type::CreateProcess, Self::create_process);
+        let builder = self.add_handler(
+            builder,
+            messages::Type::CreateProcess,
+            Self::create_process_handler,
+        );
         builder.build()
+    }
+
+    fn create_process_handler(
+        &self,
+        query: messages::CreateProcessQueryParameters,
+        mut query_handles: ipc::Handles,
+    ) -> Result<(messages::CreateProcessReply, ipc::Handles), ProcessServerError> {
+        let name_handle =
+            query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
+
+        let name_reader = BufferReader::new(name_handle, &query.name).map_err(|err| {
+            error!("failed to create name buffer reader: {:?}", err);
+            ProcessServerError::InvalidArgument
+        })?;
+        let str = unsafe { str::from_utf8_unchecked(name_reader.buffer()) };
+
+        info!("Creating process {}", str);
+
+        Err(ProcessServerError::InvalidArgument)
     }
 
     fn add_handler<QueryParameters, ReplyContent>(
@@ -71,25 +93,6 @@ impl Manager {
         builder.with_handler(message_type, move |query, handles| {
             handler(&manager, query, handles)
         })
-    }
-
-    fn create_process(
-        &self,
-        query: messages::CreateProcessQueryParameters,
-        mut query_handles: ipc::Handles,
-    ) -> Result<(messages::CreateProcessReply, ipc::Handles), ProcessServerError> {
-        let name_handle =
-            query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
-
-        let name_reader = BufferReader::new(name_handle, &query.name).map_err(|err| {
-            error!("failed to create name buffer reader: {:?}", err);
-            ProcessServerError::InvalidArgument
-        })?;
-        let str = unsafe { str::from_utf8_unchecked(name_reader.buffer()) };
-
-        info!("Creating process {}", str);
-
-        Err(ProcessServerError::InvalidArgument)
     }
 
     /// Register the process-server itself in the system

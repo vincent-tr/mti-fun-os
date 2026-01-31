@@ -69,7 +69,7 @@ impl Client {
             parameters: query,
         };
 
-        let mut message = unsafe { kobject::Message::new(&data, query_handles.as_mut_slice()) };
+        let mut message = unsafe { kobject::Message::new(&data, query_handles.into()) };
 
         port.send(&mut message)?;
 
@@ -81,7 +81,7 @@ impl Client {
         if header.success {
             let handles = reply.take_all_handles();
             let reply_message = unsafe { reply.data::<ReplySuccessMessage<ReplyContent>>() };
-            Ok((reply_message.content, handles))
+            Ok((reply_message.content, handles.into()))
         } else {
             let error_message = unsafe { reply.data::<ReplyErrorMessage<ReplyError>>() };
             Err(CallError::ReplyError(error_message.error))
@@ -93,7 +93,7 @@ impl Client {
         &self,
         message_type: MessageType,
         query: QueryParameters,
-        mut query_handles: Handles,
+        query_handles: Handles,
     ) -> Result<(), kobject::Error>
     where
         MessageType: Into<u16>,
@@ -110,7 +110,7 @@ impl Client {
             parameters: query,
         };
 
-        let mut message = unsafe { kobject::Message::new(&data, query_handles.as_mut_slice()) };
+        let mut message = unsafe { kobject::Message::new(&data, query_handles.into()) };
 
         port.send(&mut message)?;
 

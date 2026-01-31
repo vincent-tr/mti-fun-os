@@ -335,17 +335,17 @@ impl Message {
     /// # Safety
     ///
     /// - data must be trivially copiable, with no reference.
-    pub unsafe fn new<T: Copy>(data: &T, handles: &mut [Handle]) -> Self {
+    pub unsafe fn new<T: Copy>(data: &T, handles: [Handle; Self::HANDLE_COUNT]) -> Self {
         Self::assert_layout::<T>();
-        assert!(handles.len() <= Self::HANDLE_COUNT);
 
-        let mut msg = Self::default();
+        let mut msg = Message {
+            data: MessageData {
+                data: [0; Self::DATA_SIZE],
+            },
+            handles,
+        };
 
         *msg.data_mut() = *data;
-
-        for (index, handle) in handles.iter_mut().enumerate() {
-            mem::swap(handle, &mut msg.handles[index]);
-        }
 
         msg
     }

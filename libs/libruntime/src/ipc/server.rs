@@ -147,7 +147,7 @@ impl<QueryParameters: Copy> MessageHandlerWithoutReply<QueryParameters> {
 impl<QueryParameters: Copy> MessageHandler for MessageHandlerWithoutReply<QueryParameters> {
     fn handle_message(&self, mut message: kobject::Message) {
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
-        (self.handler)(query.parameters, message.take_all_handles());
+        (self.handler)(query.parameters, message.take_all_handles().into());
     }
 }
 
@@ -186,10 +186,10 @@ impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> MessageHandler
 
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
         let transaction = query.header.transaction;
-        let result = (self.handler)(query.parameters, message.take_all_handles());
+        let result = (self.handler)(query.parameters, message.take_all_handles().into());
 
         let mut message = match result {
-            Ok((content, mut handles)) => {
+            Ok((content, handles)) => {
                 let reply = ReplySuccessMessage {
                     header: ReplyHeader {
                         transaction,
@@ -198,7 +198,7 @@ impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> MessageHandler
                     content,
                 };
 
-                unsafe { kobject::Message::new(&reply, handles.as_mut_slice()) }
+                unsafe { kobject::Message::new(&reply, handles.into()) }
             }
             Err(error) => {
                 let reply = ReplyErrorMessage {
@@ -209,7 +209,7 @@ impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> MessageHandler
                     error,
                 };
 
-                unsafe { kobject::Message::new(&reply, &mut []) }
+                unsafe { kobject::Message::new(&reply, Handles::new().into()) }
             }
         };
 

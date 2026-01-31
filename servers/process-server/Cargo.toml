@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 libruntime = { path = "../../libs/libruntime" }
 log = "0.4.27"
+hashbrown = "0.15.2"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }

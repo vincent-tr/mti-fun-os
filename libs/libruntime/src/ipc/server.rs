@@ -3,6 +3,7 @@ use super::messages::{
 };
 use crate::kobject::{self, KObject};
 use alloc::boxed::Box;
+use core::marker::PhantomData;
 use hashbrown::HashMap;
 use log::error;
 
@@ -44,16 +45,17 @@ impl ServerBuilder {
     /// Adds a message handler with reply for the given message type.
     ///
     /// Note: handles[0] is reserved for the reply port, and will be set to invalid before calling the handler.
-    pub fn with_handler<QueryParameters, ReplyContent, ReplyError, MessageType>(
+    pub fn with_handler<QueryParameters, ReplyContent, ReplyError, MessageType, F>(
         mut self,
         message_type: MessageType,
-        handler: fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+        handler: F,
     ) -> Self
     where
         QueryParameters: Copy + 'static,
         ReplyContent: Copy + 'static,
         ReplyError: Copy + 'static,
         MessageType: Into<u16>,
+        F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError> + 'static,
     {
         self.handlers.insert(
             message_type.into(),
@@ -134,46 +136,75 @@ trait MessageHandler: core::fmt::Debug {
     fn handle_message(&self, message: kobject::Message);
 }
 
-struct MessageHandlerWithoutReply<QueryParameters: Copy> {
-    handler: fn(QueryParameters, Handles),
+struct MessageHandlerWithoutReply<QueryParameters: Copy, F>
+where
+    F: Fn(QueryParameters, Handles),
+{
+    handler: F,
+    _phantom: PhantomData<QueryParameters>,
 }
 
-impl<QueryParameters: Copy> MessageHandlerWithoutReply<QueryParameters> {
-    pub fn new(handler: fn(QueryParameters, Handles)) -> Self {
-        Self { handler }
+impl<QueryParameters: Copy, F> MessageHandlerWithoutReply<QueryParameters, F>
+where
+    F: Fn(QueryParameters, Handles),
+{
+    pub fn new(handler: F) -> Self {
+        Self {
+            handler,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<QueryParameters: Copy> MessageHandler for MessageHandlerWithoutReply<QueryParameters> {
+impl<QueryParameters: Copy, F> MessageHandler for MessageHandlerWithoutReply<QueryParameters, F>
+where
+    F: Fn(QueryParameters, Handles),
+{
     fn handle_message(&self, mut message: kobject::Message) {
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
         (self.handler)(query.parameters, message.take_all_handles().into());
     }
 }
 
-impl<QueryParameters: Copy> core::fmt::Debug for MessageHandlerWithoutReply<QueryParameters> {
+impl<QueryParameters: Copy, F> core::fmt::Debug for MessageHandlerWithoutReply<QueryParameters, F>
+where
+    F: Fn(QueryParameters, Handles),
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "MessageHandlerWithoutReply")
     }
 }
 
 // Note: Handler 0 = reply port
-struct MessageHandlerWithReply<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> {
-    handler: fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+struct MessageHandlerWithReply<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F>
+where
+    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+{
+    handler: F,
+    _phantom: (
+        PhantomData<QueryParameters>,
+        PhantomData<ReplyContent>,
+        PhantomData<ReplyError>,
+    ),
 }
 
-impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy>
-    MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError>
+impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F>
+    MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
+where
+    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
 {
-    pub fn new(
-        handler: fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
-    ) -> Self {
-        Self { handler }
+    pub fn new(handler: F) -> Self {
+        Self {
+            handler,
+            _phantom: (PhantomData, PhantomData, PhantomData),
+        }
     }
 }
 
-impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> MessageHandler
-    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError>
+impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> MessageHandler
+    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
+where
+    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
 {
     fn handle_message(&self, mut message: kobject::Message) {
         let port = match kobject::PortSender::from_handle(message.take_handle(0)) {
@@ -219,8 +250,10 @@ impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> MessageHandler
     }
 }
 
-impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy> core::fmt::Debug
-    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError>
+impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> core::fmt::Debug
+    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
+where
+    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "MessageHandlerWithReply")

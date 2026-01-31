@@ -5,3 +5,4 @@ mod server;
 pub use client::{CallError, Client};
 pub use messages::Handles;
 pub use server::{Server, ServerBuilder};
+pub mod buffer;

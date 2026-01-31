@@ -1,5 +1,7 @@
 use alloc::fmt;
 
+use crate::ipc::buffer::messages::Buffer;
+
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "process-server";
 
@@ -42,7 +44,7 @@ impl fmt::Display for ProcessServerError {
 #[repr(C)]
 pub struct CreateProcessQueryParameters {
     pub name: Buffer,
-    pub binary_len: usize,
+    pub binary: Buffer,
 }
 
 impl CreateProcessQueryParameters {
@@ -63,13 +65,4 @@ pub struct CreateProcessReply {
 impl CreateProcessReply {
     pub const HANDLE_PROCESS: usize = 0;
     pub const HANDLE_MAIN_THREAD: usize = 1;
-}
-
-/// A buffer descriptor used in IPC messages.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Buffer {
-    // will take a handle slot for MemoryObject
-    pub offset: usize,
-    pub size: usize,
 }

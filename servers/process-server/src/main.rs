@@ -6,13 +6,12 @@
 extern crate alloc;
 extern crate libruntime;
 
-use core::ops::Range;
 use hashbrown::HashMap;
 
 use log::{error, info};
 
 use libruntime::{
-    ipc,
+    ipc::{self, buffer::BufferReader},
     kobject::{self, KObject, Permissions},
     memory,
     process::{messages, KVBlock},
@@ -24,7 +23,7 @@ lazy_static::lazy_static! {
 }
 
 /// Process ID
-#[derive(Debug)]
+#[derive(Debug, Eq, Hash, PartialEq)]
 struct Pid(u64);
 
 /// Process information stored in the server
@@ -48,8 +47,8 @@ fn get_empty_kvblock() -> kobject::MemoryObject {
 /// Register the process-server itself in the system
 fn register_self() -> Result<(), kobject::Error> {
     let process = kobject::Process::current().clone();
-    let pid = process.pid();
     let main_thread = kobject::Thread::open_self()?;
+    let pid = Pid(process.pid());
 
     let info = ProcessInfo {
         process,
@@ -58,6 +57,9 @@ fn register_self() -> Result<(), kobject::Error> {
         arguments: get_empty_kvblock(),
         exit_code: None,
     };
+
+    let mut processes = PROCESSES.write();
+    processes.insert(pid, info);
 
     Ok(())
 }
@@ -69,6 +71,7 @@ fn register_init() -> Result<(), kobject::Error> {
 
     let process = kobject::Process::open(INIT_PID)?;
     let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
+    let pid = Pid(process.pid());
 
     let info = ProcessInfo {
         process,
@@ -77,6 +80,9 @@ fn register_init() -> Result<(), kobject::Error> {
         arguments: get_empty_kvblock(),
         exit_code: None,
     };
+
+    let mut processes = PROCESSES.write();
+    processes.insert(pid, info);
 
     Ok(())
 }
@@ -106,45 +112,4 @@ fn create_process(
     info!("Creating process {}", str);
 
     Err(messages::ProcessServerError::InvalidArgument)
-}
-
-struct BufferReader {
-    mapping: kobject::Mapping<'static>,
-    range: Range<usize>,
-}
-
-impl BufferReader {
-    pub fn new(handle: kobject::Handle, buffer: &messages::Buffer) -> Result<Self, kobject::Error> {
-        let mem_obj = kobject::MemoryObject::from_handle(handle)?;
-
-        let process = kobject::Process::current();
-
-        // align mapping to page boundaries
-        let buffer_begin = buffer.offset;
-        let buffer_end = buffer.offset + buffer.size;
-        let mapping_begin = memory::align_down(buffer_begin, kobject::PAGE_SIZE);
-        let mapping_end = memory::align_up(buffer_end, kobject::PAGE_SIZE);
-        let mapping_size = mapping_end - mapping_begin;
-
-        let mapping = process.map_mem(
-            None,
-            mapping_size,
-            Permissions::READ,
-            &mem_obj,
-            mapping_begin,
-        )?;
-
-        let range_begin = buffer_begin - mapping_begin;
-        let range_end = range_begin + buffer.size;
-
-        Ok(Self {
-            mapping,
-            range: range_begin..range_end,
-        })
-    }
-
-    pub fn buffer(&self) -> &[u8] {
-        unsafe { self.mapping.as_buffer() }.expect("failed to get buffer")[self.range.clone()]
-            .as_ref()
-    }
 }

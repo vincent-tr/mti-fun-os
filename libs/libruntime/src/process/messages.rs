@@ -42,10 +42,14 @@ impl fmt::Display for ProcessServerError {
 #[repr(C)]
 pub struct CreateProcessQueryParameters {
     pub name: Buffer,
-    // Handle[1]: name mem_obj
-    // Handle[2]: binary mem_obj - process-server will take ownership - data must start at offset 0
-    // Handle[3]: env mem_obj - process-server will take ownership - data must start at offset 0
-    // Handle[4]: args mem_obj - process-server will take ownership - data must start at offset 0
+    pub binary_len: usize,
+}
+
+impl CreateProcessQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 1;
+    pub const HANDLE_BINARY_MOBJ: usize = 2;
+    pub const HANDLE_ENV_MOBJ: usize = 3;
+    pub const HANDLE_ARGS_MOBJ: usize = 4;
 }
 
 /// Reply for the CreateProcess message.
@@ -53,9 +57,12 @@ pub struct CreateProcessQueryParameters {
 #[repr(C)]
 pub struct CreateProcessReply {
     pub pid: u32,
-    // Handle[0]: create process handle, must close when done
     pub tid: u32,
-    // Handle[1]: main thread handle, must close when done
+}
+
+impl CreateProcessReply {
+    pub const HANDLE_PROCESS: usize = 0;
+    pub const HANDLE_MAIN_THREAD: usize = 1;
 }
 
 /// A buffer descriptor used in IPC messages.

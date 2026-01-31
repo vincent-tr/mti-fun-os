@@ -1,15 +1,12 @@
 mod kvblock;
 pub mod messages;
 
-use core::mem;
-
-use libsyscalls::Handle;
-
 pub use kvblock::KVBlock;
 
 use crate::{
-    ipc,
+    ipc::{self, Handles},
     kobject::{self, KObject},
+    process::messages::CreateProcessReply,
 };
 
 lazy_static::lazy_static! {
@@ -18,37 +15,53 @@ lazy_static::lazy_static! {
 
 #[derive(Debug)]
 pub struct Process {
-    kobj: kobject::Process,
+    // TODO
 }
 
 impl Process {
-    pub fn spawn(name: &str) -> Self {
+    pub fn spawn(
+        name: &str,
+        binary: SharedBuffer,
+        env: &[(&str, &str)],
+        args: &[(&str, &str)],
+    ) -> Self {
         let (name_memobj, name_buffer) = string_to_buffer(name);
 
-        // TODO: binary, env, arg
+        let env = KVBlock::build(env);
+        let args = KVBlock::build(args);
 
-        let query_params = messages::CreateProcessQueryParameters { name: name_buffer };
+        let query_params = messages::CreateProcessQueryParameters {
+            name: name_buffer,
+            binary_len: binary.size,
+        };
 
-        let query_handles = [
-            kobject::Handle::invalid(), // reserved for reply
-            name_memobj.into_handle(),
-            kobject::Handle::invalid(),
-            kobject::Handle::invalid(),
-        ];
+        let mut query_handles = Handles::new();
+        query_handles[messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ] =
+            name_memobj.into_handle();
+        query_handles[messages::CreateProcessQueryParameters::HANDLE_BINARY_MOBJ] =
+            binary.mobj.into_handle();
+        query_handles[messages::CreateProcessQueryParameters::HANDLE_ENV_MOBJ] = env.into_handle();
+        query_handles[messages::CreateProcessQueryParameters::HANDLE_ARGS_MOBJ] =
+            args.into_handle();
 
         let res = IPC_CLIENT.call::<messages::Type, messages::CreateProcessQueryParameters, messages::CreateProcessReply, messages::ProcessServerError>(messages::Type::CreateProcess, query_params, query_handles);
 
         let (reply, mut reply_handles) = res.expect("failed to create process");
 
-        // expected handles: [create process handle, main thread handle]
-
-        let mut process_handle = Handle::invalid();
-        mem::swap(&mut process_handle, &mut reply_handles[0]);
-
         let process =
-            kobject::Process::from_handle(process_handle).expect("failed to get process handle");
+            kobject::Process::from_handle(reply_handles.take(CreateProcessReply::HANDLE_PROCESS))
+                .expect("failed to get process handle");
+        let main_thread = kobject::Thread::from_handle(
+            reply_handles.take(CreateProcessReply::HANDLE_MAIN_THREAD),
+        )
+        .expect("failed to get main thread handle");
 
-        Self { kobj: process }
+        // TODO
+        let _ = reply;
+        let _ = process;
+        let _ = main_thread;
+
+        Self {}
     }
 }
 
@@ -67,4 +80,11 @@ fn string_to_buffer(value: &str) -> (kobject::MemoryObject, messages::Buffer) {
     };
 
     (mobj, buffer)
+}
+
+/// A buffer that can be shared between processes.
+#[derive(Debug)]
+pub struct SharedBuffer {
+    pub mobj: kobject::MemoryObject,
+    pub size: usize, // can be less than mobj.size()
 }

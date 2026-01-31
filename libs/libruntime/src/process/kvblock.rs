@@ -10,24 +10,20 @@ const VERSION: u32 = 1;
 
 #[derive(Debug)]
 pub struct KVBlock {
-    mobj: MemoryObject,
+    _mobj: MemoryObject,
     mapping: Mapping<'static>,
 }
 
 impl KVBlock {
     /// Creates a KVBlock from a list of key-value string entries.
-    pub fn build<I, K, V>(entries: I) -> MemoryObject
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: AsRef<str>,
-        V: AsRef<str>,
-    {
+    pub fn build(entries: &[(&str, &str)]) -> MemoryObject
+where {
         // Calculate total size
         let mut total_size = mem::size_of::<Header>();
         for (key, value) in entries {
             total_size += mem::size_of::<KVEntry>();
-            total_size += key.as_ref().len();
-            total_size += value.as_ref().len();
+            total_size += key.len();
+            total_size += value.len();
             total_size = align_up(total_size, mem::align_of::<KVEntry>());
         }
 
@@ -35,7 +31,7 @@ impl KVBlock {
 
         builder.set_header(VERSION, entries.len() as u32);
         for (key, value) in entries {
-            builder.add_entry(key.as_ref(), value.as_ref());
+            builder.add_entry(key, value);
         }
 
         builder.build()
@@ -48,7 +44,10 @@ impl KVBlock {
             .map_mem(None, size, Permissions::READ, &mobj, 0)
             .expect("failed to map kvblock memory object");
 
-        let block = Self { mobj, mapping };
+        let block = Self {
+            _mobj: mobj,
+            mapping,
+        };
 
         assert!(
             block.header().version == VERSION,

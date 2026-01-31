@@ -1,8 +1,11 @@
+mod kvblock;
 pub mod messages;
 
 use core::mem;
 
 use libsyscalls::Handle;
+
+pub use kvblock::KVBlock;
 
 use crate::{
     ipc,

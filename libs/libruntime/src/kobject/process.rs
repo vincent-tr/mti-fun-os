@@ -231,6 +231,7 @@ pub struct AddressInfo {
 /// Mapping of memory
 ///
 /// Note: creating an overlapping mapping will not update this one. Care must be taken to arrange it properly.
+#[derive(Debug)]
 pub struct Mapping<'a> {
     process: &'a Process,
     range: Range<usize>,

@@ -59,13 +59,13 @@ impl<'a> Buffer<'a> {
 
 /// Reader for a buffer shared via a memory object.
 #[derive(Debug)]
-pub struct BufferReader {
+pub struct BufferView {
     mapping: kobject::Mapping<'static>,
     range: Range<usize>,
 }
 
-impl BufferReader {
-    /// Create a new BufferReader from a handle to a memory object and a buffer descriptor.
+impl BufferView {
+    /// Create a new BufferView from a handle to a memory object and a buffer descriptor.
     pub fn new(handle: kobject::Handle, buffer: &messages::Buffer) -> Result<Self, kobject::Error> {
         let mem_obj = kobject::MemoryObject::from_handle(handle)?;
 
@@ -99,5 +99,12 @@ impl BufferReader {
     pub fn buffer(&self) -> &[u8] {
         unsafe { self.mapping.as_buffer() }.expect("failed to get buffer")[self.range.clone()]
             .as_ref()
+    }
+
+    /// Get the buffer's data as a string slice.
+    ///
+    /// Safety: The buffer must contain valid UTF-8 data.
+    pub unsafe fn str(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(self.buffer()) }
     }
 }

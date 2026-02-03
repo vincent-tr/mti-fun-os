@@ -35,8 +35,8 @@ pub enum ProcessServerError {
 impl fmt::Display for ProcessServerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ProcessServerError::InvalidArgument => write!(f, "InvalidArgument"),
-            ProcessServerError::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
+            Self::InvalidArgument => write!(f, "InvalidArgument"),
+            Self::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
         }
     }
 }

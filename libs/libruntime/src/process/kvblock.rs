@@ -1,4 +1,4 @@
-use core::{mem, ptr, slice, str};
+use core::{fmt, mem, ptr, slice, str};
 
 use crate::{
     kobject::{Mapping, MemoryObject, Permissions, Process, PAGE_SIZE},
@@ -38,7 +38,9 @@ where {
     }
 
     /// Creates a KVBlock from a memory object.
-    pub fn from_memory_object(mobj: MemoryObject) -> Self {
+    ///
+    /// Returns an error if the KVBlock version is unsupported.
+    pub fn from_memory_object(mobj: MemoryObject) -> Result<Self, KVBlockLoadError> {
         let size = mobj.size().expect("failed to get mobj size");
         let mapping = Process::current()
             .map_mem(None, size, Permissions::READ, &mobj, 0)
@@ -49,12 +51,11 @@ where {
             mapping,
         };
 
-        assert!(
-            block.header().version == VERSION,
-            "unsupported kvblock version"
-        );
+        if block.header().version != VERSION {
+            Err(KVBlockLoadError::InvalidVersion)?;
+        }
 
-        block
+        Ok(block)
     }
 
     /// Safety: The caller must ensure that the offset points to a valid T within the mapping.
@@ -90,6 +91,21 @@ where {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KVBlockLoadError {
+    InvalidVersion,
+}
+
+impl fmt::Display for KVBlockLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidVersion => write!(f, "InvalidVersion"),
+        }
+    }
+}
+
+impl core::error::Error for KVBlockLoadError {}
 
 /// Iterator over the key-value entries in a KVBlock.
 #[derive(Debug)]

@@ -46,7 +46,7 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
         entry_point as usize, stack_top_addr, tls_addr
     );
 
-    // Use syscall directory to create remote thread
+    // Use syscall directly to create remote thread
     let thread_handle = libsyscalls::thread::create(
         Some("main"),
         unsafe { process.handle() },

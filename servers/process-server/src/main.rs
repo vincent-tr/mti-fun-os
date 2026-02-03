@@ -6,6 +6,7 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod loader;
 mod manager;
 
 use manager::Manager;

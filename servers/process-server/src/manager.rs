@@ -59,8 +59,9 @@ impl Manager {
     fn create_process_handler(
         &self,
         query: messages::CreateProcessQueryParameters,
-        mut query_handles: ipc::Handles,
-    ) -> Result<(messages::CreateProcessReply, ipc::Handles), ProcessServerError> {
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::CreateProcessReply, ipc::KHandles), ProcessServerError> {
         let name_handle =
             query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
 
@@ -82,16 +83,17 @@ impl Manager {
         handler: fn(
             &Self,
             QueryParameters,
-            ipc::Handles,
-        ) -> Result<(ReplyContent, ipc::Handles), ProcessServerError>,
+            ipc::KHandles,
+            u64,
+        ) -> Result<(ReplyContent, ipc::KHandles), ProcessServerError>,
     ) -> ipc::ServerBuilder
     where
         QueryParameters: Copy + 'static,
         ReplyContent: Copy + 'static,
     {
         let manager = Arc::clone(self);
-        builder.with_handler(message_type, move |query, handles| {
-            handler(&manager, query, handles)
+        builder.with_handler(message_type, move |query, handles, sender_id| {
+            handler(&manager, query, handles, sender_id)
         })
     }
 

@@ -1,6 +1,6 @@
 use alloc::fmt;
 
-use crate::ipc::buffer::messages::Buffer;
+use crate::ipc::{buffer::messages::Buffer, handle::Handle};
 
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "process-server";
@@ -60,11 +60,6 @@ impl CreateProcessQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateProcessReply {
-    pub pid: u64,
-    pub tid: u64,
-}
-
-impl CreateProcessReply {
-    pub const HANDLE_PROCESS: usize = 0;
-    pub const HANDLE_MAIN_THREAD: usize = 1;
+    /// Server handle to the created process
+    pub handle: Handle,
 }

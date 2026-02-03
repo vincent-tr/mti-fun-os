@@ -537,7 +537,9 @@ dependencies = [
  "hashbrown",
  "lazy_static",
  "libruntime",
+ "libsyscalls",
  "log",
+ "xmas-elf",
 ]
 
 [[package]]

@@ -294,7 +294,7 @@ pub struct Message {
     /// If data are bigger than 8x8 bytes, you may use shared memory to pass buffer.
     data: MessageData,
 
-    /// Handles to transmit from one process to another
+    /// Kernel Handles to transmit from one process to another
     ///
     /// From the sender perspective, the handles are sent: they are consumed, they are not valid after the send operation succeeded.
     ///
@@ -330,7 +330,7 @@ impl Message {
 
     /// Construct a new message
     ///
-    /// Handles will be moved into the message, and Handle::invalid() will be left in the slice
+    /// Kernel Handles will be moved into the message, and Handle::invalid() will be left in the slice
     ///
     /// # Safety
     ///

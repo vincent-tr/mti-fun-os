@@ -4,9 +4,8 @@ pub mod messages;
 pub use kvblock::KVBlock;
 
 use crate::{
-    ipc::{self, buffer::Buffer, CallError, Handles},
-    kobject::{self, KObject},
-    process::messages::CreateProcessReply,
+    ipc::{self, buffer::Buffer, handle::Handle, CallError, KHandles},
+    kobject::KObject,
 };
 
 lazy_static::lazy_static! {
@@ -17,7 +16,7 @@ type ProcessServerError = CallError<messages::ProcessServerError>;
 
 #[derive(Debug)]
 pub struct Process {
-    kobj: kobject::Process,
+    handle: Handle,
 }
 
 impl Process {
@@ -38,7 +37,7 @@ impl Process {
             binary: binary_buffer,
         };
 
-        let mut query_handles = Handles::new();
+        let mut query_handles = KHandles::new();
         query_handles[messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ] =
             name_memobj.into_handle();
         query_handles[messages::CreateProcessQueryParameters::HANDLE_BINARY_MOBJ] =
@@ -47,21 +46,10 @@ impl Process {
         query_handles[messages::CreateProcessQueryParameters::HANDLE_ARGS_MOBJ] =
             args.into_handle();
 
-        let (reply, mut reply_handles) = IPC_CLIENT.call::<messages::Type, messages::CreateProcessQueryParameters, messages::CreateProcessReply, messages::ProcessServerError>(messages::Type::CreateProcess, query_params, query_handles)?;
+        let (reply, _reply_handles) = IPC_CLIENT.call::<messages::Type, messages::CreateProcessQueryParameters, messages::CreateProcessReply, messages::ProcessServerError>(messages::Type::CreateProcess, query_params, query_handles)?;
 
-        let process =
-            kobject::Process::from_handle(reply_handles.take(CreateProcessReply::HANDLE_PROCESS))
-                .expect("failed to get process handle");
-        let main_thread = kobject::Thread::from_handle(
-            reply_handles.take(CreateProcessReply::HANDLE_MAIN_THREAD),
-        )
-        .expect("failed to get main thread handle");
-
-        // Not used for now
-        let _ = reply.pid;
-        let _ = reply.tid;
-        let _ = main_thread;
-
-        Ok(Self { kobj: process })
+        Ok(Self {
+            handle: reply.handle,
+        })
     }
 }

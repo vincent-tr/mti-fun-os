@@ -1,7 +1,7 @@
 use core::fmt;
 
 use super::messages::{
-    Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
+    KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::kobject::{self, KObject};
 
@@ -47,8 +47,8 @@ impl Client {
         &self,
         message_type: MessageType,
         query: QueryParameters,
-        mut query_handles: Handles, // Note: first handle will be overwritten for reply port
-    ) -> Result<(ReplyContent, Handles), CallError<ReplyError>>
+        mut query_handles: KHandles, // Note: first handle will be overwritten for reply port
+    ) -> Result<(ReplyContent, KHandles), CallError<ReplyError>>
     where
         MessageType: Into<u16>,
         QueryParameters: Copy,
@@ -65,6 +65,7 @@ impl Client {
                 version: self.version,
                 r#type: message_type.into(),
                 transaction: 0, // One port per reply, no need for transaction ID
+                sender_pid: kobject::Process::current().pid(),
             },
             parameters: query,
         };
@@ -93,7 +94,7 @@ impl Client {
         &self,
         message_type: MessageType,
         query: QueryParameters,
-        query_handles: Handles,
+        query_handles: KHandles,
     ) -> Result<(), kobject::Error>
     where
         MessageType: Into<u16>,
@@ -106,6 +107,7 @@ impl Client {
                 version: self.version,
                 r#type: message_type.into(),
                 transaction: 0, // No transaction for emit
+                sender_pid: kobject::Process::current().pid(),
             },
             parameters: query,
         };

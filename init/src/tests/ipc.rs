@@ -1,5 +1,5 @@
 use libruntime::{
-    ipc::Handles,
+    ipc::KHandles,
     kobject::{self, ThreadOptions},
 };
 use log::debug;
@@ -22,7 +22,7 @@ pub fn do_ipc() {
 
     kobject::Thread::start(echo, options).expect("could not create echo thread");
 
-    let mut msg = unsafe { kobject::Message::new::<i32>(&42, Handles::new().into()) };
+    let mut msg = unsafe { kobject::Message::new::<i32>(&42, KHandles::new().into()) };
     main_sender.send(&mut msg).expect("send failed");
 
     let msg = main_reader.blocking_receive().expect("wait failed");

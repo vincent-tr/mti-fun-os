@@ -1,5 +1,5 @@
 use super::messages::{
-    Handles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
+    KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::kobject::{self, KObject};
 use alloc::boxed::Box;
@@ -26,14 +26,15 @@ impl ServerBuilder {
     }
 
     /// Adds a message handler without reply for the given message type.
-    pub fn with_handler_no_reply<QueryParameters, MessageType>(
+    pub fn with_handler_no_reply<QueryParameters, MessageType, F>(
         mut self,
         message_type: MessageType,
-        handler: fn(QueryParameters, Handles),
+        handler: F,
     ) -> Self
     where
         QueryParameters: Copy + 'static,
         MessageType: Into<u16>,
+        F: Fn(QueryParameters, KHandles, u64) + 'static,
     {
         self.handlers.insert(
             message_type.into(),
@@ -55,7 +56,8 @@ impl ServerBuilder {
         ReplyContent: Copy + 'static,
         ReplyError: Copy + 'static,
         MessageType: Into<u16>,
-        F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError> + 'static,
+        F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>
+            + 'static,
     {
         self.handlers.insert(
             message_type.into(),
@@ -138,7 +140,7 @@ trait MessageHandler: core::fmt::Debug {
 
 struct MessageHandlerWithoutReply<QueryParameters: Copy, F>
 where
-    F: Fn(QueryParameters, Handles),
+    F: Fn(QueryParameters, KHandles, u64),
 {
     handler: F,
     _phantom: PhantomData<QueryParameters>,
@@ -146,7 +148,7 @@ where
 
 impl<QueryParameters: Copy, F> MessageHandlerWithoutReply<QueryParameters, F>
 where
-    F: Fn(QueryParameters, Handles),
+    F: Fn(QueryParameters, KHandles, u64),
 {
     pub fn new(handler: F) -> Self {
         Self {
@@ -158,17 +160,18 @@ where
 
 impl<QueryParameters: Copy, F> MessageHandler for MessageHandlerWithoutReply<QueryParameters, F>
 where
-    F: Fn(QueryParameters, Handles),
+    F: Fn(QueryParameters, KHandles, u64),
 {
     fn handle_message(&self, mut message: kobject::Message) {
+        let handles = message.take_all_handles().into();
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
-        (self.handler)(query.parameters, message.take_all_handles().into());
+        (self.handler)(query.parameters, handles, query.header.sender_pid);
     }
 }
 
 impl<QueryParameters: Copy, F> core::fmt::Debug for MessageHandlerWithoutReply<QueryParameters, F>
 where
-    F: Fn(QueryParameters, Handles),
+    F: Fn(QueryParameters, KHandles, u64),
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "MessageHandlerWithoutReply")
@@ -178,7 +181,7 @@ where
 // Note: Handler 0 = reply port
 struct MessageHandlerWithReply<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F>
 where
-    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+    F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>,
 {
     handler: F,
     _phantom: (
@@ -191,7 +194,7 @@ where
 impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F>
     MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
 where
-    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+    F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>,
 {
     pub fn new(handler: F) -> Self {
         Self {
@@ -204,7 +207,7 @@ where
 impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> MessageHandler
     for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
 where
-    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+    F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>,
 {
     fn handle_message(&self, mut message: kobject::Message) {
         let port = match kobject::PortSender::from_handle(message.take_handle(0)) {
@@ -215,9 +218,10 @@ where
             }
         };
 
+        let handles = message.take_all_handles().into();
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
         let transaction = query.header.transaction;
-        let result = (self.handler)(query.parameters, message.take_all_handles().into());
+        let result = (self.handler)(query.parameters, handles, query.header.sender_pid);
 
         let mut message = match result {
             Ok((content, handles)) => {
@@ -240,7 +244,7 @@ where
                     error,
                 };
 
-                unsafe { kobject::Message::new(&reply, Handles::new().into()) }
+                unsafe { kobject::Message::new(&reply, KHandles::new().into()) }
             }
         };
 
@@ -253,7 +257,7 @@ where
 impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> core::fmt::Debug
     for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
 where
-    F: Fn(QueryParameters, Handles) -> Result<(ReplyContent, Handles), ReplyError>,
+    F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "MessageHandlerWithReply")

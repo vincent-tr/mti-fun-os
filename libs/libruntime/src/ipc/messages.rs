@@ -5,12 +5,12 @@ use core::{
 
 use crate::kobject;
 
-/// Array of IPC message handles.
+/// Array of IPC message kernel handles.
 #[derive(Debug)]
-pub struct Handles([kobject::Handle; kobject::Message::HANDLE_COUNT]);
+pub struct KHandles([kobject::Handle; kobject::Message::HANDLE_COUNT]);
 
-impl Handles {
-    /// Creates a new Handles array initialized with invalid handles.
+impl KHandles {
+    /// Creates a new KHandles array initialized with invalid handles.
     pub const fn new() -> Self {
         Self([const { kobject::Handle::invalid() }; kobject::Message::HANDLE_COUNT])
     }
@@ -24,7 +24,7 @@ impl Handles {
     }
 }
 
-impl Index<usize> for Handles {
+impl Index<usize> for KHandles {
     type Output = kobject::Handle;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -32,21 +32,21 @@ impl Index<usize> for Handles {
     }
 }
 
-impl IndexMut<usize> for Handles {
+impl IndexMut<usize> for KHandles {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
 }
 
-impl Into<[kobject::Handle; kobject::Message::HANDLE_COUNT]> for Handles {
+impl Into<[kobject::Handle; kobject::Message::HANDLE_COUNT]> for KHandles {
     fn into(self) -> [kobject::Handle; kobject::Message::HANDLE_COUNT] {
         self.0
     }
 }
 
-impl Into<Handles> for [kobject::Handle; kobject::Message::HANDLE_COUNT] {
-    fn into(self) -> Handles {
-        Handles(self)
+impl Into<KHandles> for [kobject::Handle; kobject::Message::HANDLE_COUNT] {
+    fn into(self) -> KHandles {
+        KHandles(self)
     }
 }
 
@@ -56,6 +56,7 @@ pub struct QueryHeader {
     pub version: u16,
     pub r#type: u16,
     pub transaction: u32,
+    pub sender_pid: u64,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libruntime::{
-    ipc::Handles,
+    ipc::KHandles,
     kobject::{self, MemoryObject, Permissions, Process, ThreadOptions, PAGE_SIZE},
     sync::{Mutex, RwLock},
     timer::{self, Duration},
@@ -33,7 +33,7 @@ pub fn test_futex() {
             let futex_atomic = unsafe { &*(futex_addr as *const AtomicU32) };
 
             // Signal ready
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             ready_sender.send(&mut msg).expect("send failed");
 
             // Wait on futex
@@ -44,7 +44,7 @@ pub fn test_futex() {
             assert_eq!(futex_atomic.load(Ordering::SeqCst), 1);
 
             // Signal done
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
         };
 
@@ -96,7 +96,7 @@ pub fn test_futex() {
                 let futex = unsafe { &*(futex_addr as *const u32) };
 
                 // Signal ready
-                let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
                 ready_sender.send(&mut msg).expect("send failed");
 
                 // Wait on futex
@@ -104,7 +104,7 @@ pub fn test_futex() {
                 assert!(result.is_ok(), "futex wait failed: {:?}", result);
 
                 // Signal done
-                let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
                 done_sender.send(&mut msg).expect("send failed");
             };
 
@@ -173,7 +173,7 @@ pub fn test_futex() {
             let futex = unsafe { &*(futex_addr as *const u32) };
 
             // Signal ready
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             ready_sender.send(&mut msg).expect("send failed");
 
             // Wait on futex - should be woken by unmap
@@ -185,7 +185,7 @@ pub fn test_futex() {
             );
 
             // Signal done
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
         };
 
@@ -266,7 +266,7 @@ pub fn test_mutex() {
                     *guard += 1;
                 }
 
-                let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
                 done_sender.send(&mut msg).expect("send failed");
             };
 
@@ -303,7 +303,7 @@ pub fn test_mutex() {
                 let _guard = mutex_clone.lock();
                 timer::sleep(Duration::from_milliseconds(1));
             }
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
         };
 
@@ -367,7 +367,7 @@ pub fn test_rwlock() {
                 assert_eq!(*guard, 42);
                 timer::sleep(Duration::from_milliseconds(10));
 
-                let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+                let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
                 done_sender.send(&mut msg).expect("send failed");
             };
 
@@ -396,7 +396,7 @@ pub fn test_rwlock() {
 
         let lock_clone = Arc::clone(&lock);
         let reader = move || {
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             ready_sender.send(&mut msg).expect("send failed");
 
             let guard = lock_clone.read();
@@ -407,7 +407,7 @@ pub fn test_rwlock() {
                 value
             );
 
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
         };
 
@@ -446,7 +446,7 @@ pub fn test_rwlock() {
                 *guard = i * 10;
                 timer::sleep(Duration::from_milliseconds(5));
             }
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender_clone.send(&mut msg).expect("send failed");
         };
 
@@ -463,7 +463,7 @@ pub fn test_rwlock() {
                 assert!(value % 10 == 0, "reader saw invalid value: {}", value);
                 timer::sleep(Duration::from_milliseconds(5));
             }
-            let mut msg = unsafe { kobject::Message::new::<u32>(&0, Handles::new().into()) };
+            let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
         };
 

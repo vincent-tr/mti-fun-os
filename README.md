@@ -97,7 +97,6 @@ tail -f serial.log
 
 ### kernel
 
-- futex
 - multi-core
 - ioport to userland
 - iomem to userland

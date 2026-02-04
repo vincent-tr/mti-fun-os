@@ -107,9 +107,7 @@ pub struct UpdateNameReply {}
 /// Parameters for the UpdateEnv message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct UpdateEnvQueryParameters {
-    pub environment: Buffer,
-}
+pub struct UpdateEnvQueryParameters {}
 
 impl UpdateEnvQueryParameters {
     pub const HANDLE_ENV_MOBJ: usize = 1;

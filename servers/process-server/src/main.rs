@@ -17,12 +17,12 @@ use manager::Manager;
 // - After initialization, calling itself in a sync way will result in a deadlock.
 
 #[no_mangle]
-pub fn main() {
+pub fn main() -> i32 {
     let manager = Manager::new().expect("failed to create process-server");
 
     let server = manager
         .build_ipc_server()
         .expect("failed to build process-server IPC server");
 
-    server.run();
+    server.run()
 }

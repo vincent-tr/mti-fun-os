@@ -1,7 +1,9 @@
+use crate::process;
+
 use super::{exit, init};
 
 extern "Rust" {
-    fn main();
+    fn main() -> i32;
 }
 
 /// Program entry point
@@ -12,9 +14,8 @@ extern "C" fn _start(_arg: usize) -> ! {
 
     init();
 
-    // TODO: fetch context (env, args)
-    unsafe { main() };
-    // TODO: report exit code
+    let exit_code = unsafe { main() };
+    process::SelfProcess::get().set_exit_code(exit_code);
 
     exit();
 }

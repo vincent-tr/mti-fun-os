@@ -9,6 +9,7 @@ extern crate libruntime;
 use log::info;
 
 #[no_mangle]
-pub fn main() {
+pub fn main() -> i32 {
     info!("Hello, world!");
+    0
 }

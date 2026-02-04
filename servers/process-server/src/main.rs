@@ -12,6 +12,10 @@ mod manager;
 
 use manager::Manager;
 
+// Note: process server should not use libruntime Process API:
+// - During initialization, the process-server (self) will not be up.
+// - After initialization, calling itself in a sync way will result in a deadlock.
+
 #[no_mangle]
 pub fn main() {
     let manager = Manager::new().expect("failed to create process-server");

@@ -79,8 +79,8 @@ impl KVBlock {
     }
 
     /// Returns the number of key-value entries in the KVBlock.
-    pub fn len(&self) -> u32 {
-        self.header().entry_count
+    pub fn len(&self) -> usize {
+        self.header().entry_count as usize
     }
 
     /// Returns an iterator over the key-value entries in the KVBlock.

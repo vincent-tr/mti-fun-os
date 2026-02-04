@@ -71,6 +71,8 @@ fn main() {
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::messages::PORT_NAME);
 
+    // From now we can call process api, like env, args, spawn, open, etc
+
     let process = process::Process::spawn(
         "vfs-server",
         ipc::Buffer::new_local(archive::VFS_SERVER),

@@ -3,16 +3,16 @@ use super::messages::{
 };
 use crate::kobject::{self, KObject};
 use alloc::boxed::Box;
-use core::marker::PhantomData;
+use core::{fmt, marker::PhantomData};
 use hashbrown::HashMap;
 use log::error;
 
 /// Builder for an IPC server.
-#[derive(Debug)]
 pub struct ServerBuilder {
     name: &'static str,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
+    process_exit_handler: Option<Box<dyn Fn(u64) + 'static>>,
 }
 
 impl ServerBuilder {
@@ -22,7 +22,17 @@ impl ServerBuilder {
             name,
             version,
             handlers: HashMap::new(),
+            process_exit_handler: None,
         }
+    }
+
+    /// Sets a handler for process exit notifications.
+    pub fn with_process_exit_handler<F>(mut self, handler: F) -> Self
+    where
+        F: Fn(u64) + 'static,
+    {
+        self.process_exit_handler = Some(Box::new(handler));
+        self
     }
 
     /// Adds a message handler without reply for the given message type.
@@ -68,19 +78,39 @@ impl ServerBuilder {
 
     /// Builds the server.
     pub fn build(self) -> Result<Server, kobject::Error> {
-        Server::new(self.name, self.version, self.handlers)
+        Server::new(
+            self.name,
+            self.version,
+            self.handlers,
+            self.process_exit_handler
+                .expect("process exit handler not set"),
+        )
     }
 }
 
+impl fmt::Debug for ServerBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServerBuilder")
+            .field("name", &self.name)
+            .field("version", &self.version)
+            .field("handlers", &self.handlers.len())
+            .field(
+                "process_exit_handler",
+                &self.process_exit_handler.as_ref().map(|_| "Fn"),
+            )
+            .finish()
+    }
+}
 /// IPC server.
 ///
 /// Create using `ServerBuilder`.
-#[derive(Debug)]
 pub struct Server {
     receiver: kobject::PortReceiver,
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
+    process_listener: kobject::ProcessListener,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
+    process_exit_handler: Box<dyn Fn(u64) + 'static>,
 }
 
 impl Server {
@@ -88,14 +118,19 @@ impl Server {
         name: &str,
         version: u16,
         handlers: HashMap<u16, Box<dyn MessageHandler>>,
+        process_exit_handler: Box<dyn Fn(u64) + 'static>,
     ) -> Result<Self, kobject::Error> {
         let (receiver, sender) = kobject::Port::create(Some(name))?;
+        let process_listener =
+            kobject::ProcessListener::create(kobject::ProcessListenerFilter::All)?;
 
         Ok(Self {
             receiver,
             sender: Some(sender),
+            process_listener,
             version,
             handlers,
+            process_exit_handler,
         })
     }
 
@@ -108,13 +143,30 @@ impl Server {
 
     /// Runs the server.
     pub fn run(self) -> ! {
-        loop {
-            let message = self
-                .receiver
-                .blocking_receive()
-                .expect("failed to receive message from port");
+        const RECEIVER_INDEX: usize = 0;
+        const PROCESS_LISTENER_INDEX: usize = 1;
 
-            self.process_message(message);
+        let mut waiter = kobject::Waiter::new(&[&self.receiver, &self.process_listener]);
+
+        loop {
+            waiter.wait().expect("wait failed");
+
+            if waiter.is_ready(RECEIVER_INDEX) {
+                let message = self
+                    .receiver
+                    .receive()
+                    .expect("failed to receive message from port");
+
+                self.process_message(message);
+            }
+
+            if waiter.is_ready(PROCESS_LISTENER_INDEX) {
+                let message = self
+                    .process_listener
+                    .receive()
+                    .expect("failed to receive process event");
+                self.process_process_event(message);
+            }
         }
     }
 
@@ -132,9 +184,28 @@ impl Server {
 
         handler.handle_message(message);
     }
+
+    fn process_process_event(&self, event: kobject::ProcessEvent) {
+        if let kobject::ProcessEventType::Terminated = event.r#type {
+            (self.process_exit_handler)(event.pid);
+        }
+    }
 }
 
-trait MessageHandler: core::fmt::Debug {
+impl fmt::Debug for Server {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Server")
+            .field("receiver", &self.receiver)
+            .field("sender", &self.sender)
+            .field("process_listener", &self.process_listener)
+            .field("version", &self.version)
+            .field("handlers", &self.handlers.len())
+            .field("process_exit_handler", &"Fn")
+            .finish()
+    }
+}
+
+trait MessageHandler: fmt::Debug {
     fn handle_message(&self, message: kobject::Message);
 }
 
@@ -169,11 +240,11 @@ where
     }
 }
 
-impl<QueryParameters: Copy, F> core::fmt::Debug for MessageHandlerWithoutReply<QueryParameters, F>
+impl<QueryParameters: Copy, F> fmt::Debug for MessageHandlerWithoutReply<QueryParameters, F>
 where
     F: Fn(QueryParameters, KHandles, u64),
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MessageHandlerWithoutReply")
     }
 }
@@ -254,12 +325,12 @@ where
     }
 }
 
-impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> core::fmt::Debug
+impl<QueryParameters: Copy, ReplyContent: Copy, ReplyError: Copy, F> fmt::Debug
     for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, F>
 where
     F: Fn(QueryParameters, KHandles, u64) -> Result<(ReplyContent, KHandles), ReplyError>,
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MessageHandlerWithReply")
     }
 }

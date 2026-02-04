@@ -14,7 +14,7 @@ mod tests;
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 
 use libruntime::{
-    ipc::buffer::Buffer,
+    ipc,
     kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
     process,
 };
@@ -73,7 +73,7 @@ fn main() {
 
     let process = process::Process::spawn(
         "vfs-server",
-        Buffer::new_local(archive::VFS_SERVER),
+        ipc::Buffer::new_local(archive::VFS_SERVER),
         &[],
         &[],
     )

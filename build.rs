@@ -1,6 +1,14 @@
 use std::path::PathBuf;
 
 fn main() {
+    // Skip build script when rust-analyzer runs it (not the primary package being built)
+    if std::env::var("RUSTC_WRAPPER")
+        .unwrap_or_default()
+        .contains("rust-analyzer")
+    {
+        return;
+    }
+
     // set by cargo, build scripts should use this directory for output files
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR not set"));
 

@@ -12,14 +12,41 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    CreateProcess = 1,
-    GetStartupInfo = 2,
-    UpdateEnv = 3,
-    SetExitCode = 4,
+    /// Messages for self process management
+    GetStartupInfo = 1,
+    UpdateName,
+    UpdateEnv,
+    SetExitCode,
+
+    /// Messages for managing other processes
+    CreateProcess,
+    OpenProcess,
+    ListProcesses,
+    CloseProcess,
+    TerminateProcess,
+    GetProcessName,
+    GetProcessEnv,
+    GetProcessArgs,
+    GetProcessExitCode,
+    RegisterProcessExitNotification,
+    UnregisterProcessExitNotification,
 }
 
 impl From<Type> for u16 {
     fn from(value: Type) -> Self {
+        value as u16
+    }
+}
+
+/// Types of notifications sent by the process server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum NotificationType {
+    ProcessExit = 1,
+}
+
+impl From<NotificationType> for u16 {
+    fn from(value: NotificationType) -> Self {
         value as u16
     }
 }
@@ -42,6 +69,68 @@ impl fmt::Display for ProcessServerError {
         }
     }
 }
+
+/// Parameters for the GetStartupInfo message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetStartupInfoQueryParameters {}
+
+/// Reply for the GetStartupInfo message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetStartupInfoReply {
+    pub name: Buffer,
+}
+
+impl GetStartupInfoReply {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_ENV_MOBJ: usize = 1;
+    pub const HANDLE_ARGS_MOBJ: usize = 2;
+}
+
+/// Parameters for the UpdateName message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UpdateNameQueryParameters {
+    pub name: Buffer,
+}
+
+impl UpdateNameQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 1;
+}
+
+/// Reply for the UpdateName message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UpdateNameReply {}
+
+/// Parameters for the UpdateEnv message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UpdateEnvQueryParameters {
+    pub environment: Buffer,
+}
+
+impl UpdateEnvQueryParameters {
+    pub const HANDLE_ENV_MOBJ: usize = 1;
+}
+
+/// Reply for the UpdateEnv message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UpdateEnvReply {}
+
+/// Parameters for the SetExitCode message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetExitCodeQueryParameters {
+    pub exit_code: i32,
+}
+
+/// Reply for the SetExitCode message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetExitCodeReply {}
 
 /// Parameters for the CreateProcess message.
 #[derive(Debug, Clone, Copy)]

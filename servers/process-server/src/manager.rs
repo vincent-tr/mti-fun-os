@@ -6,9 +6,9 @@ use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
 };
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc};
 use libruntime::{
-    ipc::{self, buffer::BufferView, KHandles},
+    ipc,
     kobject::{self, KObject},
     process::{messages, KVBlock},
     sync::{spin::OnceLock, RwLock},
@@ -30,9 +30,11 @@ impl fmt::Display for Pid {
 struct ProcessInfo {
     process: kobject::Process,
     main_thread: kobject::Thread,
+    name: String,
     environment: KVBlock,
     arguments: KVBlock,
     exit_code: Option<i32>,
+    exited: bool,
 }
 
 /// The main manager structure
@@ -64,6 +66,24 @@ impl Manager {
 
         let builder = self.add_handler(
             builder,
+            messages::Type::GetStartupInfo,
+            Self::get_startup_info_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::UpdateName,
+            Self::update_name_handler,
+        );
+        let builder =
+            self.add_handler(builder, messages::Type::UpdateEnv, Self::update_env_handler);
+        let builder = self.add_handler(
+            builder,
+            messages::Type::SetExitCode,
+            Self::set_exit_code_handler,
+        );
+
+        let builder = self.add_handler(
+            builder,
             messages::Type::CreateProcess,
             Self::create_process_handler,
         );
@@ -73,23 +93,130 @@ impl Manager {
 
     fn process_terminated(&self, pid: Pid) {}
 
+    fn get_startup_info_handler(
+        &self,
+        query: messages::GetStartupInfoQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::GetStartupInfoReply, ipc::KHandles), InternalError> {
+        let processes = self.processes.read();
+        let info = processes
+            .get(&sender_id)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let (name_mobj, name_buffer) = ipc::Buffer::new_local(info.name.as_bytes()).into_shared();
+        let env_mobj = info.environment.memory_object().clone();
+        let args_mobj = info.arguments.memory_object().clone();
+
+        let reply = messages::GetStartupInfoReply { name: name_buffer };
+
+        let mut reply_handles = ipc::KHandles::new();
+        reply_handles[messages::GetStartupInfoReply::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
+        reply_handles[messages::GetStartupInfoReply::HANDLE_ENV_MOBJ] = env_mobj.into_handle();
+        reply_handles[messages::GetStartupInfoReply::HANDLE_ARGS_MOBJ] = args_mobj.into_handle();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn update_name_handler(
+        &self,
+        query: messages::UpdateNameQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::UpdateNameReply, ipc::KHandles), InternalError> {
+        let mut processes = self.processes.write();
+        let info = processes
+            .get_mut(&sender_id)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let buffer_view = {
+            let handle = query_handles.take(messages::UpdateNameQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name)
+                .invalid_arg("Failed to create name buffer reader")?
+        };
+
+        let new_name = String::from(unsafe { buffer_view.str() });
+
+        info!("Updating process {} name to {}", sender_id, new_name);
+
+        info.name = new_name;
+
+        let reply = messages::UpdateNameReply {};
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn update_env_handler(
+        &self,
+        query: messages::UpdateEnvQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::UpdateEnvReply, ipc::KHandles), InternalError> {
+        let mut processes = self.processes.write();
+        let info = processes
+            .get_mut(&sender_id)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let new_env = {
+            let mobj = kobject::MemoryObject::from_handle(
+                query_handles.take(messages::UpdateEnvQueryParameters::HANDLE_ENV_MOBJ),
+            )
+            .invalid_arg("Bad handle for environment kvblock")?;
+            KVBlock::from_memory_object(mobj).invalid_arg("Failed to load environment kvblock")?
+        };
+
+        info!("Updating process {} environment", sender_id);
+
+        info.environment = new_env;
+
+        let reply = messages::UpdateEnvReply {};
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn set_exit_code_handler(
+        &self,
+        query: messages::SetExitCodeQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::SetExitCodeReply, ipc::KHandles), InternalError> {
+        let mut processes = self.processes.write();
+        let info = processes
+            .get_mut(&sender_id)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        info!(
+            "Setting process {} exit code to {}",
+            sender_id, query.exit_code
+        );
+
+        info.exit_code = Some(query.exit_code);
+
+        let reply = messages::SetExitCodeReply {};
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
     fn create_process_handler(
         &self,
         query: messages::CreateProcessQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: u64,
+        sender_id: Pid,
     ) -> Result<(messages::CreateProcessReply, ipc::KHandles), InternalError> {
         let name_view = {
             let handle =
                 query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
-            BufferView::new(handle, &query.name)
+            ipc::BufferView::new(handle, &query.name)
                 .invalid_arg("Failed to create name buffer reader")?
         };
 
         let binary_view = {
             let handle =
                 query_handles.take(messages::CreateProcessQueryParameters::HANDLE_BINARY_MOBJ);
-            BufferView::new(handle, &query.binary)
+            ipc::BufferView::new(handle, &query.binary)
                 .invalid_arg("Failed to create binary buffer reader")?
         };
 
@@ -169,9 +296,11 @@ impl Manager {
         let info = ProcessInfo {
             process,
             main_thread,
+            name: String::from(name),
             environment,
             arguments,
             exit_code: None,
+            exited: false,
         };
 
         let mut processes = self.processes.write();
@@ -181,7 +310,7 @@ impl Manager {
 
         Ok((
             messages::CreateProcessReply { handle: 0.into() },
-            KHandles::new(),
+            ipc::KHandles::new(),
         ))
     }
 
@@ -193,7 +322,7 @@ impl Manager {
             &Self,
             QueryParameters,
             ipc::KHandles,
-            u64,
+            Pid,
         ) -> Result<(ReplyContent, ipc::KHandles), InternalError>,
     ) -> ipc::ServerBuilder
     where
@@ -202,7 +331,7 @@ impl Manager {
     {
         let manager = Arc::clone(self);
         builder.with_handler(message_type, move |query, handles, sender_id| {
-            handler(&manager, query, handles, sender_id).map_err(|e| e.into_server_error())
+            handler(&manager, query, handles, Pid(sender_id)).map_err(|e| e.into_server_error())
         })
     }
 
@@ -215,9 +344,11 @@ impl Manager {
         let info = ProcessInfo {
             process,
             main_thread,
+            name: String::from("process-server"),
             environment: Self::get_empty_kvblock(),
             arguments: Self::get_empty_kvblock(),
             exit_code: None,
+            exited: false,
         };
 
         let mut processes = self.processes.write();
@@ -238,9 +369,11 @@ impl Manager {
         let info = ProcessInfo {
             process,
             main_thread,
+            name: String::from("init"),
             environment: Self::get_empty_kvblock(),
             arguments: Self::get_empty_kvblock(),
             exit_code: None,
+            exited: false,
         };
 
         let mut processes = self.processes.write();

@@ -1,6 +1,6 @@
 use alloc::fmt;
 
-use crate::ipc::{buffer::messages::Buffer, handle::Handle};
+use crate::ipc::{buffer_messages::Buffer, Handle};
 
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "process-server";
@@ -83,7 +83,7 @@ pub struct GetStartupInfoReply {
 }
 
 impl GetStartupInfoReply {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NAME_MOBJ: usize = 0; // Ownership transferred to the client
     pub const HANDLE_ENV_MOBJ: usize = 1;
     pub const HANDLE_ARGS_MOBJ: usize = 2;
 }

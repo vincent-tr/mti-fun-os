@@ -10,14 +10,13 @@ const VERSION: u32 = 1;
 
 #[derive(Debug)]
 pub struct KVBlock {
-    _mobj: MemoryObject,
+    mobj: MemoryObject,
     mapping: Mapping<'static>,
 }
 
 impl KVBlock {
     /// Creates a KVBlock from a list of key-value string entries.
-    pub fn build(entries: &[(&str, &str)]) -> MemoryObject
-where {
+    pub fn build(entries: &[(&str, &str)]) -> MemoryObject {
         // Calculate total size
         let mut total_size = mem::size_of::<Header>();
         for (key, value) in entries {
@@ -46,16 +45,18 @@ where {
             .map_mem(None, size, Permissions::READ, &mobj, 0)
             .expect("failed to map kvblock memory object");
 
-        let block = Self {
-            _mobj: mobj,
-            mapping,
-        };
+        let block = Self { mobj, mapping };
 
         if block.header().version != VERSION {
             Err(KVBlockLoadError::InvalidVersion)?;
         }
 
         Ok(block)
+    }
+
+    /// Returns the memory object backing this KVBlock.
+    pub fn memory_object(&self) -> &MemoryObject {
+        &self.mobj
     }
 
     /// Safety: The caller must ensure that the offset points to a valid T within the mapping.

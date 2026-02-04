@@ -4,7 +4,7 @@ pub mod messages;
 pub use kvblock::KVBlock;
 
 use crate::{
-    ipc::{self, buffer::Buffer, handle::Handle, CallError, KHandles},
+    ipc::{self, Buffer, CallError, Handle, KHandles},
     kobject::KObject,
 };
 

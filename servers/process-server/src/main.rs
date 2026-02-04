@@ -6,6 +6,7 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod error;
 mod loader;
 mod manager;
 

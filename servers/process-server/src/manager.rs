@@ -1,30 +1,37 @@
-use core::{error, mem::MaybeUninit};
+use core::fmt;
 
 use hashbrown::HashMap;
 
+use crate::{
+    error::{InternalError, ResultExt},
+    loader::Loader,
+};
 use alloc::sync::Arc;
 use libruntime::{
-    ipc::{self, buffer::BufferReader},
-    kobject,
-    process::{
-        messages::{self, ProcessServerError},
-        KVBlock,
-    },
+    ipc::{self, buffer::BufferView, KHandles},
+    kobject::{self, KObject},
+    process::{messages, KVBlock},
     sync::{spin::OnceLock, RwLock},
 };
-use log::{error, info};
+use log::{debug, info};
 
 /// Process ID
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 struct Pid(u64);
+
+impl fmt::Display for Pid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 /// Process information stored in the server
 #[derive(Debug)]
 struct ProcessInfo {
     process: kobject::Process,
     main_thread: kobject::Thread,
-    environment: kobject::MemoryObject,
-    arguments: kobject::MemoryObject,
+    environment: KVBlock,
+    arguments: KVBlock,
     exit_code: Option<i32>,
 }
 
@@ -61,19 +68,111 @@ impl Manager {
         query: messages::CreateProcessQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::CreateProcessReply, ipc::KHandles), ProcessServerError> {
-        let name_handle =
-            query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
+    ) -> Result<(messages::CreateProcessReply, ipc::KHandles), InternalError> {
+        let name_view = {
+            let handle =
+                query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
+            BufferView::new(handle, &query.name)
+                .invalid_arg("Failed to create name buffer reader")?
+        };
 
-        let name_reader = BufferReader::new(name_handle, &query.name).map_err(|err| {
-            error!("failed to create name buffer reader: {:?}", err);
-            ProcessServerError::InvalidArgument
-        })?;
-        let str = unsafe { str::from_utf8_unchecked(name_reader.buffer()) };
+        let binary_view = {
+            let handle =
+                query_handles.take(messages::CreateProcessQueryParameters::HANDLE_BINARY_MOBJ);
+            BufferView::new(handle, &query.binary)
+                .invalid_arg("Failed to create binary buffer reader")?
+        };
 
-        info!("Creating process {}", str);
+        let name = unsafe { name_view.str() };
+        let binary = binary_view.buffer();
 
-        Err(ProcessServerError::InvalidArgument)
+        // Validate kvblocks
+        let environment = {
+            let mobj = kobject::MemoryObject::from_handle(
+                query_handles.take(messages::CreateProcessQueryParameters::HANDLE_ENV_MOBJ),
+            )
+            .invalid_arg("Bad handle for environment kvblock")?;
+            KVBlock::from_memory_object(mobj).invalid_arg("Failed to load environment kvblock")?
+        };
+
+        let arguments = {
+            let mobj = kobject::MemoryObject::from_handle(
+                query_handles.take(messages::CreateProcessQueryParameters::HANDLE_ARGS_MOBJ),
+            )
+            .invalid_arg("Bad handle for arguments kvblock")?;
+            KVBlock::from_memory_object(mobj).invalid_arg("Failed to load arguments kvblock")?
+        };
+
+        info!("Creating process {}", name);
+
+        let loader = Loader::new(binary)?;
+
+        let process = kobject::Process::create(name).runtime_err("Failed to create process")?;
+
+        let mappings = loader.map(&process)?;
+
+        // Set up the process's main thread
+        let stack_size = kobject::helpers::STACK_SIZE;
+        let entry_point = loader.entry_point();
+        let stack = kobject::helpers::AllocWithGuards::new_remote(stack_size, &process)
+            .runtime_err("Failed to allocated stack")?;
+        let tls =
+            kobject::helpers::AllocWithGuards::new_remote(kobject::helpers::TLS_SIZE, &process)
+                .runtime_err("Failed to allocated TLS block")?;
+
+        let stack_top_addr = stack.address() + stack_size;
+        let tls_addr = tls.address();
+
+        debug!(
+            "Creating main thread: entry_point={:#x}, stack_top={:#x}, tls={:#x}",
+            entry_point as usize, stack_top_addr, tls_addr
+        );
+
+        // Use syscall directly to create remote thread
+        let main_thread = {
+            let thread_handle = libsyscalls::thread::create(
+                Some("main"),
+                unsafe { process.handle() },
+                false,
+                kobject::ThreadPriority::Normal,
+                entry_point,
+                stack_top_addr,
+                0, // arg not used
+                tls_addr,
+            )
+            .map_err(|e| kobject::Error::from(e))
+            .runtime_err("Failed to create main thread")?;
+
+            unsafe { kobject::Thread::from_handle_unchecked(thread_handle) }
+        };
+
+        // Process started, we can leak the allocations
+        stack.leak();
+        tls.leak();
+        for mapping in mappings {
+            mapping.leak();
+        }
+
+        // Create associated ProcessInfo
+        let pid = Pid(process.pid());
+
+        let info = ProcessInfo {
+            process,
+            main_thread,
+            environment,
+            arguments,
+            exit_code: None,
+        };
+
+        let mut processes = self.processes.write();
+        processes.insert(pid, info);
+
+        info!("Created process {}: {}", name, pid);
+
+        Ok((
+            messages::CreateProcessReply { handle: 0.into() },
+            KHandles::new(),
+        ))
     }
 
     fn add_handler<QueryParameters, ReplyContent>(
@@ -85,7 +184,7 @@ impl Manager {
             QueryParameters,
             ipc::KHandles,
             u64,
-        ) -> Result<(ReplyContent, ipc::KHandles), ProcessServerError>,
+        ) -> Result<(ReplyContent, ipc::KHandles), InternalError>,
     ) -> ipc::ServerBuilder
     where
         QueryParameters: Copy + 'static,
@@ -93,7 +192,7 @@ impl Manager {
     {
         let manager = Arc::clone(self);
         builder.with_handler(message_type, move |query, handles, sender_id| {
-            handler(&manager, query, handles, sender_id)
+            handler(&manager, query, handles, sender_id).map_err(|e| e.into_server_error())
         })
     }
 
@@ -140,11 +239,11 @@ impl Manager {
         Ok(())
     }
 
-    fn get_empty_kvblock() -> kobject::MemoryObject {
+    fn get_empty_kvblock() -> KVBlock {
         /// Since kvblocks are immutable, we can cache an empty one
         static EMPTY_KVBLOCK: OnceLock<kobject::MemoryObject> = OnceLock::new();
 
         let mobj = EMPTY_KVBLOCK.get_or_init(|| KVBlock::build(&[]));
-        mobj.clone()
+        KVBlock::from_memory_object(mobj.clone()).expect("Failed to create KVBlock")
     }
 }

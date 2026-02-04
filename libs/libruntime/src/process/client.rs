@@ -119,9 +119,9 @@ impl Client {
     /// call ipc UpdateEnv
     pub fn update_env(
         &self,
-        env: &KVBlock,
+        env_memobj: kobject::MemoryObject,
     ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
-        let env_memobj = env.memory_object().clone().into_handle();
+        let env_memobj = env_memobj.clone().into_handle();
 
         let query = messages::UpdateEnvQueryParameters {};
 

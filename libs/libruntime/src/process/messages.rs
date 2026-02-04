@@ -30,9 +30,7 @@ impl From<Type> for u16 {
 pub enum ProcessServerError {
     InvalidArgument = 1,
     InvalidBinaryFormat,
-    OutOfMemory,
-
-    Unknown,
+    RuntimeError,
 }
 
 impl fmt::Display for ProcessServerError {
@@ -40,8 +38,7 @@ impl fmt::Display for ProcessServerError {
         match self {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
-            Self::OutOfMemory => write!(f, "OutOfMemory"),
-            Self::Unknown => write!(f, "Unknown"),
+            Self::RuntimeError => write!(f, "RuntimeError"),
         }
     }
 }

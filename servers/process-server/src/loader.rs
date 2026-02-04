@@ -1,81 +1,73 @@
 use alloc::vec::Vec;
-use core::{error::Error, fmt};
-use libruntime::{
-    kobject::{self, KObject},
-    memory,
-    process::messages::ProcessServerError,
-};
-use log::{debug, error};
+use libruntime::{kobject, memory};
+use log::debug;
 use xmas_elf::{header, program, ElfFile};
 
-/// Loader error, which converts to ProcessServerError
-///
-/// Internally, it outputs to the log and converts to ProcessServerError::InvalidBinaryFormat
-#[derive(Debug)]
-pub struct LoaderError();
-
-impl From<&'static str> for LoaderError {
-    fn from(err: &'static str) -> LoaderError {
-        error!("Loader error: {}", err);
-        LoaderError()
-    }
-}
-
-impl From<kobject::Error> for LoaderError {
-    fn from(err: kobject::Error) -> LoaderError {
-        error!("Kernel error: {}", err);
-        LoaderError()
-    }
-}
-
-impl Into<ProcessServerError> for LoaderError {
-    fn into(self) -> ProcessServerError {
-        ProcessServerError::InvalidBinaryFormat
-    }
-}
+use crate::error::{InternalError, ResultExt};
 
 /// Binary loader for ELF files
 ///
 /// Note: This only supports static binaries for now
 pub struct Loader<'a> {
-    name: &'a str,
     elf_file: ElfFile<'a>,
 }
 
 impl<'a> Loader<'a> {
     /// Create a new loader from the given binary data, and validate it
-    pub fn new(name: &'a str, binary: &'a [u8]) -> Result<Self, LoaderError> {
+    pub fn new(binary: &'a [u8]) -> Result<Self, InternalError> {
         let loader = Loader {
-            name,
-            elf_file: ElfFile::new(binary)?,
+            elf_file: ElfFile::new(binary).invalid_binary("Failed to parse ELF binary")?,
         };
 
         match loader.elf_file.header.pt2.type_().as_type() {
-            header::Type::None => Err("Bad binary type: none")?,
-            header::Type::Relocatable => Err("Bad binary type: relocatable")?,
             header::Type::Executable => (),
-            header::Type::SharedObject => Err("Bad binary type: shared-object")?,
-            header::Type::Core => Err("Bad binary type: core")?,
-            header::Type::ProcessorSpecific(_) => Err("Bad binary type: processor-specific")?,
+            header::Type::None => {
+                return Err(InternalError::invalid_binary("ELF type is None"));
+            }
+            header::Type::Relocatable => {
+                return Err(InternalError::invalid_binary(
+                    "Relocatable binaries not supported",
+                ));
+            }
+            header::Type::SharedObject => {
+                return Err(InternalError::invalid_binary(
+                    "Shared objects not supported",
+                ));
+            }
+            header::Type::Core => {
+                return Err(InternalError::invalid_binary("Core dumps not supported"));
+            }
+            header::Type::ProcessorSpecific(_) => {
+                return Err(InternalError::invalid_binary(
+                    "Processor-specific type not supported",
+                ));
+            }
         };
 
         let mut has_loadable_segment = false;
 
         for program_header in loader.elf_file.program_iter() {
-            program::sanity_check(program_header, &loader.elf_file)?;
+            program::sanity_check(program_header, &loader.elf_file)
+                .invalid_binary("ELF sanity check failed")?;
 
             // Ensure that there is at least one loadable segment, and it has compatible alignment
-            if matches!(program_header.get_type()?, program::Type::Load) {
+            let r#type = program_header
+                .get_type()
+                .invalid_binary("Failed to get program header type")?;
+
+            if matches!(r#type, program::Type::Load) {
                 has_loadable_segment = true;
 
                 if (program_header.align() as usize) < kobject::PAGE_SIZE {
-                    Err("Segment alignment less than page size")?;
+                    Err(InternalError::invalid_binary(
+                        "Segment alignment less than page size",
+                    ))?;
                 }
             }
         }
 
         if !has_loadable_segment {
-            Err("No loadable segments found")?;
+            Err(InternalError::invalid_binary("No loadable segments found"))?;
         }
 
         Ok(loader)
@@ -85,11 +77,16 @@ impl<'a> Loader<'a> {
     pub fn map(
         &self,
         process: &'a kobject::Process,
-    ) -> Result<Vec<kobject::Mapping<'a>>, LoaderError> {
+    ) -> Result<Vec<kobject::Mapping<'a>>, InternalError> {
         let mut mappings = Vec::new();
 
         for program_header in self.elf_file.program_iter() {
-            if !matches!(program_header.get_type()?, program::Type::Load) {
+            if !matches!(
+                program_header
+                    .get_type()
+                    .expect("could not match already-checked type"),
+                program::Type::Load
+            ) {
                 continue;
             }
 
@@ -104,7 +101,7 @@ impl<'a> Loader<'a> {
         &self,
         process: &'a kobject::Process,
         program_header: &program::ProgramHeader,
-    ) -> Result<kobject::Mapping<'a>, LoaderError> {
+    ) -> Result<kobject::Mapping<'a>, InternalError> {
         let virtual_addr = program_header.virtual_addr() as usize;
         let file_addr = program_header.offset() as usize;
         let virtual_size = program_header.mem_size() as usize;
@@ -152,7 +149,7 @@ impl<'a> Loader<'a> {
         data: &[u8],
         offset: usize,
         size: usize,
-    ) -> Result<kobject::MemoryObject, LoaderError> {
+    ) -> Result<kobject::MemoryObject, InternalError> {
         let mem_obj = kobject::MemoryObject::create(size)?;
 
         let process = kobject::Process::current();

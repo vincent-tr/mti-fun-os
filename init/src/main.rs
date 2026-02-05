@@ -9,6 +9,7 @@ mod archive;
 mod idle;
 mod loader;
 mod offsets;
+mod state_server;
 mod tests;
 
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};

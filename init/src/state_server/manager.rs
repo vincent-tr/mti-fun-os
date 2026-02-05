@@ -29,18 +29,10 @@ impl Manager {
 
     pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
         let builder = ipc::ServerBuilder::new(messages::PORT_NAME, messages::VERSION);
-        let builder = builder.with_process_exit_handler({
-            let manager = Arc::clone(self);
-            move |pid| {
-                manager.process_terminated(pid);
-            }
-        });
         let builder = self.add_handler(builder, messages::Type::GetState, Self::get_state_handler);
 
         builder.build()
     }
-
-    fn process_terminated(&self, _pid: u64) {}
 
     fn get_state_handler(
         &self,

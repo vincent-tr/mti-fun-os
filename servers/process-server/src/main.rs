@@ -10,6 +10,7 @@ mod error;
 mod loader;
 mod manager;
 mod process;
+mod state;
 
 use manager::Manager;
 

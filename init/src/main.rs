@@ -87,9 +87,9 @@ fn main() {
 
     let _ = process;
 
-    //loader::load("vfs-server", archive::VFS_SERVER).expect("Could not load vfs server");
-
-    libruntime::exit();
+    // init cannot exit, it runs the state server
+    sleep_forever();
+    // libruntime::exit();
 }
 
 fn apply_memory_protections(binary_len: usize) {
@@ -151,4 +151,10 @@ fn wait_port(name: &'static str) {
     }
 
     info!("found '{}' port", name);
+}
+
+fn sleep_forever() -> ! {
+    loop {
+        libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
+    }
 }

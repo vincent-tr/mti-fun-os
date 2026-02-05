@@ -82,8 +82,7 @@ impl ServerBuilder {
             self.name,
             self.version,
             self.handlers,
-            self.process_exit_handler
-                .expect("process exit handler not set"),
+            self.process_exit_handler,
         )
     }
 }
@@ -104,13 +103,13 @@ impl fmt::Debug for ServerBuilder {
 /// IPC server.
 ///
 /// Create using `ServerBuilder`.
+#[derive(Debug)]
 pub struct Server {
     receiver: kobject::PortReceiver,
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
-    process_listener: kobject::ProcessListener,
+    process_listener: Option<ProcessTerminationListener>,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
-    process_exit_handler: Box<dyn Fn(u64) + 'static>,
 }
 
 impl Server {
@@ -118,11 +117,15 @@ impl Server {
         name: &str,
         version: u16,
         handlers: HashMap<u16, Box<dyn MessageHandler>>,
-        process_exit_handler: Box<dyn Fn(u64) + 'static>,
+        process_exit_handler: Option<Box<dyn Fn(u64) + 'static>>,
     ) -> Result<Self, kobject::Error> {
         let (receiver, sender) = kobject::Port::create(Some(name))?;
-        let process_listener =
-            kobject::ProcessListener::create(kobject::ProcessListenerFilter::All)?;
+
+        let process_listener = if let Some(handler) = process_exit_handler {
+            Some(ProcessTerminationListener::create(handler)?)
+        } else {
+            None
+        };
 
         Ok(Self {
             receiver,
@@ -130,7 +133,6 @@ impl Server {
             process_listener,
             version,
             handlers,
-            process_exit_handler,
         })
     }
 
@@ -146,31 +148,32 @@ impl Server {
         const RECEIVER_INDEX: usize = 0;
         const PROCESS_LISTENER_INDEX: usize = 1;
 
-        let mut waiter = kobject::Waiter::new(&[&self.receiver, &self.process_listener]);
+        let mut waiter = kobject::Waiter::new(&[&self.receiver]);
+        if let Some(process_listener) = &self.process_listener {
+            waiter.add(process_listener);
+        }
 
         loop {
             waiter.wait().expect("wait failed");
 
             if waiter.is_ready(RECEIVER_INDEX) {
-                let message = self
-                    .receiver
-                    .receive()
-                    .expect("failed to receive message from port");
-
-                self.process_message(message);
+                self.process_message();
             }
 
-            if waiter.is_ready(PROCESS_LISTENER_INDEX) {
-                let message = self
-                    .process_listener
-                    .receive()
-                    .expect("failed to receive process event");
-                self.process_process_event(message);
+            if let Some(process_listener) = &self.process_listener {
+                if waiter.is_ready(PROCESS_LISTENER_INDEX) {
+                    process_listener.process_message();
+                }
             }
         }
     }
 
-    fn process_message(&self, message: kobject::Message) {
+    fn process_message(&self) {
+        let message = self
+            .receiver
+            .receive()
+            .expect("failed to receive message from port");
+
         let header = unsafe { message.data::<QueryHeader>() };
         if header.version != self.version {
             error!("invalid message version: {}", header.version);
@@ -184,24 +187,46 @@ impl Server {
 
         handler.handle_message(message);
     }
+}
 
-    fn process_process_event(&self, event: kobject::ProcessEvent) {
-        if let kobject::ProcessEventType::Terminated = event.r#type {
-            (self.process_exit_handler)(event.pid);
-        }
+struct ProcessTerminationListener {
+    listener: kobject::ProcessListener,
+    handler: Box<dyn Fn(u64) + 'static>,
+}
+
+impl kobject::KWaitable for ProcessTerminationListener {
+    unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
+        self.listener.waitable_handle()
+    }
+
+    fn wait(&self) -> Result<(), kobject::Error> {
+        self.listener.wait()
     }
 }
 
-impl fmt::Debug for Server {
+impl fmt::Debug for ProcessTerminationListener {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Server")
-            .field("receiver", &self.receiver)
-            .field("sender", &self.sender)
-            .field("process_listener", &self.process_listener)
-            .field("version", &self.version)
-            .field("handlers", &self.handlers.len())
-            .field("process_exit_handler", &"Fn")
-            .finish()
+        f.debug_struct("ProcessTerminationListener").finish()
+    }
+}
+
+impl ProcessTerminationListener {
+    pub fn create(handler: Box<dyn Fn(u64) + 'static>) -> Result<Self, kobject::Error> {
+        Ok(Self {
+            listener: kobject::ProcessListener::create(kobject::ProcessListenerFilter::All)?,
+            handler,
+        })
+    }
+
+    pub fn process_message(&self) {
+        let event = self
+            .listener
+            .receive()
+            .expect("failed to receive process event");
+
+        if let kobject::ProcessEventType::Terminated = event.r#type {
+            (self.handler)(event.pid);
+        }
     }
 }
 

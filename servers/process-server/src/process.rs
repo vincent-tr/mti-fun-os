@@ -13,6 +13,13 @@ use log::info;
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Pid(u64);
 
+impl Pid {
+    /// Get the raw u64 value of this PID, which is used in IPC and kernel objects
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
 impl From<u64> for Pid {
     fn from(value: u64) -> Self {
         Self(value)

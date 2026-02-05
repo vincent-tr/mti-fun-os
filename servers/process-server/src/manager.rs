@@ -1,26 +1,30 @@
-use hashbrown::HashMap;
-
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
     process::{find_live_process, ExitCode, Pid, ProcessInfo},
+    state::State,
 };
 use alloc::{string::String, sync::Arc};
+use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
     process::{messages, KVBlock},
-    sync::{spin::OnceLock, RwLock},
 };
 use log::{debug, info, warn};
 
 /// The main manager structure
 #[derive(Debug)]
-pub struct Manager();
+pub struct Manager {
+    handles: ipc::HandleTable<'static, ProcessInfo>,
+}
 
 impl Manager {
     pub fn new() -> Result<Arc<Self>, kobject::Error> {
-        let manager = Self();
+        let state = State::get();
+        let handles = ipc::HandleTable::new(&state.handle_generator());
+
+        let manager = Self { handles };
 
         manager.register_init()?;
         manager.register_self()?;
@@ -72,12 +76,12 @@ impl Manager {
 
         info.mark_terminated();
 
-        // TODO: close handles
+        self.handles.process_terminated(pid.as_u64());
     }
 
     fn get_startup_info_handler(
         &self,
-        query: messages::GetStartupInfoQueryParameters,
+        _query: messages::GetStartupInfoQueryParameters,
         _query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::GetStartupInfoReply, ipc::KHandles), InternalError> {
@@ -125,7 +129,7 @@ impl Manager {
 
     fn update_env_handler(
         &self,
-        query: messages::UpdateEnvQueryParameters,
+        _query: messages::UpdateEnvQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::UpdateEnvReply, ipc::KHandles), InternalError> {
@@ -264,8 +268,10 @@ impl Manager {
             arguments,
         );
 
+        let handle = self.handles.open(sender_id.as_u64(), info);
+
         Ok((
-            messages::CreateProcessReply { handle: 0.into() },
+            messages::CreateProcessReply { handle },
             ipc::KHandles::new(),
         ))
     }
@@ -328,10 +334,11 @@ impl Manager {
     }
 
     fn get_empty_kvblock() -> KVBlock {
-        /// Since kvblocks are immutable, we can cache an empty one
-        static EMPTY_KVBLOCK: OnceLock<kobject::MemoryObject> = OnceLock::new();
+        // Since kvblocks are immutable, we can cache an empty one
+        lazy_static! {
+            static ref EMPTY_KVBLOCK: kobject::MemoryObject = KVBlock::build(&[]);
+        }
 
-        let mobj = EMPTY_KVBLOCK.get_or_init(|| KVBlock::build(&[]));
-        KVBlock::from_memory_object(mobj.clone()).expect("Failed to create KVBlock")
+        KVBlock::from_memory_object(EMPTY_KVBLOCK.clone()).expect("Failed to create KVBlock")
     }
 }

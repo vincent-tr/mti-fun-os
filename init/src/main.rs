@@ -17,7 +17,7 @@ use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 use libruntime::{
     ipc,
     kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
-    process,
+    process, state,
 };
 use log::{debug, info};
 
@@ -68,6 +68,9 @@ fn main() {
     // tests::sync::test_futex();
     // tests::sync::test_mutex();
     // tests::sync::test_rwlock();
+
+    state_server::start();
+    wait_port(state::messages::PORT_NAME);
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::messages::PORT_NAME);

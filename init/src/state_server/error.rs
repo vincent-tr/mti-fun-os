@@ -80,16 +80,11 @@ impl From<kobject::Error> for InternalError {
 
 /// Extension trait for Result to add context
 pub trait ResultExt<T> {
-    fn context(self, msg: &'static str) -> Result<T, InternalError>;
     fn invalid_arg(self, msg: &'static str) -> Result<T, InternalError>;
     fn runtime_err(self, msg: &'static str) -> Result<T, InternalError>;
 }
 
 impl<T, E: fmt::Display + 'static> ResultExt<T> for Result<T, E> {
-    fn context(self, msg: &'static str) -> Result<T, InternalError> {
-        self.map_err(|e| InternalError::runtime_error(msg).with_source(e))
-    }
-
     fn invalid_arg(self, msg: &'static str) -> Result<T, InternalError> {
         self.map_err(|e| InternalError::invalid_argument(msg).with_source(e))
     }

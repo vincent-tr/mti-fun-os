@@ -1,20 +1,16 @@
 use core::fmt;
 
 use hashbrown::HashMap;
-use libsyscalls::process::info;
 
-use crate::{
-    error::{InternalError, ResultExt},
-    loader::Loader,
-};
+use super::error::{InternalError, ResultExt};
 use alloc::{string::String, sync::Arc};
 use libruntime::{
     ipc,
     kobject::{self, KObject},
     state::messages,
-    sync::{spin::OnceLock, RwLock},
+    sync::RwLock,
 };
-use log::{debug, info};
+use log::info;
 
 /// The main server structure
 #[derive(Debug)]
@@ -44,7 +40,7 @@ impl Manager {
         builder.build()
     }
 
-    fn process_terminated(&self, pid: u64) {}
+    fn process_terminated(&self, _pid: u64) {}
 
     fn get_state_handler(
         &self,
@@ -60,9 +56,9 @@ impl Manager {
                 .invalid_arg("Failed to create name buffer reader")?
         };
 
-        let name = unsafe { buffer_view.str() };
+        let name = String::from(unsafe { buffer_view.str() });
 
-        if name.empty() {
+        if name.is_empty() {
             return Err(InternalError::invalid_argument(
                 "State name cannot be empty",
             ));
@@ -74,12 +70,12 @@ impl Manager {
             info!("Creating new state for '{}'", name);
             let mobj = kobject::MemoryObject::create(messages::STATE_SIZE)
                 .runtime_err("Failed to create memory object")?;
-            state.insert(String::from(name), mobj.clone());
+            state.insert(name, mobj.clone());
             mobj
         };
 
         let reply = messages::GetStateReply {};
-        let reply_handles = ipc::KHandles::new();
+        let mut reply_handles = ipc::KHandles::new();
 
         reply_handles[messages::GetStateReply::HANDLE_VALUE_MOBJ] = mobj.into_handle();
 

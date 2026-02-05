@@ -320,6 +320,7 @@ name = "init"
 version = "0.1.0"
 dependencies = [
  "bit_field",
+ "hashbrown",
  "lazy_static",
  "libc",
  "libruntime",

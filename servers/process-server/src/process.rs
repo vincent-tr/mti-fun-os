@@ -1,9 +1,13 @@
-use core::fmt;
+use core::{
+    fmt,
+    sync::atomic::{AtomicBool, AtomicI32, Ordering},
+};
 
 use alloc::{string::String, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use libruntime::{collections::WeakMap, kobject, process::KVBlock, sync::RwLock};
+use log::info;
 
 /// Process ID
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
@@ -21,16 +25,64 @@ impl fmt::Display for Pid {
     }
 }
 
+/// Exit code of a process
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+pub struct ExitCode(i32);
+
+impl ExitCode {
+    pub const SUCCESS: Self = Self(0);
+
+    const RESERVED_MIN: i32 = i32::MIN + 10;
+
+    pub const UNSET: Self = Self(i32::MIN);
+    pub const KILLED: Self = Self(i32::MIN + 1);
+}
+
+impl fmt::Display for ExitCode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::SUCCESS => write!(f, "SUCCESS"),
+            Self::UNSET => write!(f, "UNSET"),
+            Self::KILLED => write!(f, "KILLED"),
+            code => write!(f, "{}", code.0),
+        }
+    }
+}
+
+impl TryFrom<i32> for ExitCode {
+    type Error = ExitCodeConvertError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value >= Self::RESERVED_MIN {
+            Ok(Self(value))
+        } else {
+            Err(ExitCodeConvertError)
+        }
+    }
+}
+
+pub struct ExitCodeConvertError;
+
+impl fmt::Display for ExitCodeConvertError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "Exit code must be greater than or equal to {}",
+            ExitCode::RESERVED_MIN
+        )
+    }
+}
+
 /// Process information stored in the server
 #[derive(Debug)]
 pub struct ProcessInfo {
     process: kobject::Process,
     main_thread: kobject::Thread,
-    name: String,
-    environment: KVBlock,
+    name: RwLock<String>,
+    environment: RwLock<KVBlock>,
     arguments: KVBlock,
-    exit_code: Option<i32>,
-    exited: bool,
+    exit_code: AtomicI32,
+    terminated: AtomicBool,
 }
 
 impl ProcessInfo {
@@ -44,20 +96,82 @@ impl ProcessInfo {
         let info = Arc::new(Self {
             process,
             main_thread,
-            name,
-            environment,
+            name: RwLock::new(name),
+            environment: RwLock::new(environment),
             arguments,
-            exit_code: None,
-            exited: false,
+            exit_code: AtomicI32::new(ExitCode::UNSET.0),
+            terminated: AtomicBool::new(false),
         });
 
         PROCESSES.insert(&info);
+        LIVE_PROCESSES.insert(info.clone());
+
+        info!("Created process {}: {}", info.name(), info.pid());
 
         info
     }
 
+    /// Get the PID of this process
     pub fn pid(&self) -> Pid {
         Pid::from(self.process.pid())
+    }
+
+    /// Get the name of this process
+    pub fn name(&self) -> String {
+        self.name.read().clone()
+    }
+
+    /// Get the environment of this process
+    pub fn environment(&self) -> KVBlock {
+        let mobj = self.environment.read().memory_object().clone();
+        KVBlock::from_memory_object(mobj).expect("failed to clone environment")
+    }
+
+    /// Get the arguments of this process
+    pub fn arguments(&self) -> &KVBlock {
+        &self.arguments
+    }
+
+    /// Check if this process is terminated
+    pub fn is_terminated(&self) -> bool {
+        self.terminated.load(Ordering::SeqCst)
+    }
+
+    /// Get the exit code of this process (UNSET if not terminated yet)
+    pub fn exit_code(&self) -> ExitCode {
+        ExitCode(self.exit_code.load(Ordering::SeqCst))
+    }
+
+    /// Set the exit code of this process
+    pub fn set_exit_code(&self, code: ExitCode) {
+        self.exit_code.store(code.0, Ordering::SeqCst);
+
+        info!("Set process {} exit code to {}", self.pid(), code.0);
+    }
+
+    /// Update the name of this process
+    pub fn update_name(&self, name: String) {
+        let mut self_name = self.name.write();
+        *self_name = name;
+
+        info!("Updating process {} name to {}", self.pid(), *self_name);
+    }
+
+    /// Update the environment of this process
+    pub fn update_environment(&self, environment: KVBlock) {
+        let mut self_env = self.environment.write();
+        *self_env = environment;
+
+        info!("Updating process {} environment", self.pid());
+    }
+
+    /// Mark this process as terminated, making it unavailable in the live processes list
+    pub fn mark_terminated(&self) {
+        self.terminated.store(true, Ordering::SeqCst);
+
+        LIVE_PROCESSES.remove(self.pid());
+
+        info!("Process {} is terminated", self.pid());
     }
 }
 
@@ -67,8 +181,18 @@ impl Drop for ProcessInfo {
     }
 }
 
+/// Find a live process by its PID
+pub fn find_live_process(pid: Pid) -> Option<Arc<ProcessInfo>> {
+    LIVE_PROCESSES.get(pid)
+}
+
+/// Find a process by its PID, even if it has terminated (if still available)
+pub fn find_process(pid: Pid) -> Option<Arc<ProcessInfo>> {
+    PROCESSES.find(pid)
+}
+
 lazy_static! {
-    pub static ref LIVE_PROCESSES: LiveProcesses = LiveProcesses::new();
+    static ref LIVE_PROCESSES: LiveProcesses = LiveProcesses::new();
 }
 
 /// List of live processes
@@ -111,10 +235,10 @@ impl LiveProcesses {
 }
 
 lazy_static! {
-    pub static ref PROCESSES: Processes = Processes::new();
+    static ref PROCESSES: Processes = Processes::new();
 }
 
-/// List of all processes, both live and exited (if opened), for information purposes
+/// List of all processes, both live and terminated (if opened), for information purposes
 #[derive(Debug)]
 pub struct Processes {
     processes: RwLock<WeakMap<Pid, ProcessInfo>>,

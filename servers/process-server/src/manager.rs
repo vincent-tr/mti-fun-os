@@ -1,11 +1,9 @@
-use core::fmt;
-
 use hashbrown::HashMap;
 
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
-    process::{Pid, ProcessInfo},
+    process::{find_live_process, ExitCode, Pid, ProcessInfo},
 };
 use alloc::{string::String, sync::Arc};
 use libruntime::{
@@ -14,19 +12,15 @@ use libruntime::{
     process::{messages, KVBlock},
     sync::{spin::OnceLock, RwLock},
 };
-use log::{debug, info};
+use log::{debug, info, warn};
 
 /// The main manager structure
 #[derive(Debug)]
-pub struct Manager {
-    processes: RwLock<HashMap<Pid, ProcessInfo>>,
-}
+pub struct Manager();
 
 impl Manager {
     pub fn new() -> Result<Arc<Self>, kobject::Error> {
-        let manager = Manager {
-            processes: RwLock::new(HashMap::new()),
-        };
+        let manager = Self();
 
         manager.register_init()?;
         manager.register_self()?;
@@ -70,7 +64,16 @@ impl Manager {
         builder.build()
     }
 
-    fn process_terminated(&self, pid: Pid) {}
+    fn process_terminated(&self, pid: Pid) {
+        let Some(info) = find_live_process(pid) else {
+            warn!("Unknown process with PID {} terminated", pid);
+            return;
+        };
+
+        info.mark_terminated();
+
+        // TODO: close handles
+    }
 
     fn get_startup_info_handler(
         &self,
@@ -78,14 +81,12 @@ impl Manager {
         _query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::GetStartupInfoReply, ipc::KHandles), InternalError> {
-        let processes = self.processes.read();
-        let info = processes
-            .get(&sender_id)
+        let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
-        let (name_mobj, name_buffer) = ipc::Buffer::new_local(info.name.as_bytes()).into_shared();
-        let env_mobj = info.environment.memory_object().clone();
-        let args_mobj = info.arguments.memory_object().clone();
+        let (name_mobj, name_buffer) = ipc::Buffer::new_local(info.name().as_bytes()).into_shared();
+        let env_mobj = info.environment().memory_object().clone();
+        let args_mobj = info.arguments().memory_object().clone();
 
         let reply = messages::GetStartupInfoReply { name: name_buffer };
 
@@ -103,9 +104,7 @@ impl Manager {
         mut query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::UpdateNameReply, ipc::KHandles), InternalError> {
-        let mut processes = self.processes.write();
-        let info = processes
-            .get_mut(&sender_id)
+        let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let buffer_view = {
@@ -116,9 +115,7 @@ impl Manager {
 
         let new_name = String::from(unsafe { buffer_view.str() });
 
-        info!("Updating process {} name to {}", sender_id, new_name);
-
-        info.name = new_name;
+        info.update_name(new_name);
 
         let reply = messages::UpdateNameReply {};
         let reply_handles = ipc::KHandles::new();
@@ -132,9 +129,7 @@ impl Manager {
         mut query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::UpdateEnvReply, ipc::KHandles), InternalError> {
-        let mut processes = self.processes.write();
-        let info = processes
-            .get_mut(&sender_id)
+        let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let new_env = {
@@ -145,9 +140,7 @@ impl Manager {
             KVBlock::from_memory_object(mobj).invalid_arg("Failed to load environment kvblock")?
         };
 
-        info!("Updating process {} environment", sender_id);
-
-        info.environment = new_env;
+        info.update_environment(new_env);
 
         let reply = messages::UpdateEnvReply {};
         let reply_handles = ipc::KHandles::new();
@@ -161,17 +154,10 @@ impl Manager {
         _query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::SetExitCodeReply, ipc::KHandles), InternalError> {
-        let mut processes = self.processes.write();
-        let info = processes
-            .get_mut(&sender_id)
+        let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
-        info!(
-            "Setting process {} exit code to {}",
-            sender_id, query.exit_code
-        );
-
-        info.exit_code = Some(query.exit_code);
+        info.set_exit_code(ExitCode::try_from(query.exit_code).invalid_arg("Invalid exit code")?);
 
         let reply = messages::SetExitCodeReply {};
         let reply_handles = ipc::KHandles::new();
@@ -270,13 +256,13 @@ impl Manager {
         }
 
         // Create associated ProcessInfo
-        let info = ProcessInfo::new(process, main_thread, name, environment, arguments);
-        let pid = info.pid();
-
-        let mut processes = self.processes.write();
-        processes.insert(pid, info);
-
-        info!("Created process {}: {}", name, pid);
+        let info = ProcessInfo::new(
+            process,
+            main_thread,
+            String::from(name),
+            environment,
+            arguments,
+        );
 
         Ok((
             messages::CreateProcessReply { handle: 0.into() },
@@ -310,18 +296,14 @@ impl Manager {
     fn register_self(&self) -> Result<(), kobject::Error> {
         let process = kobject::Process::current().clone();
         let main_thread = kobject::Thread::open_self()?;
-        let pid = Pid(process.pid());
 
-        let info = ProcessInfo::new(
+        ProcessInfo::new(
             process,
             main_thread,
             String::from("process-server"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
         );
-
-        let mut processes = self.processes.write();
-        processes.insert(pid, info);
 
         Ok(())
     }
@@ -333,20 +315,14 @@ impl Manager {
 
         let process = kobject::Process::open(INIT_PID)?;
         let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
-        let pid = Pid::from(process.pid());
 
-        let info = ProcessInfo {
+        ProcessInfo::new(
             process,
             main_thread,
-            name: String::from("init"),
-            environment: Self::get_empty_kvblock(),
-            arguments: Self::get_empty_kvblock(),
-            exit_code: None,
-            exited: false,
-        };
-
-        let mut processes = self.processes.write();
-        processes.insert(pid, info);
+            String::from("init"),
+            Self::get_empty_kvblock(),
+            Self::get_empty_kvblock(),
+        );
 
         Ok(())
     }

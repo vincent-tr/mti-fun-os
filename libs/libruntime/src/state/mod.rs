@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, mem};
 
-use crate::{ipc, kobject::KObject};
+use crate::kobject;
 
 mod client;
 pub mod messages;
@@ -12,7 +12,7 @@ lazy_static::lazy_static! {
 /// A view into a state object, providing typed access to the underlying buffer
 #[derive(Debug)]
 pub struct StateView<T> {
-    buffer_view: ipc::BufferView,
+    mapping: kobject::Mapping<'static>,
     _phantom: PhantomData<T>,
 }
 
@@ -29,17 +29,19 @@ impl<T> StateView<T> {
 
         let mobj = CLIENT.get_state(name).expect("failed to get state");
 
-        let buffer_view = ipc::BufferView::new(
-            mobj.into_handle(),
-            &ipc::buffer_messages::Buffer {
-                offset: 0,
-                size: messages::STATE_SIZE,
-            },
-        )
-        .expect("failed to create buffer view");
+        let process = kobject::Process::current();
+        let mapping = process
+            .map_mem(
+                None,
+                messages::STATE_SIZE,
+                kobject::Permissions::READ | kobject::Permissions::WRITE,
+                &mobj,
+                0,
+            )
+            .expect("failed to map memory object");
 
         Self {
-            buffer_view,
+            mapping,
             _phantom: PhantomData,
         }
     }
@@ -50,8 +52,9 @@ impl<T> StateView<T> {
     /// - The caller must ensure that the buffer layout matches T.
     /// - The buffer can be uninitialized (all zeros), so T must be able to handle that if necessary.
     /// - The buffer is shared, so concurrent access must be properly synchronized by the caller if needed.
+    ///
+    /// The state is given as ref, not mutable, to encourage users to use interior mutability patterns (eg: Atomics)
     pub unsafe fn as_ref(&self) -> &T {
-        let data = self.buffer_view.buffer();
-        unsafe { &*(data.as_ptr() as *const _) }
+        unsafe { &*(self.mapping.address() as *const _) }
     }
 }

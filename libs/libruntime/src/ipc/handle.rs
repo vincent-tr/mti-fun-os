@@ -27,6 +27,30 @@ impl From<u64> for Handle {
     }
 }
 
+/// A generator for unique handles.
+///
+/// It is designed to be part of the state of the server, so that it can be persisted and survive server restart.
+/// It is also thread-safe, allowing concurrent handle generation from multiple threads if needed.
+#[derive(Debug, Default)]
+#[repr(C)]
+pub struct HandleGenerator {
+    last_handle: AtomicU64,
+}
+
+impl HandleGenerator {
+    // Note: State structures are not directly created, they are accessed through StateView.
+    // Its default value will be zero-initialized, which means the first generated handle will be 1 (since 0 is reserved as invalid).
+
+    /// Generates a new unique handle.
+    pub fn generate(&self) -> Handle {
+        let handle_value = self
+            .last_handle
+            .fetch_add(1, core::sync::atomic::Ordering::SeqCst)
+            + 1;
+        Handle(handle_value)
+    }
+}
+
 /*
 /// A table to track what client process opened handles to server objects.
 #[derive(Debug)]

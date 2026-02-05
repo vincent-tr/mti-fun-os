@@ -1,5 +1,3 @@
-use core::fmt;
-
 use hashbrown::HashMap;
 
 use super::error::{InternalError, ResultExt};

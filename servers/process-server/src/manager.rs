@@ -5,6 +5,7 @@ use hashbrown::HashMap;
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
+    process::{Pid, ProcessInfo},
 };
 use alloc::{string::String, sync::Arc};
 use libruntime::{
@@ -14,28 +15,6 @@ use libruntime::{
     sync::{spin::OnceLock, RwLock},
 };
 use log::{debug, info};
-
-/// Process ID
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-struct Pid(u64);
-
-impl fmt::Display for Pid {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Process information stored in the server
-#[derive(Debug)]
-struct ProcessInfo {
-    process: kobject::Process,
-    main_thread: kobject::Thread,
-    name: String,
-    environment: KVBlock,
-    arguments: KVBlock,
-    exit_code: Option<i32>,
-    exited: bool,
-}
 
 /// The main manager structure
 #[derive(Debug)]
@@ -60,7 +39,7 @@ impl Manager {
         let builder = builder.with_process_exit_handler({
             let manager = Arc::clone(self);
             move |pid| {
-                manager.process_terminated(Pid(pid));
+                manager.process_terminated(Pid::from(pid));
             }
         });
 
@@ -291,17 +270,8 @@ impl Manager {
         }
 
         // Create associated ProcessInfo
-        let pid = Pid(process.pid());
-
-        let info = ProcessInfo {
-            process,
-            main_thread,
-            name: String::from(name),
-            environment,
-            arguments,
-            exit_code: None,
-            exited: false,
-        };
+        let info = ProcessInfo::new(process, main_thread, name, environment, arguments);
+        let pid = info.pid();
 
         let mut processes = self.processes.write();
         processes.insert(pid, info);
@@ -331,7 +301,8 @@ impl Manager {
     {
         let manager = Arc::clone(self);
         builder.with_handler(message_type, move |query, handles, sender_id| {
-            handler(&manager, query, handles, Pid(sender_id)).map_err(|e| e.into_server_error())
+            handler(&manager, query, handles, Pid::from(sender_id))
+                .map_err(|e| e.into_server_error())
         })
     }
 
@@ -341,15 +312,13 @@ impl Manager {
         let main_thread = kobject::Thread::open_self()?;
         let pid = Pid(process.pid());
 
-        let info = ProcessInfo {
+        let info = ProcessInfo::new(
             process,
             main_thread,
-            name: String::from("process-server"),
-            environment: Self::get_empty_kvblock(),
-            arguments: Self::get_empty_kvblock(),
-            exit_code: None,
-            exited: false,
-        };
+            String::from("process-server"),
+            Self::get_empty_kvblock(),
+            Self::get_empty_kvblock(),
+        );
 
         let mut processes = self.processes.write();
         processes.insert(pid, info);
@@ -364,7 +333,7 @@ impl Manager {
 
         let process = kobject::Process::open(INIT_PID)?;
         let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
-        let pid = Pid(process.pid());
+        let pid = Pid::from(process.pid());
 
         let info = ProcessInfo {
             process,

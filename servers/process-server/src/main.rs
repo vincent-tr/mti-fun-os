@@ -9,6 +9,7 @@ extern crate libruntime;
 mod error;
 mod loader;
 mod manager;
+mod process;
 
 use manager::Manager;
 

@@ -109,7 +109,6 @@ impl LiveProcesses {
     }
 }
 
-
 lazy_static! {
     pub static ref PROCESSES: Processes = Processes::new();
 }

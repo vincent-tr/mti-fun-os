@@ -7,6 +7,6 @@ mod server;
 pub use buffer::messages as buffer_messages;
 pub use buffer::{Buffer, BufferView};
 pub use client::{CallError, Client};
-pub use handle::Handle;
+pub use handle::{Handle, HandleGenerator, HandleTable};
 pub use messages::KHandles;
 pub use server::{Server, ServerBuilder};

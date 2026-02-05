@@ -1,6 +1,6 @@
 use core::sync::atomic::AtomicU64;
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
 use crate::sync::RwLock;
@@ -51,25 +51,24 @@ impl HandleGenerator {
     }
 }
 
-/*
 /// A table to track what client process opened handles to server objects.
 #[derive(Debug)]
-pub struct HandleTable<T> {
-    table: RwLock<HashMap<u64, HashMap<Handle, T>>>,
-    next_handle: AtomicU64,
+pub struct HandleTable<'a, T> {
+    table: RwLock<HashMap<u64, HashMap<Handle, Arc<T>>>>,
+    generator: &'a HandleGenerator,
 }
 
-impl<T> HandleTable<T> {
+impl<'a, T> HandleTable<'a, T> {
     /// Creates a new handle table.
-    pub fn new() -> Self {
+    pub fn new(generator: &'a HandleGenerator) -> Self {
         HandleTable {
             table: RwLock::new(HashMap::new()),
-            next_handle: AtomicU64::new(1),
+            generator,
         }
     }
 
     /// Registers that a process has terminated, removing all its opened handles.
-    pub fn process_terminated(&self, process_id: u64) -> Vec<T> {
+    pub fn process_terminated(&self, process_id: u64) -> Vec<Arc<T>> {
         let mut table = self.table.write();
 
         if let Some(handles) = table.remove(&process_id) {
@@ -80,15 +79,12 @@ impl<T> HandleTable<T> {
     }
 
     /// Opens a new handle for the given process and object.
-    pub fn open(&self, process_id: u64, object: T) -> Handle {
+    pub fn open(&self, process_id: u64, object: Arc<T>) -> Handle {
         let mut table = self.table.write();
 
         let process_handles = table.entry(process_id).or_insert_with(HashMap::new);
 
-        let handle_value = self
-            .next_handle
-            .fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-        let handle = Handle(handle_value);
+        let handle = self.generator.generate();
 
         process_handles.insert(handle, object);
 
@@ -96,7 +92,7 @@ impl<T> HandleTable<T> {
     }
 
     /// Closes a handle for the given process, returning the associated object if it existed.
-    pub fn close(&self, process_id: u64, handle: Handle) -> Option<T> {
+    pub fn close(&self, process_id: u64, handle: Handle) -> Option<Arc<T>> {
         let mut table = self.table.write();
 
         if let Some(process_handles) = table.get_mut(&process_id) {
@@ -107,14 +103,13 @@ impl<T> HandleTable<T> {
     }
 
     /// Reads the object associated with a handle for the given process.
-    pub fn read(&self, process_id: u64, handle: Handle) -> Option<&T> {
+    pub fn read(&self, process_id: u64, handle: Handle) -> Option<Arc<T>> {
         let table = self.table.read();
 
         if let Some(process_handles) = table.get(&process_id) {
-            process_handles.get(&handle)
+            process_handles.get(&handle).cloned()
         } else {
             None
         }
     }
 }
-*/

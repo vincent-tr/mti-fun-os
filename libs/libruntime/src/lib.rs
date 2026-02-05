@@ -19,6 +19,7 @@ pub mod kobject;
 mod logging;
 pub mod memory;
 pub mod process;
+pub mod state;
 pub mod sync;
 pub mod timer;
 

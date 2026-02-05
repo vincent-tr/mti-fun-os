@@ -1,7 +1,8 @@
 use core::fmt;
 
-use alloc::{string::String, sync::Arc};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
+use lazy_static::lazy_static;
 use libruntime::{collections::WeakMap, kobject, process::KVBlock, sync::RwLock};
 
 /// Process ID
@@ -87,7 +88,7 @@ impl LiveProcesses {
     }
 
     /// Insert a new process into the list
-    pub fn insert(&mut self, info: Arc<ProcessInfo>) {
+    pub fn insert(&self, info: Arc<ProcessInfo>) {
         let mut processes = self.processes.write();
 
         let pid = info.pid();
@@ -95,7 +96,7 @@ impl LiveProcesses {
     }
 
     /// Remove a process from the list by its PID
-    pub fn remove(&mut self, pid: Pid) {
+    pub fn remove(&self, pid: Pid) {
         let mut processes = self.processes.write();
 
         processes.remove(&pid);
@@ -130,7 +131,7 @@ impl Processes {
     /// Insert a new process into the list
     ///
     /// Reserved for ProcessInfo creation
-    fn insert(&mut self, info: &Arc<ProcessInfo>) {
+    fn insert(&self, info: &Arc<ProcessInfo>) {
         let mut processes = self.processes.write();
 
         let pid = info.pid();
@@ -140,7 +141,7 @@ impl Processes {
     /// Remove a process from the list by its PID
     ///
     /// Reserved for ProcessInfo drop
-    fn remove(&mut self, pid: Pid) {
+    fn remove(&self, pid: Pid) {
         let mut processes = self.processes.write();
 
         processes.remove(pid);

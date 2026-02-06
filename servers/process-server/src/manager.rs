@@ -1,15 +1,15 @@
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
-    process::{find_live_process, find_process, ExitCode, Pid, ProcessInfo},
+    process::{find_live_process, find_process, list_processes, ExitCode, Pid, ProcessInfo},
     state::State,
 };
-use alloc::{string::String, sync::Arc};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
-    process::{messages, KVBlock},
+    process::{self, messages, KVBlock},
 };
 use log::{debug, info, warn};
 
@@ -98,6 +98,11 @@ impl Manager {
             builder,
             messages::Type::TerminateProcess,
             Self::terminate_process_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::ListProcesses,
+            Self::list_processes_handler,
         );
 
         builder.build()
@@ -359,8 +364,8 @@ impl Manager {
 
         let mut name_view = {
             let handle =
-                query_handles.take(messages::GetProcessNameQueryParameters::HANDLE_NAME_MOBJ);
-            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadWrite)
+                query_handles.take(messages::GetProcessNameQueryParameters::HANDLE_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
                 .invalid_arg("Failed to create name buffer reader")?
         };
 
@@ -375,7 +380,7 @@ impl Manager {
         name_view.buffer_mut()[..name.len()].copy_from_slice(name.as_bytes());
 
         let reply = messages::GetProcessNameReply {
-            name_len: name.len(),
+            buffer_used_len: name.len(),
         };
 
         let reply_handles = ipc::KHandles::new();
@@ -476,6 +481,46 @@ impl Manager {
         // This allows the kernel to be the only source of truth for whether a process is alive or not
 
         let reply = messages::TerminateProcessReply {};
+
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn list_processes_handler(
+        &self,
+        query: messages::ListProcessesQueryParameters,
+        mut query_handles: ipc::KHandles,
+        _sender_id: Pid,
+    ) -> Result<(messages::ListProcessesReply, ipc::KHandles), InternalError> {
+        let mut buffer_view = {
+            let handle =
+                query_handles.take(messages::ListProcessesQueryParameters::HANDLE_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create process list buffer view")?
+        };
+
+        let processes: Vec<_> = list_processes()
+            .iter()
+            .map(|p| process::ProcessInfo {
+                pid: p.pid().as_u64(),
+                name: p.name(),
+                status: if p.is_terminated() {
+                    messages::ProcessStatus::Exited(p.exit_code().as_i32())
+                } else {
+                    messages::ProcessStatus::Running
+                },
+            })
+            .collect();
+
+        let buffer_used_len =
+            process::ProcessListBlock::build(&processes, buffer_view.buffer_mut()).map_err(
+                |_required_size| {
+                    InternalError::buffer_too_small("Provided buffer too small for process list")
+                },
+            )?;
+
+        let reply = messages::ListProcessesReply { buffer_used_len };
 
         let reply_handles = ipc::KHandles::new();
 

@@ -218,6 +218,11 @@ pub fn find_process(pid: Pid) -> Option<Arc<ProcessInfo>> {
     PROCESSES.find(pid)
 }
 
+/// List all processes in the system, both live and terminated (if still available)
+pub fn list_processes() -> Vec<Arc<ProcessInfo>> {
+    PROCESSES.list()
+}
+
 lazy_static! {
     static ref LIVE_PROCESSES: LiveProcesses = LiveProcesses::new();
 }

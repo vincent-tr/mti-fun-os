@@ -1,9 +1,11 @@
 mod client;
 mod kvblock;
 pub mod messages;
+mod plblock;
 
 use alloc::{string::String, vec::Vec};
 pub use kvblock::KVBlock;
+pub use plblock::{ProcessInfo, ProcessListBlock};
 
 use crate::{ipc, sync::RwLock};
 
@@ -82,7 +84,11 @@ impl Process {
         CLIENT.terminate_process(self.handle)
     }
 
-    // TODO: Wait API (with cancelation), Kill
+    // TODO: Wait API (with cancelation), list
+
+    pub fn list() -> Result<Vec<ProcessInfo>, ProcessServerError> {
+        CLIENT.list_processes()
+    }
 }
 
 impl Drop for Process {
@@ -91,14 +97,6 @@ impl Drop for Process {
             .close_process(self.handle)
             .expect("failed to close process");
     }
-}
-
-/// Information about a process, as returned by the process server.
-#[derive(Debug, Clone)]
-pub struct ProcessInfo {
-    pub pid: u64,
-    pub name: String,
-    pub status: messages::ProcessStatus,
 }
 
 /// Represents the current process.

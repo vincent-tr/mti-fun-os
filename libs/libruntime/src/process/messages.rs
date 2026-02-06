@@ -199,11 +199,11 @@ pub struct GetProcessNameQueryParameters {
     pub handle: Handle,
 
     /// Buffer to write the name into (if the call succeeds)
-    pub name: Buffer,
+    pub buffer: Buffer,
 }
 
 impl GetProcessNameQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 1; // Ownership kept by the client, server has write access
+    pub const HANDLE_BUFFER_MOBJ: usize = 1; // Ownership kept by the client, server has write access
 }
 
 /// Reply for the GetProcessName message.
@@ -211,7 +211,7 @@ impl GetProcessNameQueryParameters {
 #[repr(C)]
 pub struct GetProcessNameReply {
     /// Length of the process name (if the call succeeds)
-    pub name_len: usize,
+    pub buffer_used_len: usize,
 }
 
 /// Parameters for the GetProcessEnv message.
@@ -228,7 +228,7 @@ pub struct GetProcessEnvQueryParameters {
 pub struct GetProcessEnvReply {}
 
 impl GetProcessEnvReply {
-    pub const HANDLE_ENV_MOBJ: usize = 1; // Readonly, ownership kept by the server
+    pub const HANDLE_ENV_MOBJ: usize = 1; // Readonly, ownership kept by the server, KVBlock format
 }
 
 /// Parameters for the GetProcessArgs message.
@@ -245,7 +245,7 @@ pub struct GetProcessArgsQueryParameters {
 pub struct GetProcessArgsReply {}
 
 impl GetProcessArgsReply {
-    pub const HANDLE_ARGS_MOBJ: usize = 1; // Readonly, ownership kept by the server
+    pub const HANDLE_ARGS_MOBJ: usize = 1; // Readonly, ownership kept by the server, KVBlock format
 }
 
 /// Parameters for the GetProcessStatus message.
@@ -289,3 +289,23 @@ pub struct TerminateProcessQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct TerminateProcessReply {}
+
+/// Parameters for the ListProcesses message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListProcessesQueryParameters {
+    /// Buffer to write the process list into (if the call succeeds)
+    pub buffer: Buffer,
+}
+
+impl ListProcessesQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 1; // Readonly, ownership kept by the client, server has write access, ProcessListBlock format
+}
+
+/// Reply for the ListProcesses message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListProcessesReply {
+    /// Number of bytes used in the buffer to write the process list (if the call succeeds)
+    pub buffer_used_len: usize,
+}

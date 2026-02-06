@@ -1,6 +1,6 @@
 use alloc::{string::String, vec::Vec};
 
-use super::{messages, KVBlock};
+use super::{messages, KVBlock, ProcessInfo, ProcessListBlock};
 use crate::{
     ipc,
     kobject::{self, KObject},
@@ -209,13 +209,10 @@ impl Client {
 
             let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
 
-            let query = messages::GetProcessNameQueryParameters {
-                handle,
-                name: buffer,
-            };
+            let query = messages::GetProcessNameQueryParameters { handle, buffer };
 
             let mut query_handles = ipc::KHandles::new();
-            query_handles[messages::GetProcessNameQueryParameters::HANDLE_NAME_MOBJ] =
+            query_handles[messages::GetProcessNameQueryParameters::HANDLE_BUFFER_MOBJ] =
                 buffer_mobj.into_handle();
 
             let res = self.ipc_client.call::<messages::Type, messages::GetProcessNameQueryParameters, messages::GetProcessNameReply, messages::ProcessServerError>(
@@ -233,7 +230,7 @@ impl Client {
 
             let (reply, _reply_handles) = res?;
 
-            unsafe { allocated_buffer.set_len(reply.name_len) };
+            unsafe { allocated_buffer.set_len(reply.buffer_used_len) };
             break allocated_buffer;
         };
 
@@ -325,6 +322,53 @@ impl Client {
         )?;
 
         Ok(())
+    }
+
+    /// call ipc ListProcesses
+    pub fn list_processes(
+        &self,
+    ) -> Result<Vec<ProcessInfo>, ipc::CallError<messages::ProcessServerError>> {
+        // Grow the buffer dynamically until it's large enough for all processes.
+        let mut size = 256;
+
+        let allocated_buffer = loop {
+            let mut allocated_buffer = {
+                let mut vec = Vec::with_capacity(size);
+                unsafe { vec.set_len(size) };
+                vec
+            };
+
+            let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
+
+            let query = messages::ListProcessesQueryParameters { buffer };
+
+            let mut query_handles = ipc::KHandles::new();
+            query_handles[messages::ListProcessesQueryParameters::HANDLE_BUFFER_MOBJ] =
+                buffer_mobj.into_handle();
+
+            let res = self.ipc_client.call::<messages::Type, messages::ListProcessesQueryParameters, messages::ListProcessesReply, messages::ProcessServerError>(
+                messages::Type::ListProcesses,
+                query,
+                query_handles,
+            );
+
+            if let Err(ipc::CallError::ReplyError(messages::ProcessServerError::BufferTooSmall)) =
+                res
+            {
+                size *= 2;
+                continue;
+            }
+
+            let (reply, _reply_handles) = res?;
+
+            unsafe { allocated_buffer.set_len(reply.buffer_used_len) };
+            break allocated_buffer;
+        };
+
+        let processes =
+            ProcessListBlock::read(&allocated_buffer).expect("failed to read process list block");
+
+        Ok(processes)
     }
 }
 

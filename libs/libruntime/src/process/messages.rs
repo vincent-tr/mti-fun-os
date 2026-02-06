@@ -23,13 +23,13 @@ pub enum Type {
     OpenProcess,
     ListProcesses,
     CloseProcess,
-    TerminateProcess,
     GetProcessName,
     GetProcessEnv,
     GetProcessArgs,
-    GetProcessExitCode,
-    RegisterProcessExitNotification,
-    UnregisterProcessExitNotification,
+    GetProcessStatus,
+    TerminateProcess,
+    RegisterProcessTerminatedNotification,
+    UnregisterProcessTerminatedNotification,
 }
 
 impl From<Type> for u16 {
@@ -42,7 +42,7 @@ impl From<Type> for u16 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum NotificationType {
-    ProcessExit = 1,
+    ProcessTerminated = 1,
 }
 
 impl From<NotificationType> for u16 {
@@ -245,3 +245,28 @@ pub struct GetProcessArgsReply {}
 impl GetProcessArgsReply {
     pub const HANDLE_ARGS_MOBJ: usize = 1; // Readonly, ownership kept by the server
 }
+
+/// Parameters for the GetProcessStatus message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessStatusQueryParameters {
+    pub handle: Handle,
+}
+
+/// Reply for the GetProcessStatus message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessStatusReply {
+    pub status: ProcessStatus,
+}
+
+/// State of a process, as returned by the process server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessStatus {
+    Running,
+    Exited(i32), // exit code
+}
+
+pub const EXIT_CODE_SUCCESS: i32 = 0;
+pub const EXIT_CODE_UNSET: i32 = i32::MIN;
+pub const EXIT_CODE_KILLED: i32 = i32::MIN + 1;

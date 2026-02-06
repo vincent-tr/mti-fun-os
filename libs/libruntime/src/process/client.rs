@@ -290,6 +290,24 @@ impl Client {
 
         Ok(args)
     }
+
+    /// call ipc GetProcessStatus
+    pub fn get_process_status(
+        &self,
+        handle: ipc::Handle,
+    ) -> Result<messages::ProcessStatus, ipc::CallError<messages::ProcessServerError>> {
+        let query = messages::GetProcessStatusQueryParameters { handle };
+
+        let query_handles = ipc::KHandles::new();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::GetProcessStatusQueryParameters, messages::GetProcessStatusReply, messages::ProcessServerError>(
+            messages::Type::GetProcessStatus,
+            query,
+            query_handles,
+        )?;
+
+        Ok(reply.status)
+    }
 }
 
 /// Process startup information.

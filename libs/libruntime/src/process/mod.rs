@@ -70,7 +70,14 @@ impl Process {
         block_to_vec(&args)
     }
 
-    // TODO: Wait API (with cancelation), Kill, check for exit code without waiting, etc
+    /// Get the status of the process.
+    pub fn status(&self) -> messages::ProcessStatus {
+        CLIENT
+            .get_process_status(self.handle)
+            .expect("failed to get process status")
+    }
+
+    // TODO: Wait API (with cancelation), Kill
 }
 
 impl Drop for Process {
@@ -86,14 +93,7 @@ impl Drop for Process {
 pub struct ProcessInfo {
     pub pid: u64,
     pub name: String,
-    pub state: ProcessState,
-}
-
-/// State of a process, as returned by the process server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProcessState {
-    Running,
-    Exited(i32), // exit code
+    pub status: messages::ProcessStatus,
 }
 
 /// Represents the current process.

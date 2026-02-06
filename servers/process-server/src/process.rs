@@ -6,7 +6,12 @@ use core::{
 use alloc::{string::String, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
-use libruntime::{collections::WeakMap, kobject, process::KVBlock, sync::RwLock};
+use libruntime::{
+    collections::WeakMap,
+    kobject,
+    process::{messages, KVBlock},
+    sync::RwLock,
+};
 use log::info;
 
 /// Process ID
@@ -37,12 +42,22 @@ impl fmt::Display for Pid {
 pub struct ExitCode(i32);
 
 impl ExitCode {
-    pub const SUCCESS: Self = Self(0);
+    /// Exit code used when a process exits successfully
+    pub const SUCCESS: Self = Self(messages::EXIT_CODE_SUCCESS);
 
+    /// Exit code used when a process has not exited yet, or the exit code has not been reported by the process
+    pub const UNSET: Self = Self(messages::EXIT_CODE_UNSET);
+
+    /// Exit code used when a process is killed
+    pub const KILLED: Self = Self(messages::EXIT_CODE_KILLED);
+
+    /// Minimum value for user-defined exit codes. Values below this are reserved for special meanings (like UNSET and KILLED).
     const RESERVED_MIN: i32 = i32::MIN + 10;
 
-    pub const UNSET: Self = Self(i32::MIN);
-    pub const KILLED: Self = Self(i32::MIN + 1);
+    /// Get the raw i32 value of this exit code, which is used in IPC
+    pub fn as_i32(&self) -> i32 {
+        self.0
+    }
 }
 
 impl fmt::Display for ExitCode {

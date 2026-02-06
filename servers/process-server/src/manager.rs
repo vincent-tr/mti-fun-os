@@ -415,6 +415,30 @@ impl Manager {
         Ok((reply, reply_handles))
     }
 
+    fn get_process_status_handler(
+        &self,
+        query: messages::GetProcessStatusQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::GetProcessStatusReply, ipc::KHandles), InternalError> {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let status = if info.is_terminated() {
+            messages::ProcessStatus::Exited(info.exit_code().as_i32())
+        } else {
+            messages::ProcessStatus::Running
+        };
+
+        let reply = messages::GetProcessStatusReply { status };
+
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
     fn add_handler<QueryParameters, ReplyContent>(
         self: &Arc<Self>,
         builder: ipc::ServerBuilder,

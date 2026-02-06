@@ -64,9 +64,19 @@ pub struct BufferView {
     range: Range<usize>,
 }
 
+#[derive(Debug)]
+pub enum BufferViewAccess {
+    ReadOnly,
+    ReadWrite,
+}
+
 impl BufferView {
     /// Create a new BufferView from a handle to a memory object and a buffer descriptor.
-    pub fn new(handle: kobject::Handle, buffer: &messages::Buffer) -> Result<Self, kobject::Error> {
+    pub fn new(
+        handle: kobject::Handle,
+        buffer: &messages::Buffer,
+        access: BufferViewAccess,
+    ) -> Result<Self, kobject::Error> {
         let mem_obj = kobject::MemoryObject::from_handle(handle)?;
 
         let process = kobject::Process::current();
@@ -78,13 +88,12 @@ impl BufferView {
         let mapping_end = memory::align_up(buffer_end, kobject::PAGE_SIZE);
         let mapping_size = mapping_end - mapping_begin;
 
-        let mapping = process.map_mem(
-            None,
-            mapping_size,
-            Permissions::READ,
-            &mem_obj,
-            mapping_begin,
-        )?;
+        let perms = match access {
+            BufferViewAccess::ReadOnly => Permissions::READ,
+            BufferViewAccess::ReadWrite => Permissions::READ | Permissions::WRITE,
+        };
+
+        let mapping = process.map_mem(None, mapping_size, perms, &mem_obj, mapping_begin)?;
 
         let range_begin = buffer_begin - mapping_begin;
         let range_end = range_begin + buffer.size;
@@ -99,6 +108,14 @@ impl BufferView {
     pub fn buffer(&self) -> &[u8] {
         unsafe { self.mapping.as_buffer() }.expect("failed to get buffer")[self.range.clone()]
             .as_ref()
+    }
+
+    /// Get a mutable slice to the buffer's data.
+    pub fn buffer_mut(&mut self) -> &mut [u8] {
+        assert!(self.mapping.permissions().contains(Permissions::WRITE));
+
+        unsafe { self.mapping.as_buffer_mut() }.expect("failed to get buffer")[self.range.clone()]
+            .as_mut()
     }
 
     /// Get the buffer's data as a string slice.

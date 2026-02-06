@@ -58,6 +58,7 @@ pub enum ProcessServerError {
     InvalidArgument = 1,
     InvalidBinaryFormat,
     RuntimeError,
+    BufferTooSmall,
 }
 
 impl fmt::Display for ProcessServerError {
@@ -66,6 +67,7 @@ impl fmt::Display for ProcessServerError {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
             Self::RuntimeError => write!(f, "RuntimeError"),
+            Self::BufferTooSmall => write!(f, "BufferTooSmall"),
         }
     }
 }
@@ -151,4 +153,95 @@ impl CreateProcessQueryParameters {
 pub struct CreateProcessReply {
     /// Server handle to the created process
     pub handle: Handle,
+
+    /// PID of the created process
+    pub pid: u64,
+}
+
+/// Parameters for the OpenProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenProcessQueryParameters {
+    pub pid: u64,
+}
+
+/// Reply for the OpenProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenProcessReply {
+    /// Server handle to the opened process
+    pub handle: Handle,
+
+    /// PID of the opened process
+    pub pid: u64,
+}
+
+/// Parameters for the CloseProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseProcessQueryParameters {
+    /// Handle to close
+    pub handle: Handle,
+}
+
+/// Reply for the CloseProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseProcessReply {}
+
+/// Parameters for the GetProcessName message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessNameQueryParameters {
+    /// Handle to the process
+    pub handle: Handle,
+
+    /// Buffer to write the name into (if the call succeeds)
+    pub name: Buffer,
+}
+
+impl GetProcessNameQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 1; // Ownership kept by the client, server has write access
+}
+
+/// Reply for the GetProcessName message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessNameReply {
+    /// Length of the process name (if the call succeeds)
+    pub name_len: usize,
+}
+
+/// Parameters for the GetProcessEnv message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessEnvQueryParameters {
+    /// Handle to the process
+    pub handle: Handle,
+}
+
+/// Reply for the GetProcessEnv message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessEnvReply {}
+
+impl GetProcessEnvReply {
+    pub const HANDLE_ENV_MOBJ: usize = 1; // Readonly, ownership kept by the server
+}
+
+/// Parameters for the GetProcessArgs message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessArgsQueryParameters {
+    /// Handle to the process
+    pub handle: Handle,
+}
+
+/// Reply for the GetProcessArgs message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetProcessArgsReply {}
+
+impl GetProcessArgsReply {
+    pub const HANDLE_ARGS_MOBJ: usize = 1; // Readonly, ownership kept by the server
 }

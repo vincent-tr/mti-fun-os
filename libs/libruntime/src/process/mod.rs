@@ -13,22 +13,87 @@ lazy_static::lazy_static! {
 
 type ProcessServerError = ipc::CallError<messages::ProcessServerError>;
 
+/// High level process management API.
 #[derive(Debug)]
 pub struct Process {
     handle: ipc::Handle,
+    pid: u64,
 }
 
 impl Process {
+    /// Spawn a new process with the given name, binary, environment variables and arguments.
     pub fn spawn(
         name: &str,
         binary: ipc::Buffer<'_>,
         env: &[(&str, &str)],
         args: &[(&str, &str)],
     ) -> Result<Self, ProcessServerError> {
-        let handle = CLIENT.create_process(name, binary, env, args)?;
+        let (handle, pid) = CLIENT.create_process(name, binary, env, args)?;
 
-        Ok(Self { handle })
+        Ok(Self { handle, pid })
     }
+
+    /// Open an existing process by its PID.
+    pub fn open(pid: u64) -> Result<Self, ProcessServerError> {
+        let (handle, pid) = CLIENT.open_process(pid)?;
+
+        Ok(Self { handle, pid })
+    }
+
+    /// Get the PID of the process.
+    pub fn pid(&self) -> u64 {
+        self.pid
+    }
+
+    /// Get the name of the process.
+    pub fn name(&self) -> String {
+        CLIENT
+            .get_process_name(self.handle)
+            .expect("failed to get process name")
+    }
+
+    /// Get the environment variables of the process.
+    pub fn env(&self) -> Vec<(String, String)> {
+        let env = CLIENT
+            .get_process_env(self.handle)
+            .expect("failed to get process environment");
+
+        block_to_vec(&env)
+    }
+
+    /// Get the arguments of the process.
+    pub fn args(&self) -> Vec<(String, String)> {
+        let args = CLIENT
+            .get_process_args(self.handle)
+            .expect("failed to get process arguments");
+
+        block_to_vec(&args)
+    }
+
+    // TODO: Wait API (with cancelation), Kill, check for exit code without waiting, etc
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        CLIENT
+            .close_process(self.handle)
+            .expect("failed to close process");
+    }
+}
+
+/// Information about a process, as returned by the process server.
+#[derive(Debug, Clone)]
+pub struct ProcessInfo {
+    pub pid: u64,
+    pub name: String,
+    pub state: ProcessState,
+}
+
+/// State of a process, as returned by the process server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessState {
+    Running,
+    Exited(i32), // exit code
 }
 
 /// Represents the current process.
@@ -119,13 +184,7 @@ impl SelfProcess {
     /// Get all environment variables
     pub fn env_all(&self) -> Vec<(String, String)> {
         let env = self.env.read();
-        let mut entries = Vec::with_capacity(env.len());
-
-        for (entry_key, entry_value) in env.iter() {
-            entries.push((String::from(entry_key), String::from(entry_value)));
-        }
-
-        entries
+        block_to_vec(&env)
     }
 
     /// Replace all environment variables
@@ -165,4 +224,14 @@ impl SelfProcess {
     pub fn set_exit_code(&self, code: i32) {
         CLIENT.set_exit_code(code).expect("failed to set exit code");
     }
+}
+
+fn block_to_vec(block: &KVBlock) -> Vec<(String, String)> {
+    let mut entries = Vec::with_capacity(block.len());
+
+    for (entry_key, entry_value) in block.iter() {
+        entries.push((String::from(entry_key), String::from(entry_value)));
+    }
+
+    entries
 }

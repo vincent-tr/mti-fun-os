@@ -42,7 +42,7 @@ impl Manager {
 
         let buffer_view = {
             let handle = query_handles.take(messages::GetStateQueryParameters::HANDLE_NAME_MOBJ);
-            ipc::BufferView::new(handle, &query.name)
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create name buffer reader")?
         };
 

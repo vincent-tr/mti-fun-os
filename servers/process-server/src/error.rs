@@ -36,6 +36,14 @@ impl InternalError {
         }
     }
 
+    pub fn buffer_too_small(context: &'static str) -> Self {
+        Self {
+            target: ProcessServerError::BufferTooSmall,
+            context,
+            source: None,
+        }
+    }
+
     pub fn with_source<E: fmt::Display + 'static>(mut self, err: E) -> Self {
         self.source = Some(Box::new(err));
         self
@@ -91,6 +99,7 @@ pub trait ResultExt<T> {
     fn invalid_arg(self, msg: &'static str) -> Result<T, InternalError>;
     fn invalid_binary(self, msg: &'static str) -> Result<T, InternalError>;
     fn runtime_err(self, msg: &'static str) -> Result<T, InternalError>;
+    fn buffer_too_small(self, msg: &'static str) -> Result<T, InternalError>;
 }
 
 impl<T, E: fmt::Display + 'static> ResultExt<T> for Result<T, E> {
@@ -104,5 +113,9 @@ impl<T, E: fmt::Display + 'static> ResultExt<T> for Result<T, E> {
 
     fn runtime_err(self, msg: &'static str) -> Result<T, InternalError> {
         self.map_err(|e| InternalError::runtime_error(msg).with_source(e))
+    }
+
+    fn buffer_too_small(self, msg: &'static str) -> Result<T, InternalError> {
+        self.map_err(|e| InternalError::buffer_too_small(msg).with_source(e))
     }
 }

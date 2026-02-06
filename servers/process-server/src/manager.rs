@@ -64,6 +64,31 @@ impl Manager {
             messages::Type::CreateProcess,
             Self::create_process_handler,
         );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::OpenProcess,
+            Self::open_process_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::CloseProcess,
+            Self::close_process_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::GetProcessName,
+            Self::get_process_name_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::GetProcessEnv,
+            Self::get_process_env_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::GetProcessArgs,
+            Self::get_process_args_handler,
+        );
 
         builder.build()
     }
@@ -113,7 +138,7 @@ impl Manager {
 
         let buffer_view = {
             let handle = query_handles.take(messages::UpdateNameQueryParameters::HANDLE_NAME_MOBJ);
-            ipc::BufferView::new(handle, &query.name)
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create name buffer reader")?
         };
 
@@ -178,14 +203,14 @@ impl Manager {
         let name_view = {
             let handle =
                 query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
-            ipc::BufferView::new(handle, &query.name)
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create name buffer reader")?
         };
 
         let binary_view = {
             let handle =
                 query_handles.take(messages::CreateProcessQueryParameters::HANDLE_BINARY_MOBJ);
-            ipc::BufferView::new(handle, &query.binary)
+            ipc::BufferView::new(handle, &query.binary, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create binary buffer reader")?
         };
 
@@ -259,6 +284,8 @@ impl Manager {
             mapping.leak();
         }
 
+        let pid = process.pid();
+
         // Create associated ProcessInfo
         let info = ProcessInfo::new(
             process,
@@ -271,9 +298,121 @@ impl Manager {
         let handle = self.handles.open(sender_id.as_u64(), info);
 
         Ok((
-            messages::CreateProcessReply { handle },
+            messages::CreateProcessReply { handle, pid },
             ipc::KHandles::new(),
         ))
+    }
+
+    fn open_process_handler(
+        &self,
+        query: messages::OpenProcessQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::OpenProcessReply, ipc::KHandles), InternalError> {
+        let info = find_live_process(Pid::from(query.pid))
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let handle = self.handles.open(sender_id.as_u64(), info);
+
+        Ok((
+            messages::OpenProcessReply {
+                handle,
+                pid: query.pid,
+            },
+            ipc::KHandles::new(),
+        ))
+    }
+
+    fn close_process_handler(
+        &self,
+        query: messages::CloseProcessQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::CloseProcessReply, ipc::KHandles), InternalError> {
+        self.handles
+            .close(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Invalid process handle"))?;
+
+        Ok((messages::CloseProcessReply {}, ipc::KHandles::new()))
+    }
+
+    fn get_process_name_handler(
+        &self,
+        query: messages::GetProcessNameQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::GetProcessNameReply, ipc::KHandles), InternalError> {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let mut name_view = {
+            let handle =
+                query_handles.take(messages::GetProcessNameQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create name buffer reader")?
+        };
+
+        let name = info.name();
+
+        if name.len() > name_view.buffer().len() {
+            return Err(InternalError::buffer_too_small(
+                "Provided buffer too small for process name",
+            ));
+        }
+
+        name_view.buffer_mut()[..name.len()].copy_from_slice(name.as_bytes());
+
+        let reply = messages::GetProcessNameReply {
+            name_len: name.len(),
+        };
+
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn get_process_env_handler(
+        &self,
+        query: messages::GetProcessEnvQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::GetProcessEnvReply, ipc::KHandles), InternalError> {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let env_mobj = info.environment().memory_object().clone();
+
+        let reply = messages::GetProcessEnvReply {};
+
+        let mut reply_handles = ipc::KHandles::new();
+        reply_handles[messages::GetProcessEnvReply::HANDLE_ENV_MOBJ] = env_mobj.into_handle();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn get_process_args_handler(
+        &self,
+        query: messages::GetProcessArgsQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::GetProcessArgsReply, ipc::KHandles), InternalError> {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let args_mobj = info.arguments().memory_object().clone();
+
+        let reply = messages::GetProcessArgsReply {};
+
+        let mut reply_handles = ipc::KHandles::new();
+        reply_handles[messages::GetProcessArgsReply::HANDLE_ARGS_MOBJ] = args_mobj.into_handle();
+
+        Ok((reply, reply_handles))
     }
 
     fn add_handler<QueryParameters, ReplyContent>(

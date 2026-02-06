@@ -1,7 +1,7 @@
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
-    process::{find_live_process, ExitCode, Pid, ProcessInfo},
+    process::{find_live_process, find_process, ExitCode, Pid, ProcessInfo},
     state::State,
 };
 use alloc::{string::String, sync::Arc};
@@ -88,6 +88,16 @@ impl Manager {
             builder,
             messages::Type::GetProcessArgs,
             Self::get_process_args_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::GetProcessStatus,
+            Self::get_process_status_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::TerminateProcess,
+            Self::terminate_process_handler,
         );
 
         builder.build()
@@ -309,7 +319,7 @@ impl Manager {
         _query_handles: ipc::KHandles,
         sender_id: Pid,
     ) -> Result<(messages::OpenProcessReply, ipc::KHandles), InternalError> {
-        let info = find_live_process(Pid::from(query.pid))
+        let info = find_process(Pid::from(query.pid))
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let handle = self.handles.open(sender_id.as_u64(), info);
@@ -433,6 +443,39 @@ impl Manager {
         };
 
         let reply = messages::GetProcessStatusReply { status };
+
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn terminate_process_handler(
+        &self,
+        query: messages::TerminateProcessQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<(messages::TerminateProcessReply, ipc::KHandles), InternalError> {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        if info.is_terminated() {
+            return Err(InternalError::process_already_terminated(
+                "Process already terminated",
+            ));
+        }
+
+        // Note: this is a bit hacky, we can set the exit code to KILLED and mark the process as terminated, and let the process cleanup itself. This way we don't have to forcefully kill the process from the kernel, which would be more complex and error-prone.
+        info.kobject_process()
+            .kill()
+            .runtime_err("Could not kill process")?;
+
+        info.set_exit_code(ExitCode::KILLED);
+        // Note: we will get kernel notifications for the process exit, so we can just mark it as terminated when we receive the notification.
+        // This allows the kernel to be the only source of truth for whether a process is alive or not
+
+        let reply = messages::TerminateProcessReply {};
 
         let reply_handles = ipc::KHandles::new();
 

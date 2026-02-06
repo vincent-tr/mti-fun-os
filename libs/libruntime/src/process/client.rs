@@ -308,6 +308,24 @@ impl Client {
 
         Ok(reply.status)
     }
+
+    /// call ipc TerminateProcess
+    pub fn terminate_process(
+        &self,
+        handle: ipc::Handle,
+    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+        let query = messages::TerminateProcessQueryParameters { handle };
+
+        let query_handles = ipc::KHandles::new();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::TerminateProcessQueryParameters, messages::TerminateProcessReply, messages::ProcessServerError>(
+            messages::Type::TerminateProcess,
+            query,
+            query_handles,
+        )?;
+
+        Ok(())
+    }
 }
 
 /// Process startup information.

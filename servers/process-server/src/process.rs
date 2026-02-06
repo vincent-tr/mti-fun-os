@@ -195,6 +195,11 @@ impl ProcessInfo {
 
         info!("Process {} is terminated", self.pid());
     }
+
+    /// Get the kernel object representing this process
+    pub fn kobject_process(&self) -> &kobject::Process {
+        &self.process
+    }
 }
 
 impl Drop for ProcessInfo {

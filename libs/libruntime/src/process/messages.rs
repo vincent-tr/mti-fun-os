@@ -59,6 +59,7 @@ pub enum ProcessServerError {
     InvalidBinaryFormat,
     RuntimeError,
     BufferTooSmall,
+    ProcessNotRunning,
 }
 
 impl fmt::Display for ProcessServerError {
@@ -68,6 +69,7 @@ impl fmt::Display for ProcessServerError {
             Self::InvalidBinaryFormat => write!(f, "InvalidBinaryFormat"),
             Self::RuntimeError => write!(f, "RuntimeError"),
             Self::BufferTooSmall => write!(f, "BufferTooSmall"),
+            Self::ProcessNotRunning => write!(f, "ProcessNotRunning"),
         }
     }
 }
@@ -267,6 +269,23 @@ pub enum ProcessStatus {
     Exited(i32), // exit code
 }
 
+/// Exit code used when a process exits successfully
 pub const EXIT_CODE_SUCCESS: i32 = 0;
+
+/// Exit code used when a process has not exited yet, or the exit code has not been reported by the process
 pub const EXIT_CODE_UNSET: i32 = i32::MIN;
+
+/// Exit code used when a process is killed
 pub const EXIT_CODE_KILLED: i32 = i32::MIN + 1;
+
+/// Parameters for the TerminateProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TerminateProcessQueryParameters {
+    pub handle: Handle,
+}
+
+/// Reply for the TerminateProcess message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TerminateProcessReply {}

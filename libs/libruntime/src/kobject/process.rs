@@ -218,6 +218,12 @@ impl Process {
             offset: info.offset,
         })
     }
+
+    pub fn kill(&self) -> Result<(), Error> {
+        process::kill(&self.handle)?;
+
+        Ok(())
+    }
 }
 
 /// Address info in a process

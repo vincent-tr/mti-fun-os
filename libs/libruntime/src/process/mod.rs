@@ -77,6 +77,11 @@ impl Process {
             .expect("failed to get process status")
     }
 
+    /// Kill the process
+    pub fn kill(&self) -> Result<(), ProcessServerError> {
+        CLIENT.terminate_process(self.handle)
+    }
+
     // TODO: Wait API (with cancelation), Kill
 }
 

@@ -27,6 +27,7 @@ impl Manager {
         let manager = Self { handles };
 
         manager.register_init()?;
+        manager.register_idle()?;
         manager.register_self()?;
 
         Ok(Arc::new(manager))
@@ -159,6 +160,7 @@ impl Manager {
 
         let new_name = String::from(unsafe { buffer_view.str() });
 
+        info.kobject_process().set_name(&new_name)?;
         info.update_name(new_name);
 
         let reply = messages::UpdateNameReply {};
@@ -565,6 +567,37 @@ impl Manager {
         Ok(())
     }
 
+    /// Register the idle process in the system, so it shows up in process lists.
+    fn register_idle(&self) -> Result<(), kobject::Error> {
+        const IDLE_PID: u64 = 2;
+        // Note: this is fishy, we should really find the idle thread differently
+        const IDLE_MAIN_THREAD_TID: u64 = 4;
+
+        let process = kobject::Process::open(IDLE_PID)?;
+        let main_thread = kobject::Thread::open(IDLE_MAIN_THREAD_TID)?;
+
+        assert!(
+            process.name().expect("failed to get process name") == "idle",
+            "PID 2 is expected to be idle process"
+        );
+
+        assert!(
+            main_thread.name().expect("failed to get thread name") == "idle",
+            "Idle process's main thread is expected to be named 'idle'"
+        );
+
+        ProcessInfo::new(
+            process,
+            main_thread,
+            String::from("idle"),
+            Self::get_empty_kvblock(),
+            Self::get_empty_kvblock(),
+        );
+
+        Ok(())
+    }
+
+    /// Register the init process in the system, so it shows up in process lists.
     fn register_init(&self) -> Result<(), kobject::Error> {
         const INIT_PID: u64 = 1;
         // Note: this is fishy, we should really find the main thread differently
@@ -572,6 +605,16 @@ impl Manager {
 
         let process = kobject::Process::open(INIT_PID)?;
         let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
+
+        assert!(
+            process.name().expect("failed to get process name") == "init",
+            "PID 1 is expected to be init process"
+        );
+
+        assert!(
+            main_thread.name().expect("failed to get thread name") == "main",
+            "Init process's main thread is expected to be named 'main'"
+        );
 
         ProcessInfo::new(
             process,

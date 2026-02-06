@@ -309,3 +309,57 @@ pub struct ListProcessesReply {
     /// Number of bytes used in the buffer to write the process list (if the call succeeds)
     pub buffer_used_len: usize,
 }
+
+/// Parameters for the RegisterProcessTerminatedNotification message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RegisterProcessTerminatedNotificationQueryParameters {
+    /// Handle to the process to monitor
+    pub handle: Handle,
+
+    /// Value to correlate the notification with the registration
+    /// 
+    /// This value will be sent back in the ProcessTerminatedNotification
+    pub correlation: u64,
+}
+
+impl RegisterProcessTerminatedNotificationQueryParameters {
+    pub const HANDLE_PORT: usize = 1;
+}
+
+/// Reply for the RegisterProcessTerminatedNotification message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RegisterProcessTerminatedNotificationReply {
+    /// Handle to the notification registration, used for unregistering later
+    pub registration_handle: Handle,
+}
+
+/// Parameters for the UnregisterProcessTerminatedNotification message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UnregisterProcessTerminatedNotificationQueryParameters {
+    /// Handle to the notification registration to cancel
+    pub registration_handle: Handle,
+}
+
+/// Reply for the UnregisterProcessTerminatedNotification message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UnregisterProcessTerminatedNotificationReply {}
+
+/// Notification parameters for the ProcessTerminated notification.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ProcessTerminatedNotification {
+    /// Value to correlate the notification with the registration
+    /// 
+    /// This value was provided in the RegisterProcessTerminatedNotification message
+    pub correlation: u64,
+
+    /// PID of the terminated process
+    pub pid: u64,
+
+    /// Exit code of the terminated process (if available, otherwise EXIT_CODE_UNSET)
+    pub exit_code: i32,
+}

@@ -117,6 +117,7 @@ tail -f serial.log
   - -C prefer dynamic
 - object-oriented TLS
 - add guards hits to "page fault of interest" (+ auto grow of stack)
+- properly exit whole process on seg fault/panic
 
 ### servers
 

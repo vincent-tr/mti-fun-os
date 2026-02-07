@@ -370,12 +370,57 @@ impl Client {
 
         Ok(processes)
     }
+
+    /// call ipc RegisterProcessTerminatedNotification
+    pub fn register_process_terminated_notification(
+        &self,
+        handle: ipc::Handle,
+        correlation: u64,
+        port_sender: kobject::PortSender,
+    ) -> Result<ipc::Handle, ipc::CallError<messages::ProcessServerError>> {
+        let query = messages::RegisterProcessTerminatedNotificationQueryParameters { handle, correlation };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::RegisterProcessTerminatedNotificationQueryParameters::HANDLE_PORT_SENDER] =
+            port_sender.into_handle();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::RegisterProcessTerminatedNotificationQueryParameters, messages::RegisterProcessTerminatedNotificationReply, messages::ProcessServerError>(
+            messages::Type::RegisterProcessTerminatedNotification,
+            query,
+            query_handles,
+        )?;
+
+        Ok(reply.registration_handle)
+    }
+
+    /// call ipc UnregisterProcessTerminatedNotification
+    pub fn unregister_process_terminated_notification(
+        &self,
+        registration_handle: ipc::Handle,
+    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+        let query = messages::UnregisterProcessTerminatedNotificationQueryParameters { registration_handle };
+
+        let query_handles = ipc::KHandles::new();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::UnregisterProcessTerminatedNotificationQueryParameters, messages::UnregisterProcessTerminatedNotificationReply, messages::ProcessServerError>(
+            messages::Type::UnregisterProcessTerminatedNotification,
+            query,
+            query_handles,
+        )?;
+
+        Ok(())
+    }
 }
 
 /// Process startup information.
 #[derive(Debug)]
 pub struct StartupInfo {
+    /// Name of the process
     pub name: String,
+
+    /// Environment variables of the process
     pub env: KVBlock,
+
+    /// Arguments of the process
     pub args: KVBlock,
 }

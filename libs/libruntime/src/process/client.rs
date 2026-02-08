@@ -378,10 +378,14 @@ impl Client {
         correlation: u64,
         port_sender: kobject::PortSender,
     ) -> Result<ipc::Handle, ipc::CallError<messages::ProcessServerError>> {
-        let query = messages::RegisterProcessTerminatedNotificationQueryParameters { handle, correlation };
+        let query = messages::RegisterProcessTerminatedNotificationQueryParameters {
+            handle,
+            correlation,
+        };
 
         let mut query_handles = ipc::KHandles::new();
-        query_handles[messages::RegisterProcessTerminatedNotificationQueryParameters::HANDLE_PORT_SENDER] =
+        query_handles
+            [messages::RegisterProcessTerminatedNotificationQueryParameters::HANDLE_PORT] =
             port_sender.into_handle();
 
         let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::RegisterProcessTerminatedNotificationQueryParameters, messages::RegisterProcessTerminatedNotificationReply, messages::ProcessServerError>(
@@ -398,7 +402,9 @@ impl Client {
         &self,
         registration_handle: ipc::Handle,
     ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
-        let query = messages::UnregisterProcessTerminatedNotificationQueryParameters { registration_handle };
+        let query = messages::UnregisterProcessTerminatedNotificationQueryParameters {
+            registration_handle,
+        };
 
         let query_handles = ipc::KHandles::new();
 

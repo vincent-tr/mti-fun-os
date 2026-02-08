@@ -5,9 +5,10 @@ mod plblock;
 
 use alloc::{string::String, vec::Vec};
 pub use kvblock::KVBlock;
+use log::debug;
 pub use plblock::{ProcessInfo, ProcessListBlock};
 
-use crate::{ipc, sync::RwLock};
+use crate::{ipc, kobject, sync::RwLock};
 
 lazy_static::lazy_static! {
     static ref CLIENT: client::Client = client::Client::new();
@@ -96,6 +97,116 @@ impl Drop for Process {
         CLIENT
             .close_process(self.handle)
             .expect("failed to close process");
+    }
+}
+
+/// Represents a waiter for a process, allowing to wait for its termination.
+///
+/// This structure is not thread safe, and should only be used by the thread that created it.
+#[derive(Debug)]
+pub struct ProcessWaiter {
+    reader: kobject::PortReceiver,
+    registration_handle: ipc::Handle,
+    status: messages::ProcessStatus,
+}
+
+impl kobject::KWaitable for ProcessWaiter {
+    unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
+        assert!(self.status == messages::ProcessStatus::Running);
+
+        self.reader.waitable_handle()
+    }
+
+    fn wait(&self) -> Result<(), kobject::Error> {
+        assert!(self.status == messages::ProcessStatus::Running);
+
+        self.reader.wait()
+    }
+}
+
+impl ProcessWaiter {
+    /// Create a new ProcessWaiter for the given process.
+    pub fn new(process: &Process) -> Result<Self, ProcessServerError> {
+        let (reader, sender) = kobject::Port::create(None).expect("failed to create port");
+
+        let correlation = 0;
+        let registration_handle =
+            CLIENT.register_process_terminated_notification(process.handle, correlation, sender)?;
+
+        Ok(Self {
+            reader,
+            registration_handle,
+            status: messages::ProcessStatus::Running,
+        })
+    }
+
+    /// Check if this object is waitable.
+    ///
+    /// Calling KWaitable API on it when it's not waitable will cause a panic.
+    pub fn is_waitable(&self) -> bool {
+        self.status == messages::ProcessStatus::Running
+    }
+
+    /// Get the current status of the process.
+    ///
+    /// Note that this will also update the status if the process has already terminated.
+    pub fn status(&mut self) -> messages::ProcessStatus {
+        let res = self.reader.receive();
+
+        if let Err(kobject::Error::ObjectNotReady) = res {
+            // Still running
+            return self.status.clone();
+        }
+
+        let msg = res.expect("failed to receive process status message");
+
+        self.process_message(msg);
+        self.status.clone()
+    }
+
+    /// Wait for the process to terminate and return its exit code.
+    pub fn wait_status(&mut self) -> i32 {
+        if let messages::ProcessStatus::Exited(exit_code) = self.status {
+            return exit_code;
+        };
+
+        let msg = self
+            .reader
+            .blocking_receive()
+            .expect("failed to receive process status message");
+
+        self.process_message(msg);
+
+        if let messages::ProcessStatus::Exited(exit_code) = self.status {
+            exit_code
+        } else {
+            panic!("unexpected process status");
+        }
+    }
+
+    fn process_message(&mut self, msg: kobject::Message) {
+        let notification = unsafe { msg.data::<messages::ProcessTerminatedNotification>() };
+        let exit_code = notification.exit_code;
+        debug!("process terminated with exit code {}", exit_code);
+
+        self.status = messages::ProcessStatus::Exited(exit_code);
+
+        // The handle is invalid after receiving the notification, so we set it to INVALID to avoid trying to unregister it in the Drop implementation.
+        self.registration_handle = ipc::Handle::INVALID;
+    }
+}
+
+impl Drop for ProcessWaiter {
+    fn drop(&mut self) {
+        if self.registration_handle == ipc::Handle::INVALID {
+            return;
+        }
+
+        if let Err(e) = CLIENT.unregister_process_terminated_notification(self.registration_handle)
+        {
+            // Note: do not panic, since if the process died before we read it, unregister will fail.
+            log::error!("failed to deregister process waiter: {:?}", e);
+        }
     }
 }
 

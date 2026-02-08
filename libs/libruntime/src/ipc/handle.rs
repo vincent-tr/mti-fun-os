@@ -10,10 +10,8 @@ use crate::sync::RwLock;
 pub struct Handle(u64);
 
 impl Handle {
-    /// Returns an invalid handle.
-    pub const fn invalid() -> Self {
-        Handle(0)
-    }
+    /// A reserved invalid handle value, used to indicate an error or uninitialized state.
+    pub const INVALID: Self = Handle(0);
 
     /// Checks if the handle is valid.
     pub fn is_valid(&self) -> bool {

@@ -76,6 +76,7 @@ fn main() {
     wait_port(process::messages::PORT_NAME);
 
     // From now we can call process api, like env, args, spawn, open, etc
+    // tests::process::list_processes();
 
     let process = process::Process::spawn(
         "vfs-server",

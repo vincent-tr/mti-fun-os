@@ -318,7 +318,7 @@ pub struct RegisterProcessTerminatedNotificationQueryParameters {
     pub handle: Handle,
 
     /// Value to correlate the notification with the registration
-    /// 
+    ///
     /// This value will be sent back in the ProcessTerminatedNotification
     pub correlation: u64,
 }
@@ -353,7 +353,7 @@ pub struct UnregisterProcessTerminatedNotificationReply {}
 #[repr(C)]
 pub struct ProcessTerminatedNotification {
     /// Value to correlate the notification with the registration
-    /// 
+    ///
     /// This value was provided in the RegisterProcessTerminatedNotification message
     pub correlation: u64,
 

@@ -305,6 +305,7 @@ impl Manager {
 
         // Create associated ProcessInfo
         let info = ProcessInfo::new(
+            sender_id,
             process,
             main_thread,
             String::from(name),
@@ -506,6 +507,8 @@ impl Manager {
             .iter()
             .map(|p| process::ProcessInfo {
                 pid: p.pid().as_u64(),
+                ppid: p.creator().as_u64(),
+
                 name: p.name(),
                 status: if p.is_terminated() {
                     messages::ProcessStatus::Exited(p.exit_code().as_i32())
@@ -551,59 +554,15 @@ impl Manager {
         })
     }
 
-    /// Register the process-server itself in the system
-    fn register_self(&self) -> Result<(), kobject::Error> {
-        let process = kobject::Process::current().clone();
-        let main_thread = kobject::Thread::open_self()?;
-
-        ProcessInfo::new(
-            process,
-            main_thread,
-            String::from("process-server"),
-            Self::get_empty_kvblock(),
-            Self::get_empty_kvblock(),
-        );
-
-        Ok(())
-    }
-
-    /// Register the idle process in the system, so it shows up in process lists.
-    fn register_idle(&self) -> Result<(), kobject::Error> {
-        const IDLE_PID: u64 = 2;
-        // Note: this is fishy, we should really find the idle thread differently
-        const IDLE_MAIN_THREAD_TID: u64 = 4;
-
-        let process = kobject::Process::open(IDLE_PID)?;
-        let main_thread = kobject::Thread::open(IDLE_MAIN_THREAD_TID)?;
-
-        assert!(
-            process.name().expect("failed to get process name") == "idle",
-            "PID 2 is expected to be idle process"
-        );
-
-        assert!(
-            main_thread.name().expect("failed to get thread name") == "idle",
-            "Idle process's main thread is expected to be named 'idle'"
-        );
-
-        ProcessInfo::new(
-            process,
-            main_thread,
-            String::from("idle"),
-            Self::get_empty_kvblock(),
-            Self::get_empty_kvblock(),
-        );
-
-        Ok(())
-    }
+    const INIT_PID: u64 = 1;
+    const IDLE_PID: u64 = 2;
 
     /// Register the init process in the system, so it shows up in process lists.
     fn register_init(&self) -> Result<(), kobject::Error> {
-        const INIT_PID: u64 = 1;
         // Note: this is fishy, we should really find the main thread differently
         const INIT_MAIN_THREAD_TID: u64 = 3;
 
-        let process = kobject::Process::open(INIT_PID)?;
+        let process = kobject::Process::open(Self::INIT_PID)?;
         let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
 
         assert!(
@@ -617,9 +576,57 @@ impl Manager {
         );
 
         ProcessInfo::new(
+            Pid::INVALID,
             process,
             main_thread,
             String::from("init"),
+            Self::get_empty_kvblock(),
+            Self::get_empty_kvblock(),
+        );
+
+        Ok(())
+    }
+
+    /// Register the idle process in the system, so it shows up in process lists.
+    fn register_idle(&self) -> Result<(), kobject::Error> {
+        // Note: this is fishy, we should really find the idle thread differently
+        const IDLE_MAIN_THREAD_TID: u64 = 4;
+
+        let process = kobject::Process::open(Self::IDLE_PID)?;
+        let main_thread = kobject::Thread::open(IDLE_MAIN_THREAD_TID)?;
+
+        assert!(
+            process.name().expect("failed to get process name") == "idle",
+            "PID 2 is expected to be idle process"
+        );
+
+        assert!(
+            main_thread.name().expect("failed to get thread name") == "idle",
+            "Idle process's main thread is expected to be named 'idle'"
+        );
+
+        ProcessInfo::new(
+            Pid::from(Self::INIT_PID),
+            process,
+            main_thread,
+            String::from("idle"),
+            Self::get_empty_kvblock(),
+            Self::get_empty_kvblock(),
+        );
+
+        Ok(())
+    }
+
+    /// Register the process-server itself in the system
+    fn register_self(&self) -> Result<(), kobject::Error> {
+        let process = kobject::Process::current().clone();
+        let main_thread = kobject::Thread::open_self()?;
+
+        ProcessInfo::new(
+            Pid::from(Self::INIT_PID),
+            process,
+            main_thread,
+            String::from("process-server"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
         );

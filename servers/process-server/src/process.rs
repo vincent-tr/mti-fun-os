@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use libruntime::{
     collections::WeakMap,
-    kobject,
+    ipc, kobject,
     process::{messages, KVBlock},
     sync::RwLock,
 };
@@ -23,6 +23,9 @@ impl Pid {
     pub fn as_u64(&self) -> u64 {
         self.0
     }
+
+    /// Invalid PID, used to represent errors or non-existent processes
+    pub const INVALID: Self = Self(0);
 }
 
 impl From<u64> for Pid {
@@ -100,6 +103,7 @@ impl fmt::Display for ExitCodeConvertError {
 pub struct ProcessInfo {
     process: kobject::Process,
     main_thread: kobject::Thread,
+    creator: Pid,
     name: RwLock<String>,
     environment: RwLock<KVBlock>,
     arguments: KVBlock,
@@ -109,6 +113,7 @@ pub struct ProcessInfo {
 
 impl ProcessInfo {
     pub fn new(
+        creator: Pid,
         process: kobject::Process,
         main_thread: kobject::Thread,
         name: String,
@@ -118,6 +123,7 @@ impl ProcessInfo {
         let info = Arc::new(Self {
             process,
             main_thread,
+            creator,
             name: RwLock::new(name),
             environment: RwLock::new(environment),
             arguments,
@@ -136,6 +142,11 @@ impl ProcessInfo {
     /// Get the PID of this process
     pub fn pid(&self) -> Pid {
         Pid::from(self.process.pid())
+    }
+
+    /// Get the PID of the creator of this process (PPID)
+    pub fn creator(&self) -> Pid {
+        self.creator
     }
 
     /// Get the name of this process

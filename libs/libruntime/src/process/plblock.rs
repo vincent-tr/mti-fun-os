@@ -11,8 +11,16 @@ const VERSION: u32 = 1;
 /// Information about a process, as usable format
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
+    /// Process ID.
     pub pid: u64,
+
+    /// Parent Process ID.
+    pub ppid: u64,
+
+    /// Process name.
     pub name: String,
+
+    /// Process status.
     pub status: messages::ProcessStatus,
 }
 
@@ -44,6 +52,7 @@ impl ProcessListBlock {
             // Write entry
             let entry = ProcessEntry {
                 pid: process.pid,
+                ppid: process.ppid,
                 status: process.status,
                 name_len: process.name.len() as u32,
             };
@@ -134,6 +143,7 @@ struct Header {
 #[repr(C)]
 struct ProcessEntry {
     pub pid: u64,
+    pub ppid: u64,
     pub status: super::messages::ProcessStatus,
     pub name_len: u32,
 }
@@ -151,6 +161,7 @@ impl ProcessEntry {
 
         ProcessInfo {
             pid: self.pid,
+            ppid: self.ppid,
             status: self.status,
             name: alloc::string::String::from(name),
         }

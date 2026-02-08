@@ -12,7 +12,7 @@ use libruntime::{
     process::{messages, KVBlock},
     sync::RwLock,
 };
-use log::info;
+use log::{debug, error, info};
 
 /// Process ID
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
@@ -109,6 +109,7 @@ pub struct ProcessInfo {
     arguments: KVBlock,
     exit_code: AtomicI32,
     terminated: AtomicBool,
+    termination_registrations: RwLock<HashMap<ipc::Handle, TerminationRegistration>>,
 }
 
 impl ProcessInfo {
@@ -129,6 +130,7 @@ impl ProcessInfo {
             arguments,
             exit_code: AtomicI32::new(ExitCode::UNSET.0),
             terminated: AtomicBool::new(false),
+            termination_registrations: RwLock::new(HashMap::new()),
         });
 
         PROCESSES.insert(&info);
@@ -199,12 +201,57 @@ impl ProcessInfo {
     }
 
     /// Mark this process as terminated, making it unavailable in the live processes list
+    ///
+    /// Also fire all registered termination notifications for this process, returning the fired notifications for information purposes
     pub fn mark_terminated(&self) {
         self.terminated.store(true, Ordering::SeqCst);
 
         LIVE_PROCESSES.remove(self.pid());
 
         info!("Process {} is terminated", self.pid());
+
+        // Fire all notifications registered for this process, and remove them
+        for (_, registration) in self.termination_registrations.write().drain() {
+            registration.fire();
+
+            TERMINATION_REGISTRATIONS.write().remove(&registration);
+        }
+    }
+
+    /// Add a new process termination notification registration for this process
+    pub fn add_termination_registration(&self, registration: TerminationRegistration) {
+        if self.is_terminated() {
+            // If the process is already terminated, fire the notification immediately
+            registration.fire();
+            return;
+        }
+
+        // Otherwise, add it to the list of registrations for this process
+        TERMINATION_REGISTRATIONS.write().add(&registration);
+
+        self.termination_registrations
+            .write()
+            .insert(registration.owner_handle, registration);
+    }
+
+    /// Remove a process termination notification registration for this process by the owner handle
+    pub fn remove_termination_registration(&self, owner_handle: ipc::Handle) {
+        let registration = self
+            .termination_registrations
+            .write()
+            .remove(&owner_handle)
+            .expect("faild to remove registration");
+
+        TERMINATION_REGISTRATIONS.write().remove(&registration);
+    }
+
+    /// Get the owner PID of a process termination notification registration by the owner handle
+    pub fn get_registration_owner(&self, owner_handle: ipc::Handle) -> Pid {
+        self.termination_registrations
+            .read()
+            .get(&owner_handle)
+            .expect("data inconsistency: registration not found")
+            .owner()
     }
 
     /// Get the kernel object representing this process
@@ -335,4 +382,172 @@ impl Processes {
 
         values
     }
+}
+
+/// Registration for process termination notifications
+#[derive(Debug)]
+pub struct TerminationRegistration {
+    owner: Pid,
+    owner_handle: ipc::Handle,
+    process: Arc<ProcessInfo>,
+    port: kobject::PortSender,
+    correlation: u64,
+}
+
+impl TerminationRegistration {
+    /// Create a new notification registration
+    pub fn new(
+        owner: Pid,
+        owner_handle: ipc::Handle,
+        process: Arc<ProcessInfo>,
+        port: kobject::PortSender,
+        correlation: u64,
+    ) -> Self {
+        Self {
+            owner,
+            owner_handle,
+            process,
+            port,
+            correlation,
+        }
+    }
+
+    /// Fire the notification, sending a message to the registered port with the process termination information
+    pub fn fire(&self) {
+        let notification = messages::ProcessTerminatedNotification {
+            correlation: self.correlation,
+            pid: self.process.pid().as_u64(),
+            exit_code: self.process.exit_code().as_i32(),
+        };
+
+        let handles = ipc::KHandles::new();
+        let mut msg = unsafe { kobject::Message::new(&notification, handles.into()) };
+
+        if let Err(e) = self.port.send(&mut msg) {
+            error!(
+                "Failed to send process termination notification to {} for process {}: {}",
+                self.owner,
+                self.process.pid(),
+                e
+            );
+        }
+
+        debug!(
+            "Fired process termination notification to {} for process {} with exit code {}",
+            self.owner,
+            self.process.pid(),
+            self.process.exit_code()
+        );
+    }
+
+    /// Get a pointer representing this registration, which can be used to identify it in the global TERMINATION_REGISTRATIONS list
+    pub fn pointer(&self) -> RegistrationPointer {
+        (self.process.pid(), self.owner_handle)
+    }
+
+    /// Get the owner PID of this registration
+    pub fn owner(&self) -> Pid {
+        self.owner
+    }
+}
+
+pub type RegistrationPointer = (Pid, ipc::Handle);
+
+/// Registrations for process terminations
+#[derive(Debug)]
+pub struct TerminationRegistrations {
+    /// Map of all registration handles to their registration information, for quick access by handle
+    by_handle: HashMap<ipc::Handle, Pid>,
+    /// Map of owner PIDs to their registration handles and information, for quick access by owner and for bulk removals when an owner process terminates
+    by_owner: HashMap<Pid, HashMap<ipc::Handle, Pid>>,
+}
+
+impl TerminationRegistrations {
+    /// Create a new empty set of termination registrations
+    pub fn new() -> Self {
+        Self {
+            by_handle: HashMap::new(),
+            by_owner: HashMap::new(),
+        }
+    }
+
+    /// Add a new registration
+    ///
+    /// Reserved for ProcessInfo::add_termination_registration/remove_termination_registration/mark_terminated
+    pub fn add(&mut self, registration: &TerminationRegistration) {
+        let (target, handle) = registration.pointer();
+        let owner = registration.owner();
+
+        self.by_handle.insert(handle, target);
+
+        self.by_owner
+            .entry(owner)
+            .or_insert_with(HashMap::new)
+            .insert(handle, target);
+    }
+
+    /// Remove a registration by the owner handle
+    ///
+    /// Reserved for ProcessInfo::add_termination_registration/remove_termination_registration/mark_terminated
+    pub fn remove(&mut self, registration: &TerminationRegistration) {
+        let (target, handle) = registration.pointer();
+        let owner = registration.owner();
+
+        self.by_handle
+            .remove(&handle)
+            .expect("could not remove registration from by_handle");
+
+        let owner_registrations = self
+            .by_owner
+            .get_mut(&owner)
+            .expect("could not find registration owner in by_owner");
+
+        owner_registrations
+            .remove(&handle)
+            .expect("could not remove registration from by_owner");
+
+        if owner_registrations.is_empty() {
+            self.by_owner.remove(&owner);
+        }
+    }
+
+    /// Get a registration by the owner handle
+    pub fn get_by_handle(&self, owner_handle: ipc::Handle) -> Option<RegistrationPointer> {
+        if let Some(target) = self.by_handle.get(&owner_handle) {
+            Some((*target, owner_handle))
+        } else {
+            None
+        }
+    }
+
+    /// Get all registrations for a given owner PID
+    pub fn get_by_owner(&self, owner: Pid) -> Vec<RegistrationPointer> {
+        let registrations = if let Some(registrations) = self.by_owner.get(&owner) {
+            registrations
+        } else {
+            return Vec::new();
+        };
+
+        registrations
+            .iter()
+            .map(|(handle, target)| (*target, *handle))
+            .collect()
+    }
+}
+
+lazy_static! {
+    static ref TERMINATION_REGISTRATIONS: RwLock<TerminationRegistrations> =
+        RwLock::new(TerminationRegistrations::new());
+}
+
+/// List all process termination notification registrations for a given owner PID, used when an owner process terminates to fire all its registered notifications
+pub fn list_termination_registrations_by_owner(owner: Pid) -> Vec<RegistrationPointer> {
+    TERMINATION_REGISTRATIONS.read().get_by_owner(owner)
+}
+
+/// Unregister a process termination notification by the owner handle, used when an owner process explicitly wants to unregister a notification
+pub fn get_termination_registration_by_handle(
+    owner_handle: ipc::Handle,
+) -> Option<RegistrationPointer> {
+    TERMINATION_REGISTRATIONS.read().get_by_handle(owner_handle)
 }

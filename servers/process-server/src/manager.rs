@@ -1,7 +1,11 @@
 use crate::{
     error::{InternalError, ResultExt},
     loader::Loader,
-    process::{find_live_process, find_process, list_processes, ExitCode, Pid, ProcessInfo},
+    process::{
+        find_live_process, find_process, get_termination_registration_by_handle, list_processes,
+        list_termination_registrations_by_owner, ExitCode, Pid, ProcessInfo,
+        TerminationRegistration,
+    },
     state::State,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
@@ -17,14 +21,19 @@ use log::{debug, info, warn};
 #[derive(Debug)]
 pub struct Manager {
     handles: ipc::HandleTable<'static, ProcessInfo>,
+    handle_generator: &'static ipc::HandleGenerator,
 }
 
 impl Manager {
     pub fn new() -> Result<Arc<Self>, kobject::Error> {
         let state = State::get();
-        let handles = ipc::HandleTable::new(&state.handle_generator());
+        let handle_generator = state.handle_generator();
+        let handles = ipc::HandleTable::new(handle_generator);
 
-        let manager = Self { handles };
+        let manager = Self {
+            handles,
+            handle_generator,
+        };
 
         manager.register_init()?;
         manager.register_idle()?;
@@ -105,6 +114,16 @@ impl Manager {
             messages::Type::ListProcesses,
             Self::list_processes_handler,
         );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::RegisterProcessTerminatedNotification,
+            Self::register_process_terminated_notification_handler,
+        );
+        let builder = self.add_handler(
+            builder,
+            messages::Type::UnregisterProcessTerminatedNotification,
+            Self::unregister_process_terminated_notification_handler,
+        );
 
         builder.build()
     }
@@ -118,6 +137,11 @@ impl Manager {
         info.mark_terminated();
 
         self.handles.process_terminated(pid.as_u64());
+
+        for (target_pid, owner_handle) in list_termination_registrations_by_owner(pid) {
+            let process = find_process(pid).expect("failed to get registration process");
+            process.remove_termination_registration(owner_handle);
+        }
     }
 
     fn get_startup_info_handler(
@@ -527,6 +551,84 @@ impl Manager {
 
         let reply = messages::ListProcessesReply { buffer_used_len };
 
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn register_process_terminated_notification_handler(
+        &self,
+        query: messages::RegisterProcessTerminatedNotificationQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<
+        (
+            messages::RegisterProcessTerminatedNotificationReply,
+            ipc::KHandles,
+        ),
+        InternalError,
+    > {
+        let info = self
+            .handles
+            .read(sender_id.as_u64(), query.handle)
+            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+
+        let port = {
+            let handle = query_handles
+                .take(messages::RegisterProcessTerminatedNotificationQueryParameters::HANDLE_PORT);
+            kobject::PortSender::from_handle(handle)
+                .invalid_arg("Failed to create port from handle")?
+        };
+
+        let owner_handle = self.handle_generator.generate();
+        let registration = TerminationRegistration::new(
+            sender_id,
+            owner_handle,
+            info.clone(),
+            port,
+            query.correlation,
+        );
+
+        info.add_termination_registration(registration);
+
+        let reply = messages::RegisterProcessTerminatedNotificationReply {
+            registration_handle: owner_handle,
+        };
+
+        let reply_handles = ipc::KHandles::new();
+
+        Ok((reply, reply_handles))
+    }
+
+    fn unregister_process_terminated_notification_handler(
+        &self,
+        query: messages::UnregisterProcessTerminatedNotificationQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: Pid,
+    ) -> Result<
+        (
+            messages::UnregisterProcessTerminatedNotificationReply,
+            ipc::KHandles,
+        ),
+        InternalError,
+    > {
+        let (target_pid, owner_handle) =
+            get_termination_registration_by_handle(query.registration_handle)
+                .ok_or_else(|| InternalError::invalid_argument("Invalid registration handle"))?;
+
+        let process =
+            find_process(target_pid).expect("data inconsistency: registration process not found");
+
+        // ensure the sender is the owner of the registration
+        if process.get_registration_owner(owner_handle) != sender_id {
+            return Err(InternalError::invalid_argument(
+                "Sender is not the owner of the registration",
+            ));
+        }
+
+        process.remove_termination_registration(owner_handle);
+
+        let reply = messages::UnregisterProcessTerminatedNotificationReply {};
         let reply_handles = ipc::KHandles::new();
 
         Ok((reply, reply_handles))

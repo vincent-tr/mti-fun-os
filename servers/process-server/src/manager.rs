@@ -139,7 +139,7 @@ impl Manager {
         self.handles.process_terminated(pid.as_u64());
 
         for (target_pid, owner_handle) in list_termination_registrations_by_owner(pid) {
-            let process = find_process(pid).expect("failed to get registration process");
+            let process = find_process(target_pid).expect("failed to get registration process");
             process.remove_termination_registration(owner_handle);
         }
     }

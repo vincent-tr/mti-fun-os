@@ -490,7 +490,7 @@ impl TerminationRegistrations {
     ///
     /// Reserved for ProcessInfo::add_termination_registration/remove_termination_registration/mark_terminated
     pub fn remove(&mut self, registration: &TerminationRegistration) {
-        let (target, handle) = registration.pointer();
+        let (_, handle) = registration.pointer();
         let owner = registration.owner();
 
         self.by_handle

@@ -85,8 +85,12 @@ impl Process {
         CLIENT.terminate_process(self.handle)
     }
 
-    // TODO: Wait API (with cancelation), list
+    /// Create a waiter for this process, allowing to wait for its termination.
+    pub fn create_waiter(&self) -> Result<ProcessWaiter, ProcessServerError> {
+        ProcessWaiter::new(self)
+    }
 
+    /// List all processes in the system.
     pub fn list() -> Result<Vec<ProcessInfo>, ProcessServerError> {
         CLIENT.list_processes()
     }

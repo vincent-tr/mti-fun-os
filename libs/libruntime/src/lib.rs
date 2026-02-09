@@ -23,6 +23,7 @@ pub mod process;
 pub mod state;
 pub mod sync;
 pub mod timer;
+pub mod vfs;
 
 pub fn init() {
     logging::init();

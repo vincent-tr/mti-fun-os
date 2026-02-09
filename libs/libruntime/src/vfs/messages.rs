@@ -42,6 +42,7 @@ pub enum Type {
   // Messages for mount points
   Mount,
   Unmount,
+  ListMounts,
 }
 
 impl From<Type> for u16 {
@@ -392,7 +393,65 @@ pub struct ReadSymlinkReply {
     pub target_length: usize,
 }
 
-// TODO: mount unmount messages
+/// Parameters for the Mount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MountQueryParameters {
+    /// Path to the mount point.
+    pub mount_point: Buffer,
+
+    /// Port name of the filesystem driver.
+    pub fs_port_name: Buffer,
+
+    /// Mount args, to pass to the filesystem driver.
+    /// 
+    /// The content of this buffer is opaque to the vfs server and is only passed to the filesystem driver.
+    pub args: Buffer,
+}
+
+impl MountQueryParameters {
+    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 0;
+    pub const HANDLE_FS_PORT_NAME_MOBJ: usize = 1;
+    pub const HANDLE_ARGS_MOBJ: usize = 2;
+}
+
+/// Reply for the Mount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MountReply {}
+
+/// Parameters for the Unmount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]pub struct UnmountQueryParameters {
+    /// Path to the mount point to unmount.
+    pub mount_point: Buffer,
+}
+
+impl UnmountQueryParameters {
+    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 0;
+}
+
+/// Reply for the Unmount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UnmountReply {}
+
+/// Parameters for the ListMounts message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListMountsQueryParameters {
+    /// Buffer to write the list of mounts into.
+    pub buffer: Buffer,
+}
+
+impl ListMountsQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+}
+
+/// Reply for the ListMounts message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListMountsReply {}
 
 /// Metadata of a Node in the filesystem, used in the Stat messages.
 #[derive(Debug, Clone, Copy)]

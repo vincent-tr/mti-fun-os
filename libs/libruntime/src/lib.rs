@@ -11,6 +11,7 @@ use log::debug;
 extern crate alloc;
 
 mod allocator;
+pub mod r#async;
 pub mod collections;
 pub mod debug;
 #[cfg(feature = "entry")]

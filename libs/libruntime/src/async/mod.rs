@@ -10,7 +10,7 @@ use executor::Executor;
 
 use core::future::Future;
 
-pub use crate::kobject;
+use crate::kobject;
 
 /// Waits for a waitable object to become ready.
 pub async fn wait<Waitable: kobject::KWaitable>(waitable: &Waitable) {

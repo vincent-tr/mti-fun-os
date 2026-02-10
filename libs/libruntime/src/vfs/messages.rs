@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::ipc::{ Handle, buffer_messages::Buffer };
+use crate::ipc::{buffer_messages::Buffer, Handle};
 
 // Reuse the Permissions type from the kobject module, since it is the same as the one used for paging permissions.
 pub use crate::kobject::Permissions;
@@ -15,34 +15,34 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-  // Message for all types of handles
-  Close = 1,
-  StatPath,
-  StatHandle,
-  Rename,
-  Remove,
-  SetPermissions,
+    // Message for all types of handles
+    Close = 1,
+    StatPath,
+    StatHandle,
+    Rename,
+    Remove,
+    SetPermissions,
 
-  // Messages for file handles
-  CreateFile,
-  OpenFile,
-  ReadFile,
-  WriteFile,
-  ResizeFile,
+    // Messages for file handles
+    CreateFile,
+    OpenFile,
+    ReadFile,
+    WriteFile,
+    ResizeFile,
 
-  // Messages for directory handles
-  CreateDirectory,
-  OpenDirectory,
-  ListDirectory,
+    // Messages for directory handles
+    CreateDirectory,
+    OpenDirectory,
+    ListDirectory,
 
-  // Messages for symlinks
-  CreateSymlink,
-  ReadSymlink,
+    // Messages for symlinks
+    CreateSymlink,
+    ReadSymlink,
 
-  // Messages for mount points
-  Mount,
-  Unmount,
-  ListMounts,
+    // Messages for mount points
+    Mount,
+    Unmount,
+    ListMounts,
 }
 
 impl From<Type> for u16 {
@@ -92,7 +92,7 @@ pub struct StatPathQueryParameters {
 }
 
 impl StatPathQueryParameters {
-    const HANDLE_PATH_MOBJ: usize = 0;
+    pub const HANDLE_PATH_MOBJ: usize = 0;
 }
 
 /// Reply for the StatPath message.
@@ -404,7 +404,7 @@ pub struct MountQueryParameters {
     pub fs_port_name: Buffer,
 
     /// Mount args, to pass to the filesystem driver.
-    /// 
+    ///
     /// The content of this buffer is opaque to the vfs server and is only passed to the filesystem driver.
     pub args: Buffer,
 }
@@ -422,7 +422,8 @@ pub struct MountReply {}
 
 /// Parameters for the Unmount message.
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]pub struct UnmountQueryParameters {
+#[repr(C)]
+pub struct UnmountQueryParameters {
     /// Path to the mount point to unmount.
     pub mount_point: Buffer,
 }
@@ -464,7 +465,7 @@ pub struct Metadata {
     pub permissions: Permissions,
 
     /// For files, the size of the file in bytes.
-    /// 
+    ///
     /// For directories and symlinks, this field is ignored and should be set to 0.
     pub size: u64,
 }

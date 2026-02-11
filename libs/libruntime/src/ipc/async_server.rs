@@ -48,7 +48,7 @@ impl AsyncServerBuilder {
     where
         QueryParameters: Copy + Sync + Send + 'static,
         MessageType: Into<u16>,
-        Fut: Future<Output = ()> + Send + 'static,
+        Fut: Future<Output = ()> + Sync + Send + 'static,
         F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
     {
         self.handlers.insert(
@@ -71,7 +71,7 @@ impl AsyncServerBuilder {
         ReplyContent: Copy + Sync + Send + 'static,
         ReplyError: Copy + Sync + Send + 'static,
         MessageType: Into<u16>,
-        Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
+        Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
         F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
     {
         self.handlers.insert(
@@ -111,8 +111,8 @@ impl fmt::Debug for AsyncServerBuilder {
 #[derive(Debug)]
 pub struct AsyncServer {
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
-    server_port_worker: Arc<ServerPortWorker>,
-    process_listener_worker: Option<Arc<ProcessTerminationWorker>>,
+    server_port_worker: ServerPortWorker,
+    process_listener_worker: Option<ProcessTerminationWorker>,
 }
 
 impl AsyncServer {
@@ -151,7 +151,7 @@ impl AsyncServer {
     pub fn run(self) -> ! {
         self.server_port_worker.start();
 
-        if let Some(worker) = &self.process_listener_worker {
+        if let Some(worker) = self.process_listener_worker {
             worker.start();
         }
 
@@ -173,21 +173,20 @@ impl ProcessTerminationWorker {
     pub fn new(
         process_listener: kobject::ProcessListener,
         process_exit_handler: Box<dyn ProcessTerminationHandler>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
+    ) -> Self {
+        Self {
             process_listener,
             process_exit_handler,
-        })
+        }
     }
 
-    pub fn start(self: &Arc<Self>) {
-        let worker = self.clone();
+    pub fn start(self) {
         r#async::spawn(async move {
-            worker.run().await;
+            self.run().await;
         });
     }
 
-    async fn run(self: &Arc<Self>) {
+    async fn run(self) {
         loop {
             r#async::wait(&self.process_listener).await;
             let event = self
@@ -214,22 +213,21 @@ impl ServerPortWorker {
         receiver: kobject::PortReceiver,
         version: u16,
         handlers: HashMap<u16, Box<dyn MessageHandler>>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
+    ) -> Self {
+        Self {
             receiver,
             version,
             handlers,
-        })
+        }
     }
 
-    pub fn start(self: &Arc<Self>) {
-        let worker = self.clone();
+    pub fn start(self) {
         r#async::spawn(async move {
-            worker.run().await;
+            self.run().await;
         });
     }
 
-    async fn run(self: &Arc<Self>) {
+    async fn run(self) {
         loop {
             r#async::wait(&self.receiver).await;
 
@@ -260,37 +258,40 @@ trait ProcessTerminationHandler: fmt::Debug + Sync + Send {
 
 struct ProcessTerminationHandlerImpl<F, Fut>
 where
-    F: Fn(u64) -> Fut,
-    Fut: Future<Output = ()> + 'static,
+    F: Fn(u64) -> Fut + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
 {
-    handler: F,
+    handler: Arc<F>,
 }
 
 impl<F, Fut> ProcessTerminationHandlerImpl<F, Fut>
 where
-    F: Fn(u64) -> Fut + Sync + Send,
-    Fut: Future<Output = ()> + 'static,
+    F: Fn(u64) -> Fut + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
 {
     pub fn new(handler: F) -> Self {
-        Self { handler }
+        Self {
+            handler: Arc::new(handler),
+        }
     }
 }
 
 impl<F, Fut> ProcessTerminationHandler for ProcessTerminationHandlerImpl<F, Fut>
 where
-    F: Fn(u64) -> Fut + Sync + Send,
+    F: Fn(u64) -> Fut + Sync + Send + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
     fn handle_termination(&self, pid: u64) {
+        let handler = self.handler.clone();
         r#async::spawn(async move {
-            (self.handler)(pid).await;
+            handler(pid).await;
         });
     }
 }
 
 impl<F, Fut> fmt::Debug for ProcessTerminationHandlerImpl<F, Fut>
 where
-    F: Fn(u64) -> Fut + Sync,
+    F: Fn(u64) -> Fut + Sync + Send + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -302,53 +303,55 @@ trait MessageHandler: fmt::Debug + Sync + Send {
     fn handle_message(&self, message: kobject::Message);
 }
 
-struct MessageHandlerWithoutReply<QueryParameters: Copy + Sync + Send, Fut, F>
+struct MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
-    Fut: Future<Output = ()> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync,
+    QueryParameters: Copy + Sync + Send,
+    Fut: Future<Output = ()> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
-    handler: F,
+    handler: Arc<F>,
     _phantom: PhantomData<QueryParameters>,
 }
 
-impl<QueryParameters: Copy + Sync + Send, Fut, F>
-    MessageHandlerWithoutReply<QueryParameters, Fut, F>
+impl<QueryParameters, Fut, F> MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
-    Fut: Future<Output = ()> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync,
+    QueryParameters: Copy + Sync + Send,
+    Fut: Future<Output = ()> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     pub fn new(handler: F) -> Self {
         Self {
-            handler,
+            handler: Arc::new(handler),
             _phantom: PhantomData,
         }
     }
 
-    async fn handle_message_async(&self, mut message: kobject::Message) {
+    async fn handle_message_async(handler: Arc<F>, mut message: kobject::Message) {
         let handles = message.take_all_handles().into();
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
-        (self.handler)(query.parameters, handles, query.header.sender_pid).await;
+        handler(query.parameters, handles, query.header.sender_pid).await;
     }
 }
 
-impl<QueryParameters: Copy + Sync + Send, Fut, F> MessageHandler
-    for MessageHandlerWithoutReply<QueryParameters, Fut, F>
+impl<QueryParameters, Fut, F> MessageHandler for MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
-    Fut: Future<Output = ()> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    QueryParameters: Copy + Sync + Send,
+    Fut: Future<Output = ()> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn handle_message(&self, message: kobject::Message) {
+        let handler = self.handler.clone();
         r#async::spawn(async move {
-            self.handle_message_async(message).await;
+            Self::handle_message_async(handler, message).await;
         });
     }
 }
 
-impl<QueryParameters: Copy + Sync + Send, Fut, F> fmt::Debug
-    for MessageHandlerWithoutReply<QueryParameters, Fut, F>
+impl<QueryParameters, Fut, F> fmt::Debug for MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
-    Fut: Future<Output = ()> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    QueryParameters: Copy + Sync + Send,
+    Fut: Future<Output = ()> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MessageHandlerWithoutReply")
@@ -356,17 +359,15 @@ where
 }
 
 // Note: Handler 0 = reply port
-struct MessageHandlerWithReply<
+struct MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
+where
     QueryParameters: Copy + Sync + Send,
     ReplyContent: Copy + Sync + Send,
     ReplyError: Copy + Sync + Send,
-    Fut,
-    F,
-> where
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
-    handler: F,
+    handler: Arc<F>,
     _phantom: (
         PhantomData<QueryParameters>,
         PhantomData<ReplyContent>,
@@ -374,25 +375,23 @@ struct MessageHandlerWithReply<
     ),
 }
 
-impl<
-        QueryParameters: Copy + Sync + Send,
-        ReplyContent: Copy + Sync + Send,
-        ReplyError: Copy + Sync + Send,
-        Fut,
-        F,
-    > MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
+impl<QueryParameters, ReplyContent, ReplyError, Fut, F>
+    MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
 where
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    QueryParameters: Copy + Sync + Send,
+    ReplyContent: Copy + Sync + Send,
+    ReplyError: Copy + Sync + Send,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     pub fn new(handler: F) -> Self {
         Self {
-            handler,
+            handler: Arc::new(handler),
             _phantom: (PhantomData, PhantomData, PhantomData),
         }
     }
 
-    async fn handle_message_async(&self, mut message: kobject::Message) {
+    async fn handle_message_async(handler: Arc<F>, mut message: kobject::Message) {
         let port = match kobject::PortSender::from_handle(message.take_handle(0)) {
             Ok(port) => port,
             Err(e) => {
@@ -404,7 +403,7 @@ where
         let handles = message.take_all_handles().into();
         let query = unsafe { message.data::<QueryMessage<QueryParameters>>() };
         let transaction = query.header.transaction;
-        let result = (self.handler)(query.parameters, handles, query.header.sender_pid).await;
+        let result = handler(query.parameters, handles, query.header.sender_pid).await;
 
         let mut message = match result {
             Ok((content, handles)) => {
@@ -437,34 +436,31 @@ where
     }
 }
 
-impl<
-        QueryParameters: Copy + Sync + Send,
-        ReplyContent: Copy + Sync + Send,
-        ReplyError: Copy + Sync + Send,
-        Fut,
-        F,
-    > MessageHandler for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
+impl<QueryParameters, ReplyContent, ReplyError, Fut, F> MessageHandler
+    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
 where
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    QueryParameters: Copy + Sync + Send,
+    ReplyContent: Copy + Sync + Send,
+    ReplyError: Copy + Sync + Send,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn handle_message(&self, message: kobject::Message) {
+        let handler = self.handler.clone();
         r#async::spawn(async move {
-            self.handle_message_async(message).await;
+            Self::handle_message_async(handler, message).await;
         });
     }
 }
 
-impl<
-        QueryParameters: Copy + Sync + Send,
-        ReplyContent: Copy + Sync + Send,
-        ReplyError: Copy + Sync + Send,
-        Fut,
-        F,
-    > fmt::Debug for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
+impl<QueryParameters, ReplyContent, ReplyError, Fut, F> fmt::Debug
+    for MessageHandlerWithReply<QueryParameters, ReplyContent, ReplyError, Fut, F>
 where
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
-    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send,
+    QueryParameters: Copy + Sync + Send,
+    ReplyContent: Copy + Sync + Send,
+    ReplyError: Copy + Sync + Send,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MessageHandlerWithReply")

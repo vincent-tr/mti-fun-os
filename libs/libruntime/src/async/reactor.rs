@@ -7,10 +7,7 @@ use core::{
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 
-use crate::{
-    kobject,
-    sync::{Mutex, MutexGuard},
-};
+use crate::{kobject, sync::Mutex};
 
 #[derive(Debug)]
 struct ReactorItem {
@@ -43,53 +40,53 @@ impl ReactorItem {
 /// Reactor that manages waitable objects and their associated wakers.
 #[derive(Debug)]
 pub struct Reactor {
-    waitables: Vec<ReactorItem>,
+    waitables: Mutex<Vec<ReactorItem>>,
 }
 
 impl Reactor {
     /// Gets the global reactor instance.
-    pub fn get() -> MutexGuard<'static, Reactor> {
+    pub fn get() -> &'static Reactor {
         lazy_static! {
-            static ref REACTOR: Mutex<Reactor> = Mutex::new(Reactor::new());
+            static ref REACTOR: Reactor = Reactor::new();
         }
 
-        REACTOR.lock()
+        &REACTOR
     }
 
     fn new() -> Self {
         Self {
-            waitables: Vec::new(),
+            waitables: Mutex::new(Vec::new()),
         }
     }
 
     /// Registers a waitable object with the reactor.
-    pub fn register(
-        &mut self,
-        waitable: &dyn kobject::KWaitable,
-        ready: &AtomicBool,
-        waker: Waker,
-    ) {
+    pub fn register(&self, waitable: &dyn kobject::KWaitable, ready: &AtomicBool, waker: Waker) {
         self.waitables
+            .lock()
             .push(ReactorItem::new(waitable, ready, waker));
     }
 
     /// Unregisters a waitable object from the reactor.
-    pub fn unregister(&mut self, waitable: &dyn kobject::KWaitable) {
+    pub fn unregister(&self, waitable: &dyn kobject::KWaitable) {
         self.waitables
+            .lock()
             .retain(|item| !ptr::addr_eq(item.waitable as *const _, waitable as *const _));
     }
 
     /// Polls the reactor for ready waitable objects and wakes their associated wakers.
-    pub fn poll(&mut self) {
+    pub fn poll(&self) {
         let mut waiter = kobject::Waiter::new(&[]);
 
-        for item in &self.waitables {
+        // Keep locked during the poll, but we are monothreaded so that's OK.
+        let waitables = self.waitables.lock();
+
+        for item in waitables.iter() {
             waiter.add(item.get_waitable());
         }
 
         waiter.wait().expect("Wait failed");
 
-        for (index, item) in self.waitables.iter().enumerate() {
+        for (index, item) in waitables.iter().enumerate() {
             if waiter.is_ready(index) {
                 item.set_ready();
             }

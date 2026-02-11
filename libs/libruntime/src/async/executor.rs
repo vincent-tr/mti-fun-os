@@ -88,7 +88,7 @@ impl TaskIdGenerator {
 #[derive(Debug)]
 pub struct Executor {
     id_generator: TaskIdGenerator,
-    tasks: RwLock<HashMap<TaskId, Task>>,
+    tasks: RwLock<HashMap<TaskId, Arc<Task>>>,
     ready_list: Mutex<LinkedList<TaskId>>,
 }
 
@@ -113,7 +113,7 @@ impl Executor {
     /// Spawns a new future onto the executor.
     pub fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) {
         let task_id = self.id_generator.generate();
-        let task = Task::new(task_id, future);
+        let task = Arc::new(Task::new(task_id, future));
         self.tasks.write().insert(task_id, task);
 
         self.ready_list.lock().push_back(task_id);
@@ -124,14 +124,14 @@ impl Executor {
             return false;
         };
 
-        let poll_res = self
+        let task = self
             .tasks
             .read()
             .get(&task_id)
             .expect("Task not found")
-            .poll();
+            .clone();
 
-        match poll_res {
+        match task.poll() {
             Poll::Ready(()) => {
                 // Task is done, remove it
                 self.tasks.write().remove(&task_id);

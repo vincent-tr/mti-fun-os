@@ -63,6 +63,9 @@ impl fmt::Display for FsServerError {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct LookupQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The parent directory of the node to lookup.
     pub parent: NodeId,
 
@@ -86,6 +89,9 @@ pub struct LookupResult {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The parent directory of the node to create.
     pub parent: NodeId,
 
@@ -115,6 +121,9 @@ pub struct CreateReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct RemoveQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The parent directory of the node to remove.
     pub parent: NodeId,
 
@@ -137,6 +146,9 @@ pub struct RemoveReply {}
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MoveQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The parent directory of the node to move.
     pub parent: NodeId,
 
@@ -161,6 +173,9 @@ pub struct MoveReply {}
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GetMetadataQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The id of the node to get metadata of.
     pub node_id: NodeId,
 }
@@ -177,6 +192,9 @@ pub struct GetMetadataReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SetMetadataQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The id of the node to set metadata of.
     pub node_id: NodeId,
 
@@ -202,6 +220,9 @@ pub struct SetMetadataReply {}
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OpenFileQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The id of the node to open.
     pub node_id: NodeId,
 
@@ -221,6 +242,9 @@ pub struct OpenFileReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CloseFileQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     pub handle: Handle,
 }
 
@@ -233,6 +257,9 @@ pub struct CloseFileReply {}
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ReadFileQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The handle to the opened file to read from.
     pub handle: Handle,
 
@@ -259,6 +286,9 @@ pub struct ReadFileReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct WriteFileQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The handle to the opened file to write to.
     pub handle: Handle,
 
@@ -285,6 +315,9 @@ pub struct WriteFileReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OpenDirQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The id of the directory to open.
     pub node_id: NodeId,
 }
@@ -301,6 +334,9 @@ pub struct OpenDirReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CloseDirQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The handle to the opened directory to close.
     pub handle: Handle,
 }
@@ -314,6 +350,9 @@ pub struct CloseDirReply {}
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ListDirQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The handle to the opened directory to list.
     pub handle: Handle,
 
@@ -337,6 +376,9 @@ pub struct ListDirReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateSymlinkQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The parent directory of the symlink to create.
     pub parent: NodeId,
 
@@ -364,6 +406,9 @@ pub struct CreateSymlinkReply {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ReadSymlinkQueryParameters {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
     /// The id of the symlink to read.
     pub node_id: NodeId,
 
@@ -382,6 +427,38 @@ pub struct ReadSymlinkReply {
     /// The number of bytes written to the buffer.
     pub bytes_written: usize,
 }
+
+/// Parameters for the Mount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MountQueryParameters {
+    /// Mount args
+    pub args: Buffer,
+}
+
+/// Reply of the Mount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MountReply {
+    /// The handle to the mounted filesystem.
+    pub mount_handle: Handle,
+
+    /// The id of the root node of the mounted filesystem.
+    pub root_node_id: NodeId,
+}
+
+/// Parameters for the Unmount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UnmountQueryParameters {
+    /// The handle to the mounted filesystem to unmount.
+    pub mount_handle: Handle,
+}
+
+/// Reply of the Unmount message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UnmountReply {}
 
 /// A unique identifier for a node in the filesystem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

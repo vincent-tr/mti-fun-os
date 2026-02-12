@@ -33,8 +33,8 @@ pub enum Type {
     Remove,
 
     // Messages for symlinks handles
-    CreateSymLink, // Not on handle, create symlink at path
-    ReadSymLink,
+    CreateSymlink, // Not on handle, create symlink at path
+    ReadSymlink,
 
     // Messages for mount points
     Mount,
@@ -78,7 +78,7 @@ pub struct OpenQueryParameters {
     /// The server will return an error if the node exists but is of a different type.
     ///
     /// Note: this API can open a symlink, but it cannot create a new one.
-    /// Use CreateSymLink to create a new symlink.
+    /// Use CreateSymlink to create a new symlink.
     ///
     /// Note: if the type is None, the server cannot create a new node and will return an error if the node does not exist.
     pub r#type: Option<NodeType>,

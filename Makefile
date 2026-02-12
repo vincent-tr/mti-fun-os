@@ -22,17 +22,21 @@ build: format image-build
 image-build: init-build
 	cargo build --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
-init-build: vfs-server-build process-server-build
+init-build: process-server-build vfs-server-build memfs-server-build
 	cd init && cargo build --profile $(MTI_FUN_OS_INIT_PROFILE)
-
-vfs-server-build:
-	cd servers/vfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 process-server-build:
 	cd servers/process-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
+vfs-server-build:
+	cd servers/vfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+
+memfs-server-build:
+	cd servers/memfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+
 clean:
 	cargo clean
 	cd init && cargo clean
-	cd servers/vfs-server && cargo clean
 	cd servers/process-server && cargo clean
+	cd servers/vfs-server && cargo clean
+	cd servers/memfs-server && cargo clean

@@ -18,6 +18,8 @@ members = [
   "syscalls",
   "libs/libsyscalls",
   "libs/libruntime",
+  "servers/process-server",
   "servers/vfs-server",
-  "servers/process-server", "host-dynlinker",
+  "servers/memfs-server",
+  "host-dynlinker",
 ]

@@ -69,14 +69,21 @@ fn main() {
     // tests::sync::test_mutex();
     // tests::sync::test_rwlock();
 
+    start_servers();
+
+    // tests::process::list_processes();
+
+    // init cannot exit, it runs the state server
+    sleep_forever();
+    // libruntime::exit();
+}
+
+fn start_servers() {
     state_server::start();
     wait_port(state::messages::PORT_NAME);
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::messages::PORT_NAME);
-
-    // From now we can call process api, like env, args, spawn, open, etc
-    // tests::process::list_processes();
 
     let process = process::Process::spawn(
         "vfs-server",
@@ -89,9 +96,15 @@ fn main() {
     let _ = process;
     wait_port(vfs::messages::PORT_NAME);
 
-    // init cannot exit, it runs the state server
-    sleep_forever();
-    // libruntime::exit();
+    let process = process::Process::spawn(
+        "memfs-server",
+        ipc::Buffer::new_local(archive::MEMFS_SERVER),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn memfs server");
+
+    let _ = process;
 }
 
 fn apply_memory_protections(binary_len: usize) {

@@ -3,7 +3,10 @@ use core::fmt;
 use super::messages::{
     KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
-use crate::kobject::{self, KObject};
+use crate::{
+    kobject::{self, KObject},
+    r#async,
+};
 
 /// IPC client error.
 #[derive(Debug)]
@@ -55,42 +58,65 @@ impl Client {
         ReplyContent: Copy,
         ReplyError: Copy + fmt::Display + fmt::Debug,
     {
-        let port = kobject::Port::open_by_name(self.name)?;
         let (reply_reader, reply_sender) = kobject::Port::create(None)?;
-
         query_handles[0] = reply_sender.into_handle();
 
-        let data = QueryMessage::<QueryParameters> {
-            header: QueryHeader {
-                version: self.version,
-                r#type: message_type.into(),
-                transaction: 0, // One port per reply, no need for transaction ID
-                sender_pid: kobject::Process::current().pid(),
-            },
-            parameters: query,
-        };
+        self.send_query(message_type, query, query_handles)?;
 
-        let mut message = unsafe { kobject::Message::new(&data, query_handles.into()) };
+        let reply = reply_reader.blocking_receive()?;
 
-        port.send(&mut message)?;
+        self.process_reply(reply)
+    }
 
-        // TODO: add a timeout, if server dies during the query we will block forever here
-        let mut reply = reply_reader.blocking_receive()?;
+    /// Asynchronously calls a message on the server and waits for a reply.
+    pub async fn async_call<MessageType, QueryParameters, ReplyContent, ReplyError>(
+        &self,
+        message_type: MessageType,
+        query: QueryParameters,
+        mut query_handles: KHandles, // Note: first handle will be overwritten for reply port
+    ) -> Result<(ReplyContent, KHandles), CallError<ReplyError>>
+    where
+        MessageType: Into<u16>,
+        QueryParameters: Copy,
+        ReplyContent: Copy,
+        ReplyError: Copy + fmt::Display + fmt::Debug,
+    {
+        let (reply_reader, reply_sender) = kobject::Port::create(None)?;
+        query_handles[0] = reply_sender.into_handle();
 
-        let header = unsafe { reply.data::<ReplyHeader>() };
+        self.send_query(message_type, query, query_handles)?;
 
-        if header.success {
-            let handles = reply.take_all_handles();
-            let reply_message = unsafe { reply.data::<ReplySuccessMessage<ReplyContent>>() };
-            Ok((reply_message.content, handles.into()))
-        } else {
-            let error_message = unsafe { reply.data::<ReplyErrorMessage<ReplyError>>() };
-            Err(CallError::ReplyError(error_message.error))
-        }
+        let reply = loop {
+            r#async::wait(&reply_reader).await;
+
+            let res = reply_reader.receive();
+
+            if let Err(kobject::Error::ObjectNotReady) = res {
+                continue;
+                // Not ready yet, wait again
+            }
+
+            break res;
+        }?;
+
+        self.process_reply(reply)
     }
 
     /// Emits a message to the server without waiting for a reply.
     pub fn emit<MessageType, QueryParameters>(
+        &self,
+        message_type: MessageType,
+        query: QueryParameters,
+        query_handles: KHandles,
+    ) -> Result<(), kobject::Error>
+    where
+        MessageType: Into<u16>,
+        QueryParameters: Copy,
+    {
+        self.send_query(message_type, query, query_handles)
+    }
+
+    fn send_query<MessageType, QueryParameters>(
         &self,
         message_type: MessageType,
         query: QueryParameters,
@@ -117,5 +143,25 @@ impl Client {
         port.send(&mut message)?;
 
         Ok(())
+    }
+
+    fn process_reply<ReplyContent, ReplyError>(
+        &self,
+        mut reply: kobject::Message,
+    ) -> Result<(ReplyContent, KHandles), CallError<ReplyError>>
+    where
+        ReplyContent: Copy,
+        ReplyError: Copy + fmt::Display + fmt::Debug,
+    {
+        let header = unsafe { reply.data::<ReplyHeader>() };
+
+        if header.success {
+            let handles = reply.take_all_handles();
+            let reply_message = unsafe { reply.data::<ReplySuccessMessage<ReplyContent>>() };
+            Ok((reply_message.content, handles.into()))
+        } else {
+            let error_message = unsafe { reply.data::<ReplyErrorMessage<ReplyError>>() };
+            Err(CallError::ReplyError(error_message.error))
+        }
     }
 }

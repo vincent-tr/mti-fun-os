@@ -171,7 +171,7 @@ impl Manager {
     ) -> Result<(messages::MountReply, ipc::KHandles), InternalError> {
         panic!("not implemented");
     }
-    
+
     async fn unmount_handler(
         self: Arc<Self>,
         query: messages::UnmountQueryParameters,

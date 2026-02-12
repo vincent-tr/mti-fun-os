@@ -17,7 +17,7 @@ use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 use libruntime::{
     ipc,
     kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
-    process, state,
+    process, state, vfs,
 };
 use log::{debug, info};
 
@@ -87,6 +87,7 @@ fn main() {
     .expect("Could not spawn vfs server");
 
     let _ = process;
+    wait_port(vfs::messages::PORT_NAME);
 
     // init cannot exit, it runs the state server
     sleep_forever();

@@ -3,14 +3,13 @@ use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
 
-// Reuse the Permissions type from the kobject module, since it is the same as the one used for paging permissions.
-pub use crate::kobject::Permissions;
-
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "vfs-server";
 
 /// Version of the vfs management messages.
 pub const VERSION: u16 = 1;
+
+use super::types::{Metadata, NodeType, Permissions};
 
 /// Types of messages used in vfs management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +32,7 @@ pub enum Type {
     Remove,
 
     // Messages for symlinks handles
-    CreateSymlink, // Not on handle, create symlink at path
+    CreateSymlink,
     ReadSymlink,
 
     // Messages for mount points
@@ -420,38 +419,6 @@ pub enum OpenMode {
 
     /// Create a new file or directory, overwriting it if it already exists.
     CreateAlways,
-}
-
-/// Metadata of a Node in the filesystem, used in the Stat messages.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Metadata {
-    /// Type of the node (file, directory, or symlink).
-    pub r#type: NodeType,
-
-    /// Permissions of the node.
-    ///
-    /// For symlink, the permissions are ignored and should be set to 0.
-    pub permissions: Permissions,
-
-    /// For files, the size of the file in bytes.
-    ///
-    /// For directories and symlinks, this field is ignored and should be set to 0.
-    pub size: u64,
-}
-
-/// Types of nodes in the filesystem.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum NodeType {
-    /// A regular file.
-    File = 1,
-
-    /// A directory.
-    Directory,
-
-    /// A symbolic link.
-    Symlink,
 }
 
 bitflags! {

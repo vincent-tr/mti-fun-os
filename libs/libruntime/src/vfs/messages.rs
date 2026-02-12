@@ -15,25 +15,24 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    // Message for all types of handles
-    Close = 1,
-    StatPath,
-    StatHandle,
-    Rename,
-    Remove,
+    // Messages for File or Directory handles
+    Open = 1,
+    Create,
+    Close,
+    Stat,
     SetPermissions,
 
+    // Messages for paths
+    Rename, // Note: need nofollow to rename the symlink itself instead of the target
+    Remove, // Note: need nofollow to rename the symlink itself instead of the target
+
     // Messages for file handles
-    CreateFile,
-    OpenFile,
-    ReadFile,
-    WriteFile,
-    ResizeFile,
+    Read,
+    Write,
+    Resize,
 
     // Messages for directory handles
-    CreateDirectory,
-    OpenDirectory,
-    ListDirectory,
+    List, // Handle
 
     // Messages for symlinks
     CreateSymlink,
@@ -68,6 +67,67 @@ impl fmt::Display for VfsServerError {
             Self::BufferTooSmall => write!(f, "BufferTooSmall"),
         }
     }
+}
+
+/// Parameters for the Open message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenQueryParameters {
+    /// Path to the file or directory to open.
+    pub path: Buffer,
+
+    /// Handle permissions
+    pub handle_permissions: HandlePermissions,
+}
+
+impl OpenQueryParameters {
+    pub const HANDLE_PATH_MOBJ: usize = 0;
+}
+
+/// Reply for the Open message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenReply {
+    /// Handle to the opened file or directory.
+    pub handle: Handle,
+
+    /// Type of the opened node (file or directory).
+    pub r#type: NodeType,
+}
+
+/// Parameters for the Create message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CreateQueryParameters {
+    /// Path to the file or directory to create.
+    pub path: Buffer,
+
+    /// Type of the node to create (file or directory).
+    pub r#type: NodeType,
+
+    /// Permissions for the new file or directory.
+    pub permissions: Permissions,
+
+    /// Whether to overwrite the node if it already exists. If false, the server will return an error if the node already exists.
+    pub overwrite: bool,
+
+    /// Handle permissions
+    pub handle_permissions: HandlePermissions,
+}
+
+impl CreateQueryParameters {
+    pub const HANDLE_PATH_MOBJ: usize = 0;
+}
+
+/// Reply for the Create message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CreateReply {
+    /// Handle to the opened file or directory.
+    pub handle: Handle,
+
+    /// Type of the opened node (file or directory).
+    pub r#type: NodeType,
 }
 
 /// Parameters for the Close message.
@@ -462,6 +522,8 @@ pub struct Metadata {
     pub r#type: NodeType,
 
     /// Permissions of the node.
+    ///
+    /// For symlink, the permissions are ignored and should be set to 0.
     pub permissions: Permissions,
 
     /// For files, the size of the file in bytes.
@@ -482,4 +544,19 @@ pub enum NodeType {
 
     /// A symbolic link.
     Symlink,
+}
+
+bitflags! {
+    /// Possible handle permissions
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+    pub struct HandlePermissions: u64 {
+        /// No access
+        const NONE = 0;
+
+        /// Node can be read
+        const READ = 1 << 0;
+
+        /// Node can be written
+        const WRITE = 1 << 1;
+    }
 }

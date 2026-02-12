@@ -405,6 +405,7 @@ version = "0.1.0"
 dependencies = [
  "addr2line",
  "bit_field",
+ "bitflags 2.9.0",
  "hashbrown",
  "lazy_static",
  "libsyscalls",

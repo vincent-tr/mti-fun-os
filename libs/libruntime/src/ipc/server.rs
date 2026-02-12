@@ -101,7 +101,7 @@ impl fmt::Debug for ServerBuilder {
     }
 }
 
-/// Builder for an IPC server, which use a manager pattern
+/// Builder for an IPC server, which uses a manager pattern
 pub struct ManagedServerBuilder<Manager, InternalError, ReplyError>
 where
     Manager: 'static,

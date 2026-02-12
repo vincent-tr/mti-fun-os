@@ -5,7 +5,7 @@ mod handle;
 mod messages;
 mod server;
 
-pub use async_server::{AsyncServer, AsyncServerBuilder};
+pub use async_server::{AsyncServer, AsyncServerBuilder, ManagedAsyncServerBuilder};
 pub use buffer::messages as buffer_messages;
 pub use buffer::{Buffer, BufferView, BufferViewAccess};
 pub use client::{CallError, Client};

@@ -105,6 +105,136 @@ impl fmt::Debug for AsyncServerBuilder {
             .finish()
     }
 }
+
+/// Builder for an async IPC server, which uses a manager pattern
+pub struct ManagedAsyncServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: Send + Sync + 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + Sync + Send + 'static,
+{
+    builder: AsyncServerBuilder,
+    manager: Arc<Manager>,
+    _phantom: PhantomData<(InternalError, ReplyError)>,
+}
+
+impl<Manager, InternalError, ReplyError>
+    ManagedAsyncServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: Send + Sync + 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + Sync + Send + 'static,
+{
+    /// Creates a new server builder with the given manager, name and version.
+    pub fn new(manager: &Arc<Manager>, name: &'static str, version: u16) -> Self {
+        Self {
+            builder: AsyncServerBuilder::new(name, version),
+            manager: manager.clone(),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Sets a handler for process exit notifications, as a server method.
+    pub fn with_process_exit_handler<Fut, F>(mut self, method: F) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+        F: Fn(Arc<Manager>, u64) -> Fut + Sync + Send + 'static,
+    {
+        let manager = self.manager.clone();
+        let method = Arc::new(method);
+
+        let handler = move |pid| {
+            let instance = manager.clone();
+            let method = method.clone();
+
+            async move {
+                method(instance, pid).await;
+            }
+        };
+
+        self.builder = self.builder.with_process_exit_handler(handler);
+        self
+    }
+
+    /// Adds a message handler without reply for the given message type, as a server method.
+    pub fn with_handler_no_reply<QueryParameters, MessageType, Fut, F>(
+        mut self,
+        message_type: MessageType,
+        method: F,
+    ) -> Self
+    where
+        QueryParameters: Copy + Sync + Send + 'static,
+        MessageType: Into<u16>,
+        Fut: Future<Output = ()> + Sync + Send + 'static,
+        F: Fn(Arc<Manager>, QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
+    {
+        let manager = self.manager.clone();
+        let method = Arc::new(method);
+
+        let handler = move |parameters, handles, sender_pid| {
+            let instance = manager.clone();
+            let method = method.clone();
+
+            async move {
+                method(instance, parameters, handles, sender_pid).await;
+            }
+        };
+
+        self.builder = self.builder.with_handler_no_reply(message_type, handler);
+        self
+    }
+
+    /// Adds a message handler with reply for the given message type, as a server method.
+    pub fn with_handler<QueryParameters, ReplyContent, MessageType, Fut, F>(
+        mut self,
+        message_type: MessageType,
+        method: F,
+    ) -> Self
+    where
+        QueryParameters: Copy + Sync + Send + 'static,
+        ReplyContent: Copy + Sync + Send + 'static,
+        MessageType: Into<u16>,
+        Fut: Future<Output = Result<(ReplyContent, KHandles), InternalError>>
+            + Sync
+            + Send
+            + 'static,
+        F: Fn(Arc<Manager>, QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
+    {
+        let manager = self.manager.clone();
+        let method = Arc::new(method);
+
+        let handler = move |parameters, handles, sender_pid| {
+            let instance = manager.clone();
+            let method = method.clone();
+
+            async move {
+                let res = method(instance, parameters, handles, sender_pid).await;
+                res.map_err(|e| Into::<ReplyError>::into(e))
+            }
+        };
+
+        self.builder = self.builder.with_handler(message_type, handler);
+        self
+    }
+
+    /// Builds the server.
+    pub fn build(self) -> Result<AsyncServer, kobject::Error> {
+        self.builder.build()
+    }
+}
+
+impl<Manager, InternalError, ReplyError> fmt::Debug
+    for ManagedAsyncServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: Send + Sync + 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + Sync + Send + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.builder.fmt(f)
+    }
+}
+
 /// Async IPC server.
 ///
 /// Create using `AsyncServerBuilder`.

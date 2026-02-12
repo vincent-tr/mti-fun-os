@@ -121,8 +121,7 @@ tail -f serial.log
 
 ### servers
 
-- process
-- vfs/fuse
+- vfs/memfs
 - net
 - screen/graphics
 

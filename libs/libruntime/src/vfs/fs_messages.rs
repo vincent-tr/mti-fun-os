@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::ipc::buffer_messages::Buffer;
+use crate::ipc::{buffer_messages::Buffer, Handle};
 
 use super::types::{Metadata, NodeType, Permissions};
 
@@ -18,14 +18,14 @@ pub enum Type {
     GetMetadata,
     SetMetadata,
 
-    Open,
-    Read,
-    Write,
-    Close,
+    OpenFile,
+    CloseFile,
+    ReadFile,
+    WriteFile,
 
     OpenDir,
-    ListDir,
     CloseDir,
+    ListDir,
 
     CreateSymlink,
     ReadSymlink,
@@ -70,6 +70,10 @@ pub struct LookupQueryParameters {
     pub name: Buffer,
 }
 
+impl LookupQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+}
+
 /// Reply of the Lookup message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -95,6 +99,10 @@ pub struct CreateQueryParameters {
     pub permissions: Permissions,
 }
 
+impl CreateQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+}
+
 /// Reply of the Create message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -112,6 +120,10 @@ pub struct RemoveQueryParameters {
 
     /// The name of the node to remove.
     pub name: Buffer,
+}
+
+impl RemoveQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
 }
 
 /// Reply of the Remove message.
@@ -133,6 +145,11 @@ pub struct MoveQueryParameters {
 
     /// The new name of the node.
     pub new_name: Buffer,
+}
+
+impl MoveQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NEW_NAME_MOBJ: usize = 1;
 }
 
 /// Reply of the Move message.
@@ -181,10 +198,191 @@ pub struct SetMetadataQueryParameters {
 #[repr(C)]
 pub struct SetMetadataReply {}
 
-/// Reply of the SetMetadata message.
+/// Parameters for the OpenFile message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct SetMetadataReply {}
+pub struct OpenFileQueryParameters {
+    /// The id of the node to open.
+    pub node_id: NodeId,
 
+    /// Permissions to open the file with.
+    pub open_permissions: Permissions,
+}
+
+/// Reply of the OpenFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenFileReply {
+    /// The handle to the opened file or directory.
+    pub handle: Handle,
+}
+
+/// Parameters for the CloseFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseFileQueryParameters {
+    pub handle: Handle,
+}
+
+/// Reply of the CloseFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseFileReply {}
+
+/// Parameters for the ReadFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadFileQueryParameters {
+    /// The handle to the opened file to read from.
+    pub handle: Handle,
+
+    /// The buffer to read the file content into.
+    pub buffer: Buffer,
+
+    /// The offset in the file to read from.
+    pub offset: usize,
+}
+
+impl ReadFileQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+}
+
+/// Reply of the ReadFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadFileReply {
+    /// The number of bytes read from the file.
+    pub bytes_read: usize,
+}
+
+/// Parameters for the WriteFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteFileQueryParameters {
+    /// The handle to the opened file to write to.
+    pub handle: Handle,
+
+    /// The buffer containing the file content to write.
+    pub buffer: Buffer,
+
+    /// The offset in the file to write to.
+    pub offset: usize,
+}
+
+impl WriteFileQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+}
+
+/// Reply of the WriteFile message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteFileReply {
+    /// The number of bytes written to the file.
+    pub bytes_written: usize,
+}
+
+/// Parameters for the OpenDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenDirQueryParameters {
+    /// The id of the directory to open.
+    pub node_id: NodeId,
+}
+
+/// Reply of the OpenDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OpenDirReply {
+    /// The handle to the opened directory.
+    pub handle: Handle,
+}
+
+/// Parameters for the CloseDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseDirQueryParameters {
+    /// The handle to the opened directory to close.
+    pub handle: Handle,
+}
+
+/// Reply of the CloseDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CloseDirReply {}
+
+/// Parameters for the ListDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListDirQueryParameters {
+    /// The handle to the opened directory to list.
+    pub handle: Handle,
+
+    /// The buffer to write the directory entries into.
+    pub buffer: Buffer,
+}
+
+impl ListDirQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+}
+
+/// Reply of the ListDir message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListDirReply {
+    /// The number of bytes written to the buffer.
+    pub bytes_written: usize,
+}
+
+/// Parameters for the CreateSymlink message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CreateSymlinkQueryParameters {
+    /// The parent directory of the symlink to create.
+    pub parent: NodeId,
+
+    /// The name of the symlink to create.
+    pub name: Buffer,
+
+    /// The target path of the symlink to create.
+    pub target: Buffer,
+}
+
+impl CreateSymlinkQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_TARGET_MOBJ: usize = 1;
+}
+
+/// Reply of the CreateSymlink message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct CreateSymlinkReply {
+    /// The id of the symlink created by the create symlink message.
+    pub node_id: NodeId,
+}
+
+/// Parameters for the ReadSymlink message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadSymlinkQueryParameters {
+    /// The id of the symlink to read.
+    pub node_id: NodeId,
+
+    /// The buffer to write the target path of the symlink into.
+    pub buffer: Buffer,
+}
+
+impl ReadSymlinkQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+}
+
+/// Reply of the ReadSymlink message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadSymlinkReply {
+    /// The number of bytes written to the buffer.
+    pub bytes_written: usize,
+}
+
+/// A unique identifier for a node in the filesystem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeId(u64);

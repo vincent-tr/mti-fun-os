@@ -86,6 +86,11 @@ pub struct OpenQueryParameters {
     /// Mode to open the file or directory with.
     pub mode: OpenMode,
 
+    /// If the last item of the path is a symlink, this flag indicates whether to follow the symlink or not.
+    /// If true, the server will open the target of the symlink.
+    /// If false, the server will open the symlink itself.
+    pub no_follow: bool,
+
     /// Permissions to set to the file or directory if it is created.
     /// If the file or directory already exists, this field is ignored.
     pub permissions: Permissions,

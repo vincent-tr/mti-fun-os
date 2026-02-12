@@ -1,3 +1,4 @@
+use bitflags::bitflags;
 use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
@@ -15,16 +16,11 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    // Messages for File or Directory handles
+    // Messages for handles
     Open = 1,
-    Create,
     Close,
     Stat,
     SetPermissions,
-
-    // Messages for paths
-    Rename, // Note: need nofollow to rename the symlink itself instead of the target
-    Remove, // Note: need nofollow to rename the symlink itself instead of the target
 
     // Messages for file handles
     Read,
@@ -32,11 +28,13 @@ pub enum Type {
     Resize,
 
     // Messages for directory handles
-    List, // Handle
+    List,
+    Move,
+    Remove,
 
-    // Messages for symlinks
-    CreateSymlink,
-    ReadSymlink,
+    // Messages for symlinks handles
+    CreateSymLink, // Not on handle, create symlink at path
+    ReadSymLink,
 
     // Messages for mount points
     Mount,
@@ -76,6 +74,22 @@ pub struct OpenQueryParameters {
     /// Path to the file or directory to open.
     pub path: Buffer,
 
+    /// Type of the node to open (file, directory or symlink).
+    /// The server will return an error if the node exists but is of a different type.
+    ///
+    /// Note: this API can open a symlink, but it cannot create a new one.
+    /// Use CreateSymLink to create a new symlink.
+    ///
+    /// Note: if the type is None, the server cannot create a new node and will return an error if the node does not exist.
+    pub r#type: Option<NodeType>,
+
+    /// Mode to open the file or directory with.
+    pub mode: OpenMode,
+
+    /// Permissions to set to the file or directory if it is created.
+    /// If the file or directory already exists, this field is ignored.
+    pub permissions: Permissions,
+
     /// Handle permissions
     pub handle_permissions: HandlePermissions,
 }
@@ -88,46 +102,8 @@ impl OpenQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct OpenReply {
-    /// Handle to the opened file or directory.
+    /// Handle to the opened node.
     pub handle: Handle,
-
-    /// Type of the opened node (file or directory).
-    pub r#type: NodeType,
-}
-
-/// Parameters for the Create message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct CreateQueryParameters {
-    /// Path to the file or directory to create.
-    pub path: Buffer,
-
-    /// Type of the node to create (file or directory).
-    pub r#type: NodeType,
-
-    /// Permissions for the new file or directory.
-    pub permissions: Permissions,
-
-    /// Whether to overwrite the node if it already exists. If false, the server will return an error if the node already exists.
-    pub overwrite: bool,
-
-    /// Handle permissions
-    pub handle_permissions: HandlePermissions,
-}
-
-impl CreateQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the Create message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct CreateReply {
-    /// Handle to the opened file or directory.
-    pub handle: Handle,
-
-    /// Type of the opened node (file or directory).
-    pub r#type: NodeType,
 }
 
 /// Parameters for the Close message.
@@ -143,91 +119,31 @@ pub struct CloseQueryParameters {
 #[repr(C)]
 pub struct CloseReply {}
 
-/// Parameters for the StatPath message.
+/// Parameters for the Stat message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StatPathQueryParameters {
-    /// Path to the node to stat.
-    pub path: Buffer,
-}
-
-impl StatPathQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the StatPath message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct StatPathReply {
-    pub metadata: Metadata,
-}
-
-/// Parameters for the StatHandle message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct StatHandleQueryParameters {
-    /// Handle to the node to stat.
+pub struct StatQueryParameters {
+    /// Handle to the file, directory or symlink to stat.
     pub handle: Handle,
 }
 
-/// Reply for the StatHandle message.
+/// Reply for the Stat message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct StatHandleReply {
+pub struct StatReply {
+    /// Metadata of the file, directory or symlink.
     pub metadata: Metadata,
 }
-
-/// Parameters for the Rename message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct RenameQueryParameters {
-    /// Path to the node to rename.
-    pub old_path: Buffer,
-
-    /// New path for the node.
-    pub new_path: Buffer,
-}
-
-impl RenameQueryParameters {
-    pub const HANDLE_OLD_PATH_MOBJ: usize = 0;
-    pub const HANDLE_NEW_PATH_MOBJ: usize = 1;
-}
-
-/// Reply for the Rename message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct RenameReply {}
-
-/// Parameters for the Remove message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct RemoveQueryParameters {
-    /// Path to the node to remove.
-    pub path: Buffer,
-}
-
-impl RemoveQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the Remove message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct RemoveReply {}
 
 /// Parameters for the SetPermissions message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SetPermissionsQueryParameters {
-    /// Path to the node to set permissions for.
-    pub path: Buffer,
+    /// Handle of the node to set permissions.
+    pub handle: Handle,
 
     /// New permissions for the node.
     pub permissions: Permissions,
-}
-
-impl SetPermissionsQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
 }
 
 /// Reply for the SetPermissions message.
@@ -235,53 +151,10 @@ impl SetPermissionsQueryParameters {
 #[repr(C)]
 pub struct SetPermissionsReply {}
 
-/// Parameters for the CreateFile message.
+/// Parameters for the Read message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateFileQueryParameters {
-    /// Path to the file to create.
-    pub path: Buffer,
-
-    /// Permissions for the new file.
-    pub permissions: Permissions,
-}
-
-impl CreateFileQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the CreateFile message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct CreateFileReply {
-    /// Handle to the newly created file.
-    pub handle: Handle,
-}
-
-/// Parameters for the OpenFile message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct OpenFileQueryParameters {
-    /// Path to the file to open.
-    pub path: Buffer,
-}
-
-impl OpenFileQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the OpenFile message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct OpenFileReply {
-    /// Handle to the opened file.
-    pub handle: Handle,
-}
-
-/// Parameters for the ReadFile message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ReadFileQueryParameters {
+pub struct ReadQueryParameters {
     /// Handle to the file to read from.
     pub handle: Handle,
 
@@ -289,26 +162,28 @@ pub struct ReadFileQueryParameters {
     pub buffer: Buffer,
 
     /// Offset in the file to start reading from.
+    ///
+    /// Note: the read len is determined by the size of the buffer.
     pub offset: u64,
 }
 
-impl ReadFileQueryParameters {
+impl ReadQueryParameters {
     pub const HANDLE_FILE_MOBJ: usize = 0;
     pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
-/// Reply for the ReadFile message.
+/// Reply for the Read message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ReadFileReply {
+pub struct ReadReply {
     /// Number of bytes read.
     pub bytes_read: u64,
 }
 
-/// Parameters for the WriteFile message.
+/// Parameters for the Write message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct WriteFileQueryParameters {
+pub struct WriteQueryParameters {
     /// Handle to the file to write to.
     pub handle: Handle,
 
@@ -316,26 +191,28 @@ pub struct WriteFileQueryParameters {
     pub buffer: Buffer,
 
     /// Offset in the file to start writing to.
+    ///
+    /// Note: the write len is determined by the size of the buffer.
     pub offset: u64,
 }
 
-impl WriteFileQueryParameters {
+impl WriteQueryParameters {
     pub const HANDLE_FILE_MOBJ: usize = 0;
     pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
-/// Reply for the WriteFile message.
+/// Reply for the Write message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct WriteFileReply {
+pub struct WriteReply {
     /// Number of bytes written.
     pub bytes_written: u64,
 }
 
-/// Parameters for the ResizeFile message.
+/// Parameters for the Resize message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ResizeFileQueryParameters {
+pub struct ResizeQueryParameters {
     /// Handle to the file to resize.
     pub handle: Handle,
 
@@ -343,55 +220,15 @@ pub struct ResizeFileQueryParameters {
     pub new_size: u64,
 }
 
-/// Reply for the ResizeFile message.
+/// Reply for the Resize message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ResizeFileReply {}
+pub struct ResizeReply {}
 
-/// Parameters for the CreateDirectory message.
+/// Parameters for the List message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateDirectoryQueryParameters {
-    /// Path to the directory to create.
-    pub path: Buffer,
-
-    /// Permissions for the new directory.
-    pub permissions: Permissions,
-}
-
-impl CreateDirectoryQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the CreateDirectory message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct CreateDirectoryReply {}
-
-/// Parameters for the OpenDirectory message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct OpenDirectoryQueryParameters {
-    /// Path to the directory to open.
-    pub path: Buffer,
-}
-
-impl OpenDirectoryQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-}
-
-/// Reply for the OpenDirectory message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct OpenDirectoryReply {
-    /// Handle to the opened directory.
-    pub handle: Handle,
-}
-
-/// Parameters for the ListDirectory message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ListDirectoryQueryParameters {
+pub struct ListQueryParameters {
     /// Handle to the directory to list.
     pub handle: Handle,
 
@@ -399,14 +236,61 @@ pub struct ListDirectoryQueryParameters {
     pub buffer: Buffer,
 }
 
-impl ListDirectoryQueryParameters {
+impl ListQueryParameters {
     pub const HANDLE_BUFFER_MOBJ: usize = 0;
 }
 
-/// Reply for the ListDirectory message.
+/// Reply for the List message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ListDirectoryReply {}
+pub struct ListReply {}
+
+/// Parameters for the Move message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MoveQueryParameters {
+    /// Handle of the directory to move the node from.
+    pub old_dir: Handle,
+
+    /// Name of the node to move, relative to the old directory.
+    pub old_name: Buffer,
+
+    /// Handle of the directory to move the node to.
+    pub new_dir: Handle,
+
+    /// Name of the node to move, relative to the new directory.
+    pub new_name: Buffer,
+}
+
+impl MoveQueryParameters {
+    pub const HANDLE_OLD_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NEW_NAME_MOBJ: usize = 1;
+}
+
+/// Reply for the Move message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MoveReply {}
+
+/// Parameters for the Remove message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RemoveQueryParameters {
+    /// Handle of the directory to remove the node from.
+    pub dir: Handle,
+
+    /// Name of the node to remove, relative to the directory.
+    pub name: Buffer,
+}
+
+impl RemoveQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 0;
+}
+
+/// Reply for the Remove message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RemoveReply {}
 
 /// Parameters for the CreateSymlink message.
 #[derive(Debug, Clone, Copy)]
@@ -427,14 +311,17 @@ impl CreateSymlinkQueryParameters {
 /// Reply for the CreateSymlink message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateSymlinkReply {}
+pub struct CreateSymlinkReply {
+    /// Handle to the create symlink.
+    pub handle: Handle,
+}
 
 /// Parameters for the ReadSymlink message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ReadSymlinkQueryParameters {
-    /// Path to the symlink to read.
-    pub path: Buffer,
+    /// Handle to the symlink to read.
+    pub handle: Handle,
 
     /// Buffer to write the target path into.
     pub buffer: Buffer,
@@ -514,6 +401,22 @@ impl ListMountsQueryParameters {
 #[repr(C)]
 pub struct ListMountsReply {}
 
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum OpenMode {
+    /// Open the file or directory if it exists, otherwise return an error.
+    OpenExisting = 1,
+
+    /// Open the file or directory if it exists, otherwise create it.
+    OpenAlways,
+
+    /// Create a new file or directory, returning an error if it already exists.
+    CreateNew,
+
+    /// Create a new file or directory, overwriting it if it already exists.
+    CreateAlways,
+}
+
 /// Metadata of a Node in the filesystem, used in the Stat messages.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -537,7 +440,7 @@ pub struct Metadata {
 #[repr(u8)]
 pub enum NodeType {
     /// A regular file.
-    File,
+    File = 1,
 
     /// A directory.
     Directory,
@@ -560,3 +463,7 @@ bitflags! {
         const WRITE = 1 << 1;
     }
 }
+
+// TODO:
+// - ListDirectory block
+// - ListMounts block

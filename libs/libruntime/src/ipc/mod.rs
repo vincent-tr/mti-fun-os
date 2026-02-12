@@ -11,4 +11,4 @@ pub use buffer::{Buffer, BufferView, BufferViewAccess};
 pub use client::{CallError, Client};
 pub use handle::{Handle, HandleGenerator, HandleTable};
 pub use messages::KHandles;
-pub use server::{Server, ServerBuilder};
+pub use server::{ManagedServerBuilder, Server, ServerBuilder};

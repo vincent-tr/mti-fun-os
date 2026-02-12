@@ -2,7 +2,7 @@ use super::messages::{
     KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::kobject::{self, KObject};
-use alloc::boxed::Box;
+use alloc::{boxed::Box, sync::Arc};
 use core::{fmt, marker::PhantomData};
 use hashbrown::HashMap;
 use log::error;
@@ -100,6 +100,117 @@ impl fmt::Debug for ServerBuilder {
             .finish()
     }
 }
+
+/// Builder for an IPC server, which use a manager pattern
+pub struct ManagedServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + 'static,
+{
+    builder: ServerBuilder,
+    manager: Arc<Manager>,
+    _phantom: PhantomData<(InternalError, ReplyError)>,
+}
+
+impl<Manager, InternalError, ReplyError> ManagedServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + 'static,
+{
+    /// Creates a new server builder with the given manager, name and version.
+    pub fn new(manager: &Arc<Manager>, name: &'static str, version: u16) -> Self {
+        Self {
+            builder: ServerBuilder::new(name, version),
+            manager: manager.clone(),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Sets a handler for process exit notifications, as a server method.
+    pub fn with_process_exit_handler<F>(mut self, method: F) -> Self
+    where
+        F: Fn(&Manager, u64) + 'static,
+    {
+        let manager = self.manager.clone();
+        let handler = move |pid| {
+            let instance = manager.clone();
+            method(&instance, pid);
+        };
+
+        self.builder = self.builder.with_process_exit_handler(handler);
+        self
+    }
+
+    /// Adds a message handler without reply for the given message type, as a server method.
+    pub fn with_handler_no_reply<QueryParameters, MessageType, F>(
+        mut self,
+        message_type: MessageType,
+        method: F,
+    ) -> Self
+    where
+        QueryParameters: Copy + 'static,
+        MessageType: Into<u16>,
+        F: Fn(&Manager, QueryParameters, KHandles, u64) + 'static,
+    {
+        let manager = self.manager.clone();
+        let handler = move |parameters, handles, sender_pid| {
+            let instance = manager.clone();
+            method(&instance, parameters, handles, sender_pid);
+        };
+
+        self.builder = self.builder.with_handler_no_reply(message_type, handler);
+        self
+    }
+
+    /// Adds a message handler with reply for the given message type, as a server method.
+    pub fn with_handler<QueryParameters, ReplyContent, MessageType, F>(
+        mut self,
+        message_type: MessageType,
+        method: F,
+    ) -> Self
+    where
+        QueryParameters: Copy + 'static,
+        ReplyContent: Copy + 'static,
+        MessageType: Into<u16>,
+        F: Fn(
+                &Manager,
+                QueryParameters,
+                KHandles,
+                u64,
+            ) -> Result<(ReplyContent, KHandles), InternalError>
+            + 'static,
+    {
+        let manager = self.manager.clone();
+        let handler = move |parameters, handles, sender_pid| {
+            let instance = manager.clone();
+            let res = method(&instance, parameters, handles, sender_pid);
+            res.map_err(|e| Into::<ReplyError>::into(e))
+        };
+
+        self.builder = self.builder.with_handler(message_type, handler);
+        self
+    }
+
+    /// Builds the server.
+    pub fn build(self) -> Result<Server, kobject::Error> {
+        self.builder.build()
+    }
+}
+
+impl<Manager, InternalError, ReplyError> fmt::Debug
+    for ManagedServerBuilder<Manager, InternalError, ReplyError>
+where
+    Manager: 'static,
+    InternalError: Into<ReplyError> + 'static,
+    ReplyError: Copy + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.builder.fmt(f)
+    }
+}
+
 /// IPC server.
 ///
 /// Create using `ServerBuilder`.

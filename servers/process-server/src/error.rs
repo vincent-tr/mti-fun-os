@@ -56,9 +56,10 @@ impl InternalError {
         self.source = Some(Box::new(err));
         self
     }
+}
 
-    /// Log and convert to ProcessServerError
-    pub fn into_server_error(self) -> ProcessServerError {
+impl Into<ProcessServerError> for InternalError {
+    fn into(self) -> ProcessServerError {
         if let Some(source) = &self.source {
             error!("{}: {}", self.context, source);
         } else {

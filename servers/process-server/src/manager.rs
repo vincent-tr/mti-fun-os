@@ -43,84 +43,53 @@ impl Manager {
     }
 
     pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
-        let builder = ipc::ServerBuilder::new(messages::PORT_NAME, messages::VERSION);
-        let builder = builder.with_process_exit_handler({
-            let manager = Arc::clone(self);
-            move |pid| {
-                manager.process_terminated(Pid::from(pid));
-            }
-        });
+        let builder =
+            ipc::ManagedServerBuilder::<_, InternalError, messages::ProcessServerError>::new(
+                &self,
+                messages::PORT_NAME,
+                messages::VERSION,
+            );
+        let builder = builder.with_process_exit_handler(Self::process_terminated);
 
-        let builder = self.add_handler(
-            builder,
+        let builder = builder.with_handler(
             messages::Type::GetStartupInfo,
             Self::get_startup_info_handler,
         );
-        let builder = self.add_handler(
-            builder,
-            messages::Type::UpdateName,
-            Self::update_name_handler,
-        );
+        let builder = builder.with_handler(messages::Type::UpdateName, Self::update_name_handler);
+        let builder = builder.with_handler(messages::Type::UpdateEnv, Self::update_env_handler);
         let builder =
-            self.add_handler(builder, messages::Type::UpdateEnv, Self::update_env_handler);
-        let builder = self.add_handler(
-            builder,
-            messages::Type::SetExitCode,
-            Self::set_exit_code_handler,
-        );
+            builder.with_handler(messages::Type::SetExitCode, Self::set_exit_code_handler);
 
-        let builder = self.add_handler(
-            builder,
-            messages::Type::CreateProcess,
-            Self::create_process_handler,
-        );
-        let builder = self.add_handler(
-            builder,
-            messages::Type::OpenProcess,
-            Self::open_process_handler,
-        );
-        let builder = self.add_handler(
-            builder,
-            messages::Type::CloseProcess,
-            Self::close_process_handler,
-        );
-        let builder = self.add_handler(
-            builder,
+        let builder =
+            builder.with_handler(messages::Type::CreateProcess, Self::create_process_handler);
+        let builder = builder.with_handler(messages::Type::OpenProcess, Self::open_process_handler);
+        let builder =
+            builder.with_handler(messages::Type::CloseProcess, Self::close_process_handler);
+        let builder = builder.with_handler(
             messages::Type::GetProcessName,
             Self::get_process_name_handler,
         );
-        let builder = self.add_handler(
-            builder,
-            messages::Type::GetProcessEnv,
-            Self::get_process_env_handler,
-        );
-        let builder = self.add_handler(
-            builder,
+        let builder =
+            builder.with_handler(messages::Type::GetProcessEnv, Self::get_process_env_handler);
+        let builder = builder.with_handler(
             messages::Type::GetProcessArgs,
             Self::get_process_args_handler,
         );
-        let builder = self.add_handler(
-            builder,
+        let builder = builder.with_handler(
             messages::Type::GetProcessStatus,
             Self::get_process_status_handler,
         );
-        let builder = self.add_handler(
-            builder,
+        let builder = builder.with_handler(
             messages::Type::TerminateProcess,
             Self::terminate_process_handler,
         );
-        let builder = self.add_handler(
-            builder,
-            messages::Type::ListProcesses,
-            Self::list_processes_handler,
-        );
-        let builder = self.add_handler(
-            builder,
+        let builder =
+            builder.with_handler(messages::Type::ListProcesses, Self::list_processes_handler);
+        let builder = builder.with_handler(
             messages::Type::RegisterProcessTerminatedNotification,
             Self::register_process_terminated_notification_handler,
         );
-        let builder = self.add_handler(
-            builder,
+        let builder = builder.with_handler(
             messages::Type::UnregisterProcessTerminatedNotification,
             Self::unregister_process_terminated_notification_handler,
         );
@@ -128,7 +97,9 @@ impl Manager {
         builder.build()
     }
 
-    fn process_terminated(&self, pid: Pid) {
+    fn process_terminated(&self, pid: u64) {
+        let pid = Pid::from(pid);
+
         let Some(info) = find_live_process(pid) else {
             warn!("Unknown process with PID {} terminated", pid);
             return;
@@ -148,8 +119,9 @@ impl Manager {
         &self,
         _query: messages::GetStartupInfoQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::GetStartupInfoReply, ipc::KHandles), InternalError> {
+        let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
@@ -171,8 +143,9 @@ impl Manager {
         &self,
         query: messages::UpdateNameQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::UpdateNameReply, ipc::KHandles), InternalError> {
+        let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
@@ -197,8 +170,9 @@ impl Manager {
         &self,
         _query: messages::UpdateEnvQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::UpdateEnvReply, ipc::KHandles), InternalError> {
+        let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
@@ -222,8 +196,9 @@ impl Manager {
         &self,
         query: messages::SetExitCodeQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::SetExitCodeReply, ipc::KHandles), InternalError> {
+        let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
@@ -239,8 +214,10 @@ impl Manager {
         &self,
         query: messages::CreateProcessQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::CreateProcessReply, ipc::KHandles), InternalError> {
+        let sender_id = Pid::from(sender_id);
+
         let name_view = {
             let handle =
                 query_handles.take(messages::CreateProcessQueryParameters::HANDLE_NAME_MOBJ);
@@ -349,12 +326,12 @@ impl Manager {
         &self,
         query: messages::OpenProcessQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::OpenProcessReply, ipc::KHandles), InternalError> {
         let info = find_process(Pid::from(query.pid))
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
-        let handle = self.handles.open(sender_id.as_u64(), info);
+        let handle = self.handles.open(sender_id, info);
 
         Ok((
             messages::OpenProcessReply {
@@ -369,10 +346,10 @@ impl Manager {
         &self,
         query: messages::CloseProcessQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::CloseProcessReply, ipc::KHandles), InternalError> {
         self.handles
-            .close(sender_id.as_u64(), query.handle)
+            .close(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Invalid process handle"))?;
 
         Ok((messages::CloseProcessReply {}, ipc::KHandles::new()))
@@ -382,11 +359,11 @@ impl Manager {
         &self,
         query: messages::GetProcessNameQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::GetProcessNameReply, ipc::KHandles), InternalError> {
         let info = self
             .handles
-            .read(sender_id.as_u64(), query.handle)
+            .read(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let mut name_view = {
@@ -419,11 +396,11 @@ impl Manager {
         &self,
         query: messages::GetProcessEnvQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::GetProcessEnvReply, ipc::KHandles), InternalError> {
         let info = self
             .handles
-            .read(sender_id.as_u64(), query.handle)
+            .read(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let env_mobj = info.environment().memory_object().clone();
@@ -440,11 +417,11 @@ impl Manager {
         &self,
         query: messages::GetProcessArgsQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::GetProcessArgsReply, ipc::KHandles), InternalError> {
         let info = self
             .handles
-            .read(sender_id.as_u64(), query.handle)
+            .read(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let args_mobj = info.arguments().memory_object().clone();
@@ -461,11 +438,11 @@ impl Manager {
         &self,
         query: messages::GetProcessStatusQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::GetProcessStatusReply, ipc::KHandles), InternalError> {
         let info = self
             .handles
-            .read(sender_id.as_u64(), query.handle)
+            .read(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         let status = if info.is_terminated() {
@@ -485,11 +462,11 @@ impl Manager {
         &self,
         query: messages::TerminateProcessQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<(messages::TerminateProcessReply, ipc::KHandles), InternalError> {
         let info = self
             .handles
-            .read(sender_id.as_u64(), query.handle)
+            .read(sender_id, query.handle)
             .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
 
         if info.is_terminated() {
@@ -518,7 +495,7 @@ impl Manager {
         &self,
         query: messages::ListProcessesQueryParameters,
         mut query_handles: ipc::KHandles,
-        _sender_id: Pid,
+        _sender_id: u64,
     ) -> Result<(messages::ListProcessesReply, ipc::KHandles), InternalError> {
         let mut buffer_view = {
             let handle =
@@ -560,7 +537,7 @@ impl Manager {
         &self,
         query: messages::RegisterProcessTerminatedNotificationQueryParameters,
         mut query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<
         (
             messages::RegisterProcessTerminatedNotificationReply,
@@ -568,6 +545,7 @@ impl Manager {
         ),
         InternalError,
     > {
+        let sender_id = Pid::from(sender_id);
         let info = self
             .handles
             .read(sender_id.as_u64(), query.handle)
@@ -604,7 +582,7 @@ impl Manager {
         &self,
         query: messages::UnregisterProcessTerminatedNotificationQueryParameters,
         _query_handles: ipc::KHandles,
-        sender_id: Pid,
+        sender_id: u64,
     ) -> Result<
         (
             messages::UnregisterProcessTerminatedNotificationReply,
@@ -612,6 +590,7 @@ impl Manager {
         ),
         InternalError,
     > {
+        let sender_id = Pid::from(sender_id);
         let (target_pid, owner_handle) =
             get_termination_registration_by_handle(query.registration_handle)
                 .ok_or_else(|| InternalError::invalid_argument("Invalid registration handle"))?;
@@ -632,28 +611,6 @@ impl Manager {
         let reply_handles = ipc::KHandles::new();
 
         Ok((reply, reply_handles))
-    }
-
-    fn add_handler<QueryParameters, ReplyContent>(
-        self: &Arc<Self>,
-        builder: ipc::ServerBuilder,
-        message_type: messages::Type,
-        handler: fn(
-            &Self,
-            QueryParameters,
-            ipc::KHandles,
-            Pid,
-        ) -> Result<(ReplyContent, ipc::KHandles), InternalError>,
-    ) -> ipc::ServerBuilder
-    where
-        QueryParameters: Copy + 'static,
-        ReplyContent: Copy + 'static,
-    {
-        let manager = Arc::clone(self);
-        builder.with_handler(message_type, move |query, handles, sender_id| {
-            handler(&manager, query, handles, Pid::from(sender_id))
-                .map_err(|e| e.into_server_error())
-        })
     }
 
     const INIT_PID: u64 = 1;

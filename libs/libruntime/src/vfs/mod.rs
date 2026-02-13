@@ -1,3 +1,3 @@
-pub mod fs_messages;
+pub mod fs;
 pub mod messages;
 pub mod types;

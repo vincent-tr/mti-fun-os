@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
 
-use super::types::{Metadata, NodeType, Permissions};
+use crate::vfs::types::{Metadata, NodeType, Permissions};
 
 /// Version of the fs management messages.
 pub const VERSION: u16 = 1;
@@ -150,13 +150,16 @@ pub struct MoveQueryParameters {
     pub mount_handle: Handle,
 
     /// The parent directory of the node to move.
-    pub parent: NodeId,
+    pub src_parent: NodeId,
 
     /// The name of the node to move.
-    pub name: Buffer,
+    pub src_name: Buffer,
+
+    /// The new parent directory of the node to move.
+    pub dst_parent: NodeId,
 
     /// The new name of the node.
-    pub new_name: Buffer,
+    pub dst_name: Buffer,
 }
 
 impl MoveQueryParameters {
@@ -245,6 +248,7 @@ pub struct CloseFileQueryParameters {
     /// The handle to the mounted filesystem.
     pub mount_handle: Handle,
 
+    /// The handle to the opened file to close.
     pub handle: Handle,
 }
 

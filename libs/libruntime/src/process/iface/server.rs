@@ -494,7 +494,7 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
 }
 
 /// Extension trait for Result to add context
-pub trait ResultExt<T> {
+trait ResultExt<T> {
     fn invalid_arg(self, msg: &'static str) -> Result<T, ProcessServerError>;
 }
 

@@ -1,20 +1,17 @@
-mod client;
-mod kvblock;
-pub mod messages;
-mod plblock;
+pub mod iface;
 
 use alloc::{string::String, vec::Vec};
-pub use kvblock::KVBlock;
 use log::debug;
-pub use plblock::{ProcessInfo, ProcessListBlock};
 
 use crate::{ipc, kobject, sync::RwLock};
 
+use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification};
+
 lazy_static::lazy_static! {
-    static ref CLIENT: client::Client = client::Client::new();
+    static ref CLIENT: Client = Client::new();
 }
 
-type ProcessServerError = ipc::CallError<messages::ProcessServerError>;
+pub type ProcessServerError = ipc::CallError<iface::ProcessServerError>;
 
 /// High level process management API.
 #[derive(Debug)]
@@ -74,7 +71,7 @@ impl Process {
     }
 
     /// Get the status of the process.
-    pub fn status(&self) -> messages::ProcessStatus {
+    pub fn status(&self) -> ProcessStatus {
         CLIENT
             .get_process_status(self.handle)
             .expect("failed to get process status")
@@ -111,18 +108,18 @@ impl Drop for Process {
 pub struct ProcessWaiter {
     reader: kobject::PortReceiver,
     registration_handle: ipc::Handle,
-    status: messages::ProcessStatus,
+    status: ProcessStatus,
 }
 
 impl kobject::KWaitable for ProcessWaiter {
     unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
-        assert!(self.status == messages::ProcessStatus::Running);
+        assert!(self.status == ProcessStatus::Running);
 
         self.reader.waitable_handle()
     }
 
     fn wait(&self) -> Result<(), kobject::Error> {
-        assert!(self.status == messages::ProcessStatus::Running);
+        assert!(self.status == ProcessStatus::Running);
 
         self.reader.wait()
     }
@@ -140,7 +137,7 @@ impl ProcessWaiter {
         Ok(Self {
             reader,
             registration_handle,
-            status: messages::ProcessStatus::Running,
+            status: ProcessStatus::Running,
         })
     }
 
@@ -148,13 +145,13 @@ impl ProcessWaiter {
     ///
     /// Calling KWaitable API on it when it's not waitable will cause a panic.
     pub fn is_waitable(&self) -> bool {
-        self.status == messages::ProcessStatus::Running
+        self.status == ProcessStatus::Running
     }
 
     /// Get the current status of the process.
     ///
     /// Note that this will also update the status if the process has already terminated.
-    pub fn status(&mut self) -> messages::ProcessStatus {
+    pub fn status(&mut self) -> ProcessStatus {
         let res = self.reader.receive();
 
         if let Err(kobject::Error::ObjectNotReady) = res {
@@ -170,7 +167,7 @@ impl ProcessWaiter {
 
     /// Wait for the process to terminate and return its exit code.
     pub fn wait_status(&mut self) -> i32 {
-        if let messages::ProcessStatus::Exited(exit_code) = self.status {
+        if let ProcessStatus::Exited(exit_code) = self.status {
             return exit_code;
         };
 
@@ -181,7 +178,7 @@ impl ProcessWaiter {
 
         self.process_message(msg);
 
-        if let messages::ProcessStatus::Exited(exit_code) = self.status {
+        if let ProcessStatus::Exited(exit_code) = self.status {
             exit_code
         } else {
             panic!("unexpected process status");
@@ -189,11 +186,11 @@ impl ProcessWaiter {
     }
 
     fn process_message(&mut self, msg: kobject::Message) {
-        let notification = unsafe { msg.data::<messages::ProcessTerminatedNotification>() };
+        let notification = unsafe { msg.data::<ProcessTerminatedNotification>() };
         let exit_code = notification.exit_code;
         debug!("process terminated with exit code {}", exit_code);
 
-        self.status = messages::ProcessStatus::Exited(exit_code);
+        self.status = ProcessStatus::Exited(exit_code);
 
         // The handle is invalid after receiving the notification, so we set it to INVALID to avoid trying to unregister it in the Drop implementation.
         self.registration_handle = ipc::Handle::INVALID;

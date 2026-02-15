@@ -1,7 +1,7 @@
 use core::fmt;
 
 use alloc::boxed::Box;
-use libruntime::{kobject, process::messages::ProcessServerError};
+use libruntime::{kobject, process::iface::ProcessServerError};
 use log::error;
 
 /// Internal error type with context

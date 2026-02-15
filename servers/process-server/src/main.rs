@@ -6,11 +6,12 @@ extern crate libruntime;
 
 mod error;
 mod loader;
-mod manager;
 mod process;
+mod server;
 mod state;
 
-use manager::Manager;
+use libruntime::process::iface::build_ipc_server;
+use server::Server;
 
 // Note: process server should not use libruntime Process API:
 // - During initialization, the process-server (self) will not be up.
@@ -18,11 +19,8 @@ use manager::Manager;
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let manager = Manager::new().expect("failed to create process-server");
+    let server = Server::new().expect("failed to create process-server");
+    let ipc_server = build_ipc_server(server).expect("failed to build process-server IPC server");
 
-    let server = manager
-        .build_ipc_server()
-        .expect("failed to build process-server IPC server");
-
-    server.run()
+    ipc_server.run()
 }

@@ -1,5 +1,7 @@
 use core::{fmt, mem, ptr, slice, str};
 
+use alloc::sync::Arc;
+
 use crate::{
     kobject::{Mapping, MemoryObject, Permissions, Process, PAGE_SIZE},
     memory::align_up,
@@ -8,10 +10,10 @@ use crate::{
 /// Version of the KVBlock format.
 const VERSION: u32 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KVBlock {
     mobj: MemoryObject,
-    mapping: Mapping<'static>,
+    mapping: Arc<Mapping<'static>>,
 }
 
 impl KVBlock {
@@ -41,9 +43,11 @@ impl KVBlock {
     /// Returns an error if the KVBlock version is unsupported.
     pub fn from_memory_object(mobj: MemoryObject) -> Result<Self, KVBlockLoadError> {
         let size = mobj.size().expect("failed to get mobj size");
-        let mapping = Process::current()
-            .map_mem(None, size, Permissions::READ, &mobj, 0)
-            .expect("failed to map kvblock memory object");
+        let mapping = Arc::new(
+            Process::current()
+                .map_mem(None, size, Permissions::READ, &mobj, 0)
+                .expect("failed to map kvblock memory object"),
+        );
 
         let block = Self { mobj, mapping };
 
@@ -57,6 +61,11 @@ impl KVBlock {
     /// Returns the memory object backing this KVBlock.
     pub fn memory_object(&self) -> &MemoryObject {
         &self.mobj
+    }
+
+    /// Consumes the KVBlock and returns the underlying memory object.
+    pub fn into_memory_object(self) -> MemoryObject {
+        self.mobj
     }
 
     /// Safety: The caller must ensure that the offset points to a valid T within the mapping.

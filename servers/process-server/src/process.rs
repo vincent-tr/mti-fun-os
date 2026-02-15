@@ -9,7 +9,10 @@ use lazy_static::lazy_static;
 use libruntime::{
     collections::WeakMap,
     ipc, kobject,
-    process::{messages, KVBlock},
+    process::iface::{
+        KVBlock, ProcessTerminatedNotification, EXIT_CODE_KILLED, EXIT_CODE_SUCCESS,
+        EXIT_CODE_UNSET,
+    },
     sync::RwLock,
 };
 use log::{debug, error, info};
@@ -46,13 +49,13 @@ pub struct ExitCode(i32);
 
 impl ExitCode {
     /// Exit code used when a process exits successfully
-    pub const SUCCESS: Self = Self(messages::EXIT_CODE_SUCCESS);
+    pub const SUCCESS: Self = Self(EXIT_CODE_SUCCESS);
 
     /// Exit code used when a process has not exited yet, or the exit code has not been reported by the process
-    pub const UNSET: Self = Self(messages::EXIT_CODE_UNSET);
+    pub const UNSET: Self = Self(EXIT_CODE_UNSET);
 
     /// Exit code used when a process is killed
-    pub const KILLED: Self = Self(messages::EXIT_CODE_KILLED);
+    pub const KILLED: Self = Self(EXIT_CODE_KILLED);
 
     /// Minimum value for user-defined exit codes. Values below this are reserved for special meanings (like UNSET and KILLED).
     const RESERVED_MIN: i32 = i32::MIN + 10;
@@ -100,7 +103,7 @@ impl fmt::Display for ExitCodeConvertError {
 
 /// Process information stored in the server
 #[derive(Debug)]
-pub struct ProcessInfo {
+pub struct Process {
     process: kobject::Process,
     main_thread: kobject::Thread,
     creator: Pid,
@@ -112,7 +115,7 @@ pub struct ProcessInfo {
     termination_registrations: RwLock<HashMap<ipc::Handle, TerminationRegistration>>,
 }
 
-impl ProcessInfo {
+impl Process {
     pub fn new(
         creator: Pid,
         process: kobject::Process,
@@ -260,24 +263,24 @@ impl ProcessInfo {
     }
 }
 
-impl Drop for ProcessInfo {
+impl Drop for Process {
     fn drop(&mut self) {
         PROCESSES.remove(self.pid());
     }
 }
 
 /// Find a live process by its PID
-pub fn find_live_process(pid: Pid) -> Option<Arc<ProcessInfo>> {
+pub fn find_live_process(pid: Pid) -> Option<Arc<Process>> {
     LIVE_PROCESSES.get(pid)
 }
 
 /// Find a process by its PID, even if it has terminated (if still available)
-pub fn find_process(pid: Pid) -> Option<Arc<ProcessInfo>> {
+pub fn find_process(pid: Pid) -> Option<Arc<Process>> {
     PROCESSES.find(pid)
 }
 
 /// List all processes in the system, both live and terminated (if still available)
-pub fn list_processes() -> Vec<Arc<ProcessInfo>> {
+pub fn list_processes() -> Vec<Arc<Process>> {
     PROCESSES.list()
 }
 
@@ -290,7 +293,7 @@ lazy_static! {
 /// They are kept in this list to ensure they are not dropped while still running, and to be able to query their information
 #[derive(Debug)]
 pub struct LiveProcesses {
-    processes: RwLock<HashMap<Pid, Arc<ProcessInfo>>>,
+    processes: RwLock<HashMap<Pid, Arc<Process>>>,
 }
 
 impl LiveProcesses {
@@ -302,7 +305,7 @@ impl LiveProcesses {
     }
 
     /// Insert a new process into the list
-    pub fn insert(&self, info: Arc<ProcessInfo>) {
+    pub fn insert(&self, info: Arc<Process>) {
         let mut processes = self.processes.write();
 
         let pid = info.pid();
@@ -317,7 +320,7 @@ impl LiveProcesses {
     }
 
     /// Get a process information by its PID
-    pub fn get(&self, pid: Pid) -> Option<Arc<ProcessInfo>> {
+    pub fn get(&self, pid: Pid) -> Option<Arc<Process>> {
         let processes = self.processes.read();
 
         processes.get(&pid).cloned()
@@ -331,7 +334,7 @@ lazy_static! {
 /// List of all processes, both live and terminated (if opened), for information purposes
 #[derive(Debug)]
 pub struct Processes {
-    processes: RwLock<WeakMap<Pid, ProcessInfo>>,
+    processes: RwLock<WeakMap<Pid, Process>>,
 }
 
 impl Processes {
@@ -344,8 +347,8 @@ impl Processes {
 
     /// Insert a new process into the list
     ///
-    /// Reserved for ProcessInfo creation
-    fn insert(&self, info: &Arc<ProcessInfo>) {
+    /// Reserved for Process creation
+    fn insert(&self, info: &Arc<Process>) {
         let mut processes = self.processes.write();
 
         let pid = info.pid();
@@ -354,7 +357,7 @@ impl Processes {
 
     /// Remove a process from the list by its PID
     ///
-    /// Reserved for ProcessInfo drop
+    /// Reserved for Process drop
     fn remove(&self, pid: Pid) {
         let mut processes = self.processes.write();
 
@@ -362,14 +365,14 @@ impl Processes {
     }
 
     /// Get a process information by its PID
-    pub fn find(&self, pid: Pid) -> Option<Arc<ProcessInfo>> {
+    pub fn find(&self, pid: Pid) -> Option<Arc<Process>> {
         let processes = self.processes.read();
 
         processes.find(&pid)
     }
 
     /// List all processes in the system
-    pub fn list(&self) -> Vec<Arc<ProcessInfo>> {
+    pub fn list(&self) -> Vec<Arc<Process>> {
         let processes = self.processes.read();
 
         let mut values = Vec::new();
@@ -389,7 +392,7 @@ impl Processes {
 pub struct TerminationRegistration {
     owner: Pid,
     owner_handle: ipc::Handle,
-    process: Arc<ProcessInfo>,
+    process: Arc<Process>,
     port: kobject::PortSender,
     correlation: u64,
 }
@@ -399,7 +402,7 @@ impl TerminationRegistration {
     pub fn new(
         owner: Pid,
         owner_handle: ipc::Handle,
-        process: Arc<ProcessInfo>,
+        process: Arc<Process>,
         port: kobject::PortSender,
         correlation: u64,
     ) -> Self {
@@ -414,7 +417,7 @@ impl TerminationRegistration {
 
     /// Fire the notification, sending a message to the registered port with the process termination information
     pub fn fire(&self) {
-        let notification = messages::ProcessTerminatedNotification {
+        let notification = ProcessTerminatedNotification {
             correlation: self.correlation,
             pid: self.process.pid().as_u64(),
             exit_code: self.process.exit_code().as_i32(),
@@ -473,7 +476,7 @@ impl TerminationRegistrations {
 
     /// Add a new registration
     ///
-    /// Reserved for ProcessInfo::add_termination_registration/remove_termination_registration/mark_terminated
+    /// Reserved for Process::add_termination_registration/remove_termination_registration/mark_terminated
     pub fn add(&mut self, registration: &TerminationRegistration) {
         let (target, handle) = registration.pointer();
         let owner = registration.owner();
@@ -488,7 +491,7 @@ impl TerminationRegistrations {
 
     /// Remove a registration by the owner handle
     ///
-    /// Reserved for ProcessInfo::add_termination_registration/remove_termination_registration/mark_terminated
+    /// Reserved for Process::add_termination_registration/remove_termination_registration/mark_terminated
     pub fn remove(&mut self, registration: &TerminationRegistration) {
         let (_, handle) = registration.pointer();
         let owner = registration.owner();

@@ -1,10 +1,12 @@
 use alloc::{string::String, vec::Vec};
 
-use super::{messages, KVBlock, ProcessInfo, ProcessListBlock};
+use super::{messages, KVBlock, ProcessInfo, ProcessListBlock, StartupInfo};
 use crate::{
     ipc,
     kobject::{self, KObject},
 };
+
+pub type ProcessServerCallError = ipc::CallError<messages::ProcessServerError>;
 
 /// Low level process client implementation.
 #[derive(Debug)]
@@ -21,9 +23,7 @@ impl Client {
     }
 
     /// call ipc GetStartupInfo
-    pub fn get_startup_info(
-        &self,
-    ) -> Result<StartupInfo, ipc::CallError<messages::ProcessServerError>> {
+    pub fn get_startup_info(&self) -> Result<StartupInfo, ProcessServerCallError> {
         let query = messages::GetStartupInfoQueryParameters {};
         let query_handles = ipc::KHandles::new();
 
@@ -59,10 +59,7 @@ impl Client {
     }
 
     /// call ipc UpdateName
-    pub fn update_name(
-        &self,
-        name: &str,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    pub fn update_name(&self, name: &str) -> Result<(), ProcessServerCallError> {
         let (name_memobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
         let query = messages::UpdateNameQueryParameters { name: name_buffer };
@@ -84,7 +81,7 @@ impl Client {
     pub fn update_env(
         &self,
         env_memobj: kobject::MemoryObject,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    ) -> Result<(), ProcessServerCallError> {
         let env_memobj = env_memobj.clone().into_handle();
 
         let query = messages::UpdateEnvQueryParameters {};
@@ -102,10 +99,7 @@ impl Client {
     }
 
     /// call ipc SetExitCode
-    pub fn set_exit_code(
-        &self,
-        code: i32,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    pub fn set_exit_code(&self, code: i32) -> Result<(), ProcessServerCallError> {
         let query = messages::SetExitCodeQueryParameters { exit_code: code };
 
         let query_handles = ipc::KHandles::new();
@@ -126,7 +120,7 @@ impl Client {
         binary: ipc::Buffer<'_>,
         env: &[(&str, &str)],
         args: &[(&str, &str)],
-    ) -> Result<(ipc::Handle, u64), ipc::CallError<messages::ProcessServerError>> {
+    ) -> Result<(ipc::Handle, u64), ProcessServerCallError> {
         let env = KVBlock::build(env);
         let args = KVBlock::build(args);
 
@@ -157,10 +151,7 @@ impl Client {
     }
 
     /// call ipc OpenProcess
-    pub fn open_process(
-        &self,
-        pid: u64,
-    ) -> Result<(ipc::Handle, u64), ipc::CallError<messages::ProcessServerError>> {
+    pub fn open_process(&self, pid: u64) -> Result<(ipc::Handle, u64), ProcessServerCallError> {
         let query = messages::OpenProcessQueryParameters { pid };
 
         let query_handles = ipc::KHandles::new();
@@ -175,10 +166,7 @@ impl Client {
     }
 
     /// call ipc CloseProcess
-    pub fn close_process(
-        &self,
-        handle: ipc::Handle,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    pub fn close_process(&self, handle: ipc::Handle) -> Result<(), ProcessServerCallError> {
         let query = messages::CloseProcessQueryParameters { handle };
 
         let query_handles = ipc::KHandles::new();
@@ -193,10 +181,7 @@ impl Client {
     }
 
     /// call ipc GetProcessName
-    pub fn get_process_name(
-        &self,
-        handle: ipc::Handle,
-    ) -> Result<String, ipc::CallError<messages::ProcessServerError>> {
+    pub fn get_process_name(&self, handle: ipc::Handle) -> Result<String, ProcessServerCallError> {
         // The process name can be of arbitrary length, so we start with a small buffer and increase it until it's large enough to hold the name.
         let mut size = 64;
 
@@ -239,10 +224,7 @@ impl Client {
         Ok(name)
     }
 
-    pub fn get_process_env(
-        &self,
-        handle: ipc::Handle,
-    ) -> Result<KVBlock, ipc::CallError<messages::ProcessServerError>> {
+    pub fn get_process_env(&self, handle: ipc::Handle) -> Result<KVBlock, ProcessServerCallError> {
         let query = messages::GetProcessEnvQueryParameters { handle };
 
         let query_handles = ipc::KHandles::new();
@@ -264,10 +246,7 @@ impl Client {
     }
 
     /// call ipc GetProcessArgs
-    pub fn get_process_args(
-        &self,
-        handle: ipc::Handle,
-    ) -> Result<KVBlock, ipc::CallError<messages::ProcessServerError>> {
+    pub fn get_process_args(&self, handle: ipc::Handle) -> Result<KVBlock, ProcessServerCallError> {
         let query = messages::GetProcessArgsQueryParameters { handle };
 
         let query_handles = ipc::KHandles::new();
@@ -292,7 +271,7 @@ impl Client {
     pub fn get_process_status(
         &self,
         handle: ipc::Handle,
-    ) -> Result<messages::ProcessStatus, ipc::CallError<messages::ProcessServerError>> {
+    ) -> Result<messages::ProcessStatus, ProcessServerCallError> {
         let query = messages::GetProcessStatusQueryParameters { handle };
 
         let query_handles = ipc::KHandles::new();
@@ -307,10 +286,7 @@ impl Client {
     }
 
     /// call ipc TerminateProcess
-    pub fn terminate_process(
-        &self,
-        handle: ipc::Handle,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    pub fn terminate_process(&self, handle: ipc::Handle) -> Result<(), ProcessServerCallError> {
         let query = messages::TerminateProcessQueryParameters { handle };
 
         let query_handles = ipc::KHandles::new();
@@ -325,9 +301,7 @@ impl Client {
     }
 
     /// call ipc ListProcesses
-    pub fn list_processes(
-        &self,
-    ) -> Result<Vec<ProcessInfo>, ipc::CallError<messages::ProcessServerError>> {
+    pub fn list_processes(&self) -> Result<Vec<ProcessInfo>, ProcessServerCallError> {
         // Grow the buffer dynamically until it's large enough for all processes.
         let mut size = 256;
 
@@ -377,7 +351,7 @@ impl Client {
         handle: ipc::Handle,
         correlation: u64,
         port_sender: kobject::PortSender,
-    ) -> Result<ipc::Handle, ipc::CallError<messages::ProcessServerError>> {
+    ) -> Result<ipc::Handle, ProcessServerCallError> {
         let query = messages::RegisterProcessTerminatedNotificationQueryParameters {
             handle,
             correlation,
@@ -401,7 +375,7 @@ impl Client {
     pub fn unregister_process_terminated_notification(
         &self,
         registration_handle: ipc::Handle,
-    ) -> Result<(), ipc::CallError<messages::ProcessServerError>> {
+    ) -> Result<(), ProcessServerCallError> {
         let query = messages::UnregisterProcessTerminatedNotificationQueryParameters {
             registration_handle,
         };
@@ -416,17 +390,4 @@ impl Client {
 
         Ok(())
     }
-}
-
-/// Process startup information.
-#[derive(Debug)]
-pub struct StartupInfo {
-    /// Name of the process
-    pub name: String,
-
-    /// Environment variables of the process
-    pub env: KVBlock,
-
-    /// Arguments of the process
-    pub args: KVBlock,
 }

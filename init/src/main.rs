@@ -83,7 +83,7 @@ fn start_servers() {
     wait_port(state::messages::PORT_NAME);
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
-    wait_port(process::messages::PORT_NAME);
+    wait_port(process::iface::PORT_NAME);
 
     let process = process::Process::spawn(
         "vfs-server",

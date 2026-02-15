@@ -105,7 +105,7 @@ impl fmt::Display for ExitCodeConvertError {
 #[derive(Debug)]
 pub struct Process {
     process: kobject::Process,
-    main_thread: kobject::Thread,
+    _main_thread: kobject::Thread,
     creator: Pid,
     name: RwLock<String>,
     environment: RwLock<KVBlock>,
@@ -126,7 +126,7 @@ impl Process {
     ) -> Arc<Self> {
         let info = Arc::new(Self {
             process,
-            main_thread,
+            _main_thread: main_thread,
             creator,
             name: RwLock::new(name),
             environment: RwLock::new(environment),

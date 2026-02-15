@@ -1,5 +1,5 @@
 use crate::{
-    error::{InternalError, ResultExt},
+    error::ResultExt,
     loader::Loader,
     process::{
         find_live_process, find_process, get_termination_registration_by_handle, list_processes,
@@ -7,14 +7,16 @@ use crate::{
     },
     state::State,
 };
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
-    process::iface::{KVBlock, ProcessInfo, ProcessServer, ProcessStatus, StartupInfo},
+    process::iface::{
+        KVBlock, ProcessInfo, ProcessServer, ProcessServerError, ProcessStatus, StartupInfo,
+    },
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 
 /// The main server structure
 #[derive(Debug)]
@@ -24,7 +26,7 @@ pub struct Server {
 }
 
 impl ProcessServer for Server {
-    type Error = InternalError;
+    type Error = ProcessServerError;
 
     fn process_terminated(&self, pid: u64) {
         let pid = Pid::from(pid);
@@ -46,8 +48,10 @@ impl ProcessServer for Server {
 
     fn get_startup_info(&self, sender_id: u64) -> Result<StartupInfo, Self::Error> {
         let sender_id = Pid::from(sender_id);
-        let info = find_live_process(sender_id)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = find_live_process(sender_id).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         Ok(StartupInfo {
             name: String::from(info.name()),
@@ -58,12 +62,16 @@ impl ProcessServer for Server {
 
     fn update_name(&self, sender_id: u64, new_name: &str) -> Result<(), Self::Error> {
         let sender_id = Pid::from(sender_id);
-        let info = find_live_process(sender_id)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = find_live_process(sender_id).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         let new_name = String::from(new_name);
 
-        info.kobject_process().set_name(&new_name)?;
+        info.kobject_process()
+            .set_name(&new_name)
+            .runtime_err("Failed to set process name")?;
         info.update_name(new_name);
 
         Ok(())
@@ -71,8 +79,10 @@ impl ProcessServer for Server {
 
     fn update_env(&self, sender_id: u64, new_env: KVBlock) -> Result<(), Self::Error> {
         let sender_id = Pid::from(sender_id);
-        let info = find_live_process(sender_id)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = find_live_process(sender_id).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         info.update_environment(new_env);
 
@@ -81,8 +91,10 @@ impl ProcessServer for Server {
 
     fn set_exit_code(&self, sender_id: u64, exit_code: i32) -> Result<(), Self::Error> {
         let sender_id = Pid::from(sender_id);
-        let info = find_live_process(sender_id)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = find_live_process(sender_id).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         info.set_exit_code(ExitCode::try_from(exit_code).invalid_arg("Invalid exit code")?);
 
@@ -167,8 +179,10 @@ impl ProcessServer for Server {
     }
 
     fn open_process(&self, sender_id: u64, pid: u64) -> Result<(ipc::Handle, u64), Self::Error> {
-        let info = find_process(Pid::from(pid))
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = find_process(Pid::from(pid)).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         let handle = self.handles.open(sender_id, info);
 
@@ -176,27 +190,28 @@ impl ProcessServer for Server {
     }
 
     fn close_process(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error> {
-        self.handles
-            .close(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Invalid process handle"))?;
+        self.handles.close(sender_id, handle).ok_or_else(|| {
+            error!("Invalid process handle: {:?}", handle);
+            ProcessServerError::InvalidArgument
+        })?;
 
         Ok(())
     }
 
     fn get_process_name(&self, sender_id: u64, handle: ipc::Handle) -> Result<String, Self::Error> {
-        let info = self
-            .handles
-            .read(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         Ok(String::from(info.name()))
     }
 
     fn get_process_env(&self, sender_id: u64, handle: ipc::Handle) -> Result<KVBlock, Self::Error> {
-        let info = self
-            .handles
-            .read(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         Ok(info.environment().clone())
     }
@@ -206,10 +221,10 @@ impl ProcessServer for Server {
         sender_id: u64,
         handle: ipc::Handle,
     ) -> Result<KVBlock, Self::Error> {
-        let info = self
-            .handles
-            .read(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         Ok(info.arguments().clone())
     }
@@ -219,10 +234,10 @@ impl ProcessServer for Server {
         sender_id: u64,
         handle: ipc::Handle,
     ) -> Result<ProcessStatus, Self::Error> {
-        let info = self
-            .handles
-            .read(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         let status = if info.is_terminated() {
             ProcessStatus::Exited(info.exit_code().as_i32())
@@ -234,15 +249,14 @@ impl ProcessServer for Server {
     }
 
     fn terminate_process(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error> {
-        let info = self
-            .handles
-            .read(sender_id, handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+        let info = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Process not found: {}", sender_id);
+            ProcessServerError::InvalidArgument
+        })?;
 
         if info.is_terminated() {
-            return Err(InternalError::process_already_terminated(
-                "Process already terminated",
-            ));
+            error!("Process already terminated: {:?}", handle);
+            return Err(ProcessServerError::ProcessNotRunning);
         }
 
         info.kobject_process()
@@ -286,7 +300,10 @@ impl ProcessServer for Server {
         let info = self
             .handles
             .read(sender_id.as_u64(), handle)
-            .ok_or_else(|| InternalError::invalid_argument("Process not found"))?;
+            .ok_or_else(|| {
+                error!("Process not found: {}", sender_id);
+                ProcessServerError::InvalidArgument
+            })?;
 
         let owner_handle = self.handle_generator.generate();
         let registration =
@@ -304,17 +321,21 @@ impl ProcessServer for Server {
     ) -> Result<(), Self::Error> {
         let sender_id = Pid::from(sender_id);
         let (target_pid, owner_handle) =
-            get_termination_registration_by_handle(registration_handle)
-                .ok_or_else(|| InternalError::invalid_argument("Invalid registration handle"))?;
+            get_termination_registration_by_handle(registration_handle).ok_or_else(|| {
+                error!("Invalid registration handle: {:?}", registration_handle);
+                ProcessServerError::InvalidArgument
+            })?;
 
         let process =
             find_process(target_pid).expect("data inconsistency: registration process not found");
 
         // ensure the sender is the owner of the registration
         if process.get_registration_owner(owner_handle) != sender_id {
-            return Err(InternalError::invalid_argument(
-                "Sender is not the owner of the registration",
-            ));
+            error!(
+                "Sender {} is not the owner of registration {:?} for process {}",
+                sender_id, registration_handle, target_pid
+            );
+            return Err(ProcessServerError::InvalidArgument);
         }
 
         process.remove_termination_registration(owner_handle);

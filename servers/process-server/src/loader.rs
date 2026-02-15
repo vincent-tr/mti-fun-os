@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
-use libruntime::{kobject, memory};
+use libruntime::{kobject, memory, process::iface::ProcessServerError};
 use log::debug;
 use xmas_elf::{header, program, ElfFile};
 
-use crate::error::{InternalError, ResultExt};
+use crate::error::{invalid_binary, ResultExt};
 
 /// Binary loader for ELF files
 ///
@@ -14,7 +14,7 @@ pub struct Loader<'a> {
 
 impl<'a> Loader<'a> {
     /// Create a new loader from the given binary data, and validate it
-    pub fn new(binary: &'a [u8]) -> Result<Self, InternalError> {
+    pub fn new(binary: &'a [u8]) -> Result<Self, ProcessServerError> {
         let loader = Loader {
             elf_file: ElfFile::new(binary).invalid_binary("Failed to parse ELF binary")?,
         };
@@ -22,25 +22,19 @@ impl<'a> Loader<'a> {
         match loader.elf_file.header.pt2.type_().as_type() {
             header::Type::Executable => (),
             header::Type::None => {
-                return Err(InternalError::invalid_binary("ELF type is None"));
+                return Err(invalid_binary("ELF type is None"));
             }
             header::Type::Relocatable => {
-                return Err(InternalError::invalid_binary(
-                    "Relocatable binaries not supported",
-                ));
+                return Err(invalid_binary("Relocatable binaries not supported"));
             }
             header::Type::SharedObject => {
-                return Err(InternalError::invalid_binary(
-                    "Shared objects not supported",
-                ));
+                return Err(invalid_binary("Shared objects not supported"));
             }
             header::Type::Core => {
-                return Err(InternalError::invalid_binary("Core dumps not supported"));
+                return Err(invalid_binary("Core dumps not supported"));
             }
             header::Type::ProcessorSpecific(_) => {
-                return Err(InternalError::invalid_binary(
-                    "Processor-specific type not supported",
-                ));
+                return Err(invalid_binary("Processor-specific type not supported"));
             }
         };
 
@@ -59,15 +53,13 @@ impl<'a> Loader<'a> {
                 has_loadable_segment = true;
 
                 if (program_header.align() as usize) < kobject::PAGE_SIZE {
-                    Err(InternalError::invalid_binary(
-                        "Segment alignment less than page size",
-                    ))?;
+                    Err(invalid_binary("Segment alignment less than page size"))?;
                 }
             }
         }
 
         if !has_loadable_segment {
-            Err(InternalError::invalid_binary("No loadable segments found"))?;
+            Err(invalid_binary("No loadable segments found"))?;
         }
 
         Ok(loader)
@@ -77,7 +69,7 @@ impl<'a> Loader<'a> {
     pub fn map(
         &self,
         process: &'a kobject::Process,
-    ) -> Result<Vec<kobject::Mapping<'a>>, InternalError> {
+    ) -> Result<Vec<kobject::Mapping<'a>>, ProcessServerError> {
         let mut mappings = Vec::new();
 
         for program_header in self.elf_file.program_iter() {
@@ -101,7 +93,7 @@ impl<'a> Loader<'a> {
         &self,
         process: &'a kobject::Process,
         program_header: &program::ProgramHeader,
-    ) -> Result<kobject::Mapping<'a>, InternalError> {
+    ) -> Result<kobject::Mapping<'a>, ProcessServerError> {
         let virtual_addr = program_header.virtual_addr() as usize;
         let file_addr = program_header.offset() as usize;
         let virtual_size = program_header.mem_size() as usize;
@@ -140,7 +132,9 @@ impl<'a> Loader<'a> {
             perms |= kobject::Permissions::EXECUTE;
         }
 
-        let mapping = process.map_mem(Some(start), size, perms, &mem_obj, 0)?;
+        let mapping = process
+            .map_mem(Some(start), size, perms, &mem_obj, 0)
+            .runtime_err("Failed to map memory")?;
 
         Ok(mapping)
     }
@@ -149,17 +143,20 @@ impl<'a> Loader<'a> {
         data: &[u8],
         offset: usize,
         size: usize,
-    ) -> Result<kobject::MemoryObject, InternalError> {
-        let mem_obj = kobject::MemoryObject::create(size)?;
+    ) -> Result<kobject::MemoryObject, ProcessServerError> {
+        let mem_obj =
+            kobject::MemoryObject::create(size).runtime_err("Failed to create memory object")?;
 
         let process = kobject::Process::current();
-        let mapping = process.map_mem(
-            None,
-            size,
-            kobject::Permissions::READ | kobject::Permissions::WRITE,
-            &mem_obj,
-            0,
-        )?;
+        let mapping = process
+            .map_mem(
+                None,
+                size,
+                kobject::Permissions::READ | kobject::Permissions::WRITE,
+                &mem_obj,
+                0,
+            )
+            .runtime_err("Failed to map memory")?;
 
         let mem_data = unsafe { mapping.as_buffer_mut().expect("Buffer not writable") };
 

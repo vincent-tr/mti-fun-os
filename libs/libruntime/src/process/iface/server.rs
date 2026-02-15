@@ -12,6 +12,7 @@ use super::{
     StartupInfo,
 };
 
+/// Process server interface
 pub trait ProcessServer {
     type Error: Into<ProcessServerError>;
 

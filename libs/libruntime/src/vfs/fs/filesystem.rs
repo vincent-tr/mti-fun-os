@@ -1,3 +1,5 @@
+use core::fmt;
+
 use async_trait::async_trait;
 
 use super::messages::{FsServerError, NodeId};
@@ -10,7 +12,7 @@ use alloc::boxed::Box;
 // TODO: string writer, buffer writer/reader
 
 #[async_trait]
-pub trait FileSystem: Send + Sync {
+pub trait FileSystem: Send + Sync + fmt::Debug {
     type Error: Into<FsServerError>;
 
     /// Look up a child node by name.

@@ -469,5 +469,5 @@ pub struct UnmountQueryParameters {
 pub struct UnmountReply {}
 
 /// A unique identifier for a node in the filesystem.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(u64);

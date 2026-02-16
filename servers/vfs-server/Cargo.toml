@@ -7,3 +7,4 @@ edition = "2021"
 async-trait = "0.1.89"
 libruntime = { path = "../../libs/libruntime" }
 log = "0.4.27"
+hashbrown = "0.15.2"

@@ -8,6 +8,7 @@ use crate::server::Server;
 extern crate alloc;
 extern crate libruntime;
 
+mod mounts;
 mod server;
 
 #[no_mangle]

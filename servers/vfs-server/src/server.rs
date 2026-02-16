@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use libruntime::{
     ipc::{self, Handle},
     kobject::{self, KObject},
+    sync::RwLock,
     vfs::{
         iface::{DirectoryEntry, MountInfo, VfsServer, VfsServerError},
         types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
@@ -10,13 +11,19 @@ use libruntime::{
 };
 use log::{debug, info, warn};
 
+use crate::mounts::MountTable;
+
 /// The main server structure
 #[derive(Debug)]
-pub struct Server {}
+pub struct Server {
+    mount_table: Arc<RwLock<MountTable>>,
+}
 
 impl Server {
     pub fn new() -> Result<Self, kobject::Error> {
-        Ok(Self {})
+        Ok(Self {
+            mount_table: Arc::new(RwLock::new(MountTable::new())),
+        })
     }
 }
 

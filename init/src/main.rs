@@ -105,6 +105,7 @@ fn start_servers() {
     .expect("Could not spawn memfs server");
 
     let _ = process;
+    wait_port("memfs-server");
 }
 
 fn apply_memory_protections(binary_len: usize) {

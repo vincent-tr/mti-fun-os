@@ -11,7 +11,7 @@ pub type ProcessServerCallError = ipc::CallError<messages::ProcessServerError>;
 /// Low level process client implementation.
 #[derive(Debug)]
 pub struct Client {
-    ipc_client: ipc::Client,
+    ipc_client: ipc::Client<'static>,
 }
 
 impl Client {

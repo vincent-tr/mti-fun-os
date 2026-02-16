@@ -34,14 +34,14 @@ impl<ReplyError: fmt::Display + fmt::Debug> core::error::Error for CallError<Rep
 
 /// IPC client.
 #[derive(Debug)]
-pub struct Client {
-    name: &'static str,
+pub struct Client<'a> {
+    name: &'a str,
     version: u16,
 }
 
-impl Client {
+impl<'a> Client<'a> {
     /// Creates a new IPC client connected to the server with the given name and version.
-    pub fn new(name: &'static str, version: u16) -> Self {
+    pub fn new(name: &'a str, version: u16) -> Self {
         Self { name, version }
     }
 

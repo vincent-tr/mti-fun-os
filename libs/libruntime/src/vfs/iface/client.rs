@@ -15,7 +15,7 @@ pub type VfsServerCallError = ipc::CallError<messages::VfsServerError>;
 /// Low level VFS client implementation.
 #[derive(Debug)]
 pub struct Client {
-    ipc_client: ipc::Client,
+    ipc_client: ipc::Client<'static>,
 }
 
 impl Client {

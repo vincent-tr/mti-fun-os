@@ -4,6 +4,7 @@ mod messages;
 mod mounts_block;
 mod server;
 
+pub use client::{Client, VfsServerCallError};
 pub use dentries_block::DirectoryEntry;
 pub use messages::{VfsServerError, PORT_NAME};
 pub use mounts_block::MountInfo;

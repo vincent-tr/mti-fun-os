@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bootloader_api = "0.11"
-uart_16550 = "0.3.2"
-x86_64 = "0.15.2"
-log = "0.4.27"
-lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
-spin = "0.10.0"
-bitflags = "2.9.0"
-hashbrown = "0.15.2"
-memoffset = "0.9.1"
-bit_field = "0.10.2"
-raw-cpuid = "11.5.0"
+bit_field = { workspace = true }
+bitflags = { workspace = true }
+bootloader_api = { workspace = true }
+hashbrown = { workspace = true }
+lazy_static = { workspace = true }
+log = { workspace = true }
+memoffset = { workspace = true }
+raw-cpuid = { workspace = true }
+spin = { workspace = true }
+uart_16550 = { workspace = true }
+x86_64 = { workspace = true }
 syscalls = { path = "../syscalls" }

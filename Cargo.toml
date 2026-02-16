@@ -23,3 +23,23 @@ members = [
   "servers/memfs-server",
   "host-dynlinker",
 ]
+
+[workspace.dependencies]
+# OS-target dependencies (not for build/host)
+addr2line = { version = "0.21.0", default-features = false, features = ["rustc-demangle", "object"] }
+async-trait = "0.1.89"
+bit_field = "0.10.2"
+bitflags = "2.9.0"
+bootloader_api = "0.11"
+hashbrown = "0.15.2"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+libc = "0.2.171"
+log = "0.4.27"
+memoffset = "0.9.1"
+raw-cpuid = "11.5.0"
+spin = "0.10.0"
+typed-arena = { version = "2.0.2", default-features = false }
+uart_16550 = "0.3.2"
+x86_64 = "0.15.2"
+xmas-elf = "0.10.0"
+zero = "0.1.3"

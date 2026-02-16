@@ -5,6 +5,7 @@ extern crate alloc;
 extern crate libruntime;
 
 mod server;
+mod state;
 
 use libruntime::vfs::fs::iface::build_ipc_server;
 

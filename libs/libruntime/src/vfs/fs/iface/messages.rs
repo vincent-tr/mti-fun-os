@@ -80,7 +80,7 @@ impl LookupQueryParameters {
 /// Reply of the Lookup message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct LookupResult {
+pub struct LookupReply {
     /// The id of the node found by the lookup.
     pub node_id: NodeId,
 }
@@ -163,8 +163,8 @@ pub struct MoveQueryParameters {
 }
 
 impl MoveQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
-    pub const HANDLE_NEW_NAME_MOBJ: usize = 1;
+    pub const HANDLE_SRC_NAME_MOBJ: usize = 0;
+    pub const HANDLE_DST_NAME_MOBJ: usize = 1;
 }
 
 /// Reply of the Move message.
@@ -373,7 +373,7 @@ impl ListDirQueryParameters {
 #[repr(C)]
 pub struct ListDirReply {
     /// The number of bytes written to the buffer.
-    pub bytes_written: usize,
+    pub buffer_used_len: usize,
 }
 
 /// Parameters for the CreateSymlink message.
@@ -438,6 +438,10 @@ pub struct ReadSymlinkReply {
 pub struct MountQueryParameters {
     /// Mount args
     pub args: Buffer,
+}
+
+impl MountQueryParameters {
+    pub const HANDLE_ARGS_MOBJ: usize = 0;
 }
 
 /// Reply of the Mount message.

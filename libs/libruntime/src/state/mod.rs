@@ -2,11 +2,10 @@ use core::{marker::PhantomData, mem};
 
 use crate::kobject;
 
-mod client;
-pub mod messages;
+pub mod iface;
 
 lazy_static::lazy_static! {
-    static ref CLIENT: client::Client = client::Client::new();
+    static ref CLIENT: iface::Client = iface::Client::new();
 }
 
 /// A view into a state object, providing typed access to the underlying buffer
@@ -22,7 +21,7 @@ impl<T> StateView<T> {
         // Compile-time assertion to ensure T fits within the STATE_SIZE limit
         const {
             assert!(
-                mem::size_of::<T>() <= messages::STATE_SIZE,
+                mem::size_of::<T>() <= iface::STATE_SIZE,
                 "State type size exceeds STATE_SIZE limit"
             )
         };
@@ -33,7 +32,7 @@ impl<T> StateView<T> {
         let mapping = process
             .map_mem(
                 None,
-                messages::STATE_SIZE,
+                iface::STATE_SIZE,
                 kobject::Permissions::READ | kobject::Permissions::WRITE,
                 &mobj,
                 0,

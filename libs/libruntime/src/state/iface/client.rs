@@ -4,14 +4,16 @@ use crate::{
     kobject::{self, KObject},
 };
 
-/// Low level state client implementation.
+pub type StateServerCallError = ipc::CallError<messages::StateServerError>;
+
+/// Low level process client implementation.
 #[derive(Debug)]
 pub struct Client {
     ipc_client: ipc::Client,
 }
 
 impl Client {
-    /// Creates a new state client.
+    /// Creates a new process client.
     pub fn new() -> Self {
         Self {
             ipc_client: ipc::Client::new(messages::PORT_NAME, messages::VERSION),
@@ -19,14 +21,10 @@ impl Client {
     }
 
     /// call ipc GetState
-    pub fn get_state(
-        &self,
-        name: &str,
-    ) -> Result<kobject::MemoryObject, ipc::CallError<messages::StateServerError>> {
+    pub fn get_state(&self, name: &str) -> Result<kobject::MemoryObject, StateServerCallError> {
         let (name_memobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
         let query = messages::GetStateQueryParameters { name: name_buffer };
-
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::GetStateQueryParameters::HANDLE_NAME_MOBJ] =
             name_memobj.into_handle();

@@ -80,7 +80,7 @@ fn main() {
 
 fn start_servers() {
     state_server::start();
-    wait_port(state::messages::PORT_NAME);
+    wait_port(state::iface::PORT_NAME);
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);

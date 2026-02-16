@@ -486,6 +486,7 @@ name = "memfs-server"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hashbrown",
  "lazy_static",
  "libruntime",
  "log",

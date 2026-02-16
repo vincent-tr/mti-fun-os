@@ -1,21 +1,42 @@
-use alloc::{boxed::Box, vec::Vec};
+use log::error;
+
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use async_trait::async_trait;
+use hashbrown::HashMap;
 use libruntime::{
     ipc::Handle,
+    sync::RwLock,
     vfs::{
-        fs::iface::{FileSystem, FsServerError, NodeId},
+        fs::iface::{FileSystem, FsServerError},
         iface::DirectoryEntry,
-        types::{Metadata, NodeType, Permissions},
+        types::{Metadata, NodeId, NodeType, Permissions},
     },
 };
 
+use crate::instance::FsInstance;
+
 /// The main server structure
 #[derive(Debug)]
-pub struct Server {}
+pub struct Server {
+    instances: RwLock<HashMap<Handle, Arc<RwLock<FsInstance>>>>,
+}
 
 impl Server {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            instances: RwLock::new(HashMap::new()),
+        }
+    }
+
+    fn get_instance(&self, mount_handle: Handle) -> Result<Arc<RwLock<FsInstance>>, FsServerError> {
+        self.instances
+            .read()
+            .get(&mount_handle)
+            .cloned()
+            .ok_or_else(|| {
+                error!("Invalid mount handle: {:?}", mount_handle);
+                FsServerError::InvalidArgument
+            })
     }
 }
 
@@ -29,7 +50,11 @@ impl FileSystem for Server {
         parent: NodeId,
         name: &str,
     ) -> Result<NodeId, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let node_id = instance.read().lookup(parent, name)?;
+
+        Ok(node_id)
     }
 
     async fn create(
@@ -40,7 +65,13 @@ impl FileSystem for Server {
         node_type: NodeType,
         permissions: Permissions,
     ) -> Result<NodeId, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let node_id = instance
+            .write()
+            .create(parent, name, node_type, permissions)?;
+
+        Ok(node_id)
     }
 
     async fn remove(
@@ -49,7 +80,11 @@ impl FileSystem for Server {
         parent: NodeId,
         name: &str,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        instance.write().remove(parent, name)?;
+
+        Ok(())
     }
 
     async fn r#move(
@@ -60,7 +95,13 @@ impl FileSystem for Server {
         dst_parent: NodeId,
         dst_name: &str,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        instance
+            .write()
+            .r#move(src_parent, src_name, dst_parent, dst_name)?;
+
+        Ok(())
     }
 
     async fn get_metadata(
@@ -68,7 +109,11 @@ impl FileSystem for Server {
         mount_handle: Handle,
         node_id: NodeId,
     ) -> Result<Metadata, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let metadata = instance.read().get_metadata(node_id)?;
+
+        Ok(metadata)
     }
 
     async fn set_metadata(
@@ -80,7 +125,13 @@ impl FileSystem for Server {
         created: Option<u64>,
         modified: Option<u64>,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        instance
+            .write()
+            .set_metadata(node_id, permissions, size, created, modified)?;
+
+        Ok(())
     }
 
     async fn open_file(

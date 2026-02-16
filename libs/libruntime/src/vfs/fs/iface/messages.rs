@@ -47,6 +47,8 @@ pub enum FsServerError {
     InvalidArgument = 1,
     RuntimeError,
     BufferTooSmall,
+    NodeNotFound,
+    NodeAlreadyExists,
 }
 
 impl fmt::Display for FsServerError {
@@ -55,6 +57,8 @@ impl fmt::Display for FsServerError {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
             Self::BufferTooSmall => write!(f, "BufferTooSmall"),
+            Self::NodeNotFound => write!(f, "NodeNotFound"),
+            Self::NodeAlreadyExists => write!(f, "NodeAlreadyExists"),
         }
     }
 }

@@ -4,6 +4,7 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod instance;
 mod server;
 mod state;
 

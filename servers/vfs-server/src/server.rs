@@ -20,10 +20,10 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new() -> Result<Self, kobject::Error> {
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             mount_table: Arc::new(RwLock::new(MountTable::new())),
-        })
+        }
     }
 }
 

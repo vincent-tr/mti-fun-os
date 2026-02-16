@@ -4,9 +4,17 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod server;
+
+use libruntime::vfs::fs::iface::build_ipc_server;
+
+use crate::server::Server;
+
 #[no_mangle]
 pub fn main() -> i32 {
-    log::info!("Hello world!");
+    let server = Server::new();
+    let ipc_server =
+        build_ipc_server(server, "memfs-server").expect("failed to build memfs-server IPC server");
 
-    0
+    ipc_server.run()
 }

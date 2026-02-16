@@ -94,7 +94,7 @@ fn start_servers() {
     .expect("Could not spawn vfs server");
 
     let _ = process;
-    wait_port(vfs::messages::PORT_NAME);
+    wait_port(vfs::iface::PORT_NAME);
 
     let process = process::Process::spawn(
         "memfs-server",

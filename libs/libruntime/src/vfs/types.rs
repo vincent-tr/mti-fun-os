@@ -1,6 +1,8 @@
 // Reuse the Permissions type from the kobject module, since it is the same as the one used for paging permissions.
 pub use crate::kobject::Permissions;
 
+use bitflags::bitflags;
+
 /// Metadata of a Node in the filesystem, used in the Stat messages.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -37,4 +39,35 @@ pub enum NodeType {
 
     /// A symbolic link.
     Symlink,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum OpenMode {
+    /// Open the file or directory if it exists, otherwise return an error.
+    OpenExisting = 1,
+
+    /// Open the file or directory if it exists, otherwise create it.
+    OpenAlways,
+
+    /// Create a new file or directory, returning an error if it already exists.
+    CreateNew,
+
+    /// Create a new file or directory, overwriting it if it already exists.
+    CreateAlways,
+}
+
+bitflags! {
+    /// Possible handle permissions
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+    pub struct HandlePermissions: u64 {
+        /// No access
+        const NONE = 0;
+
+        /// Node can be read
+        const READ = 1 << 0;
+
+        /// Node can be written
+        const WRITE = 1 << 1;
+    }
 }

@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.89"
 libruntime = { path = "../../libs/libruntime" }
 log = "0.4.27"

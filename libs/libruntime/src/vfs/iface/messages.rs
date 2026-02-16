@@ -1,17 +1,16 @@
-use bitflags::bitflags;
 use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
 
-/// Name of the IPC port for the process server.
+/// Name of the IPC port for the VFS server.
 pub const PORT_NAME: &str = "vfs-server";
 
-/// Version of the vfs management messages.
+/// Version of the VFS management messages.
 pub const VERSION: u16 = 1;
 
-use super::types::{Metadata, NodeType, Permissions};
+use crate::vfs::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};
 
-/// Types of messages used in vfs management.
+/// Types of messages used in VFS management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
@@ -47,7 +46,7 @@ impl From<Type> for u16 {
     }
 }
 
-/// Errors used by the vfs server.
+/// Errors used by the VFS server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
 pub enum VfsServerError {
@@ -172,8 +171,7 @@ pub struct ReadQueryParameters {
 }
 
 impl ReadQueryParameters {
-    pub const HANDLE_FILE_MOBJ: usize = 0;
-    pub const HANDLE_BUFFER_MOBJ: usize = 1;
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
 }
 
 /// Reply for the Read message.
@@ -201,8 +199,7 @@ pub struct WriteQueryParameters {
 }
 
 impl WriteQueryParameters {
-    pub const HANDLE_FILE_MOBJ: usize = 0;
-    pub const HANDLE_BUFFER_MOBJ: usize = 1;
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
 }
 
 /// Reply for the Write message.
@@ -247,7 +244,10 @@ impl ListQueryParameters {
 /// Reply for the List message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ListReply {}
+pub struct ListReply {
+    /// Number of bytes used in the buffer to write the list of entries (if the call succeeds)
+    pub buffer_used_len: usize,
+}
 
 /// Parameters for the Move message.
 #[derive(Debug, Clone, Copy)]
@@ -332,8 +332,7 @@ pub struct ReadSymlinkQueryParameters {
 }
 
 impl ReadSymlinkQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-    pub const HANDLE_BUFFER_MOBJ: usize = 1;
+    pub const HANDLE_BUFFER_MOBJ: usize = 0;
 }
 
 /// Reply for the ReadSymlink message.
@@ -403,39 +402,7 @@ impl ListMountsQueryParameters {
 /// Reply for the ListMounts message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ListMountsReply {}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum OpenMode {
-    /// Open the file or directory if it exists, otherwise return an error.
-    OpenExisting = 1,
-
-    /// Open the file or directory if it exists, otherwise create it.
-    OpenAlways,
-
-    /// Create a new file or directory, returning an error if it already exists.
-    CreateNew,
-
-    /// Create a new file or directory, overwriting it if it already exists.
-    CreateAlways,
+pub struct ListMountsReply {
+    /// Number of bytes used in the buffer to write the list of mounts (if the call succeeds)
+    pub buffer_used_len: usize,
 }
-
-bitflags! {
-    /// Possible handle permissions
-    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-    pub struct HandlePermissions: u64 {
-        /// No access
-        const NONE = 0;
-
-        /// Node can be read
-        const READ = 1 << 0;
-
-        /// Node can be written
-        const WRITE = 1 << 1;
-    }
-}
-
-// TODO:
-// - ListDirectory block
-// - ListMounts block

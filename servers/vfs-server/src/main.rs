@@ -1,21 +1,19 @@
 #![no_std]
 #![no_main]
 
-use crate::manager::Manager;
+use libruntime::vfs::iface::build_ipc_server;
+
+use crate::server::Server;
 
 extern crate alloc;
 extern crate libruntime;
 
-mod error;
-mod manager;
+mod server;
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let manager = Manager::new().expect("failed to create vfs-server");
+    let server = Server::new().expect("failed to create vfs-server");
+    let ipc_server = build_ipc_server(server).expect("failed to build vfs-server IPC server");
 
-    let server = manager
-        .build_ipc_server()
-        .expect("failed to build vfs-server IPC server");
-
-    server.run()
+    ipc_server.run()
 }

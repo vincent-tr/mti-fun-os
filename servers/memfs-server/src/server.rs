@@ -23,13 +23,8 @@ impl Server {
 impl FileSystem for Server {
     type Error = FsServerError;
 
-    async fn process_terminated(&self, pid: u64) {
-        todo!()
-    }
-
     async fn lookup(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
@@ -39,7 +34,6 @@ impl FileSystem for Server {
 
     async fn create(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
@@ -51,7 +45,6 @@ impl FileSystem for Server {
 
     async fn remove(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
@@ -61,7 +54,6 @@ impl FileSystem for Server {
 
     async fn r#move(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         src_parent: NodeId,
         src_name: &str,
@@ -73,7 +65,6 @@ impl FileSystem for Server {
 
     async fn get_metadata(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         node_id: NodeId,
     ) -> Result<Metadata, Self::Error> {
@@ -82,7 +73,6 @@ impl FileSystem for Server {
 
     async fn set_metadata(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         node_id: NodeId,
         permissions: Option<Permissions>,
@@ -95,7 +85,6 @@ impl FileSystem for Server {
 
     async fn open_file(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         node_id: NodeId,
         open_permissions: Permissions,
@@ -103,18 +92,12 @@ impl FileSystem for Server {
         todo!()
     }
 
-    async fn close_file(
-        &self,
-        sender_id: u64,
-        mount_handle: Handle,
-        handle: Handle,
-    ) -> Result<(), Self::Error> {
+    async fn close_file(&self, mount_handle: Handle, handle: Handle) -> Result<(), Self::Error> {
         todo!()
     }
 
     async fn read_file(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         handle: Handle,
         buffer: &mut [u8],
@@ -125,7 +108,6 @@ impl FileSystem for Server {
 
     async fn write_file(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         handle: Handle,
         buffer: &[u8],
@@ -134,27 +116,16 @@ impl FileSystem for Server {
         todo!()
     }
 
-    async fn open_dir(
-        &self,
-        sender_id: u64,
-        mount_handle: Handle,
-        node_id: NodeId,
-    ) -> Result<Handle, Self::Error> {
+    async fn open_dir(&self, mount_handle: Handle, node_id: NodeId) -> Result<Handle, Self::Error> {
         todo!()
     }
 
-    async fn close_dir(
-        &self,
-        sender_id: u64,
-        mount_handle: Handle,
-        handle: Handle,
-    ) -> Result<(), Self::Error> {
+    async fn close_dir(&self, mount_handle: Handle, handle: Handle) -> Result<(), Self::Error> {
         todo!()
     }
 
     async fn list_dir(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         handle: Handle,
     ) -> Result<Vec<DirectoryEntry>, Self::Error> {
@@ -163,7 +134,6 @@ impl FileSystem for Server {
 
     async fn create_symlink(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
@@ -174,7 +144,6 @@ impl FileSystem for Server {
 
     async fn read_symlink(
         &self,
-        sender_id: u64,
         mount_handle: Handle,
         node_id: NodeId,
         buffer: &mut [u8],
@@ -182,11 +151,11 @@ impl FileSystem for Server {
         todo!()
     }
 
-    async fn mount(&self, sender_id: u64, args: &[u8]) -> Result<(Handle, NodeId), Self::Error> {
+    async fn mount(&self, args: &[u8]) -> Result<(Handle, NodeId), Self::Error> {
         todo!()
     }
 
-    async fn unmount(&self, sender_id: u64, mount_handle: Handle) -> Result<(), Self::Error> {
+    async fn unmount(&self, mount_handle: Handle) -> Result<(), Self::Error> {
         todo!()
     }
 }

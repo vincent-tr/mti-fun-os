@@ -71,7 +71,7 @@ impl AsyncServerBuilder {
         ReplyContent: Copy + Sync + Send + 'static,
         ReplyError: Copy + Sync + Send + 'static,
         MessageType: Into<u16>,
-        Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+        Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
         F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
     {
         self.handlers.insert(
@@ -194,10 +194,7 @@ where
         QueryParameters: Copy + Sync + Send + 'static,
         ReplyContent: Copy + Sync + Send + 'static,
         MessageType: Into<u16>,
-        Fut: Future<Output = Result<(ReplyContent, KHandles), InternalError>>
-            + Sync
-            + Send
-            + 'static,
+        Fut: Future<Output = Result<(ReplyContent, KHandles), InternalError>> + Send + 'static,
         F: Fn(Arc<Manager>, QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
     {
         let manager = self.manager.clone();
@@ -436,7 +433,7 @@ trait MessageHandler: fmt::Debug + Sync + Send {
 struct MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
     QueryParameters: Copy + Sync + Send,
-    Fut: Future<Output = ()> + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     handler: Arc<F>,
@@ -446,7 +443,7 @@ where
 impl<QueryParameters, Fut, F> MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
     QueryParameters: Copy + Sync + Send,
-    Fut: Future<Output = ()> + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     pub fn new(handler: F) -> Self {
@@ -466,7 +463,7 @@ where
 impl<QueryParameters, Fut, F> MessageHandler for MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
     QueryParameters: Copy + Sync + Send,
-    Fut: Future<Output = ()> + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn handle_message(&self, message: kobject::Message) {
@@ -480,7 +477,7 @@ where
 impl<QueryParameters, Fut, F> fmt::Debug for MessageHandlerWithoutReply<QueryParameters, Fut, F>
 where
     QueryParameters: Copy + Sync + Send,
-    Fut: Future<Output = ()> + Sync + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -494,7 +491,7 @@ where
     QueryParameters: Copy + Sync + Send,
     ReplyContent: Copy + Sync + Send,
     ReplyError: Copy + Sync + Send,
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     handler: Arc<F>,
@@ -511,7 +508,7 @@ where
     QueryParameters: Copy + Sync + Send,
     ReplyContent: Copy + Sync + Send,
     ReplyError: Copy + Sync + Send,
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     pub fn new(handler: F) -> Self {
@@ -572,7 +569,7 @@ where
     QueryParameters: Copy + Sync + Send,
     ReplyContent: Copy + Sync + Send,
     ReplyError: Copy + Sync + Send,
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn handle_message(&self, message: kobject::Message) {
@@ -589,7 +586,7 @@ where
     QueryParameters: Copy + Sync + Send,
     ReplyContent: Copy + Sync + Send,
     ReplyError: Copy + Sync + Send,
-    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Sync + Send + 'static,
+    Fut: Future<Output = Result<(ReplyContent, KHandles), ReplyError>> + Send + 'static,
     F: Fn(QueryParameters, KHandles, u64) -> Fut + Sync + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

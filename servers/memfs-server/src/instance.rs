@@ -1,5 +1,5 @@
 use core::{
-    error,
+    cmp::min,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -9,6 +9,7 @@ use libruntime::{
     ipc::Handle,
     vfs::{
         fs::iface::FsServerError,
+        iface::DirectoryEntry,
         types::{Metadata, NodeId, NodeType, Permissions},
     },
 };
@@ -190,6 +191,173 @@ impl FsInstance {
         Ok(())
     }
 
+    /// Opens a file node by its NodeId and returns a handle that can be used for subsequent read/write operations.
+    pub fn open_file(
+        &mut self,
+        node_id: NodeId,
+        _open_permissions: Permissions,
+    ) -> Result<Handle, FsServerError> {
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        if !node.kind.is_file() {
+            return Err(FsServerError::NodeBadType);
+        }
+
+        let handle = Self::new_handle();
+        self.opened_nodes.insert(handle, node_id);
+
+        self.link_node(node_id);
+
+        Ok(handle)
+    }
+
+    /// Closes an open file handle, removing it from the tracking map of opened nodes.
+    pub fn close_file(&mut self, handle: Handle) -> Result<(), FsServerError> {
+        let node_id = self
+            .opened_nodes
+            .remove(&handle)
+            .ok_or(FsServerError::InvalidArgument)?;
+
+        self.unlink_node(node_id);
+
+        Ok(())
+    }
+
+    /// Reads data from an open file handle into the provided buffer, starting at the specified offset. Returns the number of bytes read.
+    pub fn read_file(
+        &self,
+        handle: Handle,
+        buffer: &mut [u8],
+        offset: usize,
+    ) -> Result<usize, FsServerError> {
+        let node_id = self
+            .opened_nodes
+            .get(&handle)
+            .copied()
+            .ok_or(FsServerError::InvalidArgument)?;
+
+        let node = self
+            .nodes
+            .get(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        let data = node
+            .kind
+            .get_file_data()
+            .ok_or(FsServerError::NodeBadType)?;
+
+        if offset >= data.len() {
+            return Err(FsServerError::InvalidArgument);
+        }
+
+        let bytes_to_read = min(buffer.len(), data.len() - offset);
+        buffer[..bytes_to_read].copy_from_slice(&data[offset..offset + bytes_to_read]);
+
+        Ok(bytes_to_read)
+    }
+
+    /// Writes data from the provided buffer to an open file handle, starting at the specified offset. Returns the number of bytes written.
+    pub fn write_file(
+        &mut self,
+        handle: Handle,
+        buffer: &[u8],
+        offset: usize,
+    ) -> Result<usize, FsServerError> {
+        let node_id = self
+            .opened_nodes
+            .get(&handle)
+            .copied()
+            .ok_or(FsServerError::InvalidArgument)?;
+
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        let data = node
+            .kind
+            .get_file_data_mut()
+            .ok_or(FsServerError::NodeBadType)?;
+
+        if offset >= data.len() {
+            return Err(FsServerError::InvalidArgument);
+        }
+
+        let bytes_to_write = min(buffer.len(), data.len() - offset);
+        data[offset..offset + bytes_to_write].copy_from_slice(&buffer[..bytes_to_write]);
+        self.node_updated(node_id);
+
+        Ok(bytes_to_write)
+    }
+
+    /// Opens a directory node by its NodeId and returns a handle that can be used for subsequent read operations to list its entries.
+    pub fn open_dir(&mut self, node_id: NodeId) -> Result<Handle, FsServerError> {
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        if !node.kind.is_directory() {
+            return Err(FsServerError::NodeBadType);
+        }
+
+        let handle = Self::new_handle();
+        self.opened_nodes.insert(handle, node_id);
+
+        self.link_node(node_id);
+
+        Ok(handle)
+    }
+
+    /// Closes an open directory handle, removing it from the tracking map of opened nodes.
+    pub fn close_dir(&mut self, handle: Handle) -> Result<(), FsServerError> {
+        let node_id = self
+            .opened_nodes
+            .remove(&handle)
+            .ok_or(FsServerError::InvalidArgument)?;
+
+        self.unlink_node(node_id);
+
+        Ok(())
+    }
+
+    /// Lists the entries of an open directory handle, returning a vector of (name, NodeId) pairs for each entry in the directory.
+    pub fn list_dir(&self, handle: Handle) -> Result<Vec<DirectoryEntry>, FsServerError> {
+        let node_id = self
+            .opened_nodes
+            .get(&handle)
+            .copied()
+            .ok_or(FsServerError::InvalidArgument)?;
+
+        let node = self
+            .nodes
+            .get(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        let entries = node
+            .kind
+            .get_directory_entries()
+            .ok_or(FsServerError::NodeBadType)?;
+
+        let dentries = entries
+            .iter()
+            .map(|(name, &node_id)| DirectoryEntry {
+                name: name.clone(),
+                r#type: self
+                    .nodes
+                    .get(&node_id)
+                    .expect("Node should exist")
+                    .kind
+                    .r#type(),
+            })
+            .collect();
+
+        Ok(dentries)
+    }
+
     /// Creates a new symbolic link node under the specified parent directory node with the given name, target path, and permissions.
     pub fn create_symlink(
         &mut self,
@@ -236,26 +404,31 @@ impl FsInstance {
     fn new_node(&mut self, kind: NodeKind, perms: Permissions) -> NodeId {
         let id = self.id_generator.fetch_add(1, Ordering::SeqCst);
         let node_id = NodeId::from(id);
+        let now = Self::now();
 
         self.nodes.insert(
             node_id,
             Node {
-                id: node_id,
                 kind,
                 perms,
                 link_count: 1,
-                created: Self::now(),
-                modified: Self::now(),
+                created: now,
+                modified: now,
             },
         );
 
         node_id
     }
 
+    fn link_node(&mut self, node_id: NodeId) {
+        let node = self.nodes.get_mut(&node_id).expect("Node should exist");
+        node.link_count += 1;
+    }
+
     fn unlink_node(&mut self, node_id: NodeId) {
         let node = self.nodes.get_mut(&node_id).expect("Node should exist");
 
-        assert!(node.link_count <= 1, "Link count should never be negative");
+        assert!(node.link_count > 0, "Link count should never be negative");
         node.link_count -= 1;
 
         if node.link_count > 0 {
@@ -286,11 +459,10 @@ impl FsInstance {
             .get(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
-        if let NodeKind::Directory { entries } = &parent_node.kind {
-            Ok(entries)
-        } else {
-            Err(FsServerError::NodeNotFound)
-        }
+        parent_node
+            .kind
+            .get_directory_entries()
+            .ok_or(FsServerError::NodeBadType)
     }
 
     fn get_parent_entries_mut(
@@ -302,11 +474,10 @@ impl FsInstance {
             .get_mut(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
-        if let NodeKind::Directory { entries } = &mut parent_node.kind {
-            Ok(entries)
-        } else {
-            Err(FsServerError::NodeNotFound)
-        }
+        parent_node
+            .kind
+            .get_directory_entries_mut()
+            .ok_or(FsServerError::NodeBadType)
     }
 
     fn now() -> u64 {
@@ -322,9 +493,6 @@ impl FsInstance {
 /// Represent a node in the file system, which can be a file, directory, or symbolic link, along with its permissions and link count.
 #[derive(Debug)]
 struct Node {
-    /// Unique identifier for the node within the file system.
-    id: NodeId,
-
     /// Kind of the node (file, directory, or symbolic link) along with its specific data.
     kind: NodeKind,
 
@@ -393,11 +561,6 @@ impl NodeKind {
     /// Checks if the node is a file.
     pub fn is_file(&self) -> bool {
         matches!(self, NodeKind::File { .. })
-    }
-
-    /// Checks if the node is a symbolic link.
-    pub fn is_symlink(&self) -> bool {
-        matches!(self, NodeKind::Symlink { .. })
     }
 
     /// If this node is a file, returns a reference to its data. Otherwise, returns `None`.

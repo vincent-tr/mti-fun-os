@@ -144,11 +144,19 @@ impl FileSystem for Server {
         node_id: NodeId,
         open_permissions: Permissions,
     ) -> Result<Handle, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let file_handle = instance.write().open_file(node_id, open_permissions)?;
+
+        Ok(file_handle)
     }
 
     async fn close_file(&self, mount_handle: Handle, handle: Handle) -> Result<(), Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        instance.write().close_file(handle)?;
+
+        Ok(())
     }
 
     async fn read_file(
@@ -158,7 +166,11 @@ impl FileSystem for Server {
         buffer: &mut [u8],
         offset: usize,
     ) -> Result<usize, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let bytes_read = instance.read().read_file(handle, buffer, offset)?;
+
+        Ok(bytes_read)
     }
 
     async fn write_file(
@@ -168,15 +180,27 @@ impl FileSystem for Server {
         buffer: &[u8],
         offset: usize,
     ) -> Result<usize, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let bytes_written = instance.write().write_file(handle, buffer, offset)?;
+
+        Ok(bytes_written)
     }
 
     async fn open_dir(&self, mount_handle: Handle, node_id: NodeId) -> Result<Handle, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let dir_handle = instance.write().open_dir(node_id)?;
+
+        Ok(dir_handle)
     }
 
     async fn close_dir(&self, mount_handle: Handle, handle: Handle) -> Result<(), Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        instance.write().close_dir(handle)?;
+
+        Ok(())
     }
 
     async fn list_dir(
@@ -184,7 +208,11 @@ impl FileSystem for Server {
         mount_handle: Handle,
         handle: Handle,
     ) -> Result<Vec<DirectoryEntry>, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let entries = instance.read().list_dir(handle)?;
+
+        Ok(entries)
     }
 
     async fn create_symlink(

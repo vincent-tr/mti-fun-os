@@ -167,7 +167,7 @@ pub struct ReadQueryParameters {
     /// Offset in the file to start reading from.
     ///
     /// Note: the read len is determined by the size of the buffer.
-    pub offset: u64,
+    pub offset: usize,
 }
 
 impl ReadQueryParameters {
@@ -179,7 +179,7 @@ impl ReadQueryParameters {
 #[repr(C)]
 pub struct ReadReply {
     /// Number of bytes read.
-    pub bytes_read: u64,
+    pub bytes_read: usize,
 }
 
 /// Parameters for the Write message.
@@ -195,7 +195,7 @@ pub struct WriteQueryParameters {
     /// Offset in the file to start writing to.
     ///
     /// Note: the write len is determined by the size of the buffer.
-    pub offset: u64,
+    pub offset: usize,
 }
 
 impl WriteQueryParameters {
@@ -207,7 +207,7 @@ impl WriteQueryParameters {
 #[repr(C)]
 pub struct WriteReply {
     /// Number of bytes written.
-    pub bytes_written: u64,
+    pub bytes_written: usize,
 }
 
 /// Parameters for the Resize message.
@@ -218,7 +218,7 @@ pub struct ResizeQueryParameters {
     pub handle: Handle,
 
     /// New size of the file in bytes.
-    pub new_size: u64,
+    pub new_size: usize,
 }
 
 /// Reply for the Resize message.

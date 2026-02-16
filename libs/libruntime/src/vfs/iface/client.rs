@@ -111,9 +111,9 @@ impl Client {
     pub fn read(
         &self,
         handle: Handle,
-        offset: u64,
+        offset: usize,
         buffer: &mut [u8],
-    ) -> Result<u64, VfsServerCallError> {
+    ) -> Result<usize, VfsServerCallError> {
         let (buffer_memobj, buffer_buffer) = ipc::Buffer::new_local(buffer).into_shared();
 
         let query = messages::ReadQueryParameters {
@@ -139,9 +139,9 @@ impl Client {
     pub fn write(
         &self,
         handle: Handle,
-        offset: u64,
+        offset: usize,
         buffer: &[u8],
-    ) -> Result<u64, VfsServerCallError> {
+    ) -> Result<usize, VfsServerCallError> {
         let (buffer_memobj, buffer_buffer) = ipc::Buffer::new_local(buffer).into_shared();
 
         let query = messages::WriteQueryParameters {
@@ -164,7 +164,7 @@ impl Client {
     }
 
     /// call ipc Resize
-    pub fn resize(&self, handle: Handle, new_size: u64) -> Result<(), VfsServerCallError> {
+    pub fn resize(&self, handle: Handle, new_size: usize) -> Result<(), VfsServerCallError> {
         let query = messages::ResizeQueryParameters { handle, new_size };
         let query_handles = ipc::KHandles::new();
 

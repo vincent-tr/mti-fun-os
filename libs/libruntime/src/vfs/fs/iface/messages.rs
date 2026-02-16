@@ -429,7 +429,7 @@ impl ReadSymlinkQueryParameters {
 #[repr(C)]
 pub struct ReadSymlinkReply {
     /// The number of bytes written to the buffer.
-    pub bytes_written: usize,
+    pub target_len: usize,
 }
 
 /// Parameters for the Mount message.

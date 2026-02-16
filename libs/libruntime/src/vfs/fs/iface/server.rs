@@ -567,7 +567,7 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
                 .invalid_arg("Failed to create buffer view")?
         };
 
-        let bytes_written = self
+        let target_len = self
             .inner
             .read_symlink(
                 sender_id,
@@ -579,7 +579,7 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((
-            messages::ReadSymlinkReply { bytes_written },
+            messages::ReadSymlinkReply { target_len },
             ipc::KHandles::new(),
         ))
     }

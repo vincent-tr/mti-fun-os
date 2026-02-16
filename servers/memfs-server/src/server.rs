@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, info};
 
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
@@ -248,6 +248,11 @@ impl FileSystem for Server {
 
         self.instances.write().insert(mount_handle, instance);
 
+        info!(
+            "Mounted new instance with handle {:?} and root node ID {:?}",
+            mount_handle, root_node_id
+        );
+
         Ok((mount_handle, root_node_id))
     }
 
@@ -259,6 +264,8 @@ impl FileSystem for Server {
                 error!("Invalid mount handle for unmount: {:?}", mount_handle);
                 FsServerError::InvalidArgument
             })?;
+
+        info!("Unmounted instance with handle {:?}", mount_handle);
 
         Ok(())
     }

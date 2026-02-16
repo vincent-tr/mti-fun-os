@@ -5,10 +5,10 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use crate::{
     ipc::{self, Handle},
     kobject::KObject,
-    vfs::types::{Metadata, NodeType, Permissions},
+    vfs::types::{Metadata, NodeId, NodeType, Permissions},
 };
 
-use super::{messages, DentriesBlock, DirectoryEntry, FsServerError, NodeId};
+use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
 
 pub type FsServerCallError = ipc::CallError<FsServerError>;
 

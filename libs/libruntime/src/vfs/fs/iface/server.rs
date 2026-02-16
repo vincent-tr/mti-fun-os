@@ -3,11 +3,11 @@ use core::fmt;
 use async_trait::async_trait;
 use log::error;
 
-use super::{messages, DentriesBlock, DirectoryEntry, FsServerError, NodeId};
+use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
 use crate::{
     ipc::{self, Handle},
     kobject,
-    vfs::types::{Metadata, NodeType, Permissions},
+    vfs::types::{Metadata, NodeId, NodeType, Permissions},
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 

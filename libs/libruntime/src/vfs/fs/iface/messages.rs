@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
 
-use crate::vfs::types::{Metadata, NodeType, Permissions};
+use crate::vfs::types::{Metadata, NodeId, NodeType, Permissions};
 
 /// Version of the fs management messages.
 pub const VERSION: u16 = 1;
@@ -467,7 +467,3 @@ pub struct UnmountQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct UnmountReply {}
-
-/// A unique identifier for a node in the filesystem.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NodeId(u64);

@@ -71,3 +71,13 @@ bitflags! {
         const WRITE = 1 << 1;
     }
 }
+
+/// A unique identifier for a node in the filesystem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NodeId(u64);
+
+impl From<u64> for NodeId {
+    fn from(value: u64) -> Self {
+        NodeId(value)
+    }
+}

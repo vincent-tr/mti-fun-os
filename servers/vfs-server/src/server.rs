@@ -62,9 +62,9 @@ impl VfsServer for Server {
         &self,
         sender_id: u64,
         handle: Handle,
-        offset: u64,
+        offset: usize,
         buffer: &mut [u8],
-    ) -> Result<u64, Self::Error> {
+    ) -> Result<usize, Self::Error> {
         todo!()
     }
 
@@ -72,9 +72,9 @@ impl VfsServer for Server {
         &self,
         sender_id: u64,
         handle: Handle,
-        offset: u64,
+        offset: usize,
         buffer: &[u8],
-    ) -> Result<u64, Self::Error> {
+    ) -> Result<usize, Self::Error> {
         todo!()
     }
 
@@ -82,7 +82,7 @@ impl VfsServer for Server {
         &self,
         sender_id: u64,
         handle: Handle,
-        new_size: u64,
+        new_size: usize,
     ) -> Result<(), Self::Error> {
         todo!()
     }

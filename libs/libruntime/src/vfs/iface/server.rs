@@ -20,7 +20,7 @@ use super::{
 pub trait VfsServer: Send + Sync {
     type Error: Into<VfsServerError>;
 
-    async fn process_terminated(&self, pid: u64);
+    async fn process_terminated(&self, _pid: u64) {}
 
     async fn open(
         &self,

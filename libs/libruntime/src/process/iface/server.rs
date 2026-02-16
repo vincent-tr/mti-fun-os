@@ -16,7 +16,7 @@ use super::{
 pub trait ProcessServer {
     type Error: Into<ProcessServerError>;
 
-    fn process_terminated(&self, pid: u64);
+    fn process_terminated(&self, _pid: u64) {}
 
     fn get_startup_info(&self, sender_id: u64) -> Result<StartupInfo, Self::Error>;
 

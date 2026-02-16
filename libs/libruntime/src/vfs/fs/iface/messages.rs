@@ -49,6 +49,7 @@ pub enum FsServerError {
     BufferTooSmall,
     NodeNotFound,
     NodeAlreadyExists,
+    NodeBadType,
 }
 
 impl fmt::Display for FsServerError {
@@ -59,6 +60,7 @@ impl fmt::Display for FsServerError {
             Self::BufferTooSmall => write!(f, "BufferTooSmall"),
             Self::NodeNotFound => write!(f, "NodeNotFound"),
             Self::NodeAlreadyExists => write!(f, "NodeAlreadyExists"),
+            Self::NodeBadType => write!(f, "NodeBadType"),
         }
     }
 }
@@ -421,11 +423,11 @@ pub struct ReadSymlinkQueryParameters {
     pub node_id: NodeId,
 
     /// The buffer to write the target path of the symlink into.
-    pub buffer: Buffer,
+    pub target: Buffer,
 }
 
 impl ReadSymlinkQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_TARGET_MOBJ: usize = 0;
 }
 
 /// Reply of the ReadSymlink message.

@@ -13,6 +13,8 @@ use libruntime::{
     },
 };
 
+use crate::state::State;
+
 /// Instance of a file system, representing a mounted file system with its own state and operations.
 #[derive(Debug)]
 pub struct FsInstance {
@@ -188,6 +190,49 @@ impl FsInstance {
         Ok(())
     }
 
+    /// Creates a new symbolic link node under the specified parent directory node with the given name, target path, and permissions.
+    pub fn create_symlink(
+        &mut self,
+        parent: NodeId,
+        name: &str,
+        target: &str,
+    ) -> Result<NodeId, FsServerError> {
+        if name.is_empty() {
+            return Err(FsServerError::InvalidArgument);
+        }
+
+        if self.get_parent_entries(parent)?.contains_key(name) {
+            return Err(FsServerError::NodeAlreadyExists);
+        }
+
+        // Note: symlink permissions are ignored.
+        let new_node_id = self.new_node(
+            NodeKind::new_symlink(String::from(target)),
+            Permissions::NONE,
+        );
+
+        self.get_parent_entries_mut(parent)
+            .expect("Could not get parent")
+            .insert(String::from(name), new_node_id);
+        self.node_updated(parent);
+
+        Ok(new_node_id)
+    }
+
+    pub fn read_symlink(&self, node_id: NodeId) -> Result<String, FsServerError> {
+        let node = self
+            .nodes
+            .get(&node_id)
+            .ok_or(FsServerError::NodeNotFound)?;
+
+        let target = node
+            .kind
+            .get_symlink_target()
+            .ok_or(FsServerError::NodeBadType)?;
+
+        Ok(String::from(target))
+    }
+
     fn new_node(&mut self, kind: NodeKind, perms: Permissions) -> NodeId {
         let id = self.id_generator.fetch_add(1, Ordering::SeqCst);
         let node_id = NodeId::from(id);
@@ -267,6 +312,10 @@ impl FsInstance {
     fn now() -> u64 {
         // TODO
         0
+    }
+
+    fn new_handle() -> Handle {
+        State::get().handle_generator().generate()
     }
 }
 

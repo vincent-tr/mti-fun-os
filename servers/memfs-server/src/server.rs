@@ -1,6 +1,6 @@
 use log::error;
 
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use hashbrown::HashMap;
 use libruntime::{
@@ -13,7 +13,7 @@ use libruntime::{
     },
 };
 
-use crate::instance::FsInstance;
+use crate::{instance::FsInstance, state::State};
 
 /// The main server structure
 #[derive(Debug)]
@@ -37,6 +37,10 @@ impl Server {
                 error!("Invalid mount handle: {:?}", mount_handle);
                 FsServerError::InvalidArgument
             })
+    }
+
+    fn new_handle() -> Handle {
+        State::get().handle_generator().generate()
     }
 }
 
@@ -190,23 +194,44 @@ impl FileSystem for Server {
         name: &str,
         target: &str,
     ) -> Result<NodeId, Self::Error> {
-        todo!()
+        let instance = self.get_instance(mount_handle)?;
+
+        let node_id = instance.write().create_symlink(parent, name, target)?;
+
+        Ok(node_id)
     }
 
     async fn read_symlink(
         &self,
         mount_handle: Handle,
         node_id: NodeId,
-        buffer: &mut [u8],
-    ) -> Result<usize, Self::Error> {
-        todo!()
+    ) -> Result<String, Self::Error> {
+        let instance = self.get_instance(mount_handle)?;
+
+        let target = instance.read().read_symlink(node_id)?;
+
+        Ok(target)
     }
 
-    async fn mount(&self, args: &[u8]) -> Result<(Handle, NodeId), Self::Error> {
-        todo!()
+    async fn mount(&self, _args: &[u8]) -> Result<(Handle, NodeId), Self::Error> {
+        let instance = Arc::new(RwLock::new(FsInstance::new()));
+        let mount_handle = Self::new_handle();
+        let root_node_id = instance.read().get_root();
+
+        self.instances.write().insert(mount_handle, instance);
+
+        Ok((mount_handle, root_node_id))
     }
 
     async fn unmount(&self, mount_handle: Handle) -> Result<(), Self::Error> {
-        todo!()
+        self.instances
+            .write()
+            .remove(&mount_handle)
+            .ok_or_else(|| {
+                error!("Invalid mount handle for unmount: {:?}", mount_handle);
+                FsServerError::InvalidArgument
+            })?;
+
+        Ok(())
     }
 }

@@ -9,7 +9,7 @@ use crate::{
     kobject,
     vfs::types::{Metadata, NodeId, NodeType, Permissions},
 };
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 
 /// Filesystem server trait that must be implemented by any filesystem server.
 #[async_trait]
@@ -126,8 +126,7 @@ pub trait FileSystem: Send + Sync + fmt::Debug {
         &self,
         mount_handle: Handle,
         node_id: NodeId,
-        buffer: &mut [u8],
-    ) -> Result<usize, Self::Error>;
+    ) -> Result<String, Self::Error>;
 
     /// Mount a filesystem.
     async fn mount(&self, args: &[u8]) -> Result<(Handle, NodeId), Self::Error>;
@@ -516,21 +515,34 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
         mut query_handles: ipc::KHandles,
         _sender_id: u64,
     ) -> Result<(messages::ReadSymlinkReply, ipc::KHandles), FsServerError> {
-        let mut buffer_view = {
+        let mut target_view = {
             let handle =
-                query_handles.take(messages::ReadSymlinkQueryParameters::HANDLE_BUFFER_MOBJ);
-            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
-                .invalid_arg("Failed to create buffer view")?
+                query_handles.take(messages::ReadSymlinkQueryParameters::HANDLE_TARGET_MOBJ);
+            ipc::BufferView::new(handle, &query.target, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create target view")?
         };
 
-        let target_len = self
+        let target = self
             .inner
-            .read_symlink(query.mount_handle, query.node_id, buffer_view.buffer_mut())
+            .read_symlink(query.mount_handle, query.node_id)
             .await
             .map_err(Into::into)?;
 
+        if target.len() > target_view.buffer().len() {
+            log::error!(
+                "Provided buffer too small for process target ({} bytes needed, {} bytes provided)",
+                target.len(),
+                target_view.buffer().len()
+            );
+            return Err(FsServerError::BufferTooSmall);
+        }
+
+        target_view.buffer_mut()[..target.len()].copy_from_slice(target.as_bytes());
+
         Ok((
-            messages::ReadSymlinkReply { target_len },
+            messages::ReadSymlinkReply {
+                target_len: target.len(),
+            },
             ipc::KHandles::new(),
         ))
     }

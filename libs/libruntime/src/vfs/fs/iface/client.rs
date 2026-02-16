@@ -439,24 +439,24 @@ impl Client<'_> {
         // We don't know how long the target path is, so we start with a small buffer and grow it until it's big enough.
         let mut size = 64;
 
-        let allocated_buffer = loop {
-            let mut allocated_buffer = {
+        let allocated_target = loop {
+            let mut allocated_target = {
                 let mut vec = Vec::with_capacity(size);
                 unsafe { vec.set_len(size) };
                 vec
             };
 
-            let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
+            let (target_mobj, target) = ipc::Buffer::new_local(&allocated_target).into_shared();
 
             let query = messages::ReadSymlinkQueryParameters {
                 mount_handle,
                 node_id,
-                buffer,
+                target,
             };
 
             let mut query_handles = ipc::KHandles::new();
-            query_handles[messages::ReadSymlinkQueryParameters::HANDLE_BUFFER_MOBJ] =
-                buffer_mobj.into_handle();
+            query_handles[messages::ReadSymlinkQueryParameters::HANDLE_TARGET_MOBJ] =
+                target_mobj.into_handle();
 
             let res = self.ipc_client.call::<messages::Type, messages::ReadSymlinkQueryParameters, messages::ReadSymlinkReply, messages::FsServerError>(
                 messages::Type::ReadSymlink,
@@ -471,11 +471,11 @@ impl Client<'_> {
 
             let (reply, _reply_handles) = res?;
 
-            unsafe { allocated_buffer.set_len(reply.target_len) };
-            break allocated_buffer;
+            unsafe { allocated_target.set_len(reply.target_len) };
+            break allocated_target;
         };
 
-        let target = unsafe { String::from_utf8_unchecked(allocated_buffer) };
+        let target = unsafe { String::from_utf8_unchecked(allocated_target) };
 
         Ok(target)
     }

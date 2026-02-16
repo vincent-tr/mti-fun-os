@@ -88,7 +88,7 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
             messages::PORT_NAME,
             messages::VERSION,
         );
-        let builder = builder.with_process_exit_handler(Self::process_terminated);
+        let builder = builder.with_process_exit_handler(Self::process_terminated_handler);
 
         let builder = builder.with_handler(
             messages::Type::GetStartupInfo,
@@ -136,7 +136,7 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
         builder.build()
     }
 
-    fn process_terminated(&self, pid: u64) {
+    fn process_terminated_handler(&self, pid: u64) {
         self.inner.process_terminated(pid);
     }
 

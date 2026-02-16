@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use libruntime::vfs::fs::iface::{Client, NodeId};
+use libruntime::vfs::{fs::iface::Client, types::NodeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MountId(u64);

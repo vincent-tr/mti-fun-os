@@ -7,7 +7,7 @@ use libruntime::{
     sync::RwLock,
     vfs::{
         fs::iface::{Client, FsServerCallError, FsServerError},
-        iface::{DirectoryEntry, VfsServer, VfsServerError},
+        iface::{DirectoryEntry, VfsServerError},
         types::{Metadata, NodeId, NodeType, Permissions},
     },
 };
@@ -91,7 +91,7 @@ impl MountTable {
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), VfsServerError> {
-        /// Keep the write lock for the entire duration of mounting to prevent any new operations on the mount point while it's being mounted.
+        // Keep the write lock for the entire duration of mounting to prevent any new operations on the mount point while it's being mounted.
         let mut data = self.data.write();
 
         // Cannot mount on a already mountpoint vnode
@@ -394,7 +394,7 @@ impl<T> ResultFsCallExt<T> for Result<T, FsServerCallError> {
             error!("{}: {}", msg, e);
 
             match e {
-                CallError::KernelError(err) => VfsServerError::RuntimeError,
+                CallError::KernelError(_) => VfsServerError::RuntimeError,
 
                 CallError::ReplyError(FsServerError::InvalidArgument) => {
                     VfsServerError::InvalidArgument

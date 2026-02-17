@@ -57,6 +57,9 @@ pub enum VfsServerError {
     AlreadyExists,
     BadType,
     Busy,
+    TooManySymlinks,
+    NotDirectory,
+    AccessDenied,
 }
 
 impl fmt::Display for VfsServerError {
@@ -69,6 +72,9 @@ impl fmt::Display for VfsServerError {
             Self::AlreadyExists => write!(f, "AlreadyExists"),
             Self::BadType => write!(f, "BadType"),
             Self::Busy => write!(f, "Busy"),
+            Self::TooManySymlinks => write!(f, "TooManySymlinks"),
+            Self::NotDirectory => write!(f, "NotDirectory"),
+            Self::AccessDenied => write!(f, "AccessDenied"),
         }
     }
 }

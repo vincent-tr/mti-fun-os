@@ -5,6 +5,7 @@ extern crate alloc;
 extern crate libruntime;
 
 mod error;
+mod lookup;
 mod mounts;
 mod server;
 mod state;

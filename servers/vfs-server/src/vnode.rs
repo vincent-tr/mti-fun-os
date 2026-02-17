@@ -22,6 +22,16 @@ impl VNode {
         Self { mount, node }
     }
 
+    /// Get the mount ID of the vnode.
+    pub fn mount_id(&self) -> MountId {
+        self.mount
+    }
+
+    /// Get the node ID of the vnode.
+    pub fn node_id(&self) -> NodeId {
+        self.node
+    }
+
     /// Get the mount point of the vnode.
     pub fn mount(&self) -> Arc<Mount> {
         MountTable::get()

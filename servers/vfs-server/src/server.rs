@@ -8,7 +8,11 @@ use libruntime::{
     },
 };
 
-use crate::{lookup, mounts::MountTable};
+use crate::{
+    lookup::{self, LookupResult},
+    mounts::MountTable,
+    vnode::VNode,
+};
 
 /// The main server structure
 #[derive(Debug)]
@@ -148,13 +152,25 @@ impl VfsServer for Server {
 
     async fn create_symlink(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         path: &str,
         target: &str,
     ) -> Result<Handle, Self::Error> {
-        let _ = sender_id;
-        let _ = path;
-        let _ = target;
+        let LookupResult {
+            node,
+            canonical_path: _,
+            last_segment,
+        } = lookup::lookup(path, lookup::LookupMode::Parent).await?;
+
+        let name = last_segment.expect("Did not get last segment in parent mode");
+
+        let node_id = node
+            .mount()
+            .create_symlink(node.node_id(), &name, target)
+            .await?;
+        let node = VNode::new(node.mount_id(), node_id);
+
+        // TODO: open node
         todo!()
     }
 
@@ -171,7 +187,11 @@ impl VfsServer for Server {
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), Self::Error> {
-        let (mount_point, path) = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
+        let LookupResult {
+            node: mount_point,
+            canonical_path: path,
+            last_segment: _,
+        } = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
 
         MountTable::get()
             .mount(&mount_point, path, fs_port_name, args)
@@ -181,7 +201,11 @@ impl VfsServer for Server {
     }
 
     async fn unmount(&self, _sender_id: u64, mount_point: &str) -> Result<(), Self::Error> {
-        let (mount_point, _) = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
+        let LookupResult {
+            node: mount_point,
+            canonical_path: _,
+            last_segment: _,
+        } = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
 
         MountTable::get().unmount(&mount_point).await?;
 

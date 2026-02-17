@@ -115,15 +115,27 @@ impl SegmentsQueue {
         self.0.is_empty()
     }
 
-    pub fn remove_last(&mut self) {
-        self.0.pop_back();
+    pub fn pop_last(&mut self) -> String {
+        self.0.pop_back().expect("Segments queue empty")
     }
+}
+
+#[derive(Debug)]
+pub struct LookupResult {
+    /// The vnode of the looked up node.
+    pub node: VNode,
+
+    /// The canonical path of the looked up node (i.e. the path with all symlinks and .. resolved).
+    pub canonical_path: String,
+
+    /// The last segment of the path (i.e. the filename).
+    pub last_segment: Option<String>,
 }
 
 /// Lookup a vnode by its path.
 ///
 /// Also provide the cannonical path of the vnode (i.e. the path with all symlinks and .. resolved).
-pub async fn lookup(path: &str, mode: LookupMode) -> Result<(VNode, String), VfsServerError> {
+pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsServerError> {
     let mut context = LookupContext::new();
 
     if !path.starts_with('/') {
@@ -139,8 +151,9 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<(VNode, String), Vfs
     let mut segments = SegmentsQueue::new(path);
     let mut node_stack = NodeStack::new()?;
 
+    let mut last_segment = None;
     if mode == LookupMode::Parent {
-        segments.remove_last();
+        last_segment = Some(segments.pop_last());
     }
 
     loop {
@@ -169,7 +182,23 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<(VNode, String), Vfs
         node_stack.push(new_node, segment);
     }
 
-    Ok((node_stack.current_node(), node_stack.current_path()))
+    // With parent lookup, we ensure that the last node is a directory, so that the caller can perform create/unlink/rename operations on it.
+    if mode == LookupMode::Parent {
+        let metadata = context.get_metadata(node_stack.current_node()).await?;
+        if metadata.r#type != NodeType::Directory {
+            return Err(VfsServerError::NotDirectory);
+        }
+
+        if !metadata.permissions.contains(Permissions::EXECUTE) {
+            return Err(VfsServerError::AccessDenied);
+        }
+    }
+
+    Ok(LookupResult {
+        node: node_stack.current_node(),
+        canonical_path: node_stack.current_path(),
+        last_segment,
+    })
 }
 
 /// Traverses from `node` to its child named `name`, and returns the child node.

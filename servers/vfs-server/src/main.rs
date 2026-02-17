@@ -4,8 +4,11 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod error;
 mod mounts;
 mod server;
+mod state;
+mod vnode;
 
 use libruntime::vfs::iface::build_ipc_server;
 

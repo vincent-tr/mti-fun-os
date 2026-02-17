@@ -11,19 +11,32 @@ use libruntime::{
 };
 use log::{debug, info, warn};
 
-use crate::mounts::MountTable;
+use crate::{mounts::MountTable, vnode::VNode};
 
 /// The main server structure
 #[derive(Debug)]
-pub struct Server {
-    mount_table: Arc<RwLock<MountTable>>,
-}
+pub struct Server {}
 
 impl Server {
     pub fn new() -> Self {
-        Self {
-            mount_table: Arc::new(RwLock::new(MountTable::new())),
+        Self {}
+    }
+
+    /// Lookup a vnode by its path.
+    fn lookup(&self, path: &str, no_follow: bool) -> Result<VNode, VfsServerError> {
+        if !path.starts_with('/') {
+            return Err(VfsServerError::InvalidArgument);
         }
+
+        let mut current = MountTable::get().root().ok_or(VfsServerError::NotFound)?;
+
+        for part in path.split('/') {
+            if part.is_empty() {
+                continue;
+            }
+        }
+
+        Ok(current)
     }
 }
 

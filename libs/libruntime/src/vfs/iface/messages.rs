@@ -53,6 +53,10 @@ pub enum VfsServerError {
     InvalidArgument = 1,
     RuntimeError,
     BufferTooSmall,
+    NotFound,
+    AlreadyExists,
+    BadType,
+    Busy,
 }
 
 impl fmt::Display for VfsServerError {
@@ -61,6 +65,10 @@ impl fmt::Display for VfsServerError {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
             Self::BufferTooSmall => write!(f, "BufferTooSmall"),
+            Self::NotFound => write!(f, "NotFound"),
+            Self::AlreadyExists => write!(f, "AlreadyExists"),
+            Self::BadType => write!(f, "BadType"),
+            Self::Busy => write!(f, "Busy"),
         }
     }
 }

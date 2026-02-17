@@ -116,6 +116,7 @@ impl MountTable {
 
         data.mounts.insert(mount_id, mount.clone());
         data.mountpoints.insert(vnode.clone(), mount_id);
+        vnode.mount().link();
 
         Ok(())
     }
@@ -143,6 +144,7 @@ impl MountTable {
 
         data.mountpoints.remove(vnode);
         data.mounts.remove(&mount_id);
+        vnode.mount().unlink();
 
         mount.unmount().await?;
 

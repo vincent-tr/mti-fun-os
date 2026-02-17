@@ -113,8 +113,9 @@ tail -f serial.log
     - https://stackoverflow.com/questions/50303305/elf-file-type-et-exec-and-et-dyn
     - ( [downloaded](docs/ELF_Format.pdf) ) http://www.skyfree.org/linux/references/ELF_Format.pdf
     - https://gitlab.redox-os.org/redox-os/relibc/-/tree/master/src/ld_so
-  - envp/argp
-  - -C prefer dynamic
+    -> build PE + dllimport/dllexport ?
+    -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
+    - -C prefer dynamic
 - object-oriented TLS
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - properly exit whole process on seg fault/panic
@@ -122,16 +123,8 @@ tail -f serial.log
 ### servers
 
 - vfs/memfs
+- RTC/time server (kernel: ioport)
+- screen/graphics (kernel: iomem)
+- find something simple to have kernel irq and kernel DMA
 - net
-- screen/graphics
 
-a voir : 
-
-https://wiki.osdev.org/Rust_Bare_Bones
-Relocation model
-Pre link args
-
-test build en PE
--> dllimport/dllexport ?
--> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
-static binaries?

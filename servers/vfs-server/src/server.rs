@@ -1,7 +1,7 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use libruntime::{
-    ipc::Handle,
+    ipc::{self, Handle},
     vfs::{
         iface::{DirectoryEntry, MountInfo, VfsServer, VfsServerError},
         types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
@@ -11,16 +11,48 @@ use libruntime::{
 use crate::{
     lookup::{self, LookupResult},
     mounts::MountTable,
+    opened_node::OpenedNode,
+    state::State,
     vnode::VNode,
 };
 
 /// The main server structure
 #[derive(Debug)]
-pub struct Server {}
+pub struct Server {
+    handles: ipc::HandleTable<'static, OpenedNode>,
+}
 
 impl Server {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            handles: ipc::HandleTable::new(State::get().handle_generator()),
+        }
+    }
+
+    fn open_node(
+        &self,
+        sender_id: u64,
+        vnode: VNode,
+        handle_permissions: HandlePermissions,
+        fs_handle: Option<Handle>,
+    ) -> Handle {
+        let opened_node = Arc::new(OpenedNode::new(
+            vnode,
+            NodeType::File,
+            handle_permissions,
+            fs_handle,
+        ));
+        self.handles.open(sender_id, opened_node)
+    }
+
+    fn get_opened_node(
+        &self,
+        sender_id: u64,
+        handle: Handle,
+    ) -> Result<Arc<OpenedNode>, VfsServerError> {
+        self.handles
+            .read(sender_id, handle)
+            .ok_or(VfsServerError::InvalidArgument)
     }
 }
 
@@ -29,8 +61,7 @@ impl VfsServer for Server {
     type Error = VfsServerError;
 
     async fn process_terminated(&self, pid: u64) {
-        let _ = pid;
-        todo!()
+        self.handles.process_terminated(pid);
     }
 
     async fn open(
@@ -54,15 +85,19 @@ impl VfsServer for Server {
     }
 
     async fn close(&self, sender_id: u64, handle: Handle) -> Result<(), Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        todo!()
+        self.handles.close(sender_id, handle);
+
+        Ok(())
     }
 
     async fn stat(&self, sender_id: u64, handle: Handle) -> Result<Metadata, Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_read()?;
+        let node = node.vnode();
+        let metadata = node.metadata().await?;
+
+        Ok(metadata)
     }
 
     async fn set_permissions(
@@ -71,10 +106,19 @@ impl VfsServer for Server {
         handle: Handle,
         permissions: Permissions,
     ) -> Result<(), Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        let _ = permissions;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        if node.r#type() == NodeType::Symlink {
+            return Err(VfsServerError::BadType);
+        }
+
+        node.check_write()?;
+        let node = node.vnode();
+        node.mount()
+            .set_metadata(node.node_id(), Some(permissions), None, None, None)
+            .await?;
+
+        Ok(())
     }
 
     async fn read(
@@ -84,11 +128,16 @@ impl VfsServer for Server {
         offset: usize,
         buffer: &mut [u8],
     ) -> Result<usize, Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        let _ = offset;
-        let _ = buffer;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_type(NodeType::File)?;
+        node.check_read()?;
+        let handle = node.fs_handle().expect("Opened file without fs handle");
+        let node = node.vnode();
+
+        let byte_read = node.mount().read_file(handle, offset, buffer).await?;
+
+        Ok(byte_read)
     }
 
     async fn write(
@@ -98,11 +147,16 @@ impl VfsServer for Server {
         offset: usize,
         buffer: &[u8],
     ) -> Result<usize, Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        let _ = offset;
-        let _ = buffer;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_type(NodeType::File)?;
+        node.check_write()?;
+        let handle = node.fs_handle().expect("Opened file without fs handle");
+        let node = node.vnode();
+
+        let byte_written = node.mount().write_file(handle, offset, buffer).await?;
+
+        Ok(byte_written)
     }
 
     async fn resize(
@@ -111,10 +165,17 @@ impl VfsServer for Server {
         handle: Handle,
         new_size: usize,
     ) -> Result<(), Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        let _ = new_size;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_type(NodeType::File)?;
+        node.check_write()?;
+        let node = node.vnode();
+
+        node.mount()
+            .set_metadata(node.node_id(), None, Some(new_size), None, None)
+            .await?;
+
+        Ok(())
     }
 
     async fn list(
@@ -122,9 +183,18 @@ impl VfsServer for Server {
         sender_id: u64,
         handle: Handle,
     ) -> Result<Vec<DirectoryEntry>, Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_type(NodeType::Directory)?;
+        node.check_read()?;
+        let handle = node
+            .fs_handle()
+            .expect("Opened directory without fs handle");
+        let node = node.vnode();
+
+        let entries = node.mount().list_dir(handle).await?;
+
+        Ok(entries)
     }
 
     async fn r#move(
@@ -152,7 +222,7 @@ impl VfsServer for Server {
 
     async fn create_symlink(
         &self,
-        _sender_id: u64,
+        sender_id: u64,
         path: &str,
         target: &str,
     ) -> Result<Handle, Self::Error> {
@@ -170,14 +240,25 @@ impl VfsServer for Server {
             .await?;
         let node = VNode::new(node.mount_id(), node_id);
 
-        // TODO: open node
-        todo!()
+        let handle = self.open_node(
+            sender_id,
+            node,
+            HandlePermissions::READ | HandlePermissions::WRITE,
+            None, // Symlinks are not opened on fs
+        );
+
+        Ok(handle)
     }
 
     async fn read_symlink(&self, sender_id: u64, handle: Handle) -> Result<String, Self::Error> {
-        let _ = sender_id;
-        let _ = handle;
-        todo!()
+        let node = self.get_opened_node(sender_id, handle)?;
+
+        node.check_type(NodeType::Symlink)?;
+        node.check_read()?;
+        let node = node.vnode();
+        let target = node.mount().read_symlink(node.node_id()).await?;
+
+        Ok(target)
     }
 
     async fn mount(

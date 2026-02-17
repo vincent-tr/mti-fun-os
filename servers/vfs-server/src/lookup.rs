@@ -114,14 +114,22 @@ pub async fn lookup(path: &str, no_follow: bool) -> Result<VNode, VfsServerError
         };
 
         let current_node = node_stack.current();
-        let new_node = traverse(&mut context, current_node, &segment).await?;
+        let mut new_node = traverse(&mut context, current_node, &segment).await?;
 
         let metadata = context.get_metadata(new_node).await?;
         if metadata.r#type == NodeType::Symlink && !(no_follow && segments.is_empty()) {
             resolve_symlink(&mut context, &mut node_stack, &mut segments).await?;
-        } else {
-            node_stack.push(new_node);
+            continue;
         }
+
+        // If newnode is a mountpoint, we need to switch to the root of the mounted filesystem.
+        if metadata.r#type == NodeType::Directory
+            && let Some(mount) = MountTable::get().get_mountpoint(&new_node)
+        {
+            new_node = mount.root();
+        }
+
+        node_stack.push(new_node);
     }
 
     Ok(node_stack.current())

@@ -8,7 +8,7 @@ use libruntime::{
     },
 };
 
-use crate::{lookup, mounts::MountTable, vnode::VNode};
+use crate::{lookup, mounts::MountTable};
 
 /// The main server structure
 #[derive(Debug)]

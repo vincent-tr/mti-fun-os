@@ -171,7 +171,7 @@ impl VfsServer for Server {
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), Self::Error> {
-        let (mount_point, path) = lookup::lookup(mount_point, false).await?;
+        let (mount_point, path) = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
 
         MountTable::get()
             .mount(&mount_point, path, fs_port_name, args)
@@ -181,7 +181,7 @@ impl VfsServer for Server {
     }
 
     async fn unmount(&self, _sender_id: u64, mount_point: &str) -> Result<(), Self::Error> {
-        let (mount_point, _) = lookup::lookup(mount_point, false).await?;
+        let (mount_point, _) = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
 
         MountTable::get().unmount(&mount_point).await?;
 

@@ -7,6 +7,19 @@ use libruntime::vfs::{
 
 use crate::{mounts::MountTable, vnode::VNode};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LookupMode {
+    /// Follow all symlinks, resolve everything
+    Full,
+
+    /// Don't follow the final symlink (for lstat, lchown, etc.)
+    NoFollowLast,
+
+    /// Resolve parent directory, return (parent_vnode, filename)
+    /// Used for create, unlink, rename operations
+    Parent,
+}
+
 #[derive(Debug)]
 struct LookupContext {
     metadata_cache: HashMap<VNode, Metadata>,
@@ -92,10 +105,6 @@ impl SegmentsQueue {
         self.0.pop_front()
     }
 
-    pub fn reset(&mut self, path: &str) {
-        self.0 = path.split('/').map(String::from).collect();
-    }
-
     pub fn prepend(&mut self, path: &str) {
         let mut new_segments = path.split('/').map(String::from).collect::<VecDeque<_>>();
         new_segments.append(&mut self.0);
@@ -105,20 +114,34 @@ impl SegmentsQueue {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn remove_last(&mut self) {
+        self.0.pop_back();
+    }
 }
 
 /// Lookup a vnode by its path.
 ///
 /// Also provide the cannonical path of the vnode (i.e. the path with all symlinks and .. resolved).
-pub async fn lookup(path: &str, no_follow: bool) -> Result<(VNode, String), VfsServerError> {
+pub async fn lookup(path: &str, mode: LookupMode) -> Result<(VNode, String), VfsServerError> {
     let mut context = LookupContext::new();
 
     if !path.starts_with('/') {
         return Err(VfsServerError::InvalidArgument);
     }
 
+    if mode == LookupMode::Parent
+        && (path.ends_with('/') || path.ends_with("/.") || path.ends_with("/.."))
+    {
+        return Err(VfsServerError::InvalidArgument);
+    }
+
     let mut segments = SegmentsQueue::new(path);
     let mut node_stack = NodeStack::new()?;
+
+    if mode == LookupMode::Parent {
+        segments.remove_last();
+    }
 
     loop {
         let Some(segment) = segments.pop_front() else {
@@ -129,7 +152,9 @@ pub async fn lookup(path: &str, no_follow: bool) -> Result<(VNode, String), VfsS
         let mut new_node = traverse(&mut context, current_node, &segment).await?;
 
         let metadata = context.get_metadata(new_node).await?;
-        if metadata.r#type == NodeType::Symlink && !(no_follow && segments.is_empty()) {
+        if metadata.r#type == NodeType::Symlink
+            && !(mode == LookupMode::NoFollowLast && segments.is_empty())
+        {
             resolve_symlink(&mut context, &mut node_stack, &mut segments).await?;
             continue;
         }
@@ -178,13 +203,11 @@ async fn resolve_symlink(
     let node = node_stack.current_node();
     let target_path = node.mount().read_symlink(node.node_id()).await?;
 
+    segments.prepend(&target_path);
+
     if target_path.starts_with('/') {
-        // Absolute symlink: reset the stack and start from root
-        segments.reset(&target_path);
+        // Absolute symlink: reset the stack
         node_stack.reset();
-    } else {
-        // Relative symlink: prepend the target path to the remaining segments
-        segments.prepend(&target_path);
     }
 
     Ok(())

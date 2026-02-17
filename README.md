@@ -104,7 +104,13 @@ tail -f serial.log
 
 ### runtime
 
-- process creation:
+- properly exit whole process on seg fault/panic
+- add guards hits to "page fault of interest" (+ auto grow of stack)
+- object-oriented TLS
+
+### servers
+
+- process-server:
   - dynamic linking:
     - https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
     - https://wiki.osdev.org/Dynamic_Linker
@@ -116,12 +122,6 @@ tail -f serial.log
     -> build PE + dllimport/dllexport ?
     -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
     - -C prefer dynamic
-- object-oriented TLS
-- add guards hits to "page fault of interest" (+ auto grow of stack)
-- properly exit whole process on seg fault/panic
-
-### servers
-
 - vfs/memfs
 - RTC/time server (kernel: ioport)
 - screen/graphics (kernel: iomem)

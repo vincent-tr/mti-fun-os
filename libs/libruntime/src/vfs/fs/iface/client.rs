@@ -15,7 +15,7 @@ pub type FsServerCallError = ipc::CallError<FsServerError>;
 /// Low level FS client implementation.
 #[derive(Debug)]
 pub struct Client<'a> {
-    _port_name: Pin<Box<str>>,
+    port_name: Pin<Box<str>>,
     ipc_client: ipc::Client<'a>,
 }
 
@@ -29,9 +29,14 @@ impl Client<'_> {
         let port_name_ref = unsafe { &*(Pin::get_ref(port_name.as_ref()) as *const str) };
 
         Self {
-            _port_name: port_name,
+            port_name: port_name,
             ipc_client: ipc::Client::new(port_name_ref, messages::VERSION),
         }
+    }
+
+    /// Get the name of the server port this client is connected to.
+    pub fn port_name(&self) -> &str {
+        &self.port_name
     }
 
     /// call ipc Lookup

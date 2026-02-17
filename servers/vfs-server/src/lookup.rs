@@ -41,27 +41,37 @@ impl LookupContext {
 }
 
 #[derive(Debug)]
-struct NodeStack(Vec<VNode>);
+struct NodeStack(Vec<(VNode, String)>);
 
 impl NodeStack {
     pub fn new() -> Result<Self, VfsServerError> {
         let root = MountTable::get().root().ok_or(VfsServerError::NotFound)?;
 
         let mut stack = Vec::new();
-        stack.push(root);
+        stack.push((root, String::new()));
 
         Ok(Self(stack))
     }
 
-    pub fn current(&self) -> VNode {
-        self.0
-            .last()
-            .copied()
-            .expect("NodeStack should never be empty")
+    pub fn current_node(&self) -> VNode {
+        let (node, _) = self.0.last().expect("NodeStack should never be empty");
+        *node
     }
 
-    pub fn push(&mut self, node: VNode) {
-        self.0.push(node);
+    pub fn current_path(&self) -> String {
+        // Skip the first segment since it's always empty (the root)
+        let segments: Vec<&str> = self
+            .0
+            .iter()
+            .skip(1)
+            .map(|(_, segment)| segment.as_str())
+            .collect();
+
+        segments.join("/")
+    }
+
+    pub fn push(&mut self, node: VNode, segment: String) {
+        self.0.push((node, segment));
     }
 
     pub fn reset(&mut self) {
@@ -98,7 +108,9 @@ impl SegmentsQueue {
 }
 
 /// Lookup a vnode by its path.
-pub async fn lookup(path: &str, no_follow: bool) -> Result<VNode, VfsServerError> {
+///
+/// Also provide the cannonical path of the vnode (i.e. the path with all symlinks and .. resolved).
+pub async fn lookup(path: &str, no_follow: bool) -> Result<(VNode, String), VfsServerError> {
     let mut context = LookupContext::new();
 
     if !path.starts_with('/') {
@@ -113,7 +125,7 @@ pub async fn lookup(path: &str, no_follow: bool) -> Result<VNode, VfsServerError
             break;
         };
 
-        let current_node = node_stack.current();
+        let current_node = node_stack.current_node();
         let mut new_node = traverse(&mut context, current_node, &segment).await?;
 
         let metadata = context.get_metadata(new_node).await?;
@@ -129,10 +141,10 @@ pub async fn lookup(path: &str, no_follow: bool) -> Result<VNode, VfsServerError
             new_node = mount.root();
         }
 
-        node_stack.push(new_node);
+        node_stack.push(new_node, segment);
     }
 
-    Ok(node_stack.current())
+    Ok((node_stack.current_node(), node_stack.current_path()))
 }
 
 /// Traverses from `node` to its child named `name`, and returns the child node.
@@ -163,7 +175,7 @@ async fn resolve_symlink(
 ) -> Result<(), VfsServerError> {
     context.increment_lookup_count()?;
 
-    let node = node_stack.current();
+    let node = node_stack.current_node();
     let target_path = node.mount().read_symlink(node.node_id()).await?;
 
     if target_path.starts_with('/') {

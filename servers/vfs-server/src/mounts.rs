@@ -7,7 +7,7 @@ use libruntime::{
     sync::RwLock,
     vfs::{
         fs::iface::{Client, FsServerCallError, FsServerError},
-        iface::{DirectoryEntry, VfsServerError},
+        iface::{DirectoryEntry, MountInfo, VfsServerError},
         types::{Metadata, NodeId, NodeType, Permissions},
     },
 };
@@ -88,6 +88,7 @@ impl MountTable {
     pub async fn mount(
         &self,
         vnode: &VNode,
+        path: String,
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), VfsServerError> {
@@ -111,7 +112,7 @@ impl MountTable {
         }
 
         let mount_id = self.new_mount_id();
-        let mount = Mount::mount(mount_id, fs_port_name, args).await?;
+        let mount = Mount::mount(mount_id, path, fs_port_name, args).await?;
 
         data.mounts.insert(mount_id, mount.clone());
         data.mountpoints.insert(vnode.clone(), mount_id);
@@ -148,6 +149,18 @@ impl MountTable {
         Ok(())
     }
 
+    /// List all the mounted file systems and their mount points.
+    pub fn info(&self) -> Vec<MountInfo> {
+        let data = self.data.read();
+        data.mounts
+            .values()
+            .map(|mount| MountInfo {
+                mount_point: mount.path.clone(),
+                fs_port_name: String::from(mount.client.port_name()),
+            })
+            .collect()
+    }
+
     fn new_mount_id(&self) -> MountId {
         let id = self.mount_id_generator.fetch_add(1, Ordering::SeqCst);
         MountId(id)
@@ -159,6 +172,9 @@ impl MountTable {
 pub struct Mount {
     /// The ID of the mount point, which is used to identify the file system in the VNode.
     id: MountId,
+
+    /// The canonical path of the mount point, which is used for debugging and informational purposes.
+    path: String,
 
     /// The file system implementation of the mount point.
     client: Client<'static>,
@@ -179,6 +195,7 @@ impl Mount {
     /// Reserved for MountTable::mount
     async fn mount(
         id: MountId,
+        path: String,
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<Arc<Self>, VfsServerError> {
@@ -188,6 +205,7 @@ impl Mount {
 
         Ok(Arc::new(Self {
             id,
+            path,
             client,
             handle,
             root,
@@ -208,6 +226,11 @@ impl Mount {
     /// Get the ID of the mount point.
     pub fn id(&self) -> MountId {
         self.id
+    }
+
+    /// Get the canonical path of the mount point.
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     /// Increment the link count of the mount point.

@@ -91,10 +91,23 @@ impl MountTable {
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), VfsServerError> {
+        /// Keep the write lock for the entire duration of mounting to prevent any new operations on the mount point while it's being mounted.
+        let mut data = self.data.write();
+
+        // Cannot mount on a mountpoint vnode
+        if vnode.is_mountpoint() {
+            return Err(VfsServerError::InvalidArgument);
+        }
+
+        // Can only mount on a directory
+        let metadata = vnode.metadata().await?;
+        if metadata.r#type != NodeType::Directory {
+            return Err(VfsServerError::InvalidArgument);
+        }
+
         let mount_id = self.new_mount_id();
         let mount = Mount::mount(mount_id, fs_port_name, args).await?;
 
-        let mut data = self.data.write();
         data.mounts.insert(mount_id, mount.clone());
         data.mountpoints.insert(vnode.clone(), mount_id);
 
@@ -103,30 +116,27 @@ impl MountTable {
 
     /// Unmount a file system at the given vnode.
     pub async fn unmount(&self, vnode: &VNode) -> Result<(), VfsServerError> {
-        let mount = {
-            let mut data = self.data.write();
+        // Keep the write lock for the entire duration of unmounting to prevent any new operations on the mount point while it's being unmounted.
+        let mut data = self.data.write();
 
-            let mount_id = *data
-                .mountpoints
-                .get(vnode)
-                .ok_or(VfsServerError::NotFound)?;
+        let mount_id = *data
+            .mountpoints
+            .get(vnode)
+            .ok_or(VfsServerError::NotFound)?;
 
-            let mount = data
-                .mounts
-                .get(&mount_id)
-                .clone()
-                .expect("Mount not found")
-                .clone();
+        let mount = data
+            .mounts
+            .get(&mount_id)
+            .clone()
+            .expect("Mount not found")
+            .clone();
 
-            if mount.link_count.load(Ordering::SeqCst) > 0 {
-                return Err(VfsServerError::Busy);
-            }
+        if mount.link_count.load(Ordering::SeqCst) > 0 {
+            return Err(VfsServerError::Busy);
+        }
 
-            data.mountpoints.remove(vnode);
-            data.mounts.remove(&mount_id);
-
-            mount
-        };
+        data.mountpoints.remove(vnode);
+        data.mounts.remove(&mount_id);
 
         mount.unmount().await?;
 

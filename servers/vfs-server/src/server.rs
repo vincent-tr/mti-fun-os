@@ -145,16 +145,26 @@ impl VfsServer for Server {
 
     async fn mount(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         mount_point: &str,
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), Self::Error> {
-        todo!()
+        let mount_point = self.lookup(mount_point, false)?;
+
+        MountTable::get()
+            .mount(&mount_point, fs_port_name, args)
+            .await?;
+
+        Ok(())
     }
 
-    async fn unmount(&self, sender_id: u64, mount_point: &str) -> Result<(), Self::Error> {
-        todo!()
+    async fn unmount(&self, _sender_id: u64, mount_point: &str) -> Result<(), Self::Error> {
+        let mount_point = self.lookup(mount_point, false)?;
+
+        MountTable::get().unmount(&mount_point).await?;
+
+        Ok(())
     }
 
     async fn list_mounts(&self, sender_id: u64) -> Result<Vec<MountInfo>, Self::Error> {

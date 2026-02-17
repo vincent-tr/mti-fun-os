@@ -94,8 +94,13 @@ impl MountTable {
         /// Keep the write lock for the entire duration of mounting to prevent any new operations on the mount point while it's being mounted.
         let mut data = self.data.write();
 
-        // Cannot mount on a mountpoint vnode
-        if vnode.is_mountpoint() {
+        // Cannot mount on a already mountpoint vnode
+        if data.mountpoints.contains_key(vnode) {
+            return Err(VfsServerError::InvalidArgument);
+        }
+
+        // Cannot mount on the root vnode of a filesystem
+        if vnode.mount().root() == *vnode {
             return Err(VfsServerError::InvalidArgument);
         }
 

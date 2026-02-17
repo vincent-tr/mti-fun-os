@@ -34,10 +34,4 @@ impl VNode {
         let mount = self.mount();
         mount.get_metadata(self.node).await
     }
-
-    /// Check if the vnode is a mount point.
-    pub fn is_mountpoint(&self) -> bool {
-        let mount = self.mount();
-        *self == mount.root()
-    }
 }

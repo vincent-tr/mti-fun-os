@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::slice;
 
 use crate::{
     kobject::{self, KObject, Permissions},
@@ -23,6 +23,9 @@ pub enum Buffer<'a> {
     Shared((kobject::MemoryObject, messages::Buffer)),
 }
 
+/// Create a storage for empty buffers, to avoid having null pointers in mapping, which is rejected by the kernel.
+const EMPTY_BUFFER_STORAGE: [u8; 1] = [0];
+
 impl<'a> Buffer<'a> {
     pub fn new_local(data: &'a [u8]) -> Self {
         Self::Local(data)
@@ -39,7 +42,12 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    fn to_buffer(value: &[u8]) -> (kobject::MemoryObject, messages::Buffer) {
+    fn to_buffer(mut value: &[u8]) -> (kobject::MemoryObject, messages::Buffer) {
+        if value.is_empty() {
+            // get correct pointer even for empty buffers, to permit mobj resolution
+            value = &EMPTY_BUFFER_STORAGE.as_slice()[0..0];
+        }
+
         let process = kobject::Process::current();
         // Let's consider that the whole buffer is laid in a single memory object for now
         let info = process
@@ -60,8 +68,9 @@ impl<'a> Buffer<'a> {
 /// Reader for a buffer shared via a memory object.
 #[derive(Debug)]
 pub struct BufferView {
-    mapping: kobject::Mapping<'static>,
-    range: Range<usize>,
+    mapping: Option<kobject::Mapping<'static>>, // None for empty buffers
+    address: usize,
+    size: usize,
 }
 
 #[derive(Debug)]
@@ -77,6 +86,15 @@ impl BufferView {
         buffer: &messages::Buffer,
         access: BufferViewAccess,
     ) -> Result<Self, kobject::Error> {
+        if buffer.size == 0 {
+            // For empty buffers, we can skip mapping and just return a view with an empty range.
+            return Ok(Self {
+                mapping: None,
+                address: 0,
+                size: 0,
+            });
+        }
+
         let mem_obj = kobject::MemoryObject::from_handle(handle)?;
 
         let process = kobject::Process::current();
@@ -96,26 +114,26 @@ impl BufferView {
         let mapping = process.map_mem(None, mapping_size, perms, &mem_obj, mapping_begin)?;
 
         let range_begin = buffer_begin - mapping_begin;
-        let range_end = range_begin + buffer.size;
 
         Ok(Self {
-            mapping,
-            range: range_begin..range_end,
+            address: mapping.address() + range_begin,
+            mapping: Some(mapping),
+            size: buffer.size,
         })
     }
 
     /// Get a slice to the buffer's data.
     pub fn buffer(&self) -> &[u8] {
-        unsafe { self.mapping.as_buffer() }.expect("failed to get buffer")[self.range.clone()]
-            .as_ref()
+        unsafe { slice::from_raw_parts((self.address) as *const _, self.size) }
     }
 
     /// Get a mutable slice to the buffer's data.
     pub fn buffer_mut(&mut self) -> &mut [u8] {
-        assert!(self.mapping.permissions().contains(Permissions::WRITE));
+        if let Some(mapping) = &self.mapping {
+            assert!(mapping.permissions().contains(Permissions::WRITE));
+        }
 
-        unsafe { self.mapping.as_buffer_mut() }.expect("failed to get buffer")[self.range.clone()]
-            .as_mut()
+        unsafe { slice::from_raw_parts_mut((self.address) as *mut _, self.size) }
     }
 
     /// Get the buffer's data as a string slice.

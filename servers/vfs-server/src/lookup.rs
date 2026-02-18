@@ -86,7 +86,7 @@ impl NodeStack {
             .map(|(_, segment)| segment.as_str())
             .collect();
 
-        segments.join("/")
+        String::from("/") + &segments.join("/")
     }
 
     pub fn push(&mut self, node: VNode, segment: String) {

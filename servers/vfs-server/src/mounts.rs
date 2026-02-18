@@ -103,7 +103,12 @@ impl MountTable {
             }
         } else {
             // Can only mount on a directory
-            let metadata = vnode.metadata().await?;
+            let vnode_mount = data
+                .mounts
+                .get(&vnode.mount_id())
+                .expect("Mount not found")
+                .clone();
+            let metadata = vnode_mount.get_metadata(vnode.node_id()).await?;
             if metadata.r#type != NodeType::Directory {
                 return Err(VfsServerError::InvalidArgument);
             }

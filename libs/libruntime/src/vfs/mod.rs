@@ -1,6 +1,11 @@
+mod api;
 pub mod fs;
 pub mod iface;
-mod objects;
 pub mod types;
 
-pub use objects::{Directory, File, Symlink, VfsObject};
+// client API
+pub use api::{
+    list_mounts, mount, r#move, remove, stat, unmount, Directory, File, Symlink, VfsObject,
+};
+pub use iface::{DirectoryEntry, MountInfo, VfsServerCallError};
+pub use types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};

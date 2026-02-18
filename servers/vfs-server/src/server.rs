@@ -54,6 +54,39 @@ impl Server {
             .read(sender_id, handle)
             .ok_or(VfsServerError::InvalidArgument)
     }
+
+    fn get_opened_file(
+        &self,
+        sender_id: u64,
+        handle: Handle,
+    ) -> Result<Arc<OpenedNode>, VfsServerError> {
+        let opened_node = self.get_opened_node(sender_id, handle)?;
+        opened_node.check_type(NodeType::File)?;
+
+        Ok(opened_node)
+    }
+
+    fn get_opened_dir(
+        &self,
+        sender_id: u64,
+        handle: Handle,
+    ) -> Result<Arc<OpenedNode>, VfsServerError> {
+        let opened_node = self.get_opened_node(sender_id, handle)?;
+        opened_node.check_type(NodeType::Directory)?;
+
+        Ok(opened_node)
+    }
+
+    fn get_opened_symlink(
+        &self,
+        sender_id: u64,
+        handle: Handle,
+    ) -> Result<Arc<OpenedNode>, VfsServerError> {
+        let opened_node = self.get_opened_node(sender_id, handle)?;
+        opened_node.check_type(NodeType::Symlink)?;
+
+        Ok(opened_node)
+    }
 }
 
 #[async_trait]
@@ -91,10 +124,10 @@ impl VfsServer for Server {
     }
 
     async fn stat(&self, sender_id: u64, handle: Handle) -> Result<Metadata, Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_node = self.get_opened_node(sender_id, handle)?;
 
-        node.check_read()?;
-        let node = node.vnode();
+        opened_node.check_read()?;
+        let node = opened_node.vnode();
         let metadata = node.metadata().await?;
 
         Ok(metadata)
@@ -106,14 +139,14 @@ impl VfsServer for Server {
         handle: Handle,
         permissions: Permissions,
     ) -> Result<(), Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_node = self.get_opened_node(sender_id, handle)?;
 
-        if node.r#type() == NodeType::Symlink {
+        if opened_node.r#type() == NodeType::Symlink {
             return Err(VfsServerError::BadType);
         }
 
-        node.check_write()?;
-        let node = node.vnode();
+        opened_node.check_write()?;
+        let node = opened_node.vnode();
         node.mount()
             .set_metadata(node.node_id(), Some(permissions), None, None, None)
             .await?;
@@ -128,14 +161,15 @@ impl VfsServer for Server {
         offset: usize,
         buffer: &mut [u8],
     ) -> Result<usize, Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_file = self.get_opened_file(sender_id, handle)?;
 
-        node.check_type(NodeType::File)?;
-        node.check_read()?;
-        let handle = node.fs_handle().expect("Opened file without fs handle");
-        let node = node.vnode();
+        opened_file.check_read()?;
+        let handle = opened_file
+            .fs_handle()
+            .expect("Opened file without fs handle");
+        let file = opened_file.vnode();
 
-        let byte_read = node.mount().read_file(handle, offset, buffer).await?;
+        let byte_read = file.mount().read_file(handle, offset, buffer).await?;
 
         Ok(byte_read)
     }
@@ -147,14 +181,15 @@ impl VfsServer for Server {
         offset: usize,
         buffer: &[u8],
     ) -> Result<usize, Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_file = self.get_opened_file(sender_id, handle)?;
 
-        node.check_type(NodeType::File)?;
-        node.check_write()?;
-        let handle = node.fs_handle().expect("Opened file without fs handle");
-        let node = node.vnode();
+        opened_file.check_write()?;
+        let handle = opened_file
+            .fs_handle()
+            .expect("Opened file without fs handle");
+        let file = opened_file.vnode();
 
-        let byte_written = node.mount().write_file(handle, offset, buffer).await?;
+        let byte_written = file.mount().write_file(handle, offset, buffer).await?;
 
         Ok(byte_written)
     }
@@ -165,14 +200,13 @@ impl VfsServer for Server {
         handle: Handle,
         new_size: usize,
     ) -> Result<(), Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_file = self.get_opened_file(sender_id, handle)?;
 
-        node.check_type(NodeType::File)?;
-        node.check_write()?;
-        let node = node.vnode();
+        opened_file.check_write()?;
+        let file = opened_file.vnode();
 
-        node.mount()
-            .set_metadata(node.node_id(), None, Some(new_size), None, None)
+        file.mount()
+            .set_metadata(file.node_id(), None, Some(new_size), None, None)
             .await?;
 
         Ok(())
@@ -183,16 +217,15 @@ impl VfsServer for Server {
         sender_id: u64,
         handle: Handle,
     ) -> Result<Vec<DirectoryEntry>, Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_dir = self.get_opened_dir(sender_id, handle)?;
 
-        node.check_type(NodeType::Directory)?;
-        node.check_read()?;
-        let handle = node
+        opened_dir.check_read()?;
+        let handle = opened_dir
             .fs_handle()
             .expect("Opened directory without fs handle");
-        let node = node.vnode();
+        let dir = opened_dir.vnode();
 
-        let entries = node.mount().list_dir(handle).await?;
+        let entries = dir.mount().list_dir(handle).await?;
 
         Ok(entries)
     }
@@ -214,8 +247,7 @@ impl VfsServer for Server {
     }
 
     async fn remove(&self, sender_id: u64, dir: Handle, name: &str) -> Result<(), Self::Error> {
-        let _ = sender_id;
-        let _ = dir;
+        let opened_dir = self.get_opened_dir(sender_id, dir)?;
         let _ = name;
         todo!()
     }
@@ -251,12 +283,12 @@ impl VfsServer for Server {
     }
 
     async fn read_symlink(&self, sender_id: u64, handle: Handle) -> Result<String, Self::Error> {
-        let node = self.get_opened_node(sender_id, handle)?;
+        let opened_link = self.get_opened_symlink(sender_id, handle)?;
 
-        node.check_type(NodeType::Symlink)?;
-        node.check_read()?;
-        let node = node.vnode();
-        let target = node.mount().read_symlink(node.node_id()).await?;
+        opened_link.check_type(NodeType::Symlink)?;
+        opened_link.check_read()?;
+        let link = opened_link.vnode();
+        let target = link.mount().read_symlink(link.node_id()).await?;
 
         Ok(target)
     }

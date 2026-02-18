@@ -406,6 +406,14 @@ impl Mappings {
 
     /// Get information about a virtual address in the process address space
     pub fn info(&self, addr: VirtAddr) -> AddressInfo {
+        if addr < USER_SPACE_START || addr >= USER_SPACE_END {
+            return AddressInfo {
+                perms: Permissions::empty(),
+                mobj: None,
+                offset: 0,
+            };
+        }
+
         let mut info = AddressInfo {
             perms: Permissions::empty(),
             mobj: None,

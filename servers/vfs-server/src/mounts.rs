@@ -67,15 +67,6 @@ impl MountTable {
         }
     }
 
-    /// Get the root vnode of the file system, which is used to access the root directory.
-    pub fn root(&self) -> Option<VNode> {
-        let data = self.data.read();
-        let root_mount = data.root_mount?;
-        let mount = data.mounts.get(&root_mount)?;
-
-        Some(mount.root())
-    }
-
     /// Get a mount point by its ID.
     pub fn get_mount(&self, id: MountId) -> Option<Arc<Mount>> {
         let data = self.data.read();
@@ -138,6 +129,10 @@ impl MountTable {
         data.mounts.insert(mount_id, mount.clone());
         data.mountpoints.insert(vnode.clone(), mount_id);
         mount.link();
+
+        if *vnode == VNode::ROOT {
+            data.root_mount = Some(mount_id);
+        }
 
         info!(
             "Mounted file system {} at vnode {:?} ({}) with mount ID {:?}",

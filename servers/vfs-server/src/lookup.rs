@@ -58,7 +58,10 @@ struct NodeStack(Vec<(VNode, String)>);
 
 impl NodeStack {
     pub fn new() -> Result<Self, VfsServerError> {
-        let root = MountTable::get().root().ok_or(VfsServerError::NotFound)?;
+        let root_mount = MountTable::get()
+            .get_mountpoint(&VNode::ROOT)
+            .ok_or(VfsServerError::NotFound)?;
+        let root = root_mount.root();
 
         let mut stack = Vec::new();
         stack.push((root, String::new()));

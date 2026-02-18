@@ -39,7 +39,7 @@ impl FsInstance {
             nodes: HashMap::new(),
             root: None,
             opened_nodes: HashMap::new(),
-            id_generator: AtomicU64::new(0),
+            id_generator: AtomicU64::new(1),
         };
 
         let root = instance.new_node(

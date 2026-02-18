@@ -649,10 +649,6 @@ impl VfsServer for Server {
     ) -> Result<(), Self::Error> {
         let (mount_point, path) = if mount_point == "/" {
             // Special case mount root
-            if MountTable::get().root().is_some() {
-                return Err(VfsServerError::AlreadyExists);
-            }
-
             (VNode::ROOT, String::from("/"))
         } else {
             let LookupResult {

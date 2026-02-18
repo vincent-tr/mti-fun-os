@@ -63,7 +63,7 @@ impl MountTable {
                 root_mount: None,
                 mountpoints: HashMap::new(),
             }),
-            mount_id_generator: AtomicU64::new(0),
+            mount_id_generator: AtomicU64::new(1),
         }
     }
 
@@ -105,15 +105,31 @@ impl MountTable {
             return Err(VfsServerError::InvalidArgument);
         }
 
-        // Cannot mount on the root vnode of a filesystem
-        if vnode.mount().root() == *vnode {
-            return Err(VfsServerError::InvalidArgument);
-        }
+        if *vnode == VNode::ROOT {
+            // Special case for root mount
+            if data.root_mount.is_some() {
+                return Err(VfsServerError::AlreadyExists);
+            }
+        } else {
+            let from_mount = data
+                .mounts
+                .get(&MountId::ROOT)
+                .ok_or_else(|| {
+                    error!("Could not get mount of vnode {:?}", vnode);
+                    VfsServerError::InvalidArgument
+                })?
+                .clone();
 
-        // Can only mount on a directory
-        let metadata = vnode.metadata().await?;
-        if metadata.r#type != NodeType::Directory {
-            return Err(VfsServerError::InvalidArgument);
+            // Cannot mount on the root vnode of a filesystem
+            if from_mount.root() == *vnode {
+                return Err(VfsServerError::InvalidArgument);
+            }
+
+            // Can only mount on a directory
+            let metadata = vnode.metadata().await?;
+            if metadata.r#type != NodeType::Directory {
+                return Err(VfsServerError::InvalidArgument);
+            }
         }
 
         let mount_id = self.new_mount_id();
@@ -121,7 +137,7 @@ impl MountTable {
 
         data.mounts.insert(mount_id, mount.clone());
         data.mountpoints.insert(vnode.clone(), mount_id);
-        vnode.mount().link();
+        mount.link();
 
         info!(
             "Mounted file system {} at vnode {:?} ({}) with mount ID {:?}",
@@ -157,7 +173,7 @@ impl MountTable {
 
         data.mountpoints.remove(vnode);
         data.mounts.remove(&mount_id);
-        vnode.mount().unlink();
+        mount.unlink();
 
         if data.root_mount == Some(mount_id) {
             data.root_mount = None;

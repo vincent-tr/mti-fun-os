@@ -60,6 +60,7 @@ pub enum VfsServerError {
     TooManySymlinks,
     NotDirectory,
     AccessDenied,
+    NotSupported,
 }
 
 impl fmt::Display for VfsServerError {
@@ -75,6 +76,7 @@ impl fmt::Display for VfsServerError {
             Self::TooManySymlinks => write!(f, "TooManySymlinks"),
             Self::NotDirectory => write!(f, "NotDirectory"),
             Self::AccessDenied => write!(f, "AccessDenied"),
+            Self::NotSupported => write!(f, "NotSupported"),
         }
     }
 }

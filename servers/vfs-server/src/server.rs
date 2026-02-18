@@ -1,3 +1,5 @@
+use log::error;
+
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use libruntime::{
@@ -238,18 +240,43 @@ impl VfsServer for Server {
         new_dir: Handle,
         new_name: &str,
     ) -> Result<(), Self::Error> {
-        let _ = sender_id;
-        let _ = old_dir;
-        let _ = old_name;
-        let _ = new_dir;
-        let _ = new_name;
-        todo!()
+        let opened_old_dir = self.get_opened_dir(sender_id, old_dir)?;
+        let opened_new_dir = self.get_opened_dir(sender_id, new_dir)?;
+
+        opened_old_dir.check_write()?;
+        opened_new_dir.check_write()?;
+
+        let old_dir = opened_old_dir.vnode();
+        let new_dir = opened_new_dir.vnode();
+
+        if old_dir.mount_id() != new_dir.mount_id() {
+            error!(
+                "Move across mounts is not supported ('{}':{:?} -> '{}':{:?})",
+                old_name,
+                old_dir.mount_id(),
+                new_name,
+                new_dir.mount_id()
+            );
+            return Err(VfsServerError::NotSupported);
+        }
+
+        old_dir
+            .mount()
+            .r#move(old_dir.node_id(), old_name, new_dir.node_id(), new_name)
+            .await?;
+
+        Ok(())
     }
 
     async fn remove(&self, sender_id: u64, dir: Handle, name: &str) -> Result<(), Self::Error> {
         let opened_dir = self.get_opened_dir(sender_id, dir)?;
-        let _ = name;
-        todo!()
+
+        opened_dir.check_write()?;
+        let dir = opened_dir.vnode();
+
+        dir.mount().remove(dir.node_id(), name).await?;
+
+        Ok(())
     }
 
     async fn create_symlink(

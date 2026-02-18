@@ -449,6 +449,7 @@ impl<T> ResultFsCallExt<T> for Result<T, FsServerCallError> {
                     VfsServerError::AlreadyExists
                 }
                 CallError::ReplyError(FsServerError::NodeBadType) => VfsServerError::BadType,
+                CallError::ReplyError(FsServerError::NotSupported) => VfsServerError::NotSupported,
             }
         })
     }

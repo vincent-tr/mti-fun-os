@@ -76,6 +76,11 @@ bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(u64);
 
+impl NodeId {
+    /// Special node ID reserved for the root node.
+    pub const ROOT: NodeId = NodeId(0);
+}
+
 impl From<u64> for NodeId {
     fn from(value: u64) -> Self {
         NodeId(value)

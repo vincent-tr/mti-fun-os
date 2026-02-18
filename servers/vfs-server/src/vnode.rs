@@ -17,6 +17,12 @@ pub struct VNode {
 }
 
 impl VNode {
+    /// The root vnode, representing the root of the entire virtual file system.
+    pub const ROOT: VNode = VNode {
+        mount: MountId::ROOT,
+        node: NodeId::ROOT,
+    };
+
     /// Create a new vnode with the given mount point and node ID.
     pub fn new(mount: MountId, node: NodeId) -> Self {
         Self { mount, node }

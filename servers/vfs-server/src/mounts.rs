@@ -18,6 +18,11 @@ use crate::vnode::VNode;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MountId(u64);
 
+impl MountId {
+    /// Special mount ID reserved for the root node.
+    pub const ROOT: MountId = MountId(0);
+}
+
 /// Mount table, which contains all the mounted file systems and their mount points.
 #[derive(Debug)]
 pub struct MountTable {

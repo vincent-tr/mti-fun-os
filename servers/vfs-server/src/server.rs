@@ -89,6 +89,37 @@ impl Server {
 
         Ok(opened_node)
     }
+
+    async fn close_opened_node(&self, opened_node: Arc<OpenedNode>) {
+        match opened_node.r#type() {
+            NodeType::File => {
+                let fs_handle = opened_node
+                    .fs_handle()
+                    .expect("Opened file without fs handle");
+                let file = opened_node.vnode();
+
+                file.mount()
+                    .close_file(fs_handle)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!("Failed to close opened file: {:?}", e);
+                    });
+            }
+            NodeType::Directory => {
+                let fs_handle = opened_node
+                    .fs_handle()
+                    .expect("Opened directory without fs handle");
+                let dir = opened_node.vnode();
+
+                dir.mount().close_dir(fs_handle).await.unwrap_or_else(|e| {
+                    error!("Failed to close opened directory: {:?}", e);
+                });
+            }
+            NodeType::Symlink => {
+                // No special handling needed for symlinks
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -96,7 +127,11 @@ impl VfsServer for Server {
     type Error = VfsServerError;
 
     async fn process_terminated(&self, pid: u64) {
-        self.handles.process_terminated(pid);
+        let opened_nodes = self.handles.process_terminated(pid);
+
+        for opened_node in opened_nodes {
+            self.close_opened_node(opened_node).await;
+        }
     }
 
     async fn open(
@@ -120,7 +155,11 @@ impl VfsServer for Server {
     }
 
     async fn close(&self, sender_id: u64, handle: Handle) -> Result<(), Self::Error> {
-        self.handles.close(sender_id, handle);
+        let Some(opened_node) = self.handles.close(sender_id, handle) else {
+            return Err(VfsServerError::InvalidArgument);
+        };
+
+        self.close_opened_node(opened_node).await;
 
         Ok(())
     }

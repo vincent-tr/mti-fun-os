@@ -11,7 +11,7 @@ use libruntime::{
         types::{Metadata, NodeId, NodeType, Permissions},
     },
 };
-use log::error;
+use log::{error, info};
 
 use crate::vnode::VNode;
 
@@ -118,6 +118,14 @@ impl MountTable {
         data.mountpoints.insert(vnode.clone(), mount_id);
         vnode.mount().link();
 
+        info!(
+            "Mounted file system {} at vnode {:?} ({}) with mount ID {:?}",
+            mount.client.port_name(),
+            vnode,
+            mount.path(),
+            mount.id()
+        );
+
         Ok(())
     }
 
@@ -147,6 +155,14 @@ impl MountTable {
         vnode.mount().unlink();
 
         mount.unmount().await?;
+
+        info!(
+            "Unmounted file system {} at vnode {:?} ({}) with mount ID {:?}",
+            mount.client.port_name(),
+            vnode,
+            mount.path(),
+            mount.id()
+        );
 
         Ok(())
     }

@@ -18,6 +18,9 @@ pub enum LookupMode {
     /// Resolve parent directory, return (parent_vnode, filename)
     /// Used for create, unlink, rename operations
     Parent,
+
+    /// Don't follow the final mountpoint (for mount/unmount)
+    NoMountpointLast,
 }
 
 #[derive(Debug)]
@@ -139,6 +142,15 @@ pub struct LookupResult {
 ///
 /// Also provide the cannonical path of the vnode (i.e. the path with all symlinks and .. resolved).
 pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsServerError> {
+    if path == "/" && mode == LookupMode::NoMountpointLast {
+        // Return root node
+        return Ok(LookupResult {
+            node: VNode::ROOT,
+            canonical_path: String::from("/"),
+            last_segment: None,
+        });
+    }
+
     let mut context = LookupContext::new();
 
     if !path.starts_with('/') {
@@ -178,6 +190,7 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
         // If newnode is a mountpoint, we need to switch to the root of the mounted filesystem.
         if metadata.r#type == NodeType::Directory
             && let Some(mount) = MountTable::get().get_mountpoint(&new_node)
+            && !(mode == LookupMode::NoMountpointLast && segments.is_empty())
         {
             new_node = mount.root();
         }

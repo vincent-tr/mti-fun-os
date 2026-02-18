@@ -647,18 +647,11 @@ impl VfsServer for Server {
         fs_port_name: &str,
         args: &[u8],
     ) -> Result<(), Self::Error> {
-        let (mount_point, path) = if mount_point == "/" {
-            // Special case mount root
-            (VNode::ROOT, String::from("/"))
-        } else {
-            let LookupResult {
-                node,
-                canonical_path,
-                last_segment: _,
-            } = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
-
-            (node, canonical_path)
-        };
+        let LookupResult {
+            node: mount_point,
+            canonical_path: path,
+            last_segment: _,
+        } = lookup::lookup(mount_point, lookup::LookupMode::NoMountpointLast).await?;
 
         MountTable::get()
             .mount(&mount_point, path, fs_port_name, args)
@@ -672,7 +665,7 @@ impl VfsServer for Server {
             node: mount_point,
             canonical_path: _,
             last_segment: _,
-        } = lookup::lookup(mount_point, lookup::LookupMode::Full).await?;
+        } = lookup::lookup(mount_point, lookup::LookupMode::NoMountpointLast).await?;
 
         MountTable::get().unmount(&mount_point).await?;
 

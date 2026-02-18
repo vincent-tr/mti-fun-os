@@ -102,20 +102,6 @@ impl MountTable {
                 return Err(VfsServerError::AlreadyExists);
             }
         } else {
-            let from_mount = data
-                .mounts
-                .get(&MountId::ROOT)
-                .ok_or_else(|| {
-                    error!("Could not get mount of vnode {:?}", vnode);
-                    VfsServerError::InvalidArgument
-                })?
-                .clone();
-
-            // Cannot mount on the root vnode of a filesystem
-            if from_mount.root() == *vnode {
-                return Err(VfsServerError::InvalidArgument);
-            }
-
             // Can only mount on a directory
             let metadata = vnode.metadata().await?;
             if metadata.r#type != NodeType::Directory {

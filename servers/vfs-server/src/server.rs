@@ -32,20 +32,100 @@ impl Server {
         }
     }
 
-    fn open_node(
+    async fn open_file(
         &self,
         sender_id: u64,
         vnode: VNode,
         handle_permissions: HandlePermissions,
-        fs_handle: Option<Handle>,
-    ) -> Handle {
+    ) -> Result<Handle, VfsServerError> {
+        let fs_handle = vnode
+            .mount()
+            .open_file(vnode.node_id(), handle_permissions)
+            .await?;
+
         let opened_node = Arc::new(OpenedNode::new(
             vnode,
             NodeType::File,
             handle_permissions,
-            fs_handle,
+            Some(fs_handle),
         ));
-        self.handles.open(sender_id, opened_node)
+
+        Ok(self.handles.open(sender_id, opened_node))
+    }
+
+    async fn open_dir(
+        &self,
+        sender_id: u64,
+        vnode: VNode,
+        handle_permissions: HandlePermissions,
+    ) -> Result<Handle, VfsServerError> {
+        let fs_handle = vnode.mount().open_dir(vnode.node_id()).await?;
+
+        let opened_node = Arc::new(OpenedNode::new(
+            vnode,
+            NodeType::Directory,
+            handle_permissions,
+            Some(fs_handle),
+        ));
+
+        Ok(self.handles.open(sender_id, opened_node))
+    }
+
+    async fn open_symlink(
+        &self,
+        sender_id: u64,
+        vnode: VNode,
+        handle_permissions: HandlePermissions,
+    ) -> Result<Handle, VfsServerError> {
+        let opened_node = Arc::new(OpenedNode::new(
+            vnode,
+            NodeType::Symlink,
+            handle_permissions,
+            None, // Symlinks are not opened on fs
+        ));
+
+        Ok(self.handles.open(sender_id, opened_node))
+    }
+
+    fn check_open_permissions(
+        &self,
+        node_permissions: Permissions,
+        required_permissions: HandlePermissions,
+    ) -> Result<(), VfsServerError> {
+        if required_permissions.contains(HandlePermissions::READ)
+            && !node_permissions.contains(Permissions::READ)
+        {
+            return Err(VfsServerError::AccessDenied);
+        }
+
+        if required_permissions.contains(HandlePermissions::WRITE)
+            && !node_permissions.contains(Permissions::WRITE)
+        {
+            return Err(VfsServerError::AccessDenied);
+        }
+
+        Ok(())
+    }
+
+    async fn open_node_with_meta(
+        &self,
+        sender_id: u64,
+        vnode: VNode,
+        metadata: Metadata,
+        handle_permissions: HandlePermissions,
+    ) -> Result<Handle, VfsServerError> {
+        self.check_open_permissions(metadata.permissions, handle_permissions)?;
+
+        let handle = match metadata.r#type {
+            NodeType::File => self.open_file(sender_id, vnode, handle_permissions).await?,
+            NodeType::Directory => self.open_dir(sender_id, vnode, handle_permissions).await?,
+            NodeType::Symlink => {
+                self.open_symlink(sender_id, vnode, handle_permissions)
+                    .await?
+            }
+        };
+
+        Ok(handle)
     }
 
     fn get_opened_node(
@@ -147,14 +227,70 @@ impl VfsServer for Server {
         permissions: Permissions,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, Self::Error> {
-        let _ = sender_id;
-        let _ = path;
-        let _ = r#type;
-        let _ = mode;
-        let _ = no_follow;
-        let _ = permissions;
-        let _ = handle_permissions;
-        todo!()
+        match mode {
+            OpenMode::OpenExisting => {
+                let mut lookup_mode = lookup::LookupMode::Full;
+                if no_follow {
+                    lookup_mode = lookup::LookupMode::NoFollowLast;
+                }
+
+                let LookupResult {
+                    node,
+                    canonical_path: _,
+                    last_segment: _,
+                } = lookup::lookup(path, lookup_mode).await?;
+
+                let metadata = node.metadata().await?;
+                if let Some(expected_type) = r#type {
+                    if metadata.r#type != expected_type {
+                        return Err(VfsServerError::BadType);
+                    }
+                }
+
+                let handle = self
+                    .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                    .await?;
+
+                Ok(handle)
+            }
+            OpenMode::CreateNew => {
+                // CreateNew: Create a new file/directory, error if it already exists
+                let Some(r#type) = r#type else {
+                    // Cannot create without knowing the type
+                    return Err(VfsServerError::InvalidArgument);
+                };
+
+                if r#type == NodeType::Symlink {
+                    // Cannot create symlinks with open()
+                    return Err(VfsServerError::InvalidArgument);
+                }
+
+                let LookupResult {
+                    node: parent_node,
+                    canonical_path: _,
+                    last_segment,
+                } = lookup::lookup(path, lookup::LookupMode::Parent).await?;
+
+                let name = last_segment
+                    .as_ref()
+                    .expect("Parent mode without last segment");
+
+                let node_id = parent_node
+                    .mount()
+                    .create(parent_node.node_id(), &name, r#type, permissions)
+                    .await?;
+
+                let node = VNode::new(parent_node.mount_id(), node_id);
+                let metadata = node.metadata().await?;
+
+                let handle = self
+                    .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                    .await?;
+
+                Ok(handle)
+            }
+            OpenMode::OpenAlways | OpenMode::CreateAlways => Err(VfsServerError::NotSupported),
+        }
     }
 
     async fn close(&self, sender_id: u64, handle: Handle) -> Result<(), Self::Error> {
@@ -341,12 +477,13 @@ impl VfsServer for Server {
             .await?;
         let node = VNode::new(node.mount_id(), node_id);
 
-        let handle = self.open_node(
-            sender_id,
-            node,
-            HandlePermissions::READ | HandlePermissions::WRITE,
-            None, // Symlinks are not opened on fs
-        );
+        let handle = self
+            .open_symlink(
+                sender_id,
+                node,
+                HandlePermissions::READ | HandlePermissions::WRITE,
+            )
+            .await?;
 
         Ok(handle)
     }

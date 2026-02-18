@@ -376,7 +376,7 @@ impl FsInstance {
         // Note: symlink permissions are ignored.
         let new_node_id = self.new_node(
             NodeKind::new_symlink(String::from(target)),
-            Permissions::NONE,
+            Permissions::READ | Permissions::EXECUTE | Permissions::WRITE,
         );
 
         self.get_parent_entries_mut(parent)

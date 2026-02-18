@@ -8,7 +8,7 @@ use libruntime::{
     vfs::{
         fs::iface::{Client, FsServerCallError, FsServerError},
         iface::{DirectoryEntry, MountInfo, VfsServerError},
-        types::{Metadata, NodeId, NodeType, Permissions},
+        types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
 };
 use log::{error, info};
@@ -337,7 +337,7 @@ impl Mount {
     pub async fn open_file(
         &self,
         node_id: NodeId,
-        open_permissions: Permissions,
+        open_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
         self.client
             .open_file(self.handle, node_id, open_permissions)

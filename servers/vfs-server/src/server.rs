@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use log::error;
 
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
@@ -129,9 +130,11 @@ impl VfsServer for Server {
     async fn process_terminated(&self, pid: u64) {
         let opened_nodes = self.handles.process_terminated(pid);
 
-        for opened_node in opened_nodes {
-            self.close_opened_node(opened_node).await;
-        }
+        let futures = opened_nodes
+            .into_iter()
+            .map(|opened_node| self.close_opened_node(opened_node));
+
+        join_all(futures).await;
     }
 
     async fn open(

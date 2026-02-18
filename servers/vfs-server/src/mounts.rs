@@ -159,6 +159,10 @@ impl MountTable {
         data.mounts.remove(&mount_id);
         vnode.mount().unlink();
 
+        if data.root_mount == Some(mount_id) {
+            data.root_mount = None;
+        }
+
         mount.unmount().await?;
 
         info!(

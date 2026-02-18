@@ -9,7 +9,7 @@ use libruntime::{
     vfs::{
         fs::iface::{FileSystem, FsServerError},
         iface::DirectoryEntry,
-        types::{Metadata, NodeId, NodeType, Permissions},
+        types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
 };
 
@@ -142,7 +142,7 @@ impl FileSystem for Server {
         &self,
         mount_handle: Handle,
         node_id: NodeId,
-        open_permissions: Permissions,
+        open_permissions: HandlePermissions,
     ) -> Result<Handle, Self::Error> {
         let instance = self.get_instance(mount_handle)?;
 

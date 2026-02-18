@@ -5,7 +5,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use crate::{
     ipc::{self, Handle},
     kobject::KObject,
-    vfs::types::{Metadata, NodeId, NodeType, Permissions},
+    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 
 use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
@@ -214,7 +214,7 @@ impl Client<'_> {
         &self,
         mount_handle: Handle,
         node_id: NodeId,
-        open_permissions: Permissions,
+        open_permissions: HandlePermissions,
     ) -> Result<Handle, FsServerCallError> {
         let query = messages::OpenFileQueryParameters {
             mount_handle,

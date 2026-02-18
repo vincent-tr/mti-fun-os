@@ -7,7 +7,7 @@ use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
 use crate::{
     ipc::{self, Handle},
     kobject,
-    vfs::types::{Metadata, NodeId, NodeType, Permissions},
+    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 
@@ -75,7 +75,7 @@ pub trait FileSystem: Send + Sync + fmt::Debug {
         &self,
         mount_handle: Handle,
         node_id: NodeId,
-        open_permissions: Permissions,
+        open_permissions: HandlePermissions,
     ) -> Result<Handle, Self::Error>;
 
     /// Close a file.

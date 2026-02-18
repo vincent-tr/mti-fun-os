@@ -10,7 +10,7 @@ use libruntime::{
     vfs::{
         fs::iface::FsServerError,
         iface::DirectoryEntry,
-        types::{Metadata, NodeId, NodeType, Permissions},
+        types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
 };
 
@@ -195,7 +195,7 @@ impl FsInstance {
     pub fn open_file(
         &mut self,
         node_id: NodeId,
-        _open_permissions: Permissions,
+        _open_permissions: HandlePermissions,
     ) -> Result<Handle, FsServerError> {
         let node = self
             .nodes

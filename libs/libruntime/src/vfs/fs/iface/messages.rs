@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::ipc::{buffer_messages::Buffer, Handle};
 
-use crate::vfs::types::{Metadata, NodeId, NodeType, Permissions};
+use crate::vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions};
 
 /// Version of the fs management messages.
 pub const VERSION: u16 = 1;
@@ -238,7 +238,7 @@ pub struct OpenFileQueryParameters {
     pub node_id: NodeId,
 
     /// Permissions to open the file with.
-    pub open_permissions: Permissions,
+    pub open_permissions: HandlePermissions,
 }
 
 /// Reply of the OpenFile message.

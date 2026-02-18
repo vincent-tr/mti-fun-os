@@ -289,7 +289,148 @@ impl VfsServer for Server {
 
                 Ok(handle)
             }
-            OpenMode::OpenAlways | OpenMode::CreateAlways => Err(VfsServerError::NotSupported),
+            OpenMode::OpenAlways => {
+                // OpenAlways: Open if exists, create if doesn't
+                let Some(r#type) = r#type else {
+                    // Cannot create without knowing the type
+                    return Err(VfsServerError::InvalidArgument);
+                };
+
+                if r#type == NodeType::Symlink {
+                    // Cannot create symlinks with open()
+                    return Err(VfsServerError::InvalidArgument);
+                }
+
+                // Try to open existing first
+                let mut lookup_mode = lookup::LookupMode::Full;
+                if no_follow {
+                    lookup_mode = lookup::LookupMode::NoFollowLast;
+                }
+
+                let lookup_result = lookup::lookup(path, lookup_mode).await;
+
+                match lookup_result {
+                    Ok(LookupResult {
+                        node,
+                        canonical_path: _,
+                        last_segment: _,
+                    }) => {
+                        // Node exists, verify type and open it
+                        let metadata = node.metadata().await?;
+                        if metadata.r#type != r#type {
+                            return Err(VfsServerError::BadType);
+                        }
+
+                        let handle = self
+                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                            .await?;
+
+                        Ok(handle)
+                    }
+                    Err(VfsServerError::NotFound) => {
+                        // Node doesn't exist, create it
+                        let LookupResult {
+                            node: parent_node,
+                            canonical_path: _,
+                            last_segment,
+                        } = lookup::lookup(path, lookup::LookupMode::Parent).await?;
+
+                        let name = last_segment
+                            .as_ref()
+                            .expect("Parent mode without last segment");
+
+                        let node_id = parent_node
+                            .mount()
+                            .create(parent_node.node_id(), &name, r#type, permissions)
+                            .await?;
+
+                        let node = VNode::new(parent_node.mount_id(), node_id);
+                        let metadata = node.metadata().await?;
+
+                        let handle = self
+                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                            .await?;
+
+                        Ok(handle)
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            OpenMode::CreateAlways => {
+                // CreateAlways: For files, create new or truncate existing. For directories, error if exists.
+                let Some(r#type) = r#type else {
+                    // Cannot create without knowing the type
+                    return Err(VfsServerError::InvalidArgument);
+                };
+
+                if r#type == NodeType::Symlink {
+                    // Cannot create symlinks with open()
+                    return Err(VfsServerError::InvalidArgument);
+                }
+
+                // Try to lookup the node first
+                let mut lookup_mode = lookup::LookupMode::Full;
+                if no_follow {
+                    lookup_mode = lookup::LookupMode::NoFollowLast;
+                }
+
+                let lookup_result = lookup::lookup(path, lookup_mode).await;
+
+                match (lookup_result, r#type) {
+                    (Ok(LookupResult { node, .. }), NodeType::File) => {
+                        // File exists, verify it's a file and truncate it
+                        let mut metadata = node.metadata().await?;
+                        if metadata.r#type != NodeType::File {
+                            return Err(VfsServerError::BadType);
+                        }
+
+                        // Truncate the file to size 0
+                        node.mount()
+                            .set_metadata(node.node_id(), None, Some(0), None, None)
+                            .await?;
+
+                        metadata.size = 0; // Update metadata to reflect truncation
+
+                        let handle = self
+                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                            .await?;
+
+                        Ok(handle)
+                    }
+                    (Ok(_), NodeType::Directory) => {
+                        // Directory exists, return error (cannot truncate/recreate directories)
+                        Err(VfsServerError::AlreadyExists)
+                    }
+                    (Err(VfsServerError::NotFound), _) => {
+                        // Node doesn't exist, create it
+                        let LookupResult {
+                            node: parent_node,
+                            canonical_path: _,
+                            last_segment,
+                        } = lookup::lookup(path, lookup::LookupMode::Parent).await?;
+
+                        let name = last_segment
+                            .as_ref()
+                            .expect("Parent mode without last segment");
+
+                        let node_id = parent_node
+                            .mount()
+                            .create(parent_node.node_id(), &name, r#type, permissions)
+                            .await?;
+
+                        let node = VNode::new(parent_node.mount_id(), node_id);
+                        let metadata = node.metadata().await?;
+
+                        let handle = self
+                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
+                            .await?;
+
+                        Ok(handle)
+                    }
+                    (Err(e), _) => Err(e),
+                    _ => unreachable!(),
+                }
+            }
         }
     }
 

@@ -5,7 +5,6 @@
 extern crate alloc;
 extern crate libruntime;
 
-mod error;
 mod lookup;
 mod mounts;
 mod opened_node;

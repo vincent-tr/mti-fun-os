@@ -93,6 +93,13 @@ impl NodeStack {
         self.0.push((node, segment));
     }
 
+    pub fn pop(&mut self) {
+        // Cannot pop the root node
+        if self.0.len() > 1 {
+            self.0.pop();
+        }
+    }
+
     pub fn reset(&mut self) {
         self.0.truncate(1);
     }
@@ -175,6 +182,15 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
         let Some(segment) = segments.pop_front() else {
             break;
         };
+
+        if segment == "" || segment == "." {
+            continue;
+        }
+
+        if segment == ".." {
+            node_stack.pop();
+            continue;
+        }
 
         let current_node = node_stack.current_node();
         let mut new_node = traverse(&mut context, current_node, &segment).await?;

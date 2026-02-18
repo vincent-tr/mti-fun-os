@@ -14,6 +14,7 @@ mod tests;
 
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
 
+use alloc::boxed::Box;
 use libruntime::{
     ipc,
     kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
@@ -106,6 +107,31 @@ fn start_servers() {
 
     let _ = process;
     wait_port("memfs-server");
+
+    setup_initial_filesystem();
+}
+
+fn setup_initial_filesystem() {
+    debug!("Setting up initial filesystem...");
+
+    let args = Box::new([0u8; 0]);
+
+    vfs::mount("/", "memfs-server", args.as_slice()).expect("Could not mount memfs");
+    vfs::Directory::create(
+        "/init",
+        vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE,
+    )
+    .expect("Could not create /init directory");
+
+    debug!("Initial filesystem setup complete");
+
+    let mounts = vfs::list_mounts().expect("Could not list mounts");
+    for mount in mounts {
+        info!(
+            "Mounted '{}' at '{}'",
+            mount.fs_port_name, mount.mount_point
+        );
+    }
 }
 
 fn apply_memory_protections(binary_len: usize) {

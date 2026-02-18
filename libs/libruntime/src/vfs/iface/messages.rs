@@ -114,7 +114,7 @@ pub struct OpenQueryParameters {
 }
 
 impl OpenQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
+    pub const HANDLE_PATH_MOBJ: usize = 1;
 }
 
 /// Reply for the Open message.
@@ -187,7 +187,7 @@ pub struct ReadQueryParameters {
 }
 
 impl ReadQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the Read message.
@@ -215,7 +215,7 @@ pub struct WriteQueryParameters {
 }
 
 impl WriteQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the Write message.
@@ -254,7 +254,7 @@ pub struct ListQueryParameters {
 }
 
 impl ListQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the List message.
@@ -283,8 +283,8 @@ pub struct MoveQueryParameters {
 }
 
 impl MoveQueryParameters {
-    pub const HANDLE_OLD_NAME_MOBJ: usize = 0;
-    pub const HANDLE_NEW_NAME_MOBJ: usize = 1;
+    pub const HANDLE_OLD_NAME_MOBJ: usize = 1;
+    pub const HANDLE_NEW_NAME_MOBJ: usize = 2;
 }
 
 /// Reply for the Move message.
@@ -304,7 +304,7 @@ pub struct RemoveQueryParameters {
 }
 
 impl RemoveQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply for the Remove message.
@@ -324,8 +324,8 @@ pub struct CreateSymlinkQueryParameters {
 }
 
 impl CreateSymlinkQueryParameters {
-    pub const HANDLE_PATH_MOBJ: usize = 0;
-    pub const HANDLE_TARGET_MOBJ: usize = 1;
+    pub const HANDLE_PATH_MOBJ: usize = 1;
+    pub const HANDLE_TARGET_MOBJ: usize = 2;
 }
 
 /// Reply for the CreateSymlink message.
@@ -348,7 +348,7 @@ pub struct ReadSymlinkQueryParameters {
 }
 
 impl ReadSymlinkQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the ReadSymlink message.
@@ -376,9 +376,9 @@ pub struct MountQueryParameters {
 }
 
 impl MountQueryParameters {
-    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 0;
-    pub const HANDLE_FS_PORT_NAME_MOBJ: usize = 1;
-    pub const HANDLE_ARGS_MOBJ: usize = 2;
+    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 1;
+    pub const HANDLE_FS_PORT_NAME_MOBJ: usize = 2;
+    pub const HANDLE_ARGS_MOBJ: usize = 3;
 }
 
 /// Reply for the Mount message.
@@ -395,7 +395,7 @@ pub struct UnmountQueryParameters {
 }
 
 impl UnmountQueryParameters {
-    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 0;
+    pub const HANDLE_MOUNT_POINT_MOBJ: usize = 1;
 }
 
 /// Reply for the Unmount message.
@@ -412,7 +412,7 @@ pub struct ListMountsQueryParameters {
 }
 
 impl ListMountsQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the ListMounts message.

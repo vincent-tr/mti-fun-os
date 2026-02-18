@@ -82,7 +82,7 @@ pub struct LookupQueryParameters {
 }
 
 impl LookupQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply of the Lookup message.
@@ -114,7 +114,7 @@ pub struct CreateQueryParameters {
 }
 
 impl CreateQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply of the Create message.
@@ -140,7 +140,7 @@ pub struct RemoveQueryParameters {
 }
 
 impl RemoveQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply of the Remove message.
@@ -171,8 +171,8 @@ pub struct MoveQueryParameters {
 }
 
 impl MoveQueryParameters {
-    pub const HANDLE_SRC_NAME_MOBJ: usize = 0;
-    pub const HANDLE_DST_NAME_MOBJ: usize = 1;
+    pub const HANDLE_SRC_NAME_MOBJ: usize = 1;
+    pub const HANDLE_DST_NAME_MOBJ: usize = 2;
 }
 
 /// Reply of the Move message.
@@ -283,7 +283,7 @@ pub struct ReadFileQueryParameters {
 }
 
 impl ReadFileQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply of the ReadFile message.
@@ -312,7 +312,7 @@ pub struct WriteFileQueryParameters {
 }
 
 impl WriteFileQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply of the WriteFile message.
@@ -373,7 +373,7 @@ pub struct ListDirQueryParameters {
 }
 
 impl ListDirQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 0;
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply of the ListDir message.
@@ -402,8 +402,8 @@ pub struct CreateSymlinkQueryParameters {
 }
 
 impl CreateSymlinkQueryParameters {
-    pub const HANDLE_NAME_MOBJ: usize = 0;
-    pub const HANDLE_TARGET_MOBJ: usize = 1;
+    pub const HANDLE_NAME_MOBJ: usize = 1;
+    pub const HANDLE_TARGET_MOBJ: usize = 2;
 }
 
 /// Reply of the CreateSymlink message.
@@ -429,7 +429,7 @@ pub struct ReadSymlinkQueryParameters {
 }
 
 impl ReadSymlinkQueryParameters {
-    pub const HANDLE_TARGET_MOBJ: usize = 0;
+    pub const HANDLE_TARGET_MOBJ: usize = 1;
 }
 
 /// Reply of the ReadSymlink message.
@@ -449,7 +449,7 @@ pub struct MountQueryParameters {
 }
 
 impl MountQueryParameters {
-    pub const HANDLE_ARGS_MOBJ: usize = 0;
+    pub const HANDLE_ARGS_MOBJ: usize = 1;
 }
 
 /// Reply of the Mount message.

@@ -239,3 +239,12 @@ impl<T: ?Sized> Drop for RwLockWriteGuard<'_, T> {
         self.lock.write_unlock();
     }
 }
+
+impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for RwLock<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.try_read() {
+            Some(guard) => f.debug_struct("RwLock").field("data", &&*guard).finish(),
+            None => f.debug_struct("RwLock").field("data", &"<locked>").finish(),
+        }
+    }
+}

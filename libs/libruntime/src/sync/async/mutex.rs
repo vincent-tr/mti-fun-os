@@ -149,3 +149,12 @@ impl<T: ?Sized> Drop for MutexGuard<'_, T> {
         self.mutex.unlock();
     }
 }
+
+impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for Mutex<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.try_lock() {
+            Some(guard) => f.debug_struct("Mutex").field("data", &&*guard).finish(),
+            None => f.debug_struct("Mutex").field("data", &"<locked>").finish(),
+        }
+    }
+}

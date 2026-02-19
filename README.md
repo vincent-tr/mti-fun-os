@@ -123,6 +123,7 @@ tail -f serial.log
     -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
     - -C prefer dynamic
 - vfs
+  - cache
   - async lock for mount table
   - archive fs
 - RTC/time server (kernel: ioport)

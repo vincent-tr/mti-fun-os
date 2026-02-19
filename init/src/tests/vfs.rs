@@ -138,8 +138,7 @@ fn test_directories() {
 
         // Also test with a subdirectory
         vfs::Directory::create("/test5b", perms).expect("Failed to create /test5b");
-        vfs::Directory::create("/test5b/subdir", perms)
-            .expect("Failed to create subdirectory");
+        vfs::Directory::create("/test5b/subdir", perms).expect("Failed to create subdirectory");
 
         let result = vfs::remove("/test5b");
         assert!(

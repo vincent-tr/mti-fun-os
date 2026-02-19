@@ -146,7 +146,7 @@ impl Directory {
             OpenMode::OpenExisting,
             false,
             Permissions::NONE,
-            HandlePermissions::READ,
+            HandlePermissions::READ | HandlePermissions::WRITE,
         )?;
 
         Ok(Self {
@@ -162,7 +162,7 @@ impl Directory {
             OpenMode::CreateNew,
             false,
             perms,
-            HandlePermissions::READ,
+            HandlePermissions::READ | HandlePermissions::WRITE,
         )?;
 
         Ok(Self {

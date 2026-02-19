@@ -194,6 +194,7 @@ fn wait_port(name: &'static str) {
 }
 
 fn sleep_forever() -> ! {
+    debug!("Going to sleep...");
     loop {
         libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
     }

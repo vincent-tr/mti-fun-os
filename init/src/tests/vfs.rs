@@ -117,6 +117,39 @@ fn test_directories() {
         info!("Test 4: PASSED");
     }
 
+    // Test 5: Cannot remove non-empty directory
+    info!("Test 5: Cannot remove non-empty directory");
+    {
+        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+
+        vfs::Directory::create("/test5", perms).expect("Failed to create /test5");
+
+        // Add a file to the directory
+        let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
+        vfs::File::create("/test5/somefile", file_perms)
+            .expect("Failed to create file in directory");
+
+        // Try to remove the non-empty directory (should fail)
+        let result = vfs::remove("/test5");
+        assert!(
+            result.is_err(),
+            "Should not be able to remove non-empty directory"
+        );
+
+        // Also test with a subdirectory
+        vfs::Directory::create("/test5b", perms).expect("Failed to create /test5b");
+        vfs::Directory::create("/test5b/subdir", perms)
+            .expect("Failed to create subdirectory");
+
+        let result = vfs::remove("/test5b");
+        assert!(
+            result.is_err(),
+            "Should not be able to remove directory with subdirectory"
+        );
+
+        info!("Test 5: PASSED");
+    }
+
     info!("Directory operations tests completed");
 }
 

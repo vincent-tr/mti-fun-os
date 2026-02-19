@@ -199,7 +199,7 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
         if metadata.r#type == NodeType::Symlink
             && !(mode == LookupMode::NoFollowLast && segments.is_empty())
         {
-            resolve_symlink(&mut context, &mut node_stack, &mut segments).await?;
+            resolve_symlink(&mut context, &mut node_stack, &mut segments, new_node).await?;
             continue;
         }
 
@@ -258,11 +258,14 @@ async fn resolve_symlink(
     context: &mut LookupContext,
     node_stack: &mut NodeStack,
     segments: &mut SegmentsQueue,
+    symlink_node: VNode,
 ) -> Result<(), VfsServerError> {
     context.increment_lookup_count()?;
 
-    let node = node_stack.current_node();
-    let target_path = node.mount().read_symlink(node.node_id()).await?;
+    let target_path = symlink_node
+        .mount()
+        .read_symlink(symlink_node.node_id())
+        .await?;
 
     segments.prepend(&target_path);
 

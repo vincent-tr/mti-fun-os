@@ -512,6 +512,15 @@ impl ThreadRuntime {
                     mem::drop(item);
                 }
             }
+
+            if let ThreadEventType::Error = event.r#type {
+                let thread = Thread::open(event.tid).expect("Could not open thread in error");
+                let supervisor = ThreadSupervisor::new(&thread);
+                let error = supervisor.error_info().expect("Could not get error info");
+
+                // Panic on thread error so that the whole process is terminated.
+                panic!("Thread {} is in error: {:?}", event.tid, error);
+            }
         }
     }
 }

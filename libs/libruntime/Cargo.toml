@@ -7,7 +7,6 @@ edition = "2021"
 crate-type = ["rlib", "staticlib"] # "dylib"
 
 [dependencies]
-addr2line = { workspace = true }
 async-trait = { workspace = true }
 bit_field = { workspace = true }
 bitflags = { workspace = true }
@@ -19,5 +18,6 @@ typed-arena = { workspace = true }
 libsyscalls = { path = "../libsyscalls" }
 
 [features]
-default = ["entry"]
+default = ["entry", "init-process"]
 entry = []
+init-process = []

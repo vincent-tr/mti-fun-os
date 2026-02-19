@@ -3,7 +3,7 @@ pub mod iface;
 use alloc::{string::String, vec::Vec};
 use log::debug;
 
-use crate::{ipc, kobject, sync::RwLock};
+use crate::{debug::init_symbols, ipc, kobject, sync::RwLock};
 
 use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification, SymBlock};
 
@@ -235,6 +235,9 @@ impl SelfProcess {
         let startup_info = CLIENT
             .get_startup_info()
             .expect("failed to get startup info");
+
+        // Init the global symbol information for debugging
+        init_symbols(startup_info.symbols.clone());
 
         Self {
             name: RwLock::new(startup_info.name),

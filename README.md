@@ -104,9 +104,10 @@ tail -f serial.log
 
 ### runtime
 
-- properly exit whole process on seg fault/panic
+- properly exit whole process on seg fault
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - object-oriented TLS
+- demangle stacktraces properly
 
 ### servers
 

@@ -59,10 +59,8 @@ impl fmt::Display for PanicDisplay<'_> {
 
         for frame in self.stacktrace.iter() {
             if skipping {
-                if let Some(info) = frame.location()
-                    && let Some(function) = info.function_name()
-                {
-                    if function.contains("rust_begin_unwind") {
+                if let Some(info) = frame.location() {
+                    if info.function_name().contains("rust_begin_unwind") {
                         // this marks the end of the stack inner panic handling stuff
                         skipping = false;
                     }
@@ -76,15 +74,11 @@ impl fmt::Display for PanicDisplay<'_> {
 
             formatter.write_str("  at ")?;
             if let Some(info) = frame.location() {
-                if let Some(function) = info.function_name() {
-                    formatter.write_str(&function)?;
-                } else {
-                    formatter.write_str("???")?;
-                }
-                if let Some(location) = info.source_location() {
-                    formatter.write_str(" - ")?;
-                    location.fmt(formatter)?;
-                }
+                formatter.write_fmt(format_args!(
+                    "{} +{}",
+                    info.function_name(),
+                    info.function_offset()
+                ))?;
             } else {
                 formatter.write_fmt(format_args!("0x{0:016X}", frame.address()))?;
             }

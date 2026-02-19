@@ -12,7 +12,7 @@ mod offsets;
 mod state_server;
 mod tests;
 
-use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range, slice};
+use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range};
 
 use alloc::boxed::Box;
 use libruntime::{
@@ -41,9 +41,7 @@ pub unsafe extern "C" fn user_start() -> ! {
 }
 
 extern "C" fn entry(binary_len: usize) -> ! {
-    let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
-    libruntime::debug::init_memory_binary(binary);
-
+    // let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
     libruntime::init();
 
     apply_memory_protections(binary_len);

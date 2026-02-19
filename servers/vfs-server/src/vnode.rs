@@ -39,15 +39,16 @@ impl VNode {
     }
 
     /// Get the mount point of the vnode.
-    pub fn mount(&self) -> Arc<Mount> {
+    pub async fn mount(&self) -> Arc<Mount> {
         MountTable::get()
             .get_mount(self.mount)
+            .await
             .expect("Mount not found")
     }
 
     /// Get the metadata of the vnode.
     pub async fn metadata(&self) -> Result<Metadata, VfsServerError> {
-        let mount = self.mount();
+        let mount = self.mount().await;
         mount.get_metadata(self.node).await
     }
 }

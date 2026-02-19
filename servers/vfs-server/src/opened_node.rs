@@ -1,5 +1,6 @@
 use libruntime::{
     ipc::Handle,
+    r#async,
     vfs::{
         iface::VfsServerError,
         types::{HandlePermissions, NodeType},
@@ -19,7 +20,7 @@ pub struct OpenedNode {
 
 impl OpenedNode {
     /// Creates a new OpenedNode with the given vnode and handle permissions.
-    pub fn new(
+    pub async fn new(
         vnode: VNode,
         r#type: NodeType,
         handle_permissions: HandlePermissions,
@@ -32,7 +33,7 @@ impl OpenedNode {
             fs_handle,
         };
 
-        obj.vnode.mount().link();
+        obj.vnode.mount().await.link();
 
         obj
     }
@@ -92,6 +93,11 @@ impl OpenedNode {
 
 impl Drop for OpenedNode {
     fn drop(&mut self) {
-        self.vnode.mount().unlink();
+        // Since `unlink` is async, we need to spawn a task to handle it
+        let vnode = self.vnode.clone();
+
+        r#async::spawn(async move {
+            vnode.mount().await.unlink();
+        });
     }
 }

@@ -4,7 +4,7 @@ use alloc::{string::String, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     ipc::{CallError, Handle},
-    sync::RwLock,
+    sync::r#async::RwLock,
     vfs::{
         fs::iface::{Client, FsServerCallError, FsServerError},
         iface::{DirectoryEntry, MountInfo, VfsServerError},
@@ -68,14 +68,14 @@ impl MountTable {
     }
 
     /// Get a mount point by its ID.
-    pub fn get_mount(&self, id: MountId) -> Option<Arc<Mount>> {
-        let data = self.data.read();
+    pub async fn get_mount(&self, id: MountId) -> Option<Arc<Mount>> {
+        let data = self.data.read().await;
         Some(data.mounts.get(&id)?.clone())
     }
 
     /// Lookup if this vnode is a mount point, and if so, return the corresponding mount.
-    pub fn get_mountpoint(&self, vnode: &VNode) -> Option<Arc<Mount>> {
-        let data = self.data.read();
+    pub async fn get_mountpoint(&self, vnode: &VNode) -> Option<Arc<Mount>> {
+        let data = self.data.read().await;
         let mount_id = data.mountpoints.get(vnode)?;
         Some(data.mounts.get(mount_id).expect("Mount not found").clone())
     }
@@ -89,7 +89,7 @@ impl MountTable {
         args: &[u8],
     ) -> Result<(), VfsServerError> {
         // Keep the write lock for the entire duration of mounting to prevent any new operations on the mount point while it's being mounted.
-        let mut data = self.data.write();
+        let mut data = self.data.write().await;
 
         // Cannot mount on a already mountpoint vnode
         if data.mountpoints.contains_key(vnode) {
@@ -139,7 +139,7 @@ impl MountTable {
     /// Unmount a file system at the given vnode.
     pub async fn unmount(&self, vnode: &VNode) -> Result<(), VfsServerError> {
         // Keep the write lock for the entire duration of unmounting to prevent any new operations on the mount point while it's being unmounted.
-        let mut data = self.data.write();
+        let mut data = self.data.write().await;
 
         let mount_id = *data
             .mountpoints
@@ -181,8 +181,8 @@ impl MountTable {
     }
 
     /// List all the mounted file systems and their mount points.
-    pub fn info(&self) -> Vec<MountInfo> {
-        let data = self.data.read();
+    pub async fn info(&self) -> Vec<MountInfo> {
+        let data = self.data.read().await;
         data.mounts
             .values()
             .map(|mount| MountInfo {

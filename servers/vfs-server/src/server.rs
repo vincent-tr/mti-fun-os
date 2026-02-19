@@ -40,15 +40,13 @@ impl Server {
     ) -> Result<Handle, VfsServerError> {
         let fs_handle = vnode
             .mount()
+            .await
             .open_file(vnode.node_id(), handle_permissions)
             .await?;
 
-        let opened_node = Arc::new(OpenedNode::new(
-            vnode,
-            NodeType::File,
-            handle_permissions,
-            Some(fs_handle),
-        ));
+        let opened_node = Arc::new(
+            OpenedNode::new(vnode, NodeType::File, handle_permissions, Some(fs_handle)).await,
+        );
 
         Ok(self.handles.open(sender_id, opened_node))
     }
@@ -59,14 +57,17 @@ impl Server {
         vnode: VNode,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
-        let fs_handle = vnode.mount().open_dir(vnode.node_id()).await?;
+        let fs_handle = vnode.mount().await.open_dir(vnode.node_id()).await?;
 
-        let opened_node = Arc::new(OpenedNode::new(
-            vnode,
-            NodeType::Directory,
-            handle_permissions,
-            Some(fs_handle),
-        ));
+        let opened_node = Arc::new(
+            OpenedNode::new(
+                vnode,
+                NodeType::Directory,
+                handle_permissions,
+                Some(fs_handle),
+            )
+            .await,
+        );
 
         Ok(self.handles.open(sender_id, opened_node))
     }
@@ -77,12 +78,15 @@ impl Server {
         vnode: VNode,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
-        let opened_node = Arc::new(OpenedNode::new(
-            vnode,
-            NodeType::Symlink,
-            handle_permissions,
-            None, // Symlinks are not opened on fs
-        ));
+        let opened_node = Arc::new(
+            OpenedNode::new(
+                vnode,
+                NodeType::Symlink,
+                handle_permissions,
+                None, // Symlinks are not opened on fs
+            )
+            .await,
+        );
 
         Ok(self.handles.open(sender_id, opened_node))
     }
@@ -180,6 +184,7 @@ impl Server {
                 let file = opened_node.vnode();
 
                 file.mount()
+                    .await
                     .close_file(fs_handle)
                     .await
                     .unwrap_or_else(|e| {
@@ -192,9 +197,13 @@ impl Server {
                     .expect("Opened directory without fs handle");
                 let dir = opened_node.vnode();
 
-                dir.mount().close_dir(fs_handle).await.unwrap_or_else(|e| {
-                    error!("Failed to close opened directory: {:?}", e);
-                });
+                dir.mount()
+                    .await
+                    .close_dir(fs_handle)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!("Failed to close opened directory: {:?}", e);
+                    });
             }
             NodeType::Symlink => {
                 // No special handling needed for symlinks
@@ -277,6 +286,7 @@ impl VfsServer for Server {
 
                 let node_id = parent_node
                     .mount()
+                    .await
                     .create(parent_node.node_id(), &name, r#type, permissions)
                     .await?;
 
@@ -341,6 +351,7 @@ impl VfsServer for Server {
 
                         let node_id = parent_node
                             .mount()
+                            .await
                             .create(parent_node.node_id(), &name, r#type, permissions)
                             .await?;
 
@@ -386,6 +397,7 @@ impl VfsServer for Server {
 
                         // Truncate the file to size 0
                         node.mount()
+                            .await
                             .set_metadata(node.node_id(), None, Some(0), None, None)
                             .await?;
 
@@ -415,6 +427,7 @@ impl VfsServer for Server {
 
                         let node_id = parent_node
                             .mount()
+                            .await
                             .create(parent_node.node_id(), &name, r#type, permissions)
                             .await?;
 
@@ -469,6 +482,7 @@ impl VfsServer for Server {
         opened_node.check_write()?;
         let node = opened_node.vnode();
         node.mount()
+            .await
             .set_metadata(node.node_id(), Some(permissions), None, None, None)
             .await?;
 
@@ -490,7 +504,7 @@ impl VfsServer for Server {
             .expect("Opened file without fs handle");
         let file = opened_file.vnode();
 
-        let byte_read = file.mount().read_file(handle, offset, buffer).await?;
+        let byte_read = file.mount().await.read_file(handle, offset, buffer).await?;
 
         Ok(byte_read)
     }
@@ -510,7 +524,11 @@ impl VfsServer for Server {
             .expect("Opened file without fs handle");
         let file = opened_file.vnode();
 
-        let byte_written = file.mount().write_file(handle, offset, buffer).await?;
+        let byte_written = file
+            .mount()
+            .await
+            .write_file(handle, offset, buffer)
+            .await?;
 
         Ok(byte_written)
     }
@@ -527,6 +545,7 @@ impl VfsServer for Server {
         let file = opened_file.vnode();
 
         file.mount()
+            .await
             .set_metadata(file.node_id(), None, Some(new_size), None, None)
             .await?;
 
@@ -546,7 +565,7 @@ impl VfsServer for Server {
             .expect("Opened directory without fs handle");
         let dir = opened_dir.vnode();
 
-        let entries = dir.mount().list_dir(handle).await?;
+        let entries = dir.mount().await.list_dir(handle).await?;
 
         Ok(entries)
     }
@@ -581,6 +600,7 @@ impl VfsServer for Server {
 
         old_dir
             .mount()
+            .await
             .r#move(old_dir.node_id(), old_name, new_dir.node_id(), new_name)
             .await?;
 
@@ -593,7 +613,7 @@ impl VfsServer for Server {
         opened_dir.check_write()?;
         let dir = opened_dir.vnode();
 
-        dir.mount().remove(dir.node_id(), name).await?;
+        dir.mount().await.remove(dir.node_id(), name).await?;
 
         Ok(())
     }
@@ -614,6 +634,7 @@ impl VfsServer for Server {
 
         let node_id = node
             .mount()
+            .await
             .create_symlink(node.node_id(), &name, target)
             .await?;
         let node = VNode::new(node.mount_id(), node_id);
@@ -635,7 +656,7 @@ impl VfsServer for Server {
         opened_link.check_type(NodeType::Symlink)?;
         opened_link.check_read()?;
         let link = opened_link.vnode();
-        let target = link.mount().read_symlink(link.node_id()).await?;
+        let target = link.mount().await.read_symlink(link.node_id()).await?;
 
         Ok(target)
     }
@@ -673,6 +694,6 @@ impl VfsServer for Server {
     }
 
     async fn list_mounts(&self, _sender_id: u64) -> Result<Vec<MountInfo>, Self::Error> {
-        Ok(MountTable::get().info())
+        Ok(MountTable::get().info().await)
     }
 }

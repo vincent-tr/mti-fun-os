@@ -60,9 +60,10 @@ impl LookupContext {
 struct NodeStack(Vec<(VNode, String)>);
 
 impl NodeStack {
-    pub fn new() -> Result<Self, VfsServerError> {
+    pub async fn new() -> Result<Self, VfsServerError> {
         let root_mount = MountTable::get()
             .get_mountpoint(&VNode::ROOT)
+            .await
             .ok_or(VfsServerError::NotFound)?;
         let root = root_mount.root();
 
@@ -171,7 +172,7 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
     }
 
     let mut segments = SegmentsQueue::new(path);
-    let mut node_stack = NodeStack::new()?;
+    let mut node_stack = NodeStack::new().await?;
 
     let mut last_segment = None;
     if mode == LookupMode::Parent {
@@ -205,7 +206,7 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
 
         // If newnode is a mountpoint, we need to switch to the root of the mounted filesystem.
         if metadata.r#type == NodeType::Directory
-            && let Some(mount) = MountTable::get().get_mountpoint(&new_node)
+            && let Some(mount) = MountTable::get().get_mountpoint(&new_node).await
             && !(mode == LookupMode::NoMountpointLast && segments.is_empty())
         {
             new_node = mount.root();
@@ -249,7 +250,7 @@ async fn traverse(
         return Err(VfsServerError::AccessDenied);
     }
 
-    let child = node.mount().lookup(node.node_id(), name).await?;
+    let child = node.mount().await.lookup(node.node_id(), name).await?;
 
     Ok(VNode::new(node.mount_id(), child))
 }
@@ -264,6 +265,7 @@ async fn resolve_symlink(
 
     let target_path = symlink_node
         .mount()
+        .await
         .read_symlink(symlink_node.node_id())
         .await?;
 

@@ -5,7 +5,7 @@ use log::debug;
 
 use crate::{ipc, kobject, sync::RwLock};
 
-use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification};
+use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification, SymBlock};
 
 lazy_static::lazy_static! {
     static ref CLIENT: Client = Client::new();
@@ -217,6 +217,7 @@ pub struct SelfProcess {
     name: RwLock<String>,
     env: RwLock<KVBlock>,
     args: KVBlock,
+    symbols: SymBlock,
 }
 
 impl SelfProcess {
@@ -239,6 +240,7 @@ impl SelfProcess {
             name: RwLock::new(startup_info.name),
             env: RwLock::new(startup_info.env),
             args: startup_info.args,
+            symbols: startup_info.symbols,
         }
     }
 
@@ -333,6 +335,11 @@ impl SelfProcess {
         }
 
         entries
+    }
+
+    /// Get the process symbols
+    pub fn symbols(&self) -> &SymBlock {
+        &self.symbols
     }
 
     /// Set the exit code of the process

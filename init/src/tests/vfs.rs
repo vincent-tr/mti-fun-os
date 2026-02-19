@@ -163,6 +163,8 @@ fn test_files() {
         let file = vfs::File::create("/testfile1", perms).expect("Failed to create file");
 
         let data = b"Hello, VFS!";
+        // Resize file to allocate space before writing
+        file.resisze(data.len()).expect("Failed to resize file");
         let written = file.write(0, data).expect("Failed to write to file");
         assert_eq!(written, data.len(), "Should write all bytes");
 
@@ -176,6 +178,8 @@ fn test_files() {
         let file = vfs::File::create("/testfile2", perms).expect("Failed to create file");
 
         let data = b"Test data for reading";
+        // Resize file to allocate space before writing
+        file.resisze(data.len()).expect("Failed to resize file");
         file.write(0, data).expect("Failed to write to file");
 
         // Read it back
@@ -193,6 +197,8 @@ fn test_files() {
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/testfile3", perms).expect("Failed to create file");
 
+        // Resize file to allocate space before writing
+        file.resisze(4).expect("Failed to resize file");
         file.write(0, b"AAAA").expect("Failed to write");
         file.write(2, b"BB").expect("Failed to write at offset");
 
@@ -209,6 +215,8 @@ fn test_files() {
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/testfile4", perms).expect("Failed to create file");
 
+        // Resize file to allocate space before writing
+        file.resisze(5).expect("Failed to resize file");
         file.write(0, b"Hello").expect("Failed to write");
 
         // Get size
@@ -219,6 +227,12 @@ fn test_files() {
         file.resisze(10).expect("Failed to resize file");
         let metadata = file.stat().expect("Failed to stat file");
         assert_eq!(metadata.size, 10, "File size should be 10 after resize");
+
+        // Verify the first 5 bytes are still "Hello" and the rest are zeros
+        let mut buffer = [0xFFu8; 10];
+        file.read(0, &mut buffer).expect("Failed to read");
+        assert_eq!(&buffer[..5], b"Hello", "Original data should be preserved");
+        assert_eq!(&buffer[5..], &[0u8; 5], "Extended bytes should be zeros");
 
         // Resize to smaller (truncate)
         file.resisze(3).expect("Failed to resize file");
@@ -233,6 +247,8 @@ fn test_files() {
     {
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/testfile5", perms).expect("Failed to create file");
+        // Resize file to allocate space before writing
+        file.resisze(8).expect("Failed to resize file");
         file.write(0, b"existing").expect("Failed to write");
         drop(file);
 
@@ -271,6 +287,8 @@ fn test_files() {
         let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file =
             vfs::File::create("/testmove/oldname", file_perms).expect("Failed to create file");
+        // Resize file to allocate space before writing
+        file.resisze(7).expect("Failed to resize file");
         file.write(0, b"move me").expect("Failed to write");
         drop(file);
 
@@ -303,6 +321,8 @@ fn test_metadata() {
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/metafile", perms).expect("Failed to create file");
 
+        // Resize file to allocate space before writing
+        file.resisze(13).expect("Failed to resize file");
         file.write(0, b"metadata test").expect("Failed to write");
 
         let metadata = file.stat().expect("Failed to stat file");
@@ -385,6 +405,8 @@ fn test_metadata() {
 
         // Write to file
         timer::sleep(timer::Duration::from_milliseconds(10));
+        // Resize file to allocate space before writing
+        file.resisze(6).expect("Failed to resize file");
         file.write(0, b"update").expect("Failed to write");
 
         let metadata2 = file.stat().expect("Failed to stat file");
@@ -416,6 +438,8 @@ fn test_symlinks() {
 
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/linktest/target", perms).expect("Failed to create file");
+        // Resize file to allocate space before writing
+        file.resisze(14).expect("Failed to resize file");
         file.write(0, b"target content").expect("Failed to write");
         drop(file);
 
@@ -438,6 +462,8 @@ fn test_symlinks() {
 
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/linktest2/target", perms).expect("Failed to create file");
+        // Resize file to allocate space before writing
+        file.resisze(12).expect("Failed to resize file");
         file.write(0, b"through link").expect("Failed to write");
         drop(file);
 
@@ -486,6 +512,8 @@ fn test_symlinks() {
 
         let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/linktest4/target", perms).expect("Failed to create file");
+        // Resize file to allocate space before writing
+        file.resisze(12).expect("Failed to resize file");
         file.write(0, b"end of chain").expect("Failed to write");
         drop(file);
 
@@ -551,6 +579,8 @@ fn test_mounts() {
         let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
         let file = vfs::File::create("/mountpoint/testfile", file_perms)
             .expect("Failed to create file in mounted fs");
+        // Resize file to allocate space before writing
+        file.resisze(8).expect("Failed to resize file");
         file.write(0, b"in mount").expect("Failed to write");
         drop(file);
 

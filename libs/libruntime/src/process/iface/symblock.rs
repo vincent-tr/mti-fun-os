@@ -273,15 +273,17 @@ impl SymBlockBuilder {
 }
 
 #[derive(Debug)]
-#[repr(C)]
+#[repr(C, align(8))]
 struct Header {
     pub version: u32,
     pub entry_count: u32,
     pub strings_offset: u32,
+    // Padding to ensure 8-byte alignment for following SymEntry array
+    _padding: u32,
 }
 
 #[derive(Debug)]
-#[repr(C)]
+#[repr(C, align(8))]
 struct SymEntry {
     pub address: u64,
     pub string_offset: u32,

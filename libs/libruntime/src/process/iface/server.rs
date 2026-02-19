@@ -151,11 +151,14 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
         let (name_mobj, name_buffer) = ipc::Buffer::new_local(info.name.as_bytes()).into_shared();
         let env_mobj = info.env.into_memory_object();
         let args_mobj = info.args.into_memory_object();
+        let symbols_mobj = info.symbols.into_memory_object();
 
         let mut reply_handles = ipc::KHandles::new();
         reply_handles[messages::GetStartupInfoReply::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
         reply_handles[messages::GetStartupInfoReply::HANDLE_ENV_MOBJ] = env_mobj.into_handle();
         reply_handles[messages::GetStartupInfoReply::HANDLE_ARGS_MOBJ] = args_mobj.into_handle();
+        reply_handles[messages::GetStartupInfoReply::HANDLE_SYMBOLS_MOBJ] =
+            symbols_mobj.into_handle();
 
         Ok((
             messages::GetStartupInfoReply { name: name_buffer },

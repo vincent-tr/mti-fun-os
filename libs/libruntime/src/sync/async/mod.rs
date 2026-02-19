@@ -6,5 +6,5 @@
 mod mutex;
 mod rwlock;
 
-pub use mutex::{AsyncMutex, AsyncMutexGuard};
-pub use rwlock::{AsyncRwLock, AsyncRwLockReadGuard, AsyncRwLockWriteGuard};
+pub use mutex::{Mutex, MutexGuard};
+pub use rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};

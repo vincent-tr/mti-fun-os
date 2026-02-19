@@ -18,7 +18,7 @@ const MAX_READERS: u32 = READER_MASK;
 ///
 /// This type of lock allows multiple readers or at most one writer at any point in time.
 /// Tasks waiting for the lock will yield to the async executor instead of blocking.
-pub struct AsyncRwLock<T: ?Sized> {
+pub struct RwLock<T: ?Sized> {
     state: AtomicU32,
     read_waiters: SyncMutex<VecDeque<Waker>>,
     write_waiters: SyncMutex<VecDeque<Waker>>,
@@ -26,20 +26,20 @@ pub struct AsyncRwLock<T: ?Sized> {
 }
 
 /// RAII structure used to release the shared read access of a lock when dropped.
-pub struct AsyncRwLockReadGuard<'a, T: ?Sized + 'a> {
-    lock: &'a AsyncRwLock<T>,
+pub struct RwLockReadGuard<'a, T: ?Sized + 'a> {
+    lock: &'a RwLock<T>,
 }
 
 /// RAII structure used to release the exclusive write access of a lock when dropped.
-pub struct AsyncRwLockWriteGuard<'a, T: ?Sized + 'a> {
-    lock: &'a AsyncRwLock<T>,
+pub struct RwLockWriteGuard<'a, T: ?Sized + 'a> {
+    lock: &'a RwLock<T>,
 }
 
-unsafe impl<T: ?Sized + Send> Send for AsyncRwLock<T> {}
-unsafe impl<T: ?Sized + Send + Sync> Sync for AsyncRwLock<T> {}
+unsafe impl<T: ?Sized + Send> Send for RwLock<T> {}
+unsafe impl<T: ?Sized + Send + Sync> Sync for RwLock<T> {}
 
-impl<T> AsyncRwLock<T> {
-    /// Creates a new instance of an `AsyncRwLock<T>` which is unlocked.
+impl<T> RwLock<T> {
+    /// Creates a new instance of an `RwLock<T>` which is unlocked.
     pub const fn new(data: T) -> Self {
         Self {
             state: AtomicU32::new(UNLOCKED),
@@ -49,23 +49,23 @@ impl<T> AsyncRwLock<T> {
         }
     }
 
-    /// Consumes this `AsyncRwLock`, returning the underlying data.
+    /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> T {
         self.data.into_inner()
     }
 }
 
-impl<T: ?Sized> AsyncRwLock<T> {
+impl<T: ?Sized> RwLock<T> {
     /// Locks this rwlock with shared read access, asynchronously waiting until it can be acquired.
-    pub fn read(&self) -> AsyncRwLockReadFuture<'_, T> {
-        AsyncRwLockReadFuture {
+    pub fn read(&self) -> RwLockReadFuture<'_, T> {
+        RwLockReadFuture {
             lock: self,
             registered: false,
         }
     }
 
     /// Attempts to acquire this rwlock with shared read access.
-    pub fn try_read(&self) -> Option<AsyncRwLockReadGuard<'_, T>> {
+    pub fn try_read(&self) -> Option<RwLockReadGuard<'_, T>> {
         let state = self.state.load(Ordering::Relaxed);
 
         if (state & WRITER_BIT) != 0 || (state & READER_MASK) == MAX_READERS {
@@ -77,28 +77,28 @@ impl<T: ?Sized> AsyncRwLock<T> {
             .compare_exchange(state, state + 1, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            Some(AsyncRwLockReadGuard { lock: self })
+            Some(RwLockReadGuard { lock: self })
         } else {
             None
         }
     }
 
     /// Locks this rwlock with exclusive write access, asynchronously waiting until it can be acquired.
-    pub fn write(&self) -> AsyncRwLockWriteFuture<'_, T> {
-        AsyncRwLockWriteFuture {
+    pub fn write(&self) -> RwLockWriteFuture<'_, T> {
+        RwLockWriteFuture {
             lock: self,
             registered: false,
         }
     }
 
     /// Attempts to lock this rwlock with exclusive write access.
-    pub fn try_write(&self) -> Option<AsyncRwLockWriteGuard<'_, T>> {
+    pub fn try_write(&self) -> Option<RwLockWriteGuard<'_, T>> {
         if self
             .state
             .compare_exchange(UNLOCKED, WRITER_BIT, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            Some(AsyncRwLockWriteGuard { lock: self })
+            Some(RwLockWriteGuard { lock: self })
         } else {
             None
         }
@@ -138,14 +138,14 @@ impl<T: ?Sized> AsyncRwLock<T> {
     }
 }
 
-/// Future returned by `AsyncRwLock::read()`.
-pub struct AsyncRwLockReadFuture<'a, T: ?Sized> {
-    lock: &'a AsyncRwLock<T>,
+/// Future returned by `RwLock::read()`.
+pub struct RwLockReadFuture<'a, T: ?Sized> {
+    lock: &'a RwLock<T>,
     registered: bool,
 }
 
-impl<'a, T: ?Sized> Future for AsyncRwLockReadFuture<'a, T> {
-    type Output = AsyncRwLockReadGuard<'a, T>;
+impl<'a, T: ?Sized> Future for RwLockReadFuture<'a, T> {
+    type Output = RwLockReadGuard<'a, T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
@@ -159,7 +159,7 @@ impl<'a, T: ?Sized> Future for AsyncRwLockReadFuture<'a, T> {
                     .compare_exchange_weak(state, state + 1, Ordering::Acquire, Ordering::Relaxed)
                     .is_ok()
                 {
-                    return Poll::Ready(AsyncRwLockReadGuard { lock: self.lock });
+                    return Poll::Ready(RwLockReadGuard { lock: self.lock });
                 }
                 // CAS failed, try again
                 continue;
@@ -176,14 +176,14 @@ impl<'a, T: ?Sized> Future for AsyncRwLockReadFuture<'a, T> {
     }
 }
 
-/// Future returned by `AsyncRwLock::write()`.
-pub struct AsyncRwLockWriteFuture<'a, T: ?Sized> {
-    lock: &'a AsyncRwLock<T>,
+/// Future returned by `RwLock::write()`.
+pub struct RwLockWriteFuture<'a, T: ?Sized> {
+    lock: &'a RwLock<T>,
     registered: bool,
 }
 
-impl<'a, T: ?Sized> Future for AsyncRwLockWriteFuture<'a, T> {
-    type Output = AsyncRwLockWriteGuard<'a, T>;
+impl<'a, T: ?Sized> Future for RwLockWriteFuture<'a, T> {
+    type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Try to acquire write lock
@@ -193,7 +193,7 @@ impl<'a, T: ?Sized> Future for AsyncRwLockWriteFuture<'a, T> {
             .compare_exchange(UNLOCKED, WRITER_BIT, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            return Poll::Ready(AsyncRwLockWriteGuard { lock: self.lock });
+            return Poll::Ready(RwLockWriteGuard { lock: self.lock });
         }
 
         // Can't acquire, register waker if not already registered
@@ -206,7 +206,7 @@ impl<'a, T: ?Sized> Future for AsyncRwLockWriteFuture<'a, T> {
     }
 }
 
-impl<T: ?Sized> Deref for AsyncRwLockReadGuard<'_, T> {
+impl<T: ?Sized> Deref for RwLockReadGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -214,13 +214,13 @@ impl<T: ?Sized> Deref for AsyncRwLockReadGuard<'_, T> {
     }
 }
 
-impl<T: ?Sized> Drop for AsyncRwLockReadGuard<'_, T> {
+impl<T: ?Sized> Drop for RwLockReadGuard<'_, T> {
     fn drop(&mut self) {
         self.lock.read_unlock();
     }
 }
 
-impl<T: ?Sized> Deref for AsyncRwLockWriteGuard<'_, T> {
+impl<T: ?Sized> Deref for RwLockWriteGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -228,13 +228,13 @@ impl<T: ?Sized> Deref for AsyncRwLockWriteGuard<'_, T> {
     }
 }
 
-impl<T: ?Sized> DerefMut for AsyncRwLockWriteGuard<'_, T> {
+impl<T: ?Sized> DerefMut for RwLockWriteGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.lock.data.get() }
     }
 }
 
-impl<T: ?Sized> Drop for AsyncRwLockWriteGuard<'_, T> {
+impl<T: ?Sized> Drop for RwLockWriteGuard<'_, T> {
     fn drop(&mut self) {
         self.lock.write_unlock();
     }

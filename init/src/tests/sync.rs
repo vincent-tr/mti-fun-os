@@ -5,7 +5,7 @@ use libruntime::{
     kobject::{self, MemoryObject, Permissions, Process, ThreadOptions, PAGE_SIZE},
     r#async,
     sync::{
-        r#async::{AsyncMutex, AsyncRwLock},
+        r#async::{Mutex as AsyncMutex, RwLock as AsyncRwLock},
         Mutex, RwLock,
     },
     timer::{self, Duration},

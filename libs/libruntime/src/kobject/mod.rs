@@ -51,9 +51,9 @@ pub mod helpers {
 }
 
 pub(crate) fn init() {
-    thread::THREAD_GC.init();
+    thread::ThreadRuntime::get().init();
 }
 
 pub(crate) fn terminate() {
-    thread::THREAD_GC.terminate();
+    thread::ThreadRuntime::get().terminate();
 }

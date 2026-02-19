@@ -155,7 +155,7 @@ impl Thread {
             handle,
         };
 
-        THREAD_GC.add_thread(ThreadGCData::new(
+        ThreadRuntime::get().add_thread(ThreadRuntimeData::new(
             obj.tid(),
             stack_reservation,
             tls_reservation,
@@ -419,18 +419,22 @@ impl ThreadParameter {
 }
 
 /// Cleanup TLS and Stack allocated for threads
-pub struct ThreadGC {
+pub struct ThreadRuntime {
     exit_port: Mutex<Option<PortSender>>,
-    data: Arc<Mutex<BTreeMap<u64, ThreadGCData>>>,
+    data: Arc<Mutex<BTreeMap<u64, ThreadRuntimeData>>>,
 }
 
-lazy_static! {
-    pub static ref THREAD_GC: ThreadGC = ThreadGC::new();
-}
+impl ThreadRuntime {
+    /// Get the global thread runtime instance
+    pub fn get() -> &'static Self {
+        lazy_static! {
+            static ref INSTANCE: ThreadRuntime = ThreadRuntime::new();
+        }
 
-impl ThreadGC {
-    /// Construct a new GC
-    pub fn new() -> Self {
+        &INSTANCE
+    }
+
+    fn new() -> Self {
         Self {
             exit_port: Mutex::new(None),
             data: Arc::new(Mutex::new(BTreeMap::new())),
@@ -445,7 +449,7 @@ impl ThreadGC {
         let data = self.data.clone();
 
         let mut options = ThreadOptions::default();
-        options.name("thread-gc");
+        options.name("thread-runtime");
         options.priority(ThreadPriority::AboveNormal);
 
         let entry = move || Self::worker(exit_receiver, data);
@@ -462,16 +466,16 @@ impl ThreadGC {
             .take()
             .expect("Could not get exit port")
             .send(&mut message)
-            .expect("Could not exit thread-gc");
+            .expect("Could not exit thread-runtime");
     }
 
-    fn add_thread(&self, item: ThreadGCData) {
+    fn add_thread(&self, item: ThreadRuntimeData) {
         let mut data = self.data.lock();
 
         data.insert(item.tid, item);
     }
 
-    fn worker(exit: PortReceiver, data: Arc<Mutex<BTreeMap<u64, ThreadGCData>>>) {
+    fn worker(exit: PortReceiver, data: Arc<Mutex<BTreeMap<u64, ThreadRuntimeData>>>) {
         let pid = Process::current().pid();
 
         let listener = ThreadListener::create(ThreadListenerFilter::Pids(&[pid]))
@@ -513,13 +517,13 @@ impl ThreadGC {
 }
 
 #[derive(Debug)]
-struct ThreadGCData {
+struct ThreadRuntimeData {
     tid: u64,
     stack_reservation: Range<usize>,
     tls_reservation: Range<usize>,
 }
 
-impl ThreadGCData {
+impl ThreadRuntimeData {
     pub fn new(tid: u64, stack_reservation: Range<usize>, tls_reservation: Range<usize>) -> Self {
         Self {
             tid,
@@ -529,7 +533,7 @@ impl ThreadGCData {
     }
 }
 
-impl Drop for ThreadGCData {
+impl Drop for ThreadRuntimeData {
     fn drop(&mut self) {
         let process = Process::current();
 

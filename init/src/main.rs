@@ -67,6 +67,8 @@ fn main() {
     // tests::sync::test_futex();
     // tests::sync::test_mutex();
     // tests::sync::test_rwlock();
+    // tests::sync::test_async_mutex();
+    // tests::sync::test_async_rwlock();
 
     start_servers();
     setup_initial_filesystem();

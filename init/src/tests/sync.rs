@@ -3,7 +3,11 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use libruntime::{
     ipc::KHandles,
     kobject::{self, MemoryObject, Permissions, Process, ThreadOptions, PAGE_SIZE},
-    sync::{Mutex, RwLock},
+    r#async,
+    sync::{
+        r#async::{AsyncMutex, AsyncRwLock},
+        Mutex, RwLock,
+    },
     timer::{self, Duration},
 };
 use libsyscalls::futex;
@@ -505,4 +509,304 @@ pub fn test_rwlock() {
     }
 
     info!("All RwLock tests PASSED!");
+}
+
+/// Test AsyncMutex synchronization primitive
+#[allow(dead_code)]
+pub fn test_async_mutex() {
+    info!("Testing AsyncMutex operations...");
+
+    // Test 1: Basic lock/unlock in async context
+    info!("Test 1: Basic async lock/unlock");
+    {
+        let mutex = Arc::new(AsyncMutex::new(0));
+        let mutex_clone = mutex.clone();
+
+        r#async::spawn(async move {
+            {
+                let mut guard = mutex_clone.lock().await;
+                *guard = 42;
+            }
+            let guard = mutex_clone.lock().await;
+            assert_eq!(*guard, 42, "Value should be 42 after lock/unlock");
+        });
+
+        r#async::block_on();
+
+        info!("Test 1: PASSED");
+    }
+
+    // Test 2: try_lock in async context
+    info!("Test 2: async try_lock");
+    {
+        let mutex = Arc::new(AsyncMutex::new(0));
+        let mutex_clone = mutex.clone();
+
+        r#async::spawn(async move {
+            let guard1 = mutex_clone.lock().await;
+            assert!(
+                mutex_clone.try_lock().is_none(),
+                "try_lock should fail when locked"
+            );
+            drop(guard1);
+            assert!(
+                mutex_clone.try_lock().is_some(),
+                "try_lock should succeed when unlocked"
+            );
+        });
+
+        r#async::block_on();
+
+        info!("Test 2: PASSED");
+    }
+
+    // Test 3: Multiple async tasks contention
+    info!("Test 3: Multiple async tasks contention");
+    {
+        let counter = Arc::new(AsyncMutex::new(0u32));
+        let iterations = 100;
+        let tasks = 10;
+
+        for _ in 0..tasks {
+            let counter = counter.clone();
+            r#async::spawn(async move {
+                for _ in 0..iterations {
+                    let mut guard = counter.lock().await;
+                    *guard += 1;
+                }
+            });
+        }
+
+        // Wait for all tasks to complete
+        r#async::block_on();
+
+        // Verify final value
+        let final_value = *counter.try_lock().expect("Should be able to lock");
+        assert_eq!(
+            final_value,
+            tasks * iterations,
+            "Counter should be {} but got {}",
+            tasks * iterations,
+            final_value
+        );
+
+        info!("Test 3: PASSED");
+    }
+
+    // Test 4: Lock across async boundaries
+    info!("Test 4: Lock across async boundaries");
+    {
+        let mutex = Arc::new(AsyncMutex::new(alloc::vec![1, 2, 3]));
+        let mutex1 = mutex.clone();
+        let mutex2 = mutex.clone();
+
+        r#async::spawn(async move {
+            let mut guard = mutex1.lock().await;
+            guard.push(4);
+            timer::sleep(Duration::from_milliseconds(10));
+        });
+
+        r#async::spawn(async move {
+            let mut guard = mutex2.lock().await;
+            guard.push(5);
+        });
+
+        r#async::block_on();
+
+        // Verify result
+        let guard = mutex.try_lock().expect("Should be able to lock");
+        assert!(guard.len() >= 4, "Should have at least 4 elements");
+
+        info!("Test 4: PASSED");
+    }
+
+    info!("All AsyncMutex tests PASSED!");
+}
+
+/// Test AsyncRwLock synchronization primitive
+#[allow(dead_code)]
+pub fn test_async_rwlock() {
+    info!("Testing AsyncRwLock operations...");
+
+    // Test 1: Basic read lock
+    info!("Test 1: Basic async read lock");
+    {
+        let lock = Arc::new(AsyncRwLock::new(42));
+        let lock_clone = lock.clone();
+
+        r#async::spawn(async move {
+            let guard = lock_clone.read().await;
+            assert_eq!(*guard, 42, "Value should be 42");
+        });
+
+        r#async::block_on();
+
+        info!("Test 1: PASSED");
+    }
+
+    // Test 2: Basic write lock
+    info!("Test 2: Basic async write lock");
+    {
+        let lock = Arc::new(AsyncRwLock::new(0));
+        let lock_clone = lock.clone();
+
+        r#async::spawn(async move {
+            {
+                let mut guard = lock_clone.write().await;
+                *guard = 100;
+            }
+            let guard = lock_clone.read().await;
+            assert_eq!(*guard, 100, "Value should be 100 after write");
+        });
+
+        r#async::block_on();
+
+        info!("Test 2: PASSED");
+    }
+
+    // Test 3: Multiple concurrent readers
+    info!("Test 3: Multiple concurrent async readers");
+    {
+        let lock = Arc::new(AsyncRwLock::new(42));
+        let read_count = Arc::new(AtomicU32::new(0));
+
+        for i in 0..5 {
+            let lock = lock.clone();
+            let read_count = read_count.clone();
+            r#async::spawn(async move {
+                let guard = lock.read().await;
+                read_count.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(*guard, 42, "Reader {} saw wrong value", i);
+                timer::sleep(Duration::from_milliseconds(10));
+                read_count.fetch_sub(1, Ordering::SeqCst);
+            });
+        }
+
+        r#async::block_on();
+
+        // All readers should have completed
+        assert_eq!(
+            read_count.load(Ordering::SeqCst),
+            0,
+            "All readers should be done"
+        );
+
+        info!("Test 3: PASSED");
+    }
+
+    // Test 4: Writer excludes readers
+    info!("Test 4: Writer excludes async readers");
+    {
+        let lock = Arc::new(AsyncRwLock::new(0));
+        let writer_done = Arc::new(AtomicU32::new(0));
+
+        let lock_writer = lock.clone();
+        let writer_done_clone = writer_done.clone();
+        r#async::spawn(async move {
+            let mut guard = lock_writer.write().await;
+            *guard = 10;
+            timer::sleep(Duration::from_milliseconds(50));
+            *guard = 20;
+            writer_done_clone.store(1, Ordering::SeqCst);
+        });
+
+        // Give writer time to acquire lock
+        timer::sleep(Duration::from_milliseconds(10));
+
+        let lock_reader = lock.clone();
+        let writer_done_clone = writer_done.clone();
+        r#async::spawn(async move {
+            let guard = lock_reader.read().await;
+            // Writer should be done by the time we get the read lock
+            assert_eq!(
+                writer_done_clone.load(Ordering::SeqCst),
+                1,
+                "Writer should be complete before reader gets lock"
+            );
+            assert_eq!(*guard, 20, "Should see final written value");
+        });
+
+        r#async::block_on();
+
+        info!("Test 4: PASSED");
+    }
+
+    // Test 5: try_read and try_write
+    info!("Test 5: async try_read and try_write");
+    {
+        let lock = Arc::new(AsyncRwLock::new(0));
+        let lock_clone = lock.clone();
+
+        r#async::spawn(async move {
+            let r1 = lock_clone.try_read();
+            assert!(r1.is_some(), "try_read should succeed");
+
+            let r2 = lock_clone.try_read();
+            assert!(r2.is_some(), "multiple try_read should succeed");
+
+            let w = lock_clone.try_write();
+            assert!(w.is_none(), "try_write should fail with active readers");
+
+            drop(r1);
+            drop(r2);
+
+            let w = lock_clone.try_write();
+            assert!(w.is_some(), "try_write should succeed when unlocked");
+
+            let r = lock_clone.try_read();
+            assert!(r.is_none(), "try_read should fail with active writer");
+        });
+
+        r#async::block_on();
+
+        info!("Test 5: PASSED");
+    }
+
+    // Test 6: Reader-writer alternation
+    info!("Test 6: Async reader-writer alternation");
+    {
+        let lock = Arc::new(AsyncRwLock::new(0));
+        let operations = Arc::new(AtomicU32::new(0));
+
+        // Writer task
+        let lock_writer = lock.clone();
+        let ops_writer = operations.clone();
+        r#async::spawn(async move {
+            for i in 0..5 {
+                let mut guard = lock_writer.write().await;
+                *guard = i * 10;
+                ops_writer.fetch_add(1, Ordering::SeqCst);
+                timer::sleep(Duration::from_milliseconds(5));
+            }
+        });
+
+        // Reader tasks
+        for _ in 0..3 {
+            let lock = lock.clone();
+            let ops = operations.clone();
+            r#async::spawn(async move {
+                for _ in 0..5 {
+                    let guard = lock.read().await;
+                    let value = *guard;
+                    assert!(value % 10 == 0, "reader saw invalid value: {}", value);
+                    ops.fetch_add(1, Ordering::SeqCst);
+                    timer::sleep(Duration::from_milliseconds(3));
+                }
+            });
+        }
+
+        r#async::block_on();
+
+        // Check that all operations completed
+        let total_ops = operations.load(Ordering::SeqCst);
+        assert!(
+            total_ops >= 20,
+            "Should have at least 20 operations (5 writes + 15 reads), got {}",
+            total_ops
+        );
+
+        info!("Test 6: PASSED");
+    }
+
+    info!("All AsyncRwLock tests PASSED!");
 }

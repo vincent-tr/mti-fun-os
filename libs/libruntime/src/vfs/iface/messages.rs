@@ -61,6 +61,7 @@ pub enum VfsServerError {
     NotDirectory,
     AccessDenied,
     NotSupported,
+    DirectoryNotEmpty,
 }
 
 impl fmt::Display for VfsServerError {
@@ -77,6 +78,7 @@ impl fmt::Display for VfsServerError {
             Self::NotDirectory => write!(f, "NotDirectory"),
             Self::AccessDenied => write!(f, "AccessDenied"),
             Self::NotSupported => write!(f, "NotSupported"),
+            Self::DirectoryNotEmpty => write!(f, "DirectoryNotEmpty"),
         }
     }
 }

@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(let_chains)]
 
 extern crate alloc;
 extern crate libruntime;

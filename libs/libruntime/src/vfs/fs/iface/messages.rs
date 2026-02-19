@@ -51,6 +51,7 @@ pub enum FsServerError {
     NodeAlreadyExists,
     NodeBadType,
     NotSupported,
+    DirectoryNotEmpty,
 }
 
 impl fmt::Display for FsServerError {
@@ -63,6 +64,7 @@ impl fmt::Display for FsServerError {
             Self::NodeAlreadyExists => write!(f, "NodeAlreadyExists"),
             Self::NodeBadType => write!(f, "NodeBadType"),
             Self::NotSupported => write!(f, "NotSupported"),
+            Self::DirectoryNotEmpty => write!(f, "DirectoryNotEmpty"),
         }
     }
 }

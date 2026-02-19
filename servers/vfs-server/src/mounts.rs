@@ -461,6 +461,9 @@ impl<T> ResultFsCallExt<T> for Result<T, FsServerCallError> {
                 }
                 CallError::ReplyError(FsServerError::NodeBadType) => VfsServerError::BadType,
                 CallError::ReplyError(FsServerError::NotSupported) => VfsServerError::NotSupported,
+                CallError::ReplyError(FsServerError::DirectoryNotEmpty) => {
+                    VfsServerError::DirectoryNotEmpty
+                }
             }
         })
     }

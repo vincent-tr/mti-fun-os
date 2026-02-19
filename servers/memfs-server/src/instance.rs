@@ -93,9 +93,24 @@ impl FsInstance {
 
     /// Removes a child node by name from the specified parent directory node.
     pub fn remove(&mut self, parent: NodeId, name: &str) -> Result<(), FsServerError> {
-        let entries = self.get_parent_entries_mut(parent)?;
+        // Check for non-empty directories before removal
+        let node_id = *self
+            .get_parent_entries(parent)?
+            .get(name)
+            .ok_or(FsServerError::NodeNotFound)?;
 
-        let node_id = entries.remove(name).ok_or(FsServerError::NodeNotFound)?;
+        let node = self.nodes.get(&node_id).expect("NodeId not found");
+
+        if let Some(entries) = node.kind.get_directory_entries()
+            && !entries.is_empty()
+        {
+            return Err(FsServerError::DirectoryNotEmpty);
+        }
+
+        self.get_parent_entries_mut(parent)
+            .expect("Could not get parent")
+            .remove(name)
+            .expect("Name not found");
 
         self.unlink_node(node_id);
         self.node_updated(parent);

@@ -76,13 +76,12 @@ impl File {
     /// Opens a file at the given path with the specified mode and permissions.
     pub fn open(
         path: &str,
-        mode: OpenMode,
         perms: HandlePermissions,
     ) -> Result<Self, VfsServerCallError> {
         let handle = CLIENT.open(
             path,
             Some(NodeType::File),
-            mode,
+            OpenMode::OpenExisting,
             false,
             Permissions::NONE,
             perms,
@@ -147,7 +146,7 @@ impl Directory {
         let handle = CLIENT.open(
             path,
             Some(NodeType::Directory),
-            OpenMode::CreateNew,
+            OpenMode::OpenExisting,
             false,
             Permissions::NONE,
             HandlePermissions::READ,
@@ -177,6 +176,11 @@ impl Directory {
     /// Lists the entries in the directory, returning a vector of DirectoryEntry.
     pub fn list(&self) -> Result<Vec<DirectoryEntry>, VfsServerCallError> {
         CLIENT.list(self.handle())
+    }
+
+    /// Remove a file or directory with the given name from this directory.
+    pub fn remove(&self, name: &str) -> Result<(), VfsServerCallError> {
+        CLIENT.remove(self.handle(), name)
     }
 }
 

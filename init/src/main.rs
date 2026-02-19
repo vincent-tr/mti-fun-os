@@ -71,8 +71,10 @@ fn main() {
     // tests::sync::test_rwlock();
 
     start_servers();
+    setup_initial_filesystem();
 
     // tests::process::list_processes();
+    tests::vfs::test_vfs();
 
     // init cannot exit, it runs the state server
     sleep_forever();
@@ -107,8 +109,6 @@ fn start_servers() {
 
     let _ = process;
     wait_port("memfs-server");
-
-    setup_initial_filesystem();
 }
 
 fn setup_initial_filesystem() {

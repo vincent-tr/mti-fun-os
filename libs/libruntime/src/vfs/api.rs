@@ -74,10 +74,7 @@ impl VfsObject for File {
 
 impl File {
     /// Opens a file at the given path with the specified mode and permissions.
-    pub fn open(
-        path: &str,
-        perms: HandlePermissions,
-    ) -> Result<Self, VfsServerCallError> {
+    pub fn open(path: &str, perms: HandlePermissions) -> Result<Self, VfsServerCallError> {
         let handle = CLIENT.open(
             path,
             Some(NodeType::File),

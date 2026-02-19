@@ -153,7 +153,9 @@ impl MountTable {
             .expect("Mount not found")
             .clone();
 
-        if mount.link_count.load(Ordering::SeqCst) > 0 {
+        // link_count = 1 means only the mount table holds a reference to the mount, so it's safe to unmount.
+        // If it's greater than 1, it means there are still active vnodes referencing the mount, so we cannot unmount it.
+        if mount.link_count.load(Ordering::SeqCst) > 1 {
             return Err(VfsServerError::Busy);
         }
 

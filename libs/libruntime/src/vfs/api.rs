@@ -300,5 +300,3 @@ fn split_path(path: &str) -> Result<(&str, &str), VfsServerCallError> {
 
     Ok((parent, name))
 }
-
-// TODO: better error wrapping

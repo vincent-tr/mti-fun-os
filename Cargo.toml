@@ -38,6 +38,7 @@ libc = "0.2.171"
 log = "0.4.27"
 memoffset = "0.9.1"
 raw-cpuid = "11.5.0"
+rustc-demangle = { version = "0.1", default-features = false }
 spin = "0.10.0"
 typed-arena = { version = "2.0.2", default-features = false }
 uart_16550 = "0.3.2"

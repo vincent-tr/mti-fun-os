@@ -1,7 +1,7 @@
-use alloc::vec::Vec;
+use alloc::{collections::btree_map::BTreeMap, format, string::String, vec::Vec};
 use libruntime::{kobject, memory, process::iface::ProcessServerError};
 use log::debug;
-use xmas_elf::{header, program, ElfFile};
+use xmas_elf::{header, program, symbol_table::Entry, ElfFile};
 
 use crate::error::{invalid_binary, ResultExt};
 
@@ -63,6 +63,48 @@ impl<'a> Loader<'a> {
         }
 
         Ok(loader)
+    }
+
+    pub fn get_symbols(&self) -> Result<BTreeMap<usize, String>, ProcessServerError> {
+        let Some(symbol_table) = self.elf_file.find_section_by_name(".symtab") else {
+            return Err(invalid_binary("No symbol table found"))?;
+        };
+
+        let data = symbol_table
+            .get_data(&self.elf_file)
+            .invalid_binary("could not get symbol table data")?;
+
+        let xmas_elf::sections::SectionData::SymbolTable64(table) = data else {
+            return Err(invalid_binary("Expected symbol table to be SymbolTable64"))?;
+        };
+
+        let mut symbols = BTreeMap::new();
+
+        for symbol in table {
+            let r#type = symbol
+                .get_type()
+                .invalid_binary("Failed to get symbol type")?;
+            let name = symbol
+                .get_name(&self.elf_file)
+                .invalid_binary("Failed to get symbol name")?;
+
+            if r#type != xmas_elf::symbol_table::Type::Func {
+                continue;
+            }
+
+            let name = format!("{:#}", rustc_demangle::demangle(name));
+
+            symbols.insert(symbol.value() as usize, name);
+        }
+
+        // Add a special symbol at the end of text section, so that we can scope the address space of the last real symbol.
+        let Some(text_section) = self.elf_file.find_section_by_name(".text") else {
+            return Err(invalid_binary("No .text section found"))?;
+        };
+        let text_end = text_section.address() + text_section.size();
+        symbols.insert(text_end as usize, String::from("<end of .text>"));
+
+        Ok(symbols)
     }
 
     /// Map the ELF segments into the given process's address space

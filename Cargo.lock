@@ -643,6 +643,7 @@ dependencies = [
  "libruntime",
  "libsyscalls",
  "log",
+ "rustc-demangle",
  "xmas-elf",
 ]
 

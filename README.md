@@ -122,7 +122,9 @@ tail -f serial.log
     -> build PE + dllimport/dllexport ?
     -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
     - -C prefer dynamic
-- vfs/memfs
+- vfs
+  - async lock for mount table
+  - archive fs
 - RTC/time server (kernel: ioport)
 - screen/graphics (kernel: iomem)
 - find something simple to have kernel irq and kernel DMA

@@ -490,7 +490,7 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
         let target_view = {
             let handle =
                 query_handles.take(messages::CreateSymlinkQueryParameters::HANDLE_TARGET_MOBJ);
-            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
+            ipc::BufferView::new(handle, &query.target, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create target buffer reader")?
         };
 

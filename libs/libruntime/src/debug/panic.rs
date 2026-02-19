@@ -1,9 +1,16 @@
-use core::{fmt, hint::unreachable_unchecked, panic::PanicInfo};
+use core::{
+    fmt,
+    hint::unreachable_unchecked,
+    panic::PanicInfo,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use libsyscalls::process;
 use log::error;
 
 use super::StackTrace;
+
+static PANICKING: AtomicBool = AtomicBool::new(false);
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -11,7 +18,17 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 fn do_panic(info: &PanicInfo) -> ! {
-    // TODO: check for re-entrancy (if the panic handler panics)
+    // Check for re-entrancy (panic within panic handler)
+    if PANICKING.swap(true, Ordering::SeqCst) {
+        // We're already panicking - this is a double panic!
+        // Don't try to do anything fancy, just exit immediately
+        error!(
+            "DOUBLE PANIC - panic handler panicked! - {}",
+            info.message()
+        );
+        let _ = process::exit();
+        unsafe { unreachable_unchecked() }
+    }
 
     let stacktrace = StackTrace::capture();
     error!("PANIC: {}", PanicDisplay::new(info, stacktrace));

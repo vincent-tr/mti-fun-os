@@ -4,6 +4,7 @@ use super::{messages, KVBlock, ProcessInfo, ProcessListBlock, StartupInfo};
 use crate::{
     ipc,
     kobject::{self, KObject},
+    process::iface::SymBlock,
 };
 
 pub type ProcessServerCallError = ipc::CallError<messages::ProcessServerError>;
@@ -55,7 +56,19 @@ impl Client {
             KVBlock::from_memory_object(mobj).expect("could not read KVBlock")
         };
 
-        Ok(StartupInfo { name, env, args })
+        let symbols = {
+            let handle = reply_handles.take(messages::GetStartupInfoReply::HANDLE_SYMBOLS_MOBJ);
+            let mobj = kobject::MemoryObject::from_handle(handle)
+                .expect("could not get symbols memory object");
+            SymBlock::from_memory_object(mobj).expect("could not read SymBlock")
+        };
+
+        Ok(StartupInfo {
+            name,
+            env,
+            args,
+            symbols,
+        })
     }
 
     /// call ipc UpdateName

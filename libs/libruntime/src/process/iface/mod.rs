@@ -3,11 +3,13 @@ mod kvblock;
 mod messages;
 mod plblock;
 mod server;
+mod symblock;
 
 use alloc::string::String;
 pub use kvblock::KVBlock;
 pub use plblock::ProcessInfo;
 use plblock::ProcessListBlock;
+pub use symblock::SymBlock;
 
 pub use client::{Client, ProcessServerCallError};
 pub use server::ProcessServer;
@@ -31,6 +33,9 @@ pub struct StartupInfo {
 
     /// Arguments of the process
     pub args: KVBlock,
+
+    /// Symbol information for the process, used for debugging.
+    pub symbols: SymBlock,
 }
 
 pub fn build_ipc_server<Impl: ProcessServer + 'static>(

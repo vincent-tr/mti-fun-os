@@ -7,13 +7,14 @@ use crate::{
     },
     state::State,
 };
-use alloc::{string::String, vec::Vec};
+use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
 use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
     process::iface::{
         KVBlock, ProcessInfo, ProcessServer, ProcessServerError, ProcessStatus, StartupInfo,
+        SymBlock,
     },
 };
 use log::{debug, error, info, warn};
@@ -57,6 +58,7 @@ impl ProcessServer for Server {
             name: String::from(info.name()),
             env: info.environment().clone(),
             args: info.arguments().clone(),
+            symbols: info.symbols().clone(),
         })
     }
 
@@ -115,6 +117,16 @@ impl ProcessServer for Server {
 
         let loader = Loader::new(binary)?;
 
+        let symbols = loader.get_symbols().unwrap_or_else(|e| {
+            warn!(
+                "Failed to load symbol information for process {}: {}",
+                name, e
+            );
+            BTreeMap::new()
+        });
+
+        let symbols = SymBlock::build(&symbols);
+
         let process = kobject::Process::create(name).runtime_err("Failed to create process")?;
 
         let mappings = loader.map(&process)?;
@@ -171,6 +183,7 @@ impl ProcessServer for Server {
             String::from(name),
             environment,
             arguments,
+            symbols,
         );
 
         let handle = self.handles.open(sender_id.as_u64(), info);
@@ -390,6 +403,7 @@ impl Server {
             String::from("init"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
+            Self::get_empty_symblock(),
         );
 
         Ok(())
@@ -420,6 +434,7 @@ impl Server {
             String::from("idle"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
+            Self::get_empty_symblock(),
         );
 
         Ok(())
@@ -437,6 +452,7 @@ impl Server {
             String::from("process-server"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
+            Self::get_empty_symblock(),
         );
 
         Ok(())
@@ -449,5 +465,14 @@ impl Server {
         }
 
         KVBlock::from_memory_object(EMPTY_KVBLOCK.clone()).expect("Failed to create KVBlock")
+    }
+
+    fn get_empty_symblock() -> SymBlock {
+        // Since symblocks are immutable, we can cache an empty one
+        lazy_static! {
+            static ref EMPTY_SYMBLOCK: SymBlock = SymBlock::build(&BTreeMap::new());
+        }
+
+        EMPTY_SYMBLOCK.clone()
     }
 }

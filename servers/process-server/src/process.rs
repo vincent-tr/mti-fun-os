@@ -10,7 +10,7 @@ use libruntime::{
     collections::WeakMap,
     ipc, kobject,
     process::iface::{
-        KVBlock, ProcessTerminatedNotification, EXIT_CODE_KILLED, EXIT_CODE_SUCCESS,
+        KVBlock, ProcessTerminatedNotification, SymBlock, EXIT_CODE_KILLED, EXIT_CODE_SUCCESS,
         EXIT_CODE_UNSET,
     },
     sync::RwLock,
@@ -110,6 +110,7 @@ pub struct Process {
     name: RwLock<String>,
     environment: RwLock<KVBlock>,
     arguments: KVBlock,
+    symbols: SymBlock,
     exit_code: AtomicI32,
     terminated: AtomicBool,
     termination_registrations: RwLock<HashMap<ipc::Handle, TerminationRegistration>>,
@@ -123,6 +124,7 @@ impl Process {
         name: String,
         environment: KVBlock,
         arguments: KVBlock,
+        symbols: SymBlock,
     ) -> Arc<Self> {
         let info = Arc::new(Self {
             process,
@@ -131,6 +133,7 @@ impl Process {
             name: RwLock::new(name),
             environment: RwLock::new(environment),
             arguments,
+            symbols,
             exit_code: AtomicI32::new(ExitCode::UNSET.0),
             terminated: AtomicBool::new(false),
             termination_registrations: RwLock::new(HashMap::new()),
@@ -168,6 +171,11 @@ impl Process {
     /// Get the arguments of this process
     pub fn arguments(&self) -> &KVBlock {
         &self.arguments
+    }
+
+    /// Get the symbol information of this process
+    pub fn symbols(&self) -> &SymBlock {
+        &self.symbols
     }
 
     /// Check if this process is terminated

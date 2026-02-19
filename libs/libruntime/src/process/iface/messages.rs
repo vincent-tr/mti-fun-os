@@ -90,6 +90,7 @@ impl GetStartupInfoReply {
     pub const HANDLE_NAME_MOBJ: usize = 0; // Ownership transferred to the client
     pub const HANDLE_ENV_MOBJ: usize = 1;
     pub const HANDLE_ARGS_MOBJ: usize = 2;
+    pub const HANDLE_SYMBOLS_MOBJ: usize = 3;
 }
 
 /// Parameters for the UpdateName message.

@@ -496,8 +496,9 @@ impl FsInstance {
     }
 
     fn now() -> u64 {
-        // TODO
-        0
+        // TODO: use a real clock source here
+        let ticks = libruntime::kobject::Timer::now().expect("Could not get current time");
+        ticks / 1000 // convert to milliseconds
     }
 
     fn new_handle() -> Handle {

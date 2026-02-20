@@ -4,6 +4,7 @@ mod futex;
 mod handle;
 mod helpers;
 mod init;
+mod ioport;
 mod ipc;
 mod listener;
 mod logging;
@@ -81,6 +82,10 @@ pub fn init() {
 
     register_syscall(SyscallNumber::FutexWait, futex::wait);
     register_syscall(SyscallNumber::FutexWake, futex::wake);
+
+    register_syscall(SyscallNumber::IoPortOpen, ioport::open);
+    register_syscall(SyscallNumber::IoPortWrite, ioport::write);
+    register_syscall(SyscallNumber::IoPortRead, ioport::read);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);
 }

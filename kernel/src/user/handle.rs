@@ -8,6 +8,7 @@ use syscalls::HandleType;
 use super::{
     error::{check_arg_opt, invalid_argument},
     id_gen::IdGen,
+    ioport::PortRange,
     ipc::{Port, PortReceiver, PortSender},
     listener::{ProcessListener, ThreadListener},
     process::Process,
@@ -62,6 +63,7 @@ pub enum KernelHandle {
     ProcessListenerHandle(Pin<Arc<ProcessListener>>),
     ThreadListenerHandle(Pin<Arc<ThreadListener>>),
     TimerHandle(Pin<Arc<Timer>>),
+    PortRangeHandle(Arc<PortRange>),
 }
 
 impl KernelHandle {
@@ -75,6 +77,7 @@ impl KernelHandle {
             KernelHandle::ProcessListenerHandle(_) => HandleType::ProcessListener,
             KernelHandle::ThreadListenerHandle(_) => HandleType::ThreadListener,
             KernelHandle::TimerHandle(_) => HandleType::Timer,
+            KernelHandle::PortRangeHandle(_) => HandleType::PortRange,
         }
     }
 
@@ -143,6 +146,13 @@ impl KernelHandle {
                     false
                 }
             }
+            KernelHandle::PortRangeHandle(self_obj) => {
+                if let KernelHandle::PortRangeHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -207,6 +217,11 @@ impl Handles {
     /// Open the given timer in the process
     pub fn open_timer(&self, timer: Pin<Arc<Timer>>) -> Handle {
         self.open(KernelHandle::TimerHandle(timer))
+    }
+
+    /// Open the given port range in the process
+    pub fn open_port_range(&self, port_range: Arc<PortRange>) -> Handle {
+        self.open(KernelHandle::PortRangeHandle(port_range))
     }
 
     /// Open raw kernel handle
@@ -359,6 +374,19 @@ impl Handles {
 
         if let KernelHandle::TimerHandle(timer) = handle_impl {
             Ok(timer.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the port range from the handle
+    pub fn get_port_range(&self, handle: Handle) -> Result<Arc<PortRange>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::PortRangeHandle(port_range) = handle_impl {
+            Ok(port_range.clone())
         } else {
             Err(invalid_argument())
         }

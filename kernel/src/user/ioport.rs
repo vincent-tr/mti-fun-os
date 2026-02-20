@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, sync::Arc};
 use bitflags::bitflags;
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -39,7 +39,7 @@ impl Drop for PortRange {
 }
 
 impl PortRange {
-    pub fn new(start: usize, end: usize, access: PortAccess) -> Result<Self, Error> {
+    pub fn new(start: usize, end: usize, access: PortAccess) -> Result<Arc<Self>, Error> {
         if start > u16::MAX as usize || end > u16::MAX as usize || start >= end {
             return Err(Error::InvalidArgument);
         }
@@ -50,7 +50,7 @@ impl PortRange {
             return Err(Error::MemoryAccessDenied);
         }
 
-        Ok(Self { range, access })
+        Ok(Arc::new(Self { range, access }))
     }
 
     /// Returns the range of ports.

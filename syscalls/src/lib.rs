@@ -84,4 +84,8 @@ pub enum SyscallNumber {
 
     FutexWait,
     FutexWake,
+
+    IoPortOpen,
+    IoPortWrite,
+    IoPortRead,
 }

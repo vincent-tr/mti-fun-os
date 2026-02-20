@@ -74,7 +74,7 @@ fn main() {
     setup_initial_filesystem();
 
     // tests::process::list_processes();
-    tests::vfs::test_vfs();
+    // tests::vfs::test_vfs();
 
     // init cannot exit, it runs the state server
     sleep_forever();

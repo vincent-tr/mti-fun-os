@@ -2,6 +2,7 @@
 
 pub mod futex;
 mod handle;
+pub mod ioport;
 pub mod ipc;
 pub mod listener;
 mod logging;
@@ -23,7 +24,7 @@ pub use logging::*;
 use ::syscalls::SUCCESS;
 pub use ::syscalls::{
     Error, Exception, HandleType, KallocStats, KvmStats, MemoryStats, Message, Permissions,
-    PhysStats, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext,
+    PhysStats, PortAccess, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext,
     ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority, ThreadState,
     TimerEvent,
 };

@@ -2,12 +2,13 @@ pub const PAGE_SIZE: usize = 4096;
 
 use core::fmt::Debug;
 pub use libsyscalls::{
-    Exception, Handle, KallocStats, KvmStats, MemoryStats, Permissions, PhysStats, ProcessEvent,
-    ProcessEventType, ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent,
+    Exception, Handle, KallocStats, KvmStats, MemoryStats, Permissions, PhysStats, PortAccess,
+    ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent,
     ThreadEventType, ThreadInfo, ThreadPriority, TimerEvent,
 };
 
 mod error;
+mod ioport;
 mod ipc;
 mod listener;
 mod memory;
@@ -35,6 +36,7 @@ pub trait KObject: Debug {
 }
 
 pub use error::Error;
+pub use ioport::PortRange;
 pub use ipc::{KWaitable, Message, Port, PortReceiver, PortSender, Waiter};
 pub use listener::{ProcessListener, ProcessListenerFilter, ThreadListener, ThreadListenerFilter};
 pub use memory::Memory;

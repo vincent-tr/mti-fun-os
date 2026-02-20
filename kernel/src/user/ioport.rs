@@ -32,12 +32,25 @@ pub struct PortRange {
     access: PortAccess,
 }
 
+impl Drop for PortRange {
+    fn drop(&mut self) {
+        RESERVATIONS.lock().remove(&self.range);
+    }
+}
+
 impl PortRange {
-    pub fn new(start: u16, end: u16, access: PortAccess) -> Self {
-        Self {
-            range: start..end,
-            access,
+    pub fn new(start: usize, end: usize, access: PortAccess) -> Result<Self, Error> {
+        if start > u16::MAX as usize || end > u16::MAX as usize || start >= end {
+            return Err(Error::InvalidArgument);
         }
+
+        let range = (start as u16)..(end as u16);
+
+        if !RESERVATIONS.lock().add(range.clone()) {
+            return Err(Error::MemoryAccessDenied);
+        }
+
+        Ok(Self { range, access })
     }
 
     /// Returns the range of ports.

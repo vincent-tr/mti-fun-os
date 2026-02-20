@@ -11,7 +11,7 @@ use libruntime::{
         types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
 };
-use log::{error, info};
+use log::{debug, error, info};
 
 use crate::vnode::VNode;
 
@@ -232,6 +232,7 @@ impl Mount {
     ) -> Result<Arc<Self>, VfsServerError> {
         let client = Client::new(fs_port_name);
 
+        debug!("[FS API] mount: port={}, path={}", fs_port_name, path);
         let (handle, root) = client.mount(args).await.map_call_err("Failed to mount")?;
 
         Ok(Arc::new(Self {
@@ -248,6 +249,10 @@ impl Mount {
     ///
     /// Reserved for MountTable::unmount
     async fn unmount(&self) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] unmount: path={}, handle={:?}",
+            self.path, self.handle
+        );
         self.client
             .unmount(self.handle)
             .await
@@ -281,6 +286,10 @@ impl Mount {
 
     /// Lookup a node in the mounted file system by its node ID, returning a vnode that can be used to access the node.
     pub async fn lookup(&self, parent: NodeId, name: &str) -> Result<NodeId, VfsServerError> {
+        debug!(
+            "[FS API] lookup: path={}, parent={:?}, name={}",
+            self.path, parent, name
+        );
         self.client
             .lookup(self.handle, parent, name)
             .await
@@ -295,6 +304,10 @@ impl Mount {
         r#type: NodeType,
         permissions: Permissions,
     ) -> Result<NodeId, VfsServerError> {
+        debug!(
+            "[FS API] create: path={}, parent={:?}, name={}, type={:?}",
+            self.path, parent, name, r#type
+        );
         self.client
             .create(self.handle, parent, name, r#type, permissions)
             .await
@@ -303,6 +316,10 @@ impl Mount {
 
     /// Remove a node from the mounted file system by its node ID and name.
     pub async fn remove(&self, parent: NodeId, name: &str) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] remove: path={}, parent={:?}, name={}",
+            self.path, parent, name
+        );
         self.client
             .remove(self.handle, parent, name)
             .await
@@ -317,6 +334,10 @@ impl Mount {
         dst_parent: NodeId,
         dst_name: &str,
     ) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] move: path={}, src_parent={:?}, src_name={}, dst_parent={:?}, dst_name={}",
+            self.path, src_parent, src_name, dst_parent, dst_name
+        );
         self.client
             .r#move(self.handle, src_parent, src_name, dst_parent, dst_name)
             .await
@@ -325,6 +346,7 @@ impl Mount {
 
     /// Get the metadata of a node in the mounted file system.
     pub async fn get_metadata(&self, node: NodeId) -> Result<Metadata, VfsServerError> {
+        debug!("[FS API] get_metadata: path={}, node={:?}", self.path, node);
         self.client
             .get_metadata(self.handle, node)
             .await
@@ -340,6 +362,10 @@ impl Mount {
         created: Option<u64>,
         modified: Option<u64>,
     ) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] set_metadata: path={}, node={:?}, permissions={:?}, size={:?}",
+            self.path, node, permissions, size
+        );
         self.client
             .set_metadata(self.handle, node, permissions, size, created, modified)
             .await
@@ -352,6 +378,10 @@ impl Mount {
         node_id: NodeId,
         open_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
+        debug!(
+            "[FS API] open_file: path={}, node={:?}, permissions={:?}",
+            self.path, node_id, open_permissions
+        );
         self.client
             .open_file(self.handle, node_id, open_permissions)
             .await
@@ -360,6 +390,10 @@ impl Mount {
 
     /// Close a file in the mounted file system by its handle.
     pub async fn close_file(&self, handle: Handle) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] close_file: path={}, handle={:?}",
+            self.path, handle
+        );
         self.client
             .close_file(self.handle, handle)
             .await
@@ -373,6 +407,13 @@ impl Mount {
         offset: usize,
         buffer: &mut [u8],
     ) -> Result<usize, VfsServerError> {
+        debug!(
+            "[FS API] read_file: path={}, handle={:?}, offset={}, size={}",
+            self.path,
+            handle,
+            offset,
+            buffer.len()
+        );
         self.client
             .read_file(self.handle, handle, offset, buffer)
             .await
@@ -386,6 +427,13 @@ impl Mount {
         offset: usize,
         buffer: &[u8],
     ) -> Result<usize, VfsServerError> {
+        debug!(
+            "[FS API] write_file: path={}, handle={:?}, offset={}, size={}",
+            self.path,
+            handle,
+            offset,
+            buffer.len()
+        );
         self.client
             .write_file(self.handle, handle, offset, buffer)
             .await
@@ -394,6 +442,7 @@ impl Mount {
 
     /// Open a directory in the mounted file system by its node ID and return a handle that can be used to access the directory.
     pub async fn open_dir(&self, node_id: NodeId) -> Result<Handle, VfsServerError> {
+        debug!("[FS API] open_dir: path={}, node={:?}", self.path, node_id);
         self.client
             .open_dir(self.handle, node_id)
             .await
@@ -402,6 +451,10 @@ impl Mount {
 
     /// Close a directory in the mounted file system by its handle.
     pub async fn close_dir(&self, handle: Handle) -> Result<(), VfsServerError> {
+        debug!(
+            "[FS API] close_dir: path={}, handle={:?}",
+            self.path, handle
+        );
         self.client
             .close_dir(self.handle, handle)
             .await
@@ -410,6 +463,7 @@ impl Mount {
 
     /// List the entries in a directory in the mounted file system by its handle.
     pub async fn list_dir(&self, handle: Handle) -> Result<Vec<DirectoryEntry>, VfsServerError> {
+        debug!("[FS API] list_dir: path={}, handle={:?}", self.path, handle);
         self.client
             .list_dir(self.handle, handle)
             .await
@@ -423,6 +477,10 @@ impl Mount {
         name: &str,
         target: &str,
     ) -> Result<NodeId, VfsServerError> {
+        debug!(
+            "[FS API] create_symlink: path={}, parent={:?}, name={}, target={}",
+            self.path, parent, name, target
+        );
         self.client
             .create_symlink(self.handle, parent, name, target)
             .await
@@ -431,6 +489,10 @@ impl Mount {
 
     /// Read the target path of a symbolic link in the mounted file system by its node ID.
     pub async fn read_symlink(&self, node_id: NodeId) -> Result<String, VfsServerError> {
+        debug!(
+            "[FS API] read_symlink: path={}, node={:?}",
+            self.path, node_id
+        );
         self.client
             .read_symlink(self.handle, node_id)
             .await

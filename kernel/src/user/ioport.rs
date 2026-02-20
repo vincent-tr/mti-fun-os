@@ -1,6 +1,9 @@
 use core::ops::Range;
 
+use alloc::collections::BTreeSet;
 use bitflags::bitflags;
+use lazy_static::lazy_static;
+use spin::Mutex;
 use syscalls::Error;
 use x86_64::instructions::port::Port;
 
@@ -31,7 +34,6 @@ pub struct PortRange {
 
 impl PortRange {
     pub fn new(start: u16, end: u16, access: PortAccess) -> Self {
-        assert!(start < end, "Invalid port range");
         Self {
             range: start..end,
             access,
@@ -119,5 +121,68 @@ impl PortRange {
         };
 
         Ok(())
+    }
+}
+
+lazy_static! {
+    /// Global list of reserved port ranges to prevent overlapping allocations.
+    static ref RESERVATIONS: Mutex<ReservedRangeList> = Mutex::new(ReservedRangeList::new());
+}
+
+/// A collection of reserved port ranges that prevents overlapping allocations.
+#[derive(Debug)]
+pub struct ReservedRangeList {
+    // Use (start, end) tuple as key since Range doesn't implement Ord
+    ranges: BTreeSet<(u16, u16)>,
+}
+
+impl ReservedRangeList {
+    /// Creates a new empty reserved range list.
+    pub fn new() -> Self {
+        Self {
+            ranges: BTreeSet::new(),
+        }
+    }
+
+    /// Adds a new port range to the list.
+    /// Returns false if the range overlaps with any existing range, true if successfully added.
+    pub fn add(&mut self, range: Range<u16>) -> bool {
+        if self.has_overlap(&range) {
+            return false;
+        }
+
+        self.ranges.insert((range.start, range.end));
+        true
+    }
+
+    /// Checks if the given port range overlaps with any existing range in the list.
+    fn has_overlap(&self, range: &Range<u16>) -> bool {
+        // Uses BTreeSet ordering for efficient O(log n) lookup.
+        let start = range.start;
+        let end = range.end;
+
+        // Check the range at or after our start position
+        // If it starts before our end, they overlap
+        if let Some((existing_start, _)) = self.ranges.range((start, 0)..).next() {
+            if *existing_start < end {
+                return true;
+            }
+        }
+
+        // Check the range immediately before our start position
+        // If it ends after our start, they overlap
+        if let Some((_, existing_end)) = self.ranges.range(..(start, 0)).next_back() {
+            if *existing_end > start {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Removes a port range from the list.
+    /// Returns true if the range was found and removed, false otherwise.
+    pub fn remove(&mut self, range: &Range<u16>) -> bool {
+        self.ranges.remove(&(range.start, range.end))
     }
 }

@@ -2,6 +2,7 @@
 
 mod error;
 mod handle;
+mod ioport;
 mod ipc;
 mod listener;
 mod memory;
@@ -12,6 +13,7 @@ mod timer;
 
 pub use error::*;
 pub use handle::*;
+pub use ioport::*;
 pub use ipc::*;
 pub use listener::*;
 pub use memory::*;

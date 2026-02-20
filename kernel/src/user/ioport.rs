@@ -1,29 +1,12 @@
 use core::ops::Range;
 
 use alloc::{collections::BTreeSet, sync::Arc};
-use bitflags::bitflags;
 use lazy_static::lazy_static;
 use spin::Mutex;
 use syscalls::Error;
 use x86_64::instructions::port::Port;
 
-bitflags! {
-    /// Possible port access
-    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-    pub struct PortAccess: u64 {
-        /// No access
-        const NONE = 0;
-
-        /// Page can be read
-        const READ = 1 << 0;
-
-        /// Page can be written
-        const WRITE = 1 << 1;
-
-        /// Page can be executed
-        const EXECUTE = 1 << 2;
-    }
-}
+pub use syscalls::PortAccess;
 
 /// Represents a range of I/O ports with specific access rights.
 #[derive(Debug)]

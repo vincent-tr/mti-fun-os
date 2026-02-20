@@ -2,6 +2,7 @@ mod error;
 mod futex;
 mod handle;
 mod id_gen;
+mod ioport;
 pub mod ipc;
 mod listener;
 mod memory_object;

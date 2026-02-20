@@ -21,6 +21,7 @@ members = [
   "servers/process-server",
   "servers/vfs-server",
   "servers/memfs-server",
+  "servers/time-server",
   "host-dynlinker",
 ]
 

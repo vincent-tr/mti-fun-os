@@ -6,7 +6,7 @@ export MTI_FUN_OS_INIT_TARGET := x86_64-mti_fun_os-init
 export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
 
-.PHONY: all run format build image-build init-build vfs-server-build process-server-build clean
+.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build clean
 
 all: run
 
@@ -22,11 +22,14 @@ build: format image-build
 image-build: init-build
 	cargo build --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
-init-build: process-server-build vfs-server-build memfs-server-build
+init-build: process-server-build time-server-build vfs-server-build memfs-server-build
 	cd init && cargo build --profile $(MTI_FUN_OS_INIT_PROFILE)
 
 process-server-build:
 	cd servers/process-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+
+time-server-build:
+	cd servers/time-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 vfs-server-build:
 	cd servers/vfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)

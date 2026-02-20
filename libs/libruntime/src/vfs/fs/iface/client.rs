@@ -103,7 +103,7 @@ impl Client<'_> {
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
-    ) -> Result<(), FsServerCallError> {
+    ) -> Result<NodeId, FsServerCallError> {
         let (name_mobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
         let query = messages::RemoveQueryParameters {
@@ -115,13 +115,13 @@ impl Client<'_> {
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::RemoveQueryParameters::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::RemoveQueryParameters, messages::RemoveReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::RemoveQueryParameters, messages::RemoveReply, FsServerError>(
             messages::Type::Remove,
             query,
             query_handles,
         )?;
 
-        Ok(())
+        Ok(reply.node_id)
     }
 
     /// call ipc Move
@@ -132,7 +132,7 @@ impl Client<'_> {
         src_name: &str,
         dst_parent: NodeId,
         dst_name: &str,
-    ) -> Result<(), FsServerCallError> {
+    ) -> Result<NodeId, FsServerCallError> {
         let (src_name_mobj, src_name_buffer) =
             ipc::Buffer::new_local(src_name.as_bytes()).into_shared();
         let (dst_name_mobj, dst_name_buffer) =
@@ -152,13 +152,13 @@ impl Client<'_> {
         query_handles[messages::MoveQueryParameters::HANDLE_DST_NAME_MOBJ] =
             dst_name_mobj.into_handle();
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::MoveQueryParameters, messages::MoveReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::MoveQueryParameters, messages::MoveReply, FsServerError>(
             messages::Type::Move,
             query,
             query_handles,
         )?;
 
-        Ok(())
+        Ok(reply.node_id)
     }
 
     /// call ipc GetMetadata

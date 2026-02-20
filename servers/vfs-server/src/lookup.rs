@@ -1,8 +1,7 @@
 use alloc::{collections::vec_deque::VecDeque, string::String, vec::Vec};
-use hashbrown::HashMap;
 use libruntime::vfs::{
     iface::VfsServerError,
-    types::{Metadata, NodeType, Permissions},
+    types::{NodeType, Permissions},
 };
 
 use crate::{mounts::MountTable, vnode::VNode};
@@ -25,26 +24,12 @@ pub enum LookupMode {
 
 #[derive(Debug)]
 struct LookupContext {
-    metadata_cache: HashMap<VNode, Metadata>,
     lookup_count: usize,
 }
 
 impl LookupContext {
     pub fn new() -> Self {
-        Self {
-            metadata_cache: HashMap::new(),
-            lookup_count: 0,
-        }
-    }
-
-    pub async fn get_metadata(&mut self, node: VNode) -> Result<Metadata, VfsServerError> {
-        if let Some(metadata) = self.metadata_cache.get(&node) {
-            return Ok(*metadata);
-        }
-
-        let metadata = node.metadata().await?;
-        self.metadata_cache.insert(node, metadata);
-        Ok(metadata)
+        Self { lookup_count: 0 }
     }
 
     pub fn increment_lookup_count(&mut self) -> Result<(), VfsServerError> {
@@ -194,10 +179,10 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
         }
 
         let current_node = node_stack.current_node();
-        let mut new_node = traverse(&mut context, current_node, &segment).await?;
+        let mut new_node = traverse(current_node, &segment).await?;
 
-        let metadata = context.get_metadata(new_node).await?;
-        if metadata.r#type == NodeType::Symlink
+        let node_type = new_node.r#type().await?;
+        if node_type == NodeType::Symlink
             && !(mode == LookupMode::NoFollowLast && segments.is_empty())
         {
             resolve_symlink(&mut context, &mut node_stack, &mut segments, new_node).await?;
@@ -205,7 +190,7 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
         }
 
         // If newnode is a mountpoint, we need to switch to the root of the mounted filesystem.
-        if metadata.r#type == NodeType::Directory
+        if node_type == NodeType::Directory
             && let Some(mount) = MountTable::get().get_mountpoint(&new_node).await
             && !(mode == LookupMode::NoMountpointLast && segments.is_empty())
         {
@@ -217,12 +202,13 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
 
     // With parent lookup, we ensure that the last node is a directory, so that the caller can perform create/unlink/rename operations on it.
     if mode == LookupMode::Parent {
-        let metadata = context.get_metadata(node_stack.current_node()).await?;
-        if metadata.r#type != NodeType::Directory {
+        let node_type = node_stack.current_node().r#type().await?;
+        if node_type != NodeType::Directory {
             return Err(VfsServerError::NotDirectory);
         }
 
-        if !metadata.permissions.contains(Permissions::EXECUTE) {
+        let permissions = node_stack.current_node().permissions().await?;
+        if !permissions.contains(Permissions::EXECUTE) {
             return Err(VfsServerError::AccessDenied);
         }
     }
@@ -235,24 +221,18 @@ pub async fn lookup(path: &str, mode: LookupMode) -> Result<LookupResult, VfsSer
 }
 
 /// Traverses from `node` to its child named `name`, and returns the child node.
-async fn traverse(
-    context: &mut LookupContext,
-    node: VNode,
-    name: &str,
-) -> Result<VNode, VfsServerError> {
-    let metadata = context.get_metadata(node).await?;
-
-    if metadata.r#type != NodeType::Directory {
+async fn traverse(node: VNode, name: &str) -> Result<VNode, VfsServerError> {
+    let node_type = node.r#type().await?;
+    if node_type != NodeType::Directory {
         return Err(VfsServerError::NotDirectory);
     }
 
-    if !metadata.permissions.contains(Permissions::EXECUTE) {
+    let permissions = node.permissions().await?;
+    if !permissions.contains(Permissions::EXECUTE) {
         return Err(VfsServerError::AccessDenied);
     }
 
-    let child = node.mount().await.lookup(node.node_id(), name).await?;
-
-    Ok(VNode::new(node.mount_id(), child))
+    Ok(node.lookup(name).await?)
 }
 
 async fn resolve_symlink(
@@ -263,11 +243,7 @@ async fn resolve_symlink(
 ) -> Result<(), VfsServerError> {
     context.increment_lookup_count()?;
 
-    let target_path = symlink_node
-        .mount()
-        .await
-        .read_symlink(symlink_node.node_id())
-        .await?;
+    let target_path = symlink_node.read_symlink().await?;
 
     segments.prepend(&target_path);
 

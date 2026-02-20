@@ -148,7 +148,10 @@ impl RemoveQueryParameters {
 /// Reply of the Remove message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct RemoveReply {}
+pub struct RemoveReply {
+    /// The id of the node removed by the remove message.
+    pub node_id: NodeId,
+}
 
 /// Parameters for the Move message.
 ///
@@ -180,7 +183,10 @@ impl MoveQueryParameters {
 /// Reply of the Move message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MoveReply {}
+pub struct MoveReply {
+    /// The id of the node that has been moved.
+    pub node_id: NodeId,
+}
 
 /// Parameters for the GetMetadata message.
 #[derive(Debug, Clone, Copy)]

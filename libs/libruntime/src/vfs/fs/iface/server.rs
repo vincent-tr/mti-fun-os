@@ -40,7 +40,7 @@ pub trait FileSystem: Send + Sync + fmt::Debug {
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<NodeId, Self::Error>;
 
     /// Move a file or directory.
     async fn r#move(
@@ -50,7 +50,7 @@ pub trait FileSystem: Send + Sync + fmt::Debug {
         src_name: &str,
         dst_parent: NodeId,
         dst_name: &str,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<NodeId, Self::Error>;
 
     /// Get metadata of a node.
     async fn get_metadata(
@@ -244,12 +244,13 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
 
         let name = unsafe { name_view.str() };
 
-        self.inner
+        let node_id = self
+            .inner
             .remove(query.mount_handle, query.parent, name)
             .await
             .map_err(Into::into)?;
 
-        Ok((messages::RemoveReply {}, ipc::KHandles::new()))
+        Ok((messages::RemoveReply { node_id }, ipc::KHandles::new()))
     }
 
     async fn move_handler(
@@ -273,7 +274,8 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
         let src_name = unsafe { src_name_view.str() };
         let dst_name = unsafe { dst_name_view.str() };
 
-        self.inner
+        let node_id = self
+            .inner
             .r#move(
                 query.mount_handle,
                 query.src_parent,
@@ -284,7 +286,7 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
             .await
             .map_err(Into::into)?;
 
-        Ok((messages::MoveReply {}, ipc::KHandles::new()))
+        Ok((messages::MoveReply { node_id }, ipc::KHandles::new()))
     }
 
     async fn get_metadata_handler(

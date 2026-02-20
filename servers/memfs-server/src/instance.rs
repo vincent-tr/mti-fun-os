@@ -92,7 +92,7 @@ impl FsInstance {
     }
 
     /// Removes a child node by name from the specified parent directory node.
-    pub fn remove(&mut self, parent: NodeId, name: &str) -> Result<(), FsServerError> {
+    pub fn remove(&mut self, parent: NodeId, name: &str) -> Result<NodeId, FsServerError> {
         // Check for non-empty directories before removal
         let node_id = *self
             .get_parent_entries(parent)?
@@ -115,7 +115,7 @@ impl FsInstance {
         self.unlink_node(node_id);
         self.node_updated(parent);
 
-        Ok(())
+        Ok(node_id)
     }
 
     /// Moves a node from one parent directory to another, optionally renaming it in the process.
@@ -125,7 +125,7 @@ impl FsInstance {
         old_name: &str,
         new_parent: NodeId,
         new_name: &str,
-    ) -> Result<(), FsServerError> {
+    ) -> Result<NodeId, FsServerError> {
         if old_name.is_empty() || new_name.is_empty() {
             return Err(FsServerError::InvalidArgument);
         }
@@ -146,7 +146,7 @@ impl FsInstance {
         self.node_updated(old_parent);
         self.node_updated(new_parent);
 
-        Ok(())
+        Ok(node_id)
     }
 
     /// Retrieves the metadata of a node by its NodeId

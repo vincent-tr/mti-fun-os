@@ -1,6 +1,5 @@
 use libruntime::{
     ipc::Handle,
-    r#async,
     vfs::{
         iface::VfsServerError,
         types::{HandlePermissions, NodeType},
@@ -33,14 +32,19 @@ impl OpenedNode {
             fs_handle,
         };
 
-        obj.vnode.mount().await.link();
+        obj.vnode.mount_link().await;
 
         obj
     }
 
+    /// Marks the opened node as closed, unlinking its mount to allow it to be unmounted when no longer in use.
+    pub async fn mark_closed(&self) {
+        self.vnode.mount_unlink().await;
+    }
+
     /// Returns a reference to the vnode associated with this opened node.
-    pub fn vnode(&self) -> &VNode {
-        &self.vnode
+    pub fn vnode(&self) -> VNode {
+        self.vnode
     }
 
     /// Returns the filesystem handle associated with this opened node, if any.
@@ -88,16 +92,5 @@ impl OpenedNode {
         } else {
             Err(VfsServerError::BadType)
         }
-    }
-}
-
-impl Drop for OpenedNode {
-    fn drop(&mut self) {
-        // Since `unlink` is async, we need to spawn a task to handle it
-        let vnode = self.vnode.clone();
-
-        r#async::spawn(async move {
-            vnode.mount().await.unlink();
-        });
     }
 }

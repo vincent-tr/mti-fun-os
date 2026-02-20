@@ -315,7 +315,7 @@ impl Mount {
     }
 
     /// Remove a node from the mounted file system by its node ID and name.
-    pub async fn remove(&self, parent: NodeId, name: &str) -> Result<(), VfsServerError> {
+    pub async fn remove(&self, parent: NodeId, name: &str) -> Result<NodeId, VfsServerError> {
         debug!(
             "[FS API] remove: path={}, parent={:?}, name={}",
             self.path, parent, name
@@ -333,7 +333,7 @@ impl Mount {
         src_name: &str,
         dst_parent: NodeId,
         dst_name: &str,
-    ) -> Result<(), VfsServerError> {
+    ) -> Result<NodeId, VfsServerError> {
         debug!(
             "[FS API] move: path={}, src_parent={:?}, src_name={}, dst_parent={:?}, dst_name={}",
             self.path, src_parent, src_name, dst_parent, dst_name

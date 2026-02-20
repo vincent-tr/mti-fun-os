@@ -83,12 +83,12 @@ impl FileSystem for Server {
         mount_handle: Handle,
         parent: NodeId,
         name: &str,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<NodeId, Self::Error> {
         let instance = self.get_instance(mount_handle)?;
 
-        instance.write().remove(parent, name)?;
+        let node_id = instance.write().remove(parent, name)?;
 
-        Ok(())
+        Ok(node_id)
     }
 
     async fn r#move(
@@ -98,14 +98,14 @@ impl FileSystem for Server {
         src_name: &str,
         dst_parent: NodeId,
         dst_name: &str,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<NodeId, Self::Error> {
         let instance = self.get_instance(mount_handle)?;
 
-        instance
+        let node_id = instance
             .write()
             .r#move(src_parent, src_name, dst_parent, dst_name)?;
 
-        Ok(())
+        Ok(node_id)
     }
 
     async fn get_metadata(

@@ -21,6 +21,18 @@ pub struct NodeAttributes {
     permissions: Permissions,
 }
 
+impl NodeAttributes {
+    /// Get the type of the node.
+    pub fn r#type(&self) -> NodeType {
+        self.r#type
+    }
+
+    /// Get the permissions of the node.
+    pub fn permissions(&self) -> Permissions {
+        self.permissions
+    }
+}
+
 /// Cache for vnode attributes, keyed by vnode.
 #[derive(Debug)]
 pub struct NodeAttributesCache {
@@ -60,6 +72,12 @@ impl NodeAttributesCache {
         };
         let mut cache = self.cache.lock();
         cache.put(vnode, attributes);
+    }
+
+    /// Remove a cached vnode, if present.
+    pub fn remove(&self, vnode: VNode) {
+        let mut cache = self.cache.lock();
+        cache.pop(&vnode);
     }
 }
 
@@ -109,12 +127,23 @@ impl LookupCache {
     }
 
     /// Update the cached vnode for a lookup key.
-    pub fn update(&self, dir: VNode, name: String, vnode: VNode) {
+    pub fn update(&self, dir: VNode, name: &str, vnode: VNode) {
         let key = LookupKey {
             node: dir,
-            name: name,
+            name: String::from(name),
         };
         let mut cache = self.cache.lock();
         cache.put(key, vnode);
+    }
+
+    /// Remove a cached vnode for a lookup key, if present.
+    pub fn remove(&self, dir: VNode, name: &str) {
+        let key = LookupKey {
+            node: dir,
+            name: String::from(name),
+        };
+
+        let mut cache = self.cache.lock();
+        cache.pop(&key);
     }
 }

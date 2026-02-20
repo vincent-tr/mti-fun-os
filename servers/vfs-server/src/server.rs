@@ -38,11 +38,7 @@ impl Server {
         vnode: VNode,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
-        let fs_handle = vnode
-            .mount()
-            .await
-            .open_file(vnode.node_id(), handle_permissions)
-            .await?;
+        let fs_handle = vnode.open_file(handle_permissions).await?;
 
         let opened_node = Arc::new(
             OpenedNode::new(vnode, NodeType::File, handle_permissions, Some(fs_handle)).await,
@@ -57,7 +53,7 @@ impl Server {
         vnode: VNode,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
-        let fs_handle = vnode.mount().await.open_dir(vnode.node_id()).await?;
+        let fs_handle = vnode.open_dir().await?;
 
         let opened_node = Arc::new(
             OpenedNode::new(
@@ -91,11 +87,13 @@ impl Server {
         Ok(self.handles.open(sender_id, opened_node))
     }
 
-    fn check_open_permissions(
+    async fn check_open_permissions(
         &self,
-        node_permissions: Permissions,
+        vnode: VNode,
         required_permissions: HandlePermissions,
     ) -> Result<(), VfsServerError> {
+        let node_permissions = vnode.permissions().await?;
+
         if required_permissions.contains(HandlePermissions::READ)
             && !node_permissions.contains(Permissions::READ)
         {
@@ -111,16 +109,16 @@ impl Server {
         Ok(())
     }
 
-    async fn open_node_with_meta(
+    async fn open_node(
         &self,
         sender_id: u64,
         vnode: VNode,
-        metadata: Metadata,
         handle_permissions: HandlePermissions,
     ) -> Result<Handle, VfsServerError> {
-        self.check_open_permissions(metadata.permissions, handle_permissions)?;
+        self.check_open_permissions(vnode, handle_permissions)
+            .await?;
 
-        let handle = match metadata.r#type {
+        let handle = match vnode.r#type().await? {
             NodeType::File => self.open_file(sender_id, vnode, handle_permissions).await?,
             NodeType::Directory => self.open_dir(sender_id, vnode, handle_permissions).await?,
             NodeType::Symlink => {
@@ -183,13 +181,9 @@ impl Server {
                     .expect("Opened file without fs handle");
                 let file = opened_node.vnode();
 
-                file.mount()
-                    .await
-                    .close_file(fs_handle)
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!("Failed to close opened file: {:?}", e);
-                    });
+                file.close_file(fs_handle).await.unwrap_or_else(|e| {
+                    error!("Failed to close opened file: {:?}", e);
+                });
             }
             NodeType::Directory => {
                 let fs_handle = opened_node
@@ -197,18 +191,16 @@ impl Server {
                     .expect("Opened directory without fs handle");
                 let dir = opened_node.vnode();
 
-                dir.mount()
-                    .await
-                    .close_dir(fs_handle)
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!("Failed to close opened directory: {:?}", e);
-                    });
+                dir.close_dir(fs_handle).await.unwrap_or_else(|e| {
+                    error!("Failed to close opened directory: {:?}", e);
+                });
             }
             NodeType::Symlink => {
                 // No special handling needed for symlinks
             }
         }
+
+        opened_node.mark_closed().await;
     }
 }
 
@@ -249,16 +241,14 @@ impl VfsServer for Server {
                     last_segment: _,
                 } = lookup::lookup(path, lookup_mode).await?;
 
-                let metadata = node.metadata().await?;
+                let actual_type = node.r#type().await?;
                 if let Some(expected_type) = r#type {
-                    if metadata.r#type != expected_type {
+                    if actual_type != expected_type {
                         return Err(VfsServerError::BadType);
                     }
                 }
 
-                let handle = self
-                    .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                    .await?;
+                let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                 Ok(handle)
             }
@@ -284,18 +274,9 @@ impl VfsServer for Server {
                     .as_ref()
                     .expect("Parent mode without last segment");
 
-                let node_id = parent_node
-                    .mount()
-                    .await
-                    .create(parent_node.node_id(), &name, r#type, permissions)
-                    .await?;
+                let node = parent_node.create(&name, r#type, permissions).await?;
 
-                let node = VNode::new(parent_node.mount_id(), node_id);
-                let metadata = node.metadata().await?;
-
-                let handle = self
-                    .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                    .await?;
+                let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                 Ok(handle)
             }
@@ -326,14 +307,12 @@ impl VfsServer for Server {
                         last_segment: _,
                     }) => {
                         // Node exists, verify type and open it
-                        let metadata = node.metadata().await?;
-                        if metadata.r#type != r#type {
+                        let node_type = node.r#type().await?;
+                        if node_type != r#type {
                             return Err(VfsServerError::BadType);
                         }
 
-                        let handle = self
-                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                            .await?;
+                        let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                         Ok(handle)
                     }
@@ -349,18 +328,9 @@ impl VfsServer for Server {
                             .as_ref()
                             .expect("Parent mode without last segment");
 
-                        let node_id = parent_node
-                            .mount()
-                            .await
-                            .create(parent_node.node_id(), &name, r#type, permissions)
-                            .await?;
+                        let node = parent_node.create(&name, r#type, permissions).await?;
 
-                        let node = VNode::new(parent_node.mount_id(), node_id);
-                        let metadata = node.metadata().await?;
-
-                        let handle = self
-                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                            .await?;
+                        let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                         Ok(handle)
                     }
@@ -390,22 +360,15 @@ impl VfsServer for Server {
                 match (lookup_result, r#type) {
                     (Ok(LookupResult { node, .. }), NodeType::File) => {
                         // File exists, verify it's a file and truncate it
-                        let mut metadata = node.metadata().await?;
-                        if metadata.r#type != NodeType::File {
+                        let node_type = node.r#type().await?;
+                        if node_type != NodeType::File {
                             return Err(VfsServerError::BadType);
                         }
 
                         // Truncate the file to size 0
-                        node.mount()
-                            .await
-                            .set_metadata(node.node_id(), None, Some(0), None, None)
-                            .await?;
+                        node.set_metadata(None, Some(0), None, None).await?;
 
-                        metadata.size = 0; // Update metadata to reflect truncation
-
-                        let handle = self
-                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                            .await?;
+                        let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                         Ok(handle)
                     }
@@ -425,18 +388,9 @@ impl VfsServer for Server {
                             .as_ref()
                             .expect("Parent mode without last segment");
 
-                        let node_id = parent_node
-                            .mount()
-                            .await
-                            .create(parent_node.node_id(), &name, r#type, permissions)
-                            .await?;
+                        let node = parent_node.create(&name, r#type, permissions).await?;
 
-                        let node = VNode::new(parent_node.mount_id(), node_id);
-                        let metadata = node.metadata().await?;
-
-                        let handle = self
-                            .open_node_with_meta(sender_id, node, metadata, handle_permissions)
-                            .await?;
+                        let handle = self.open_node(sender_id, node, handle_permissions).await?;
 
                         Ok(handle)
                     }
@@ -462,7 +416,7 @@ impl VfsServer for Server {
 
         opened_node.check_read()?;
         let node = opened_node.vnode();
-        let metadata = node.metadata().await?;
+        let metadata = node.get_metadata().await?;
 
         Ok(metadata)
     }
@@ -481,9 +435,7 @@ impl VfsServer for Server {
 
         opened_node.check_write()?;
         let node = opened_node.vnode();
-        node.mount()
-            .await
-            .set_metadata(node.node_id(), Some(permissions), None, None, None)
+        node.set_metadata(Some(permissions), None, None, None)
             .await?;
 
         Ok(())
@@ -504,7 +456,7 @@ impl VfsServer for Server {
             .expect("Opened file without fs handle");
         let file = opened_file.vnode();
 
-        let byte_read = file.mount().await.read_file(handle, offset, buffer).await?;
+        let byte_read = file.read_file(handle, offset, buffer).await?;
 
         Ok(byte_read)
     }
@@ -524,11 +476,7 @@ impl VfsServer for Server {
             .expect("Opened file without fs handle");
         let file = opened_file.vnode();
 
-        let byte_written = file
-            .mount()
-            .await
-            .write_file(handle, offset, buffer)
-            .await?;
+        let byte_written = file.write_file(handle, offset, buffer).await?;
 
         Ok(byte_written)
     }
@@ -544,10 +492,7 @@ impl VfsServer for Server {
         opened_file.check_write()?;
         let file = opened_file.vnode();
 
-        file.mount()
-            .await
-            .set_metadata(file.node_id(), None, Some(new_size), None, None)
-            .await?;
+        file.set_metadata(None, Some(new_size), None, None).await?;
 
         Ok(())
     }
@@ -565,7 +510,7 @@ impl VfsServer for Server {
             .expect("Opened directory without fs handle");
         let dir = opened_dir.vnode();
 
-        let entries = dir.mount().await.list_dir(handle).await?;
+        let entries = dir.list_dir(handle).await?;
 
         Ok(entries)
     }
@@ -599,9 +544,7 @@ impl VfsServer for Server {
         }
 
         old_dir
-            .mount()
-            .await
-            .r#move(old_dir.node_id(), old_name, new_dir.node_id(), new_name)
+            .r#move(old_name, new_dir.node_id(), new_name)
             .await?;
 
         Ok(())
@@ -613,7 +556,7 @@ impl VfsServer for Server {
         opened_dir.check_write()?;
         let dir = opened_dir.vnode();
 
-        dir.mount().await.remove(dir.node_id(), name).await?;
+        dir.remove(name).await?;
 
         Ok(())
     }
@@ -632,12 +575,7 @@ impl VfsServer for Server {
 
         let name = last_segment.expect("Did not get last segment in parent mode");
 
-        let node_id = node
-            .mount()
-            .await
-            .create_symlink(node.node_id(), &name, target)
-            .await?;
-        let node = VNode::new(node.mount_id(), node_id);
+        let node = node.create_symlink(&name, target).await?;
 
         let handle = self
             .open_symlink(
@@ -656,7 +594,7 @@ impl VfsServer for Server {
         opened_link.check_type(NodeType::Symlink)?;
         opened_link.check_read()?;
         let link = opened_link.vnode();
-        let target = link.mount().await.read_symlink(link.node_id()).await?;
+        let target = link.read_symlink().await?;
 
         Ok(target)
     }

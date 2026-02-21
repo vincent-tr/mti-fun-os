@@ -1,15 +1,14 @@
 #![no_std]
 #![no_main]
 
-use libruntime::kobject;
-use log::{debug, info};
+use log::info;
 
 extern crate alloc;
 extern crate libruntime;
 
 mod rtc;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     info!("Time server started");
 

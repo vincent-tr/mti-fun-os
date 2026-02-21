@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(let_chains)]
 
 extern crate alloc;
 extern crate libruntime;
@@ -13,7 +12,7 @@ use libruntime::vfs::fs::iface::build_ipc_server;
 
 use crate::server::Server;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new();
     let ipc_server =

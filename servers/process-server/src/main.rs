@@ -17,7 +17,7 @@ use server::Server;
 // - During initialization, the process-server (self) will not be up.
 // - After initialization, calling itself in a sync way will result in a deadlock.
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new().expect("failed to create process-server");
     let ipc_server = build_ipc_server(server).expect("failed to build process-server IPC server");

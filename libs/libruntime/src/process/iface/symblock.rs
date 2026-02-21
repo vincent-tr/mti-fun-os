@@ -90,7 +90,7 @@ impl SymBlock {
     }
 
     /// Returns an iterator over the symbol entries in the SymBlock.
-    pub fn iter(&self) -> SymBlockIterator {
+    pub fn iter(&self) -> SymBlockIterator<'_> {
         SymBlockIterator {
             owner: self,
             current_index: 0,

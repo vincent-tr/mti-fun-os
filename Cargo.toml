@@ -41,7 +41,7 @@ memoffset = "0.9.1"
 raw-cpuid = "11.5.0"
 rustc-demangle = { version = "0.1", default-features = false }
 spin = "0.10.0"
-time = { version = "0.3.47", default-features = false, features = ["alloc", "formatting", "macros"] }
+time = { version = "0.3.47", default-features = false, features = ["alloc", "macros"] }
 typed-arena = { version = "2.0.2", default-features = false }
 uart_16550 = "0.3.2"
 x86_64 = "0.15.2"

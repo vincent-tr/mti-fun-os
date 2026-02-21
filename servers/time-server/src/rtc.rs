@@ -1,3 +1,5 @@
+use libruntime::kobject;
+use log::debug;
 use time::{Date, Month, Time, UtcDateTime};
 
 pub fn read_rtc() -> UtcDateTime {
@@ -36,7 +38,7 @@ pub fn read_rtc() -> UtcDateTime {
     UtcDateTime::new(
         Date::from_calendar_date(
             data.year as i32 + 2000, // Assuming RTC year is offset from 2000
-            Month::from(data.month),
+            Month::try_from(data.month).expect("Invalid month value"),
             data.day,
         )
         .expect("Failed to build date"),

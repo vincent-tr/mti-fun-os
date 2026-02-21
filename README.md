@@ -98,7 +98,6 @@ tail -f serial.log
 ### kernel
 
 - multi-core
-- ioport to userland
 - iomem to userland
 - irq to userland
 

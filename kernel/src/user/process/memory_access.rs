@@ -9,12 +9,12 @@ use alloc::vec::Vec;
 
 use crate::{
     memory::{
-        self, page_aligned_down, page_aligned_up, AddressSpace, FrameRef, Permissions, PhysAddr,
-        VirtAddr, PAGE_SIZE,
+        self, AddressSpace, FrameRef, PAGE_SIZE, Permissions, PhysAddr, VirtAddr,
+        page_aligned_down, page_aligned_up,
     },
     user::{
-        error::{check_permissions, out_of_memory},
         Error,
+        error::{check_permissions, out_of_memory},
     },
 };
 

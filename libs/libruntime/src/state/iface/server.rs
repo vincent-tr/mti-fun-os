@@ -8,7 +8,7 @@ use crate::{
     kobject::{self, KObject},
 };
 
-use super::{messages, StateServerError};
+use super::{StateServerError, messages};
 
 pub trait StateServer {
     type Error: Into<StateServerError>;

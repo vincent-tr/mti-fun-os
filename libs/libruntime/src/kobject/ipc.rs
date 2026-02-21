@@ -5,7 +5,7 @@ use core::{
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
-use libsyscalls::{ipc, HandleType};
+use libsyscalls::{HandleType, ipc};
 
 type SysMessage = libsyscalls::Message;
 

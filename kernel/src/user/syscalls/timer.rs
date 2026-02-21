@@ -2,7 +2,7 @@ use syscalls::Error;
 
 use crate::{
     memory::VirtAddr,
-    user::timer::{now as timer_now, Timer},
+    user::timer::{Timer, now as timer_now},
 };
 
 use super::{context::Context, helpers::HandleOutputWriter};

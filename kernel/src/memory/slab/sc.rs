@@ -9,8 +9,8 @@ use log::trace;
 use x86_64::VirtAddr;
 
 use super::{
-    page::{AllocablePage, Bitfield, ObjectPage, PageList, Rawlink},
     AllocationError, OBJECT_PAGE_METADATA_OVERHEAD,
+    page::{AllocablePage, Bitfield, ObjectPage, PageList, Rawlink},
 };
 
 /// A genius(?) const min()
@@ -259,8 +259,7 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
     pub fn allocate(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocationError> {
         trace!(
             "SCAllocator({}) is trying to allocate {:?}",
-            self.size,
-            layout
+            self.size, layout
         );
         assert!(layout.size() <= self.size);
         assert!(self.size <= (P::SIZE - OBJECT_PAGE_METADATA_OVERHEAD));
@@ -297,8 +296,7 @@ impl<'a, P: AllocablePage> SCAllocator<'a, P> {
         if !ptr.is_null() {
             trace!(
                 "SCAllocator({}) allocated ptr=0x{:x}",
-                self.size,
-                ptr as usize
+                self.size, ptr as usize
             );
         }
 

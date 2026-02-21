@@ -1,4 +1,4 @@
-use libsyscalls::{memory_object, process, Error, Permissions};
+use libsyscalls::{Error, Permissions, memory_object, process};
 use log::{error, trace};
 
 use crate::kobject;

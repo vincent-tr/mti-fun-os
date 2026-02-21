@@ -1,7 +1,7 @@
 use core::{ops::Range, slice};
 
 use alloc::{boxed::Box, string::String, vec::Vec};
-use libsyscalls::{process, HandleType};
+use libsyscalls::{HandleType, process};
 use spin::Mutex;
 
 use super::*;

@@ -16,8 +16,8 @@ pub use server::ProcessServer;
 use server::Server;
 
 pub use messages::{
-    ProcessServerError, ProcessStatus, ProcessTerminatedNotification, EXIT_CODE_KILLED,
-    EXIT_CODE_SUCCESS, EXIT_CODE_UNSET, PORT_NAME,
+    EXIT_CODE_KILLED, EXIT_CODE_SUCCESS, EXIT_CODE_UNSET, PORT_NAME, ProcessServerError,
+    ProcessStatus, ProcessTerminatedNotification,
 };
 
 use crate::{ipc, kobject};

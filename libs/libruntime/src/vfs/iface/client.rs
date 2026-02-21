@@ -1,6 +1,6 @@
 use alloc::{string::String, vec::Vec};
 
-use super::{messages, DirectoryEntry, MountInfo};
+use super::{DirectoryEntry, MountInfo, messages};
 use crate::{
     ipc::{self, Handle},
     kobject::KObject,

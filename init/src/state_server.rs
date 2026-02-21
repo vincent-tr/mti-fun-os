@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use alloc::string::String;
 use libruntime::{
     kobject,
-    state::iface::{build_ipc_server, StateServer, StateServerError, STATE_SIZE},
+    state::iface::{STATE_SIZE, StateServer, StateServerError, build_ipc_server},
     sync::RwLock,
 };
 use log::info;

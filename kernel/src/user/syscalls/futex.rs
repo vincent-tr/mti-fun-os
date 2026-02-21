@@ -1,6 +1,6 @@
 use crate::{
     memory::VirtAddr,
-    user::{futex, Error},
+    user::{Error, futex},
 };
 
 use super::context::Context;

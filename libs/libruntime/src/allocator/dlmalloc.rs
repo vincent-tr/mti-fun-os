@@ -1742,11 +1742,7 @@ impl Chunk {
 impl TreeChunk {
     unsafe fn leftmost_child(me: *mut TreeChunk) -> *mut TreeChunk {
         let left = (*me).child[0];
-        if left.is_null() {
-            (*me).child[1]
-        } else {
-            left
-        }
+        if left.is_null() { (*me).child[1] } else { left }
     }
 
     unsafe fn chunk(me: *mut TreeChunk) -> *mut Chunk {

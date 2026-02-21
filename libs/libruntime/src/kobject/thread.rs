@@ -2,7 +2,7 @@ use core::{hint::unreachable_unchecked, mem, ops::Range};
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use lazy_static::lazy_static;
-use libsyscalls::{thread, Handle, HandleType};
+use libsyscalls::{Handle, HandleType, thread};
 use log::debug;
 use spin::Mutex;
 

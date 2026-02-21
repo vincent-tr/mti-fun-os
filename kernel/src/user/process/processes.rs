@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 
 use alloc::{sync::Arc, vec::Vec};
 
-use crate::user::{id_gen::IdGen, listener, process::process, weak_map::WeakMap, Error};
+use crate::user::{Error, id_gen::IdGen, listener, process::process, weak_map::WeakMap};
 
 use super::Process;
 

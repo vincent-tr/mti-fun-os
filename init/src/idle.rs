@@ -1,6 +1,6 @@
 use core::{arch::naked_asm, ops::Range, slice};
 
-use libruntime::kobject::{self, Error, KObject, Permissions, ThreadPriority, PAGE_SIZE};
+use libruntime::kobject::{self, Error, KObject, PAGE_SIZE, Permissions, ThreadPriority};
 
 use super::offsets;
 

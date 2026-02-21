@@ -3,8 +3,8 @@ use core::ops::Range;
 use syscalls::SyscallNumber;
 
 use super::{
-    syscalls::*, sysret_to_result, Handle, Permissions, ProcessInfo, SyscallInOutPtr, SyscallInStr,
-    SyscallList, SyscallResult,
+    Handle, Permissions, ProcessInfo, SyscallInOutPtr, SyscallInStr, SyscallList, SyscallResult,
+    syscalls::*, sysret_to_result,
 };
 
 pub fn open_self() -> SyscallResult<Handle> {

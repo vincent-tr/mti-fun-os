@@ -215,8 +215,7 @@ pub trait AllocablePage {
     fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         trace!(
             "AllocablePage deallocating ptr = {:p} with {:?}",
-            ptr,
-            layout
+            ptr, layout
         );
         let page_offset = (ptr.as_ptr() as usize) & (Self::SIZE - 1);
         assert!(page_offset % layout.size() == 0);

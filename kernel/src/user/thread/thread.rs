@@ -17,13 +17,13 @@ use crate::gdt::{
     KERNEL_CODE_SELECTOR, KERNEL_DATA_SELECTOR, USER_CODE_SELECTOR, USER_DATA_SELECTOR,
 };
 use crate::interrupts::{
-    tls_reg_read, tls_reg_write, Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS,
+    Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS, tls_reg_read, tls_reg_write,
 };
-use crate::memory::{is_userspace, VirtAddr};
+use crate::memory::{VirtAddr, is_userspace};
 use crate::user::{
     error::invalid_argument,
     listener,
-    process::{process_remove_thread, Process},
+    process::{Process, process_remove_thread},
     syscalls::SyscallExecutor,
 };
 
@@ -137,7 +137,11 @@ impl Thread {
         debug!(
             "Thread {} created (name={}, pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
-            thread.name.read().as_ref().map_or("<None>", |str| str.as_str()),
+            thread
+                .name
+                .read()
+                .as_ref()
+                .map_or("<None>", |str| str.as_str()),
             thread.process.id(),
             thread.privileged,
             thread.priority(),

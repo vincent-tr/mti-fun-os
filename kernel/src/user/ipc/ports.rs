@@ -9,7 +9,7 @@ use crate::user::{
     weak_map::WeakMap,
 };
 
-use super::{port, port_access::access, Port, PortReceiver, PortSender};
+use super::{Port, PortReceiver, PortSender, port, port_access::access};
 
 lazy_static! {
     pub static ref PORTS: Ports = Ports::new();

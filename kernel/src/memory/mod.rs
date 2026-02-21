@@ -17,12 +17,12 @@ use log::info;
 
 pub use config::{KERNEL_START, PAGE_SIZE};
 pub use paging::{
-    create_adress_space, drop_initial_kernel_stack, drop_initial_ramdisk,
-    set_current_address_space, AdditionalFlags, AddressSpace, Permissions,
+    AdditionalFlags, AddressSpace, Permissions, create_adress_space, drop_initial_kernel_stack,
+    drop_initial_ramdisk, set_current_address_space,
 };
 pub use phys::{AllocatorError, FrameRef};
-use x86_64::structures::paging::{mapper::MapToError, Size4KiB};
-pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
+use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
+pub use x86_64::{PhysAddr, VirtAddr, align_down, align_up};
 
 pub type MapError = MapToError<Size4KiB>;
 pub use syscalls::{KallocStats, KvmStats, MemoryStats, PhysStats};

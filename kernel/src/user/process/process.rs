@@ -8,7 +8,7 @@ use log::{debug, trace};
 use spin::{RwLock, RwLockReadGuard};
 
 use crate::{
-    memory::{create_adress_space, AddressSpace, AllocatorError, Permissions, VirtAddr},
+    memory::{AddressSpace, AllocatorError, Permissions, VirtAddr, create_adress_space},
     user::{
         error::check_any_permissions, futex, handle::Handles, listener, thread::Thread,
         weak_map::WeakMap,
@@ -16,16 +16,16 @@ use crate::{
 };
 
 use super::{
+    MemoryAccess,
     mapping::Mapping,
     mappings::{AddressInfo, Mappings},
     memory_access::{self, TypedMemoryAccess, TypedSliceMemoryAccess},
     processes::remove_process,
-    MemoryAccess,
 };
 
 use crate::user::{
-    error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
     Error, MemoryObject,
+    error::{check_arg, check_is_userspace, check_page_alignment, check_positive, out_of_memory},
 };
 
 /// Standalone function, so that Process::new() can remain private
@@ -159,9 +159,7 @@ impl Process {
 
         trace!(
             "Process {}: mapped at {:?} with perms {:?}",
-            self.id,
-            range,
-            perms
+            self.id, range, perms
         );
 
         Ok(addr)
@@ -219,9 +217,7 @@ impl Process {
 
         trace!(
             "Process {}: mprotect at {:?} -> {:?}",
-            self.id,
-            range,
-            perms
+            self.id, range, perms
         );
 
         Ok(())

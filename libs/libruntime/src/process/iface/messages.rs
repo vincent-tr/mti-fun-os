@@ -1,6 +1,6 @@
 use alloc::fmt;
 
-use crate::ipc::{buffer_messages::Buffer, Handle};
+use crate::ipc::{Handle, buffer_messages::Buffer};
 
 /// Name of the IPC port for the process server.
 pub const PORT_NAME: &str = "process-server";

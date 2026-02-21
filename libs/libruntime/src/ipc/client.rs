@@ -4,8 +4,8 @@ use super::messages::{
     KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::{
-    kobject::{self, KObject},
     r#async,
+    kobject::{self, KObject},
 };
 
 /// IPC client error.

@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use hashbrown::HashSet;
 use spin::RwLock;
 
-use super::{timer::timer_tick, Timer};
+use super::{Timer, timer::timer_tick};
 
 lazy_static! {
     pub static ref TIMERS: Timers = Timers::new();

@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    dentries_block::DentriesBlock, messages, mounts_block::MountsBlock, DirectoryEntry, MountInfo,
-    VfsServerError,
+    DirectoryEntry, MountInfo, VfsServerError, dentries_block::DentriesBlock, messages,
+    mounts_block::MountsBlock,
 };
 
 /// VFS server interface

@@ -3,12 +3,12 @@ use core::ptr::{self, NonNull};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use log::trace;
 use spin::Mutex;
-use x86_64::{align_up, VirtAddr};
+use x86_64::{VirtAddr, align_up};
 
 use crate::memory::PAGE_SIZE;
 
 use super::slab::ZoneAllocator;
-use super::{kvm, KallocStats};
+use super::{KallocStats, kvm};
 
 #[global_allocator]
 pub static ALLOC: GlobalAllocator = GlobalAllocator::new();
@@ -84,7 +84,9 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             }
             _ => {
                 let page_count = Self::get_page_count(layout);
-                trace!("Serving alloc request with kvm allocator {layout:?} (page count = {page_count})");
+                trace!(
+                    "Serving alloc request with kvm allocator {layout:?} (page count = {page_count})"
+                );
                 match kvm::allocate(page_count) {
                     Ok(addr) => {
                         self.kvm_user.fetch_add(layout.size(), Ordering::Relaxed);
@@ -127,7 +129,9 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             }
             _ => {
                 let page_count = Self::get_page_count(layout);
-                trace!("Serving dealloc request with kvm allocator {layout:?} (page count = {page_count})");
+                trace!(
+                    "Serving dealloc request with kvm allocator {layout:?} (page count = {page_count})"
+                );
                 kvm::deallocate(VirtAddr::from_ptr(ptr), page_count);
 
                 self.kvm_user.fetch_sub(layout.size(), Ordering::Relaxed);

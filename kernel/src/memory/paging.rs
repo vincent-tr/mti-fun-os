@@ -5,18 +5,18 @@ use crate::util::OnceLock;
 use spin::{Mutex, MutexGuard};
 
 use x86_64::{
+    PhysAddr, VirtAddr,
     instructions::tlb,
     registers::{
         control::{Cr3, Cr3Flags},
         model_specific::{Efer, EferFlags},
     },
     structures::paging::{
-        mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
-        page_table::PageTableEntry,
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
         PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
+        mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
+        page_table::PageTableEntry,
     },
-    PhysAddr, VirtAddr,
 };
 
 use super::{

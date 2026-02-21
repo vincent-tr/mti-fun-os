@@ -5,13 +5,14 @@ export MTI_FUN_OS_INIT_PROFILE := release
 export MTI_FUN_OS_INIT_TARGET := x86_64-mti_fun_os-init
 export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
+export BUILD_ARGS := -Zjson-target-spec
 
 .PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build clean
 
 all: run
 
 run: build
-	cargo run --profile $(MTI_FUN_OS_KERNEL_PROFILE)
+	cargo run $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
 format:
 	cargo fmt -- --emit=files
@@ -20,22 +21,22 @@ build: format image-build
 
 # also build kernel
 image-build: init-build
-	cargo build --profile $(MTI_FUN_OS_KERNEL_PROFILE)
+	cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
 init-build: process-server-build time-server-build vfs-server-build memfs-server-build
-	cd init && cargo build --profile $(MTI_FUN_OS_INIT_PROFILE)
+	cd init && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_INIT_PROFILE)
 
 process-server-build:
-	cd servers/process-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+	cd servers/process-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 time-server-build:
-	cd servers/time-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+	cd servers/time-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 vfs-server-build:
-	cd servers/vfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+	cd servers/vfs-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 memfs-server-build:
-	cd servers/memfs-server && cargo build --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+	cd servers/memfs-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 clean:
 	cargo clean

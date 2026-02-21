@@ -6,7 +6,7 @@ use core::{
 
 use crate::{
     interrupts::Irq,
-    memory::{map_iomem, unmap_phys, Permissions, VirtAddr, PAGE_SIZE},
+    memory::{PAGE_SIZE, Permissions, VirtAddr, map_iomem, unmap_phys},
 };
 
 use super::cpu::CPUID;
@@ -19,7 +19,7 @@ use spin::Mutex;
 const FS_IN_SEC: usize = 1_000_000_000_000_000;
 
 mod registers {
-    use crate::memory::{is_page_aligned, PhysAddr, PAGE_SIZE};
+    use crate::memory::{PAGE_SIZE, PhysAddr, is_page_aligned};
     use bit_field::BitField;
     use x86_64::registers::model_specific::Msr;
 
@@ -708,7 +708,9 @@ impl Timer<'_> {
             init_count /= 2;
         }
 
-        debug!("Configure Local APIC timer: timer period={period_fs}fs delay={delay_fs}fs, initial count={init_count}, divider={divider}");
+        debug!(
+            "Configure Local APIC timer: timer period={period_fs}fs delay={delay_fs}fs, initial count={init_count}, divider={divider}"
+        );
 
         self.set_divider(divider as u32);
         self.set_initial_count(init_count as u32);

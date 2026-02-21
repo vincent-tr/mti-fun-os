@@ -4,7 +4,7 @@ use libruntime::{
     memory,
 };
 use log::debug;
-use xmas_elf::{header, program, ElfFile};
+use xmas_elf::{ElfFile, header, program};
 
 // Very simple loader.
 // It only loads static binaries for now, with no checks

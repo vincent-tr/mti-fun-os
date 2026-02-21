@@ -3,7 +3,7 @@ mod messages;
 mod client;
 mod server;
 
-pub use messages::{StateServerError, PORT_NAME, STATE_SIZE};
+pub use messages::{PORT_NAME, STATE_SIZE, StateServerError};
 
 use crate::{ipc, kobject};
 

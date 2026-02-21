@@ -1,7 +1,7 @@
 use xmas_elf::{dynamic, sections, symbol_table::DynEntry64};
 
 use super::{DynamicSection, Object};
-pub use crate::{wrap_res, LoaderError};
+pub use crate::{LoaderError, wrap_res};
 
 #[derive(Debug)]
 pub struct Symbols<'a> {

@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 use core::{arch::asm, ops::Index};
 
-use super::{find_location_info, LocationInfo};
+use super::{LocationInfo, find_location_info};
 
 // from https://wiki.osdev.org/Stack_Trace
 

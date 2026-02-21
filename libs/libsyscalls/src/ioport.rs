@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, Handle, PortAccess, SyscallResult};
+use super::{Handle, PortAccess, SyscallResult, syscalls::*, sysret_to_result};
 
 pub fn open(from: u16, count: usize, access: PortAccess) -> SyscallResult<Handle> {
     let mut handle = Handle::invalid();

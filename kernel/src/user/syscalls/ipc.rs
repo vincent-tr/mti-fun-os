@@ -6,11 +6,12 @@ use hashbrown::HashMap;
 use syscalls::{Message, PortInfo, ProcessInfo};
 
 use crate::{
-    memory::{align_up, Permissions, VirtAddr},
+    memory::{Permissions, VirtAddr, align_up},
     user::{
+        Error,
         error::{check_arg, check_found},
         handle::Handle,
-        ipc, Error,
+        ipc,
     },
 };
 

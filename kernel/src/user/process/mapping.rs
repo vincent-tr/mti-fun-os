@@ -4,10 +4,10 @@ use alloc::sync::{Arc, Weak};
 
 use crate::{
     memory::{
-        is_page_aligned, is_userspace, AdditionalFlags, FrameRef, MapError, Permissions,
-        UnmapError, VirtAddr, PAGE_SIZE,
+        AdditionalFlags, FrameRef, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr,
+        is_page_aligned, is_userspace,
     },
-    user::{error::out_of_memory, Error, MemoryObject},
+    user::{Error, MemoryObject, error::out_of_memory},
 };
 
 use super::Process;

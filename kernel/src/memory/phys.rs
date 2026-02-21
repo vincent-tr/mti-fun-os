@@ -8,7 +8,7 @@ use log::info;
 use spin::RwLock;
 use x86_64::{PhysAddr, VirtAddr};
 
-use super::{PhysStats, PAGE_SIZE};
+use super::{PAGE_SIZE, PhysStats};
 
 #[derive(Debug)]
 #[repr(C)]

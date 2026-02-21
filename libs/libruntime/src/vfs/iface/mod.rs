@@ -7,7 +7,7 @@ mod server;
 pub use client::{Client, VfsServerCallError};
 pub(super) use dentries_block::DentriesBlock;
 pub use dentries_block::DirectoryEntry;
-pub use messages::{VfsServerError, PORT_NAME};
+pub use messages::{PORT_NAME, VfsServerError};
 pub use mounts_block::MountInfo;
 use server::Server;
 pub use server::VfsServer; // Used also by fs

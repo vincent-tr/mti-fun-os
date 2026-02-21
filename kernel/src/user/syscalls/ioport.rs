@@ -1,8 +1,8 @@
 use crate::{
     memory::{Permissions, VirtAddr},
     user::{
-        ioport::{PortAccess, PortRange},
         Error,
+        ioport::{PortAccess, PortRange},
     },
 };
 

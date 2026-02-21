@@ -1,8 +1,8 @@
 use alloc::sync::Arc;
 use core::arch::asm;
 use libruntime::kobject::{
-    self, Exception, Permissions, ThreadContextRegister, ThreadEventType, ThreadListenerFilter,
-    ThreadOptions, Timer, TlsAllocator, PAGE_SIZE,
+    self, Exception, PAGE_SIZE, Permissions, ThreadContextRegister, ThreadEventType,
+    ThreadListenerFilter, ThreadOptions, Timer, TlsAllocator,
 };
 use log::{debug, info};
 

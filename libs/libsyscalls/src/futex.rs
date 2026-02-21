@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{ref_ptr, syscalls::*, sysret_to_result, SyscallInOutPtr, SyscallResult};
+use super::{SyscallInOutPtr, SyscallResult, ref_ptr, syscalls::*, sysret_to_result};
 
 /// Wait on a futex located at uaddr with expected value
 pub fn wait(uaddr: &u32, expected: u32) -> SyscallResult<()> {

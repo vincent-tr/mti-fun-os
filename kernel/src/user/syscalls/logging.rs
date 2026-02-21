@@ -2,9 +2,9 @@ use alloc::{format, string::String};
 use log::Level;
 
 use crate::user::{
+    Error,
     error::invalid_argument,
     syscalls::{context::Context, helpers::StringReader},
-    Error,
 };
 
 pub async fn log(context: Context) -> Result<(), Error> {

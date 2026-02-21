@@ -1,4 +1,4 @@
-use libsyscalls::{memory_object, HandleType};
+use libsyscalls::{HandleType, memory_object};
 use spin::Mutex;
 
 use super::*;

@@ -28,7 +28,7 @@ mod memory;
 mod user;
 
 use crate::memory::VirtAddr;
-use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
+use bootloader_api::{BootInfo, BootloaderConfig, config::Mapping, entry_point};
 use core::panic::PanicInfo;
 use log::{error, info};
 use syscalls::SyscallNumber;

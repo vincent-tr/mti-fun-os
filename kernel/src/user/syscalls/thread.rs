@@ -9,9 +9,9 @@ use syscalls::{
 use crate::{
     memory::VirtAddr,
     user::{
+        Error,
         error::{check_arg, check_found, check_is_userspace, invalid_argument},
         thread::{self, thread_resume},
-        Error,
     },
 };
 

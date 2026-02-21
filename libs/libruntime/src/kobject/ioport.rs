@@ -1,4 +1,4 @@
-use libsyscalls::{ioport, HandleType};
+use libsyscalls::{HandleType, ioport};
 
 use super::*;
 

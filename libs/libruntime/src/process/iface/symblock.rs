@@ -3,7 +3,7 @@ use core::{fmt, mem, ptr, slice, str};
 use alloc::{collections::BTreeMap, string::String, sync::Arc};
 
 use crate::{
-    kobject::{Mapping, MemoryObject, Permissions, Process, PAGE_SIZE},
+    kobject::{Mapping, MemoryObject, PAGE_SIZE, Permissions, Process},
     memory::align_up,
 };
 

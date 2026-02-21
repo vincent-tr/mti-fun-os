@@ -13,13 +13,12 @@ use core::{cell::RefCell, cmp, error::Error, mem, ops::Range};
 use log::debug;
 use std::collections::HashMap;
 use xmas_elf::{
-    dynamic, header, program,
+    ElfFile, dynamic, header, program,
     sections::{self},
     symbol_table::{self, Entry, Visibility},
-    ElfFile,
 };
 
-pub use crate::{wrap_res, LoaderError};
+pub use crate::{LoaderError, wrap_res};
 
 use dynamic_section::*;
 use func_array::*;

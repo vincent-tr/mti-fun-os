@@ -6,6 +6,7 @@ use spin::RwLock;
 use syscalls::HandleType;
 
 use super::{
+    Error, MemoryObject,
     error::{check_arg_opt, invalid_argument},
     id_gen::IdGen,
     ioport::PortRange,
@@ -14,7 +15,6 @@ use super::{
     process::Process,
     thread::Thread,
     timer::Timer,
-    Error, MemoryObject,
 };
 
 /// Handle: Pointer to kernel object, usable from userland

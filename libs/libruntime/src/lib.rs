@@ -2,7 +2,6 @@
 #![allow(internal_features)]
 #![feature(panic_internals)]
 #![feature(never_type)]
-#![feature(let_chains)]
 
 use core::hint::unreachable_unchecked;
 
@@ -58,7 +57,7 @@ pub fn exit() -> ! {
 }
 
 // Defined by linker script
-extern "C" {
+unsafe extern "C" {
     // init/fini array in text
     static __init_array_start: u8;
     static __init_array_end: u8;

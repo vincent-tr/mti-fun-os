@@ -2,7 +2,7 @@ use crate::process;
 
 use super::{exit, init};
 
-extern "Rust" {
+unsafe extern "Rust" {
     fn main() -> i32;
 }
 

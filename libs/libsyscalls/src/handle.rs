@@ -21,7 +21,7 @@ impl Handle {
 
     /// Reserved for syscalls implementations
     pub unsafe fn as_syscall_ptr(&mut self) -> usize {
-        ref_ptr(self)
+        unsafe { ref_ptr(self) }
     }
 
     /// Reserved for syscalls implementations

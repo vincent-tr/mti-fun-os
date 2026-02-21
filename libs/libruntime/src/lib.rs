@@ -69,6 +69,8 @@ unsafe fn make_array(start: &u8, end: &u8) -> &'static [fn()] {
     let start = start as *const u8 as *const fn();
     let end = end as *const u8 as *const fn();
 
-    let count = end.offset_from(start) as usize;
-    core::slice::from_raw_parts(start, count)
+    unsafe {
+        let count = end.offset_from(start) as usize;
+        core::slice::from_raw_parts(start, count)
+    }
 }

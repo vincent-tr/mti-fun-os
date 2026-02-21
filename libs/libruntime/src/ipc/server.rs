@@ -307,7 +307,7 @@ struct ProcessTerminationListener {
 
 impl kobject::KWaitable for ProcessTerminationListener {
     unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
-        self.listener.waitable_handle()
+        unsafe { self.listener.waitable_handle() }
     }
 
     fn wait(&self) -> Result<(), kobject::Error> {

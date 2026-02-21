@@ -73,7 +73,7 @@ impl SymBlock {
         assert!(offset + mem::size_of::<T>() <= self.mapping.len());
         assert!((self.mapping.address() + offset) % mem::align_of::<T>() == 0);
 
-        &*((self.mapping.address() + offset) as *const T)
+        unsafe { &*((self.mapping.address() + offset) as *const T) }
     }
 
     fn header(&self) -> &Header {
@@ -139,8 +139,8 @@ impl SymBlock {
     /// Safety: The caller must ensure that string_offset and string_len are valid.
     unsafe fn get_string(&self, string_offset: u32, string_len: u32) -> &str {
         let start_addr = self.mapping.address() + string_offset as usize;
-        let buffer = slice::from_raw_parts(start_addr as *const u8, string_len as usize);
-        str::from_utf8_unchecked(buffer)
+        let buffer = unsafe { slice::from_raw_parts(start_addr as *const u8, string_len as usize) };
+        unsafe { str::from_utf8_unchecked(buffer) }
     }
 }
 

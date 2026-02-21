@@ -146,8 +146,9 @@ impl DentryEntry {
         let entry_ptr = self as *const DentryEntry as usize;
         let name_start = entry_ptr + mem::size_of::<DentryEntry>();
 
-        let name_bytes = slice::from_raw_parts(name_start as *const u8, self.name_len as usize);
-        let name = core::str::from_utf8_unchecked(name_bytes);
+        let name_bytes =
+            unsafe { slice::from_raw_parts(name_start as *const u8, self.name_len as usize) };
+        let name = unsafe { core::str::from_utf8_unchecked(name_bytes) };
 
         DirectoryEntry {
             name: String::from(name),

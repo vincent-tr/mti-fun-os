@@ -155,17 +155,21 @@ impl MountEntry {
         let mount_point_start = entry_ptr + mem::size_of::<MountEntry>();
         let fs_port_name_start = mount_point_start + self.mount_point_len as usize;
 
-        let mount_point_bytes = slice::from_raw_parts(
-            mount_point_start as *const u8,
-            self.mount_point_len as usize,
-        );
-        let mount_point = core::str::from_utf8_unchecked(mount_point_bytes);
+        let mount_point_bytes = unsafe {
+            slice::from_raw_parts(
+                mount_point_start as *const u8,
+                self.mount_point_len as usize,
+            )
+        };
+        let mount_point = unsafe { core::str::from_utf8_unchecked(mount_point_bytes) };
 
-        let fs_port_name_bytes = slice::from_raw_parts(
-            fs_port_name_start as *const u8,
-            self.fs_port_name_len as usize,
-        );
-        let fs_port_name = core::str::from_utf8_unchecked(fs_port_name_bytes);
+        let fs_port_name_bytes = unsafe {
+            slice::from_raw_parts(
+                fs_port_name_start as *const u8,
+                self.fs_port_name_len as usize,
+            )
+        };
+        let fs_port_name = unsafe { core::str::from_utf8_unchecked(fs_port_name_bytes) };
 
         MountInfo {
             mount_point: String::from(mount_point),

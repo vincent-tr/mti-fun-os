@@ -223,69 +223,86 @@ impl<A: Allocator> Dlmalloc<A> {
     }
 
     unsafe fn overhead_for(&self, p: *mut Chunk) -> usize {
-        if Chunk::mmapped(p) {
-            self.mmap_chunk_overhead()
-        } else {
-            self.chunk_overhead()
+        unsafe {
+            if Chunk::mmapped(p) {
+                self.mmap_chunk_overhead()
+            } else {
+                self.chunk_overhead()
+            }
         }
     }
 
     pub unsafe fn calloc_must_clear(&self, ptr: *mut u8) -> bool {
-        !self.system_allocator.allocates_zeros() || !Chunk::mmapped(Chunk::from_mem(ptr))
+        unsafe { !self.system_allocator.allocates_zeros() || !Chunk::mmapped(Chunk::from_mem(ptr)) }
     }
 
     pub unsafe fn malloc(&mut self, size: usize) -> *mut u8 {
-        self.check_malloc_state();
+        unsafe {
+            self.check_malloc_state();
 
-        let nb;
-        if size <= self.max_small_request() {
-            nb = self.request2size(size);
-            let mut idx = self.small_index(nb);
-            let smallbits = self.smallmap >> idx;
+            let nb;
+            if size <= self.max_small_request() {
+                nb = self.request2size(size);
+                let mut idx = self.small_index(nb);
+                let smallbits = self.smallmap >> idx;
 
-            // Check the bin for `idx` (the lowest bit) but also check the next
-            // bin up to use that to satisfy our request, if needed.
-            if smallbits & 0b11 != 0 {
-                // If our the lowest bit, our `idx`, is unset then bump up the
-                // index as we'll be using the next bucket up.
-                idx += !smallbits & 1;
+                // Check the bin for `idx` (the lowest bit) but also check the next
+                // bin up to use that to satisfy our request, if needed.
+                if smallbits & 0b11 != 0 {
+                    // If our the lowest bit, our `idx`, is unset then bump up the
+                    // index as we'll be using the next bucket up.
+                    idx += !smallbits & 1;
 
-                let b = self.smallbin_at(idx);
-                let p = (*b).prev;
-                self.unlink_first_small_chunk(b, p, idx);
-                let smallsize = self.small_index2size(idx);
-                Chunk::set_inuse_and_pinuse(p, smallsize);
-                let ret = Chunk::to_mem(p);
-                self.check_malloced_chunk(ret, nb);
-                return ret;
-            }
-
-            if nb > self.dvsize {
-                // If there's some other bin with some memory, then we just use
-                // the next smallest bin
-                if smallbits != 0 {
-                    let leftbits = (smallbits << idx) & left_bits(1 << idx);
-                    let leastbit = least_bit(leftbits);
-                    let i = leastbit.trailing_zeros();
-                    let b = self.smallbin_at(i);
+                    let b = self.smallbin_at(idx);
                     let p = (*b).prev;
-                    debug_assert_eq!(Chunk::size(p), self.small_index2size(i));
-                    self.unlink_first_small_chunk(b, p, i);
-                    let smallsize = self.small_index2size(i);
-                    let rsize = smallsize - nb;
-                    if mem::size_of::<usize>() != 4 && rsize < self.min_chunk_size() {
-                        Chunk::set_inuse_and_pinuse(p, smallsize);
-                    } else {
-                        Chunk::set_size_and_pinuse_of_inuse_chunk(p, nb);
-                        let r = Chunk::plus_offset(p, nb);
-                        Chunk::set_size_and_pinuse_of_free_chunk(r, rsize);
-                        self.replace_dv(r, rsize);
-                    }
+                    self.unlink_first_small_chunk(b, p, idx);
+                    let smallsize = self.small_index2size(idx);
+                    Chunk::set_inuse_and_pinuse(p, smallsize);
                     let ret = Chunk::to_mem(p);
                     self.check_malloced_chunk(ret, nb);
                     return ret;
-                } else if self.treemap != 0 {
-                    let mem = self.tmalloc_small(nb);
+                }
+
+                if nb > self.dvsize {
+                    // If there's some other bin with some memory, then we just use
+                    // the next smallest bin
+                    if smallbits != 0 {
+                        let leftbits = (smallbits << idx) & left_bits(1 << idx);
+                        let leastbit = least_bit(leftbits);
+                        let i = leastbit.trailing_zeros();
+                        let b = self.smallbin_at(i);
+                        let p = (*b).prev;
+                        debug_assert_eq!(Chunk::size(p), self.small_index2size(i));
+                        self.unlink_first_small_chunk(b, p, i);
+                        let smallsize = self.small_index2size(i);
+                        let rsize = smallsize - nb;
+                        if mem::size_of::<usize>() != 4 && rsize < self.min_chunk_size() {
+                            Chunk::set_inuse_and_pinuse(p, smallsize);
+                        } else {
+                            Chunk::set_size_and_pinuse_of_inuse_chunk(p, nb);
+                            let r = Chunk::plus_offset(p, nb);
+                            Chunk::set_size_and_pinuse_of_free_chunk(r, rsize);
+                            self.replace_dv(r, rsize);
+                        }
+                        let ret = Chunk::to_mem(p);
+                        self.check_malloced_chunk(ret, nb);
+                        return ret;
+                    } else if self.treemap != 0 {
+                        let mem = self.tmalloc_small(nb);
+                        if !mem.is_null() {
+                            self.check_malloced_chunk(mem, nb);
+                            self.check_malloc_state();
+                            return mem;
+                        }
+                    }
+                }
+            } else if size >= self.max_request() {
+                // TODO: translate this to unsupported
+                return ptr::null_mut();
+            } else {
+                nb = self.pad_request(size);
+                if self.treemap != 0 {
+                    let mem = self.tmalloc_large(nb);
                     if !mem.is_null() {
                         self.check_malloced_chunk(mem, nb);
                         self.check_malloc_state();
@@ -293,272 +310,269 @@ impl<A: Allocator> Dlmalloc<A> {
                     }
                 }
             }
-        } else if size >= self.max_request() {
-            // TODO: translate this to unsupported
-            return ptr::null_mut();
-        } else {
-            nb = self.pad_request(size);
-            if self.treemap != 0 {
-                let mem = self.tmalloc_large(nb);
-                if !mem.is_null() {
-                    self.check_malloced_chunk(mem, nb);
-                    self.check_malloc_state();
-                    return mem;
+
+            // use the `dv` node if we can, splitting it if necessary or otherwise
+            // exhausting the entire chunk
+            if nb <= self.dvsize {
+                let rsize = self.dvsize - nb;
+                let p = self.dv;
+                if rsize >= self.min_chunk_size() {
+                    self.dv = Chunk::plus_offset(p, nb);
+                    self.dvsize = rsize;
+                    let r = self.dv;
+                    Chunk::set_size_and_pinuse_of_free_chunk(r, rsize);
+                    Chunk::set_size_and_pinuse_of_inuse_chunk(p, nb);
+                } else {
+                    let dvs = self.dvsize;
+                    self.dvsize = 0;
+                    self.dv = ptr::null_mut();
+                    Chunk::set_inuse_and_pinuse(p, dvs);
                 }
+                let ret = Chunk::to_mem(p);
+                self.check_malloced_chunk(ret, nb);
+                self.check_malloc_state();
+                return ret;
             }
-        }
 
-        // use the `dv` node if we can, splitting it if necessary or otherwise
-        // exhausting the entire chunk
-        if nb <= self.dvsize {
-            let rsize = self.dvsize - nb;
-            let p = self.dv;
-            if rsize >= self.min_chunk_size() {
-                self.dv = Chunk::plus_offset(p, nb);
-                self.dvsize = rsize;
-                let r = self.dv;
-                Chunk::set_size_and_pinuse_of_free_chunk(r, rsize);
+            // Split the top node if we can
+            if nb < self.topsize {
+                self.topsize -= nb;
+                let rsize = self.topsize;
+                let p = self.top;
+                self.top = Chunk::plus_offset(p, nb);
+                let r = self.top;
+                (*r).head = rsize | PINUSE;
                 Chunk::set_size_and_pinuse_of_inuse_chunk(p, nb);
-            } else {
-                let dvs = self.dvsize;
-                self.dvsize = 0;
-                self.dv = ptr::null_mut();
-                Chunk::set_inuse_and_pinuse(p, dvs);
+                self.check_top_chunk(self.top);
+                let ret = Chunk::to_mem(p);
+                self.check_malloced_chunk(ret, nb);
+                self.check_malloc_state();
+                return ret;
             }
-            let ret = Chunk::to_mem(p);
-            self.check_malloced_chunk(ret, nb);
-            self.check_malloc_state();
-            return ret;
-        }
 
-        // Split the top node if we can
-        if nb < self.topsize {
-            self.topsize -= nb;
-            let rsize = self.topsize;
-            let p = self.top;
-            self.top = Chunk::plus_offset(p, nb);
-            let r = self.top;
-            (*r).head = rsize | PINUSE;
-            Chunk::set_size_and_pinuse_of_inuse_chunk(p, nb);
-            self.check_top_chunk(self.top);
-            let ret = Chunk::to_mem(p);
-            self.check_malloced_chunk(ret, nb);
-            self.check_malloc_state();
-            return ret;
+            self.sys_alloc(nb)
         }
-
-        self.sys_alloc(nb)
     }
 
     /// allocates system resources
     unsafe fn sys_alloc(&mut self, size: usize) -> *mut u8 {
-        self.check_malloc_state();
-        // keep in sync with max_request
-        let asize = memory::align_up(
-            size + self.top_foot_size() + self.malloc_alignment(),
-            DEFAULT_GRANULARITY,
-        );
+        unsafe {
+            self.check_malloc_state();
+            // keep in sync with max_request
+            let asize = memory::align_up(
+                size + self.top_foot_size() + self.malloc_alignment(),
+                DEFAULT_GRANULARITY,
+            );
 
-        let (tbase, tsize, flags) = self.system_allocator.alloc(asize);
-        if tbase.is_null() {
-            return tbase;
-        }
-
-        self.footprint += tsize;
-        self.max_footprint = cmp::max(self.max_footprint, self.footprint);
-
-        if self.top.is_null() {
-            if self.least_addr.is_null() || tbase < self.least_addr {
-                self.least_addr = tbase;
+            let (tbase, tsize, flags) = self.system_allocator.alloc(asize);
+            if tbase.is_null() {
+                return tbase;
             }
-            self.seg.base = tbase;
-            self.seg.size = tsize;
-            self.seg.flags = flags;
-            self.release_checks = MAX_RELEASE_CHECK_RATE;
-            self.init_bins();
-            let tsize = tsize - self.top_foot_size();
-            self.init_top(tbase as *mut Chunk, tsize);
-        // let mn = Chunk::next(Chunk::from_mem(self as *mut _ as *mut u8));
-        // let top_foot_size = self.top_foot_size();
-        // self.init_top(mn, tbase as usize + tsize - mn as usize - top_foot_size);
-        } else {
-            let mut sp = &mut self.seg as *mut Segment;
-            while !sp.is_null() && tbase != Segment::top(sp) {
-                sp = (*sp).next;
-            }
-            if !sp.is_null()
-                && !Segment::is_extern(sp)
-                && Segment::sys_flags(sp) == flags
-                && Segment::holds(sp, self.top as *mut u8)
-            {
-                (*sp).size += tsize;
-                let ptr = self.top;
-                let size = self.topsize + tsize;
-                self.init_top(ptr, size);
+
+            self.footprint += tsize;
+            self.max_footprint = cmp::max(self.max_footprint, self.footprint);
+
+            if self.top.is_null() {
+                if self.least_addr.is_null() || tbase < self.least_addr {
+                    self.least_addr = tbase;
+                }
+                self.seg.base = tbase;
+                self.seg.size = tsize;
+                self.seg.flags = flags;
+                self.release_checks = MAX_RELEASE_CHECK_RATE;
+                self.init_bins();
+                let tsize = tsize - self.top_foot_size();
+                self.init_top(tbase as *mut Chunk, tsize);
+            // let mn = Chunk::next(Chunk::from_mem(self as *mut _ as *mut u8));
+            // let top_foot_size = self.top_foot_size();
+            // self.init_top(mn, tbase as usize + tsize - mn as usize - top_foot_size);
             } else {
-                self.least_addr = cmp::min(tbase, self.least_addr);
                 let mut sp = &mut self.seg as *mut Segment;
-                while !sp.is_null() && (*sp).base != tbase.offset(tsize as isize) {
+                while !sp.is_null() && tbase != Segment::top(sp) {
                     sp = (*sp).next;
                 }
-                if !sp.is_null() && !Segment::is_extern(sp) && Segment::sys_flags(sp) == flags {
-                    let oldbase = (*sp).base;
-                    (*sp).base = tbase;
+                if !sp.is_null()
+                    && !Segment::is_extern(sp)
+                    && Segment::sys_flags(sp) == flags
+                    && Segment::holds(sp, self.top as *mut u8)
+                {
                     (*sp).size += tsize;
-                    return self.prepend_alloc(tbase, oldbase, size);
+                    let ptr = self.top;
+                    let size = self.topsize + tsize;
+                    self.init_top(ptr, size);
                 } else {
-                    self.add_segment(tbase, tsize, flags);
+                    self.least_addr = cmp::min(tbase, self.least_addr);
+                    let mut sp = &mut self.seg as *mut Segment;
+                    while !sp.is_null() && (*sp).base != tbase.offset(tsize as isize) {
+                        sp = (*sp).next;
+                    }
+                    if !sp.is_null() && !Segment::is_extern(sp) && Segment::sys_flags(sp) == flags {
+                        let oldbase = (*sp).base;
+                        (*sp).base = tbase;
+                        (*sp).size += tsize;
+                        return self.prepend_alloc(tbase, oldbase, size);
+                    } else {
+                        self.add_segment(tbase, tsize, flags);
+                    }
                 }
             }
-        }
 
-        if size < self.topsize {
-            self.topsize -= size;
-            let rsize = self.topsize;
-            let p = self.top;
-            self.top = Chunk::plus_offset(p, size);
-            let r = self.top;
-            (*r).head = rsize | PINUSE;
-            Chunk::set_size_and_pinuse_of_inuse_chunk(p, size);
-            let ret = Chunk::to_mem(p);
-            self.check_top_chunk(self.top);
-            self.check_malloced_chunk(ret, size);
-            self.check_malloc_state();
-            return ret;
-        }
+            if size < self.topsize {
+                self.topsize -= size;
+                let rsize = self.topsize;
+                let p = self.top;
+                self.top = Chunk::plus_offset(p, size);
+                let r = self.top;
+                (*r).head = rsize | PINUSE;
+                Chunk::set_size_and_pinuse_of_inuse_chunk(p, size);
+                let ret = Chunk::to_mem(p);
+                self.check_top_chunk(self.top);
+                self.check_malloced_chunk(ret, size);
+                self.check_malloc_state();
+                return ret;
+            }
 
-        return ptr::null_mut();
+            return ptr::null_mut();
+        }
     }
 
     pub unsafe fn realloc(&mut self, oldmem: *mut u8, bytes: usize) -> *mut u8 {
-        if bytes >= self.max_request() {
-            return ptr::null_mut();
+        unsafe {
+            if bytes >= self.max_request() {
+                return ptr::null_mut();
+            }
+            let nb = self.request2size(bytes);
+            let oldp = Chunk::from_mem(oldmem);
+            let newp = self.try_realloc_chunk(oldp, nb, true);
+            if !newp.is_null() {
+                self.check_inuse_chunk(newp);
+                return Chunk::to_mem(newp);
+            }
+            let ptr = self.malloc(bytes);
+            if !ptr.is_null() {
+                let oc = Chunk::size(oldp) - self.overhead_for(oldp);
+                ptr::copy_nonoverlapping(oldmem, ptr, cmp::min(oc, bytes));
+                self.free(oldmem);
+            }
+            return ptr;
         }
-        let nb = self.request2size(bytes);
-        let oldp = Chunk::from_mem(oldmem);
-        let newp = self.try_realloc_chunk(oldp, nb, true);
-        if !newp.is_null() {
-            self.check_inuse_chunk(newp);
-            return Chunk::to_mem(newp);
-        }
-        let ptr = self.malloc(bytes);
-        if !ptr.is_null() {
-            let oc = Chunk::size(oldp) - self.overhead_for(oldp);
-            ptr::copy_nonoverlapping(oldmem, ptr, cmp::min(oc, bytes));
-            self.free(oldmem);
-        }
-        return ptr;
     }
 
     unsafe fn try_realloc_chunk(&mut self, p: *mut Chunk, nb: usize, can_move: bool) -> *mut Chunk {
-        let oldsize = Chunk::size(p);
-        let next = Chunk::plus_offset(p, oldsize);
+        unsafe {
+            let oldsize = Chunk::size(p);
+            let next = Chunk::plus_offset(p, oldsize);
 
-        if Chunk::mmapped(p) {
-            self.mmap_resize(p, nb, can_move)
-        } else if oldsize >= nb {
-            let rsize = oldsize - nb;
-            if rsize >= self.min_chunk_size() {
-                let r = Chunk::plus_offset(p, nb);
+            if Chunk::mmapped(p) {
+                self.mmap_resize(p, nb, can_move)
+            } else if oldsize >= nb {
+                let rsize = oldsize - nb;
+                if rsize >= self.min_chunk_size() {
+                    let r = Chunk::plus_offset(p, nb);
+                    Chunk::set_inuse(p, nb);
+                    Chunk::set_inuse(r, rsize);
+                    self.dispose_chunk(r, rsize);
+                }
+                p
+            } else if next == self.top {
+                // extend into top
+                if oldsize + self.topsize <= nb {
+                    return ptr::null_mut();
+                }
+                let newsize = oldsize + self.topsize;
+                let newtopsize = newsize - nb;
+                let newtop = Chunk::plus_offset(p, nb);
                 Chunk::set_inuse(p, nb);
-                Chunk::set_inuse(r, rsize);
-                self.dispose_chunk(r, rsize);
-            }
-            p
-        } else if next == self.top {
-            // extend into top
-            if oldsize + self.topsize <= nb {
-                return ptr::null_mut();
-            }
-            let newsize = oldsize + self.topsize;
-            let newtopsize = newsize - nb;
-            let newtop = Chunk::plus_offset(p, nb);
-            Chunk::set_inuse(p, nb);
-            (*newtop).head = newtopsize | PINUSE;
-            self.top = newtop;
-            self.topsize = newtopsize;
-            p
-        } else if next == self.dv {
-            // extend into dv
-            let dvs = self.dvsize;
-            if oldsize + dvs < nb {
-                return ptr::null_mut();
-            }
-            let dsize = oldsize + dvs - nb;
-            if dsize >= self.min_chunk_size() {
-                let r = Chunk::plus_offset(p, nb);
-                let n = Chunk::plus_offset(r, dsize);
-                Chunk::set_inuse(p, nb);
-                Chunk::set_size_and_pinuse_of_free_chunk(r, dsize);
-                Chunk::clear_pinuse(n);
-                self.dvsize = dsize;
-                self.dv = r;
+                (*newtop).head = newtopsize | PINUSE;
+                self.top = newtop;
+                self.topsize = newtopsize;
+                p
+            } else if next == self.dv {
+                // extend into dv
+                let dvs = self.dvsize;
+                if oldsize + dvs < nb {
+                    return ptr::null_mut();
+                }
+                let dsize = oldsize + dvs - nb;
+                if dsize >= self.min_chunk_size() {
+                    let r = Chunk::plus_offset(p, nb);
+                    let n = Chunk::plus_offset(r, dsize);
+                    Chunk::set_inuse(p, nb);
+                    Chunk::set_size_and_pinuse_of_free_chunk(r, dsize);
+                    Chunk::clear_pinuse(n);
+                    self.dvsize = dsize;
+                    self.dv = r;
+                } else {
+                    // exhaust dv
+                    let newsize = oldsize + dvs;
+                    Chunk::set_inuse(p, newsize);
+                    self.dvsize = 0;
+                    self.dv = ptr::null_mut();
+                }
+                return p;
+            } else if !Chunk::cinuse(next) {
+                // extend into the next free chunk
+                let nextsize = Chunk::size(next);
+                if oldsize + nextsize < nb {
+                    return ptr::null_mut();
+                }
+                let rsize = oldsize + nextsize - nb;
+                self.unlink_chunk(next, nextsize);
+                if rsize < self.min_chunk_size() {
+                    let newsize = oldsize + nextsize;
+                    Chunk::set_inuse(p, newsize);
+                } else {
+                    let r = Chunk::plus_offset(p, nb);
+                    Chunk::set_inuse(p, nb);
+                    Chunk::set_inuse(r, rsize);
+                    self.dispose_chunk(r, rsize);
+                }
+                p
             } else {
-                // exhaust dv
-                let newsize = oldsize + dvs;
-                Chunk::set_inuse(p, newsize);
-                self.dvsize = 0;
-                self.dv = ptr::null_mut();
+                ptr::null_mut()
             }
-            return p;
-        } else if !Chunk::cinuse(next) {
-            // extend into the next free chunk
-            let nextsize = Chunk::size(next);
-            if oldsize + nextsize < nb {
-                return ptr::null_mut();
-            }
-            let rsize = oldsize + nextsize - nb;
-            self.unlink_chunk(next, nextsize);
-            if rsize < self.min_chunk_size() {
-                let newsize = oldsize + nextsize;
-                Chunk::set_inuse(p, newsize);
-            } else {
-                let r = Chunk::plus_offset(p, nb);
-                Chunk::set_inuse(p, nb);
-                Chunk::set_inuse(r, rsize);
-                self.dispose_chunk(r, rsize);
-            }
-            p
-        } else {
-            ptr::null_mut()
         }
     }
 
     unsafe fn mmap_resize(&mut self, oldp: *mut Chunk, nb: usize, can_move: bool) -> *mut Chunk {
-        let oldsize = Chunk::size(oldp);
-        // Can't shrink mmap regions below a small size
-        if self.is_small(nb) {
-            return ptr::null_mut();
-        }
+        unsafe {
+            let oldsize = Chunk::size(oldp);
+            // Can't shrink mmap regions below a small size
+            if self.is_small(nb) {
+                return ptr::null_mut();
+            }
 
-        // Keep the old chunk if it's big enough but not too big
-        if oldsize >= nb + mem::size_of::<usize>() && (oldsize - nb) <= (DEFAULT_GRANULARITY << 1) {
-            return oldp;
-        }
+            // Keep the old chunk if it's big enough but not too big
+            if oldsize >= nb + mem::size_of::<usize>()
+                && (oldsize - nb) <= (DEFAULT_GRANULARITY << 1)
+            {
+                return oldp;
+            }
 
-        let offset = (*oldp).prev_foot;
-        let oldmmsize = oldsize + offset + self.mmap_foot_pad();
-        let newmmsize =
-            self.mmap_align(nb + 6 * mem::size_of::<usize>() + self.malloc_alignment() - 1);
-        let ptr = self.system_allocator.remap(
-            (oldp as *mut u8).offset(-(offset as isize)),
-            oldmmsize,
-            newmmsize,
-            can_move,
-        );
-        if ptr.is_null() {
-            return ptr::null_mut();
+            let offset = (*oldp).prev_foot;
+            let oldmmsize = oldsize + offset + self.mmap_foot_pad();
+            let newmmsize =
+                self.mmap_align(nb + 6 * mem::size_of::<usize>() + self.malloc_alignment() - 1);
+            let ptr = self.system_allocator.remap(
+                (oldp as *mut u8).offset(-(offset as isize)),
+                oldmmsize,
+                newmmsize,
+                can_move,
+            );
+            if ptr.is_null() {
+                return ptr::null_mut();
+            }
+            let newp = ptr.offset(offset as isize) as *mut Chunk;
+            let psize = newmmsize - offset - self.mmap_foot_pad();
+            (*newp).head = psize;
+            (*Chunk::plus_offset(newp, psize)).head = Chunk::fencepost_head();
+            (*Chunk::plus_offset(newp, psize + mem::size_of::<usize>())).head = 0;
+            self.least_addr = cmp::min(ptr, self.least_addr);
+            self.footprint = self.footprint + newmmsize - oldmmsize;
+            self.max_footprint = cmp::max(self.max_footprint, self.footprint);
+            self.check_mmapped_chunk(newp);
+            return newp;
         }
-        let newp = ptr.offset(offset as isize) as *mut Chunk;
-        let psize = newmmsize - offset - self.mmap_foot_pad();
-        (*newp).head = psize;
-        (*Chunk::plus_offset(newp, psize)).head = Chunk::fencepost_head();
-        (*Chunk::plus_offset(newp, psize + mem::size_of::<usize>())).head = 0;
-        self.least_addr = cmp::min(ptr, self.least_addr);
-        self.footprint = self.footprint + newmmsize - oldmmsize;
-        self.max_footprint = cmp::max(self.max_footprint, self.footprint);
-        self.check_mmapped_chunk(newp);
-        return newp;
     }
 
     fn mmap_align(&self, a: usize) -> usize {
@@ -568,298 +582,314 @@ impl<A: Allocator> Dlmalloc<A> {
     // Only call this with power-of-two alignment and alignment >
     // `self.malloc_alignment()`
     pub unsafe fn memalign(&mut self, mut alignment: usize, bytes: usize) -> *mut u8 {
-        if alignment < self.min_chunk_size() {
-            alignment = self.min_chunk_size();
-        }
-        if bytes >= self.max_request() - alignment {
-            return ptr::null_mut();
-        }
-        let nb = self.request2size(bytes);
-        let req = nb + alignment + self.min_chunk_size() - self.chunk_overhead();
-        let mem = self.malloc(req);
-        if mem.is_null() {
+        unsafe {
+            if alignment < self.min_chunk_size() {
+                alignment = self.min_chunk_size();
+            }
+            if bytes >= self.max_request() - alignment {
+                return ptr::null_mut();
+            }
+            let nb = self.request2size(bytes);
+            let req = nb + alignment + self.min_chunk_size() - self.chunk_overhead();
+            let mem = self.malloc(req);
+            if mem.is_null() {
+                return mem;
+            }
+            let mut p = Chunk::from_mem(mem);
+            if mem as usize & (alignment - 1) != 0 {
+                // Here we find an aligned sopt inside the chunk. Since we need to
+                // give back leading space in a chunk of at least `min_chunk_size`,
+                // if the first calculation places us at a spot with less than
+                // `min_chunk_size` leader we can move to the next aligned spot.
+                // we've allocated enough total room so that this is always possible
+                let br =
+                    Chunk::from_mem(((mem as usize + alignment - 1) & (!alignment + 1)) as *mut u8);
+                let pos = if (br as usize - p as usize) > self.min_chunk_size() {
+                    br as *mut u8
+                } else {
+                    (br as *mut u8).offset(alignment as isize)
+                };
+                let newp = pos as *mut Chunk;
+                let leadsize = pos as usize - p as usize;
+                let newsize = Chunk::size(p) - leadsize;
+
+                // for mmapped chunks just adjust the offset
+                if Chunk::mmapped(p) {
+                    (*newp).prev_foot = (*p).prev_foot + leadsize;
+                    (*newp).head = newsize;
+                } else {
+                    // give back the leader, use the rest
+                    Chunk::set_inuse(newp, newsize);
+                    Chunk::set_inuse(p, leadsize);
+                    self.dispose_chunk(p, leadsize);
+                }
+                p = newp;
+            }
+
+            // give back spare room at the end
+            if !Chunk::mmapped(p) {
+                let size = Chunk::size(p);
+                if size > nb + self.min_chunk_size() {
+                    let remainder_size = size - nb;
+                    let remainder = Chunk::plus_offset(p, nb);
+                    Chunk::set_inuse(p, nb);
+                    Chunk::set_inuse(remainder, remainder_size);
+                    self.dispose_chunk(remainder, remainder_size);
+                }
+            }
+
+            let mem = Chunk::to_mem(p);
+            debug_assert!(Chunk::size(p) >= nb);
+            debug_assert_eq!(memory::align_up(mem as usize, alignment), mem as usize);
+            self.check_inuse_chunk(p);
             return mem;
         }
-        let mut p = Chunk::from_mem(mem);
-        if mem as usize & (alignment - 1) != 0 {
-            // Here we find an aligned sopt inside the chunk. Since we need to
-            // give back leading space in a chunk of at least `min_chunk_size`,
-            // if the first calculation places us at a spot with less than
-            // `min_chunk_size` leader we can move to the next aligned spot.
-            // we've allocated enough total room so that this is always possible
-            let br =
-                Chunk::from_mem(((mem as usize + alignment - 1) & (!alignment + 1)) as *mut u8);
-            let pos = if (br as usize - p as usize) > self.min_chunk_size() {
-                br as *mut u8
-            } else {
-                (br as *mut u8).offset(alignment as isize)
-            };
-            let newp = pos as *mut Chunk;
-            let leadsize = pos as usize - p as usize;
-            let newsize = Chunk::size(p) - leadsize;
-
-            // for mmapped chunks just adjust the offset
-            if Chunk::mmapped(p) {
-                (*newp).prev_foot = (*p).prev_foot + leadsize;
-                (*newp).head = newsize;
-            } else {
-                // give back the leader, use the rest
-                Chunk::set_inuse(newp, newsize);
-                Chunk::set_inuse(p, leadsize);
-                self.dispose_chunk(p, leadsize);
-            }
-            p = newp;
-        }
-
-        // give back spare room at the end
-        if !Chunk::mmapped(p) {
-            let size = Chunk::size(p);
-            if size > nb + self.min_chunk_size() {
-                let remainder_size = size - nb;
-                let remainder = Chunk::plus_offset(p, nb);
-                Chunk::set_inuse(p, nb);
-                Chunk::set_inuse(remainder, remainder_size);
-                self.dispose_chunk(remainder, remainder_size);
-            }
-        }
-
-        let mem = Chunk::to_mem(p);
-        debug_assert!(Chunk::size(p) >= nb);
-        debug_assert_eq!(memory::align_up(mem as usize, alignment), mem as usize);
-        self.check_inuse_chunk(p);
-        return mem;
     }
 
     // consolidate and bin a chunk, differs from exported versions of free
     // mainly in that the chunk need not be marked as inuse
     unsafe fn dispose_chunk(&mut self, mut p: *mut Chunk, mut psize: usize) {
-        let next = Chunk::plus_offset(p, psize);
-        if !Chunk::pinuse(p) {
-            let prevsize = (*p).prev_foot;
-            if Chunk::mmapped(p) {
-                psize += prevsize + self.mmap_foot_pad();
-                if self
-                    .system_allocator
-                    .free((p as *mut u8).offset(-(prevsize as isize)), psize)
-                {
-                    self.footprint -= psize;
+        unsafe {
+            let next = Chunk::plus_offset(p, psize);
+            if !Chunk::pinuse(p) {
+                let prevsize = (*p).prev_foot;
+                if Chunk::mmapped(p) {
+                    psize += prevsize + self.mmap_foot_pad();
+                    if self
+                        .system_allocator
+                        .free((p as *mut u8).offset(-(prevsize as isize)), psize)
+                    {
+                        self.footprint -= psize;
+                    }
+                    return;
                 }
-                return;
-            }
-            let prev = Chunk::minus_offset(p, prevsize);
-            psize += prevsize;
-            p = prev;
-            if p != self.dv {
-                self.unlink_chunk(p, prevsize);
-            } else if (*next).head & INUSE == INUSE {
-                self.dvsize = psize;
-                Chunk::set_free_with_pinuse(p, psize, next);
-                return;
-            }
-        }
-
-        if !Chunk::cinuse(next) {
-            // consolidate forward
-            if next == self.top {
-                self.topsize += psize;
-                let tsize = self.topsize;
-                self.top = p;
-                (*p).head = tsize | PINUSE;
-                if p == self.dv {
-                    self.dv = ptr::null_mut();
-                    self.dvsize = 0;
-                }
-                return;
-            } else if next == self.dv {
-                self.dvsize += psize;
-                let dsize = self.dvsize;
-                self.dv = p;
-                Chunk::set_size_and_pinuse_of_free_chunk(p, dsize);
-                return;
-            } else {
-                let nsize = Chunk::size(next);
-                psize += nsize;
-                self.unlink_chunk(next, nsize);
-                Chunk::set_size_and_pinuse_of_free_chunk(p, psize);
-                if p == self.dv {
+                let prev = Chunk::minus_offset(p, prevsize);
+                psize += prevsize;
+                p = prev;
+                if p != self.dv {
+                    self.unlink_chunk(p, prevsize);
+                } else if (*next).head & INUSE == INUSE {
                     self.dvsize = psize;
+                    Chunk::set_free_with_pinuse(p, psize, next);
                     return;
                 }
             }
-        } else {
-            Chunk::set_free_with_pinuse(p, psize, next);
+
+            if !Chunk::cinuse(next) {
+                // consolidate forward
+                if next == self.top {
+                    self.topsize += psize;
+                    let tsize = self.topsize;
+                    self.top = p;
+                    (*p).head = tsize | PINUSE;
+                    if p == self.dv {
+                        self.dv = ptr::null_mut();
+                        self.dvsize = 0;
+                    }
+                    return;
+                } else if next == self.dv {
+                    self.dvsize += psize;
+                    let dsize = self.dvsize;
+                    self.dv = p;
+                    Chunk::set_size_and_pinuse_of_free_chunk(p, dsize);
+                    return;
+                } else {
+                    let nsize = Chunk::size(next);
+                    psize += nsize;
+                    self.unlink_chunk(next, nsize);
+                    Chunk::set_size_and_pinuse_of_free_chunk(p, psize);
+                    if p == self.dv {
+                        self.dvsize = psize;
+                        return;
+                    }
+                }
+            } else {
+                Chunk::set_free_with_pinuse(p, psize, next);
+            }
+            self.insert_chunk(p, psize);
         }
-        self.insert_chunk(p, psize);
     }
 
     unsafe fn init_top(&mut self, ptr: *mut Chunk, size: usize) {
-        let offset = self.align_offset(Chunk::to_mem(ptr));
-        let p = Chunk::plus_offset(ptr, offset);
-        let size = size - offset;
+        unsafe {
+            let offset = self.align_offset(Chunk::to_mem(ptr));
+            let p = Chunk::plus_offset(ptr, offset);
+            let size = size - offset;
 
-        self.top = p;
-        self.topsize = size;
-        (*p).head = size | PINUSE;
-        (*Chunk::plus_offset(p, size)).head = self.top_foot_size();
-        self.trim_check = DEFAULT_TRIM_THRESHOLD;
+            self.top = p;
+            self.topsize = size;
+            (*p).head = size | PINUSE;
+            (*Chunk::plus_offset(p, size)).head = self.top_foot_size();
+            self.trim_check = DEFAULT_TRIM_THRESHOLD;
+        }
     }
 
     unsafe fn init_bins(&mut self) {
-        for i in 0..NSMALLBINS as u32 {
-            let bin = self.smallbin_at(i);
-            (*bin).next = bin;
-            (*bin).prev = bin;
+        unsafe {
+            for i in 0..NSMALLBINS as u32 {
+                let bin = self.smallbin_at(i);
+                (*bin).next = bin;
+                (*bin).prev = bin;
+            }
         }
     }
 
     unsafe fn prepend_alloc(&mut self, newbase: *mut u8, oldbase: *mut u8, size: usize) -> *mut u8 {
-        let p = self.align_as_chunk(newbase);
-        let mut oldfirst = self.align_as_chunk(oldbase);
-        let psize = oldfirst as usize - p as usize;
-        let q = Chunk::plus_offset(p, size);
-        let mut qsize = psize - size;
-        Chunk::set_size_and_pinuse_of_inuse_chunk(p, size);
+        unsafe {
+            let p = self.align_as_chunk(newbase);
+            let mut oldfirst = self.align_as_chunk(oldbase);
+            let psize = oldfirst as usize - p as usize;
+            let q = Chunk::plus_offset(p, size);
+            let mut qsize = psize - size;
+            Chunk::set_size_and_pinuse_of_inuse_chunk(p, size);
 
-        debug_assert!(oldfirst > q);
-        debug_assert!(Chunk::pinuse(oldfirst));
-        debug_assert!(qsize >= self.min_chunk_size());
+            debug_assert!(oldfirst > q);
+            debug_assert!(Chunk::pinuse(oldfirst));
+            debug_assert!(qsize >= self.min_chunk_size());
 
-        // consolidate the remainder with the first chunk of the old base
-        if oldfirst == self.top {
-            self.topsize += qsize;
-            let tsize = self.topsize;
-            self.top = q;
-            (*q).head = tsize | PINUSE;
-            self.check_top_chunk(q);
-        } else if oldfirst == self.dv {
-            self.dvsize += qsize;
-            let dsize = self.dvsize;
-            self.dv = q;
-            Chunk::set_size_and_pinuse_of_free_chunk(q, dsize);
-        } else {
-            if !Chunk::inuse(oldfirst) {
-                let nsize = Chunk::size(oldfirst);
-                self.unlink_chunk(oldfirst, nsize);
-                oldfirst = Chunk::plus_offset(oldfirst, nsize);
-                qsize += nsize;
+            // consolidate the remainder with the first chunk of the old base
+            if oldfirst == self.top {
+                self.topsize += qsize;
+                let tsize = self.topsize;
+                self.top = q;
+                (*q).head = tsize | PINUSE;
+                self.check_top_chunk(q);
+            } else if oldfirst == self.dv {
+                self.dvsize += qsize;
+                let dsize = self.dvsize;
+                self.dv = q;
+                Chunk::set_size_and_pinuse_of_free_chunk(q, dsize);
+            } else {
+                if !Chunk::inuse(oldfirst) {
+                    let nsize = Chunk::size(oldfirst);
+                    self.unlink_chunk(oldfirst, nsize);
+                    oldfirst = Chunk::plus_offset(oldfirst, nsize);
+                    qsize += nsize;
+                }
+                Chunk::set_free_with_pinuse(q, qsize, oldfirst);
+                self.insert_chunk(q, qsize);
+                self.check_free_chunk(q);
             }
-            Chunk::set_free_with_pinuse(q, qsize, oldfirst);
-            self.insert_chunk(q, qsize);
-            self.check_free_chunk(q);
-        }
 
-        let ret = Chunk::to_mem(p);
-        self.check_malloced_chunk(ret, size);
-        self.check_malloc_state();
-        return ret;
+            let ret = Chunk::to_mem(p);
+            self.check_malloced_chunk(ret, size);
+            self.check_malloc_state();
+            return ret;
+        }
     }
 
     // add a segment to hold a new noncontiguous region
     unsafe fn add_segment(&mut self, tbase: *mut u8, tsize: usize, flags: u32) {
-        // TODO: what in the world is this function doing
+        unsafe {
+            // TODO: what in the world is this function doing
 
-        // Determine locations and sizes of segment, fenceposts, and the old top
-        let old_top = self.top as *mut u8;
-        let oldsp = self.segment_holding(old_top);
-        let old_end = Segment::top(oldsp);
-        let ssize = self.pad_request(mem::size_of::<Segment>());
-        let offset = ssize + mem::size_of::<usize>() * 4 + self.malloc_alignment() - 1;
-        let rawsp = old_end.offset(-(offset as isize));
-        let offset = self.align_offset(Chunk::to_mem(rawsp as *mut Chunk));
-        let asp = rawsp.offset(offset as isize);
-        let csp = if asp < old_top.offset(self.min_chunk_size() as isize) {
-            old_top
-        } else {
-            asp
-        };
-        let sp = csp as *mut Chunk;
-        let ss = Chunk::to_mem(sp) as *mut Segment;
-        let tnext = Chunk::plus_offset(sp, ssize);
-        let mut p = tnext;
-        let mut nfences = 0;
-
-        // reset the top to our new space
-        let size = tsize - self.top_foot_size();
-        self.init_top(tbase as *mut Chunk, size);
-
-        // set up our segment record
-        debug_assert!(self.is_aligned(ss as usize));
-        Chunk::set_size_and_pinuse_of_inuse_chunk(sp, ssize);
-        *ss = self.seg; // push our current record
-        self.seg.base = tbase;
-        self.seg.size = tsize;
-        self.seg.flags = flags;
-        self.seg.next = ss;
-
-        // insert trailing fences
-        loop {
-            let nextp = Chunk::plus_offset(p, mem::size_of::<usize>());
-            (*p).head = Chunk::fencepost_head();
-            nfences += 1;
-            if (&(*nextp).head as *const usize as *mut u8) < old_end {
-                p = nextp;
+            // Determine locations and sizes of segment, fenceposts, and the old top
+            let old_top = self.top as *mut u8;
+            let oldsp = self.segment_holding(old_top);
+            let old_end = Segment::top(oldsp);
+            let ssize = self.pad_request(mem::size_of::<Segment>());
+            let offset = ssize + mem::size_of::<usize>() * 4 + self.malloc_alignment() - 1;
+            let rawsp = old_end.offset(-(offset as isize));
+            let offset = self.align_offset(Chunk::to_mem(rawsp as *mut Chunk));
+            let asp = rawsp.offset(offset as isize);
+            let csp = if asp < old_top.offset(self.min_chunk_size() as isize) {
+                old_top
             } else {
-                break;
+                asp
+            };
+            let sp = csp as *mut Chunk;
+            let ss = Chunk::to_mem(sp) as *mut Segment;
+            let tnext = Chunk::plus_offset(sp, ssize);
+            let mut p = tnext;
+            let mut nfences = 0;
+
+            // reset the top to our new space
+            let size = tsize - self.top_foot_size();
+            self.init_top(tbase as *mut Chunk, size);
+
+            // set up our segment record
+            debug_assert!(self.is_aligned(ss as usize));
+            Chunk::set_size_and_pinuse_of_inuse_chunk(sp, ssize);
+            *ss = self.seg; // push our current record
+            self.seg.base = tbase;
+            self.seg.size = tsize;
+            self.seg.flags = flags;
+            self.seg.next = ss;
+
+            // insert trailing fences
+            loop {
+                let nextp = Chunk::plus_offset(p, mem::size_of::<usize>());
+                (*p).head = Chunk::fencepost_head();
+                nfences += 1;
+                if (&(*nextp).head as *const usize as *mut u8) < old_end {
+                    p = nextp;
+                } else {
+                    break;
+                }
             }
-        }
-        debug_assert!(nfences >= 2);
+            debug_assert!(nfences >= 2);
 
-        // insert the rest of the old top into a bin as an ordinary free chunk
-        if csp != old_top {
-            let q = old_top as *mut Chunk;
-            let psize = csp as usize - old_top as usize;
-            let tn = Chunk::plus_offset(q, psize);
-            Chunk::set_free_with_pinuse(q, psize, tn);
-            self.insert_chunk(q, psize);
-        }
+            // insert the rest of the old top into a bin as an ordinary free chunk
+            if csp != old_top {
+                let q = old_top as *mut Chunk;
+                let psize = csp as usize - old_top as usize;
+                let tn = Chunk::plus_offset(q, psize);
+                Chunk::set_free_with_pinuse(q, psize, tn);
+                self.insert_chunk(q, psize);
+            }
 
-        self.check_top_chunk(self.top);
-        self.check_malloc_state();
+            self.check_top_chunk(self.top);
+            self.check_malloc_state();
+        }
     }
 
     unsafe fn segment_holding(&self, ptr: *mut u8) -> *mut Segment {
-        let mut sp = &self.seg as *const Segment as *mut Segment;
-        while !sp.is_null() {
-            if (*sp).base <= ptr && ptr < Segment::top(sp) {
-                return sp;
+        unsafe {
+            let mut sp = &self.seg as *const Segment as *mut Segment;
+            while !sp.is_null() {
+                if (*sp).base <= ptr && ptr < Segment::top(sp) {
+                    return sp;
+                }
+                sp = (*sp).next;
             }
-            sp = (*sp).next;
+            ptr::null_mut()
         }
-        ptr::null_mut()
     }
 
     unsafe fn tmalloc_small(&mut self, size: usize) -> *mut u8 {
-        let leastbit = least_bit(self.treemap);
-        let i = leastbit.trailing_zeros();
-        let mut v = *self.treebin_at(i);
-        let mut t = v;
-        let mut rsize = Chunk::size(TreeChunk::chunk(t)) - size;
+        unsafe {
+            let leastbit = least_bit(self.treemap);
+            let i = leastbit.trailing_zeros();
+            let mut v = *self.treebin_at(i);
+            let mut t = v;
+            let mut rsize = Chunk::size(TreeChunk::chunk(t)) - size;
 
-        loop {
-            t = TreeChunk::leftmost_child(t);
-            if t.is_null() {
-                break;
+            loop {
+                t = TreeChunk::leftmost_child(t);
+                if t.is_null() {
+                    break;
+                }
+                let trem = Chunk::size(TreeChunk::chunk(t)) - size;
+                if trem < rsize {
+                    rsize = trem;
+                    v = t;
+                }
             }
-            let trem = Chunk::size(TreeChunk::chunk(t)) - size;
-            if trem < rsize {
-                rsize = trem;
-                v = t;
-            }
-        }
 
-        let vc = TreeChunk::chunk(v);
-        let r = Chunk::plus_offset(vc, size) as *mut TreeChunk;
-        debug_assert_eq!(Chunk::size(vc), rsize + size);
-        self.unlink_large_chunk(v);
-        if rsize < self.min_chunk_size() {
-            Chunk::set_inuse_and_pinuse(vc, rsize + size);
-        } else {
-            let rc = TreeChunk::chunk(r);
-            Chunk::set_size_and_pinuse_of_inuse_chunk(vc, size);
-            Chunk::set_size_and_pinuse_of_free_chunk(rc, rsize);
-            self.replace_dv(rc, rsize);
+            let vc = TreeChunk::chunk(v);
+            let r = Chunk::plus_offset(vc, size) as *mut TreeChunk;
+            debug_assert_eq!(Chunk::size(vc), rsize + size);
+            self.unlink_large_chunk(v);
+            if rsize < self.min_chunk_size() {
+                Chunk::set_inuse_and_pinuse(vc, rsize + size);
+            } else {
+                let rc = TreeChunk::chunk(r);
+                Chunk::set_size_and_pinuse_of_inuse_chunk(vc, size);
+                Chunk::set_size_and_pinuse_of_free_chunk(rc, rsize);
+                self.replace_dv(rc, rsize);
+            }
+            Chunk::to_mem(vc)
         }
-        Chunk::to_mem(vc)
     }
 
     unsafe fn tmalloc_large(&mut self, size: usize) -> *mut u8 {

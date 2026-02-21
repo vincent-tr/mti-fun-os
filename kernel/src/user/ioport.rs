@@ -54,7 +54,6 @@ impl PortRange {
 
     /// Reads a value from the specified port index with the given word size.
     pub fn read(&self, index: u16, word_size: u8) -> Result<usize, Error> {
-        log::debug!("PortRange read: index={}, word_size={}", index, word_size);
         if index >= self.len() {
             return Err(Error::InvalidArgument);
         }

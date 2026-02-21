@@ -22,12 +22,13 @@ impl Drop for PortRange {
 }
 
 impl PortRange {
-    pub fn new(start: usize, end: usize, access: PortAccess) -> Result<Arc<Self>, Error> {
-        if start > u16::MAX as usize || end > u16::MAX as usize || start >= end {
+    pub fn new(from: usize, count: usize, access: PortAccess) -> Result<Arc<Self>, Error> {
+        let end = from + count;
+        if from > u16::MAX as usize || end > u16::MAX as usize {
             return Err(Error::InvalidArgument);
         }
 
-        let range = (start as u16)..(end as u16);
+        let range = (from as u16)..(end as u16);
 
         if !RESERVATIONS.lock().add(range.clone()) {
             return Err(Error::MemoryAccessDenied);
@@ -53,6 +54,7 @@ impl PortRange {
 
     /// Reads a value from the specified port index with the given word size.
     pub fn read(&self, index: u16, word_size: u8) -> Result<usize, Error> {
+        log::debug!("PortRange read: index={}, word_size={}", index, word_size);
         if index >= self.len() {
             return Err(Error::InvalidArgument);
         }

@@ -9,8 +9,8 @@ use crate::{
 use super::{context::Context, helpers::HandleOutputWriter};
 
 pub async fn open(context: Context) -> Result<(), Error> {
-    let start = context.arg1();
-    let end = context.arg2();
+    let from = context.arg1();
+    let count = context.arg2();
     let access = context.arg3();
     let handle_out_ptr = context.arg4();
 
@@ -19,7 +19,7 @@ pub async fn open(context: Context) -> Result<(), Error> {
 
     let mut handle_out = HandleOutputWriter::new(&context, handle_out_ptr)?;
 
-    let port_range = PortRange::new(start, end, PortAccess::from_bits_retain(access as u64))?;
+    let port_range = PortRange::new(from, count, PortAccess::from_bits_retain(access as u64))?;
 
     let handle = process.handles().open_port_range(port_range);
 
@@ -30,8 +30,8 @@ pub async fn open(context: Context) -> Result<(), Error> {
 pub async fn read(context: Context) -> Result<(), Error> {
     let port_range_handle = context.arg1();
     let index = context.arg2();
-    let value_ptr = context.arg3();
-    let word_size = context.arg4();
+    let word_size = context.arg3();
+    let value_ptr = context.arg4();
 
     let thread = context.owner();
     let process = thread.process();
@@ -54,8 +54,8 @@ pub async fn read(context: Context) -> Result<(), Error> {
 pub async fn write(context: Context) -> Result<(), Error> {
     let port_range_handle = context.arg1();
     let index = context.arg2();
-    let value = context.arg3();
-    let word_size = context.arg4();
+    let word_size = context.arg3();
+    let value = context.arg4();
 
     let thread = context.owner();
     let process = thread.process();

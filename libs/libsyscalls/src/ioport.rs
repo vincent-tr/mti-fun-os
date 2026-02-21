@@ -1,15 +1,14 @@
 use syscalls::SyscallNumber;
 
 use super::{syscalls::*, sysret_to_result, Handle, PortAccess, SyscallResult};
-use core::ops::Range;
 
-pub fn open(range: &Range<u16>, access: PortAccess) -> SyscallResult<Handle> {
+pub fn open(from: u16, count: usize, access: PortAccess) -> SyscallResult<Handle> {
     let mut handle = Handle::invalid();
     let ret = unsafe {
         syscall4(
             SyscallNumber::IoPortOpen,
-            range.start as usize,
-            range.end as usize,
+            from as usize,
+            count,
             access.bits() as usize,
             handle.as_syscall_ptr(),
         )

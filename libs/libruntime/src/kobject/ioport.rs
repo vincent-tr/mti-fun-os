@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use libsyscalls::{ioport, HandleType};
 
 use super::*;
@@ -45,8 +43,8 @@ impl Clone for PortRange {
 
 impl PortRange {
     /// Opens a new I/O port range with the specified access rights.
-    pub fn open(range: &Range<u16>, access: PortAccess) -> Result<Self, Error> {
-        let handle = ioport::open(range, access)?;
+    pub fn open(from: u16, count: usize, access: PortAccess) -> Result<Self, Error> {
+        let handle = ioport::open(from, count, access)?;
 
         Ok(Self { handle })
     }

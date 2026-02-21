@@ -166,38 +166,37 @@ macro_rules! pop_preserved {
 macro_rules! native_handler {
     ($handler:expr) => {
         {
-            #[naked]
-            #[allow(undefined_naked_function_abi)]
+            #[unsafe(naked)]
             unsafe fn handler() {
-                unsafe {
-                    core::arch::naked_asm!(concat!(
-                        "push 0;",                    // Fake error code
+                core::arch::naked_asm!(concat!(
+                    "push 0;",                    // Fake error code
 
-                        "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
+                    "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
-                        push_scratch!(),
-                        push_preserved!(),
+                    push_scratch!(),
+                    push_preserved!(),
 
-                        // Call inner funtion
-                        "call {interrupt_handler};",
+                    // Call inner funtion
+                    "call {interrupt_handler};",
 
-                        pop_preserved!(),
-                        pop_scratch!(),
+                    pop_preserved!(),
+                    pop_scratch!(),
 
-                        "add rsp,8;",               // Error code
-                        "iretq;",                   // Back to userland
-                    ),
+                    "add rsp,8;",               // Error code
+                    "iretq;",                   // Back to userland
+                ),
 
-                    interrupt_handler = sym wrapper);
-                }
+                interrupt_handler = sym wrapper);
             }
 
             unsafe extern "C" fn wrapper() {
+                unsafe {
                 let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
 
                 let stack = InterruptStack::current();
 
                 $handler(stack);
+                }
             }
 
             VirtAddr::new(handler as u64)
@@ -210,36 +209,35 @@ macro_rules! native_handler {
 macro_rules! native_error_handler {
     ($handler:expr) => {
         {
-            #[naked]
-            #[allow(undefined_naked_function_abi)]
+            #[unsafe(naked)]
             unsafe fn handler() {
-                unsafe {
-                    core::arch::naked_asm!(concat!(
-                        "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
+                core::arch::naked_asm!(concat!(
+                    "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
-                        push_scratch!(),
-                        push_preserved!(),
+                    push_scratch!(),
+                    push_preserved!(),
 
-                        // Call inner funtion
-                        "call {interrupt_handler};",
+                    // Call inner funtion
+                    "call {interrupt_handler};",
 
-                        pop_preserved!(),
-                        pop_scratch!(),
+                    pop_preserved!(),
+                    pop_scratch!(),
 
-                        "add rsp,8;",               // Error code
-                        "iretq;",                   // Back to userland
-                    ),
+                    "add rsp,8;",               // Error code
+                    "iretq;",                   // Back to userland
+                ),
 
-                    interrupt_handler = sym wrapper);
-                }
+                interrupt_handler = sym wrapper);
             }
 
             unsafe extern "C" fn wrapper() {
+                unsafe {
                 let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
 
                 let stack = InterruptStack::current();
 
                 $handler(stack);
+                }
             }
 
             VirtAddr::new(handler as u64)

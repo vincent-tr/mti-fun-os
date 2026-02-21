@@ -155,26 +155,30 @@ impl Pit {
     }
 
     unsafe fn command(&mut self, command: Command) {
-        self.command.write(command.0);
+        unsafe { self.command.write(command.0) };
     }
 
     unsafe fn read(&mut self, channel: Channel) -> u16 {
-        let channel = &mut self.channels[channel as usize];
+        unsafe {
+            let channel = &mut self.channels[channel as usize];
 
-        let lsb = channel.read();
-        let msb = channel.read();
+            let lsb = channel.read();
+            let msb = channel.read();
 
-        (msb as u16) << 8 | lsb as u16
+            (msb as u16) << 8 | lsb as u16
+        }
     }
 
     unsafe fn write(&mut self, channel: Channel, value: u16) {
-        let channel = &mut self.channels[channel as usize];
+        unsafe {
+            let channel = &mut self.channels[channel as usize];
 
-        let lsb = (value & 0xFF) as u8;
-        let msb = ((value & 0xFF00) >> 8) as u8;
+            let lsb = (value & 0xFF) as u8;
+            let msb = ((value & 0xFF00) >> 8) as u8;
 
-        channel.write(lsb);
-        channel.write(msb);
+            channel.write(lsb);
+            channel.write(msb);
+        }
     }
 }
 

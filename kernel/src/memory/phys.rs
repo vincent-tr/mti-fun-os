@@ -57,74 +57,80 @@ impl List {
     }
 
     unsafe fn add(&mut self, desc: *mut Descriptor) {
-        debug_assert!(!desc.is_null());
-        debug_assert!((*desc).prev.is_null() && (*desc).next.is_null());
-        debug_assert!(!self.has(desc));
+        unsafe {
+            debug_assert!(!desc.is_null());
+            debug_assert!((*desc).prev.is_null() && (*desc).next.is_null());
+            debug_assert!(!self.has(desc));
 
-        if self.head.is_null() {
-            (*desc).next = desc;
-            (*desc).prev = desc;
-            self.head = desc;
-        } else {
-            // insert after head
-            let prev = self.head;
-            let next = (*self.head).next;
-            (*prev).next = desc;
-            (*desc).prev = prev;
-            (*next).prev = desc;
-            (*desc).next = next;
+            if self.head.is_null() {
+                (*desc).next = desc;
+                (*desc).prev = desc;
+                self.head = desc;
+            } else {
+                // insert after head
+                let prev = self.head;
+                let next = (*self.head).next;
+                (*prev).next = desc;
+                (*desc).prev = prev;
+                (*next).prev = desc;
+                (*desc).next = next;
+            }
+
+            self.count += 1;
         }
-
-        self.count += 1;
     }
 
     unsafe fn remove(&mut self, desc: *mut Descriptor) {
-        debug_assert!(!desc.is_null());
-        debug_assert!(!(*desc).prev.is_null() && !(*desc).next.is_null());
-        debug_assert!(self.has(desc));
+        unsafe {
+            debug_assert!(!desc.is_null());
+            debug_assert!(!(*desc).prev.is_null() && !(*desc).next.is_null());
+            debug_assert!(self.has(desc));
 
-        let prev = (*desc).prev;
-        let next = (*desc).next;
+            let prev = (*desc).prev;
+            let next = (*desc).next;
 
-        if desc == prev {
-            // if we had only one item
-            self.head = ptr::null_mut();
-        } else if prev == next {
-            // if we had 2 items, now 1
-            let item = prev;
-            (*item).next = item;
-            (*item).prev = item;
-            self.head = item;
-        } else {
-            // normal case
-            (*prev).next = next;
-            (*next).prev = prev;
-            if self.head == desc {
-                self.head = next;
+            if desc == prev {
+                // if we had only one item
+                self.head = ptr::null_mut();
+            } else if prev == next {
+                // if we had 2 items, now 1
+                let item = prev;
+                (*item).next = item;
+                (*item).prev = item;
+                self.head = item;
+            } else {
+                // normal case
+                (*prev).next = next;
+                (*next).prev = prev;
+                if self.head == desc {
+                    self.head = next;
+                }
             }
-        }
 
-        (*desc).prev = ptr::null_mut();
-        (*desc).next = ptr::null_mut();
-        self.count -= 1;
+            (*desc).prev = ptr::null_mut();
+            (*desc).next = ptr::null_mut();
+            self.count -= 1;
+        }
     }
 
     unsafe fn has(&self, desc: *mut Descriptor) -> bool {
-        if self.head.is_null() {
-            return false;
-        }
-
-        let mut item = self.head;
-
-        loop {
-            if item == desc {
-                return true;
+        unsafe {
+            if self.head.is_null() {
+                return false;
             }
 
-            item = (*item).next;
+            let mut item = self.head;
 
-            if item == self.head {
-                return false;
+            loop {
+                if item == desc {
+                    return true;
+                }
+
+                item = (*item).next;
+
+                if item == self.head {
+                    return false;
+                }
             }
         }
     }
@@ -173,70 +179,82 @@ impl Allocator {
     }
 
     unsafe fn allocate(&mut self) -> Result<PhysAddr, AllocatorError> {
-        let desc = self.free_list.head;
+        unsafe {
+            let desc = self.free_list.head;
 
-        if desc.is_null() {
-            return Err(AllocatorError::NoMemory);
+            if desc.is_null() {
+                return Err(AllocatorError::NoMemory);
+            }
+
+            self.free_list.remove(desc);
+            self.used_list.add(desc);
+            let desc_ref = &mut (*desc);
+
+            desc_ref.r#ref();
+
+            Ok(self.desc_to_frame(desc_ref))
         }
-
-        self.free_list.remove(desc);
-        self.used_list.add(desc);
-        let desc_ref = &mut (*desc);
-
-        desc_ref.r#ref();
-
-        Ok(self.desc_to_frame(desc_ref))
     }
 
     unsafe fn allocate_at(&mut self, frame: PhysAddr) -> Result<(), AllocatorError> {
-        let desc = self.frame_to_desc(frame);
-        let desc_ref = &mut (*desc);
+        unsafe {
+            let desc = self.frame_to_desc(frame);
+            let desc_ref = &mut (*desc);
 
-        if desc_ref.used() {
-            return Err(AllocatorError::NoMemory);
+            if desc_ref.used() {
+                return Err(AllocatorError::NoMemory);
+            }
+
+            self.free_list.remove(desc);
+            self.used_list.add(desc);
+            let desc_ref = &mut (*desc);
+
+            desc_ref.r#ref();
+
+            Ok(())
         }
-
-        self.free_list.remove(desc);
-        self.used_list.add(desc);
-        let desc_ref = &mut (*desc);
-
-        desc_ref.r#ref();
-
-        Ok(())
     }
 
     unsafe fn r#ref(&mut self, frame: PhysAddr) {
-        let desc = self.frame_to_desc(frame);
-        let desc_ref = &mut (*desc);
+        unsafe {
+            let desc = self.frame_to_desc(frame);
+            let desc_ref = &mut (*desc);
 
-        desc_ref.r#ref();
+            desc_ref.r#ref();
+        }
     }
 
     /// Returns true if the page has still references, false if it has been deallocated
     unsafe fn unref(&mut self, frame: PhysAddr) -> bool {
-        let desc = self.frame_to_desc(frame);
-        let desc_ref = &mut (*desc);
+        unsafe {
+            let desc = self.frame_to_desc(frame);
+            let desc_ref = &mut (*desc);
 
-        debug_assert!(desc_ref.used(), "Unref unused frame {:?}", frame);
+            debug_assert!(desc_ref.used(), "Unref unused frame {:?}", frame);
 
-        let has_ref = desc_ref.unref();
+            let has_ref = desc_ref.unref();
 
-        if !has_ref {
-            self.used_list.remove(desc);
-            self.free_list.add(desc);
+            if !has_ref {
+                self.used_list.remove(desc);
+                self.free_list.add(desc);
+            }
+
+            has_ref
         }
-
-        has_ref
     }
 
     unsafe fn frame_to_desc(&self, frame: PhysAddr) -> *mut Descriptor {
-        let index = frame.as_u64() as usize / PAGE_SIZE;
-        self.descriptors.as_mut_ptr().add(index)
+        unsafe {
+            let index = frame.as_u64() as usize / PAGE_SIZE;
+            self.descriptors.as_mut_ptr().add(index)
+        }
     }
 
     unsafe fn desc_to_frame(&self, desc: *mut Descriptor) -> PhysAddr {
-        let index = desc.offset_from(self.descriptors.as_mut_ptr()) as usize;
-        PhysAddr::new((index * PAGE_SIZE) as u64)
+        unsafe {
+            let index = desc.offset_from(self.descriptors.as_mut_ptr()) as usize;
+            PhysAddr::new((index * PAGE_SIZE) as u64)
+        }
     }
 
     fn check_frame(&self, frame: PhysAddr) -> bool {

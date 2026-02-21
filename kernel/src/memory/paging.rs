@@ -430,56 +430,60 @@ fn fix_flags(entry: &mut PageTableEntry) {
 }
 
 unsafe fn drop_mapping(l4_entry: &mut PageTableEntry) {
-    for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
-        if l3_entry.is_unused() {
-            continue;
-        }
-
-        assert!(
-            !l3_entry.flags().contains(PageTableFlags::HUGE_PAGE),
-            "HUGE_PAGE not handled"
-        );
-
-        for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
-            if l2_entry.is_unused() {
+    unsafe {
+        for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
+            if l3_entry.is_unused() {
                 continue;
             }
 
             assert!(
-                !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+                !l3_entry.flags().contains(PageTableFlags::HUGE_PAGE),
                 "HUGE_PAGE not handled"
             );
 
-            for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
-                if l1_entry.is_unused() {
+            for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
+                if l2_entry.is_unused() {
                     continue;
                 }
 
-                let frame = l1_entry.addr();
-                // Note: framebuffer maps memory outside physical memory
-                // ignore it.
-                if phys::check_frame(frame) && phys::used(frame) {
-                    mem::drop(FrameRef::unborrow(l1_entry.addr()));
+                assert!(
+                    !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+                    "HUGE_PAGE not handled"
+                );
+
+                for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
+                    if l1_entry.is_unused() {
+                        continue;
+                    }
+
+                    let frame = l1_entry.addr();
+                    // Note: framebuffer maps memory outside physical memory
+                    // ignore it.
+                    if phys::check_frame(frame) && phys::used(frame) {
+                        mem::drop(FrameRef::unborrow(l1_entry.addr()));
+                    }
+
+                    l1_entry.set_unused();
                 }
 
-                l1_entry.set_unused();
+                mem::drop(FrameRef::unborrow(l2_entry.addr()));
+                l2_entry.set_unused();
             }
 
-            mem::drop(FrameRef::unborrow(l2_entry.addr()));
-            l2_entry.set_unused();
+            mem::drop(FrameRef::unborrow(l3_entry.addr()));
+            l3_entry.set_unused();
         }
 
-        mem::drop(FrameRef::unborrow(l3_entry.addr()));
-        l3_entry.set_unused();
+        mem::drop(FrameRef::unborrow(l4_entry.addr()));
+        l4_entry.set_unused();
     }
-
-    mem::drop(FrameRef::unborrow(l4_entry.addr()));
-    l4_entry.set_unused();
 }
 
 unsafe fn get_current_page_table() -> &'static mut PageTable {
-    let (frame, _) = Cr3::read();
-    phys_frame_to_page_table(frame.start_address())
+    unsafe {
+        let (frame, _) = Cr3::read();
+        phys_frame_to_page_table(frame.start_address())
+    }
 }
 
 /// Install the provided address space as the current one
@@ -489,11 +493,13 @@ unsafe fn get_current_page_table() -> &'static mut PageTable {
 /// If the address space is not properly setup, we are dead.
 ///
 pub unsafe fn set_current_address_space(address_space: &AddressSpace) {
-    let frame = page_table_to_phys_frame(address_space.get_page_table());
-    Cr3::write(
-        PhysFrame::from_start_address_unchecked(frame),
-        Cr3Flags::empty(),
-    );
+    unsafe {
+        let frame = page_table_to_phys_frame(address_space.get_page_table());
+        Cr3::write(
+            PhysFrame::from_start_address_unchecked(frame),
+            Cr3Flags::empty(),
+        );
+    }
 }
 
 /// Describe an address space, which is a complete 64 bits space of virtual memory.

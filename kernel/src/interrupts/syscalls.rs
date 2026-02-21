@@ -39,8 +39,7 @@ pub fn init() {
     SFMask::write(RFlags::INTERRUPT_FLAG);
 }
 
-#[naked]
-#[allow(undefined_naked_function_abi)]
+#[unsafe(naked)]
 unsafe fn syscall_native_handler() {
     naked_asm!(concat!(
         "swapgs;",                    // Swap KGSBASE with GSBASE, allowing fast TSS access - https://www.felixcloutier.com/x86/swapgs - https://wiki.osdev.org/SWAPGS

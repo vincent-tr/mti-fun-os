@@ -63,7 +63,7 @@ impl LinkedList {
     }
 
     /// Return an iterator over the items in the list
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             curr: self.head,
             list: PhantomData,

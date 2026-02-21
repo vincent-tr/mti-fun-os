@@ -84,16 +84,16 @@ pub fn syscall_clear(thread: &Arc<Thread>) {
 
 pub unsafe fn save(thread: &Arc<Thread>) {
     let mut context = thread.context.lock();
-    context.save();
+    unsafe { context.save() };
 }
 
 pub unsafe fn load(thread: &Arc<Thread>) {
     let context = thread.context.lock();
-    context.load(thread.privileged);
+    unsafe { context.load(thread.privileged) };
 }
 
 pub unsafe fn load_segments(thread: &Arc<Thread>) {
-    ThreadContext::load_segments(thread.privileged);
+    unsafe { ThreadContext::load_segments(thread.privileged) };
 }
 
 /// Thread of execution
@@ -502,7 +502,7 @@ impl ThreadContext {
 
     /// Save the interrupt stack into the thread context
     pub unsafe fn save(&mut self) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         self.rax = interrupt_stack.scratch.rax;
         self.rcx = interrupt_stack.scratch.rcx;

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [build-dependencies]
-bootloader = "0.11"
+bootloader = "0.11.15"
 kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
 
 [dependencies]
@@ -30,7 +30,7 @@ members = [
 async-trait = "0.1.89"
 bit_field = "0.10.2"
 bitflags = "2.9.0"
-bootloader_api = "0.11"
+bootloader_api = "0.11.15"
 futures = { version = "0.3.31", default-features = false, features = ["async-await", "alloc"] }
 hashbrown = "0.15.2"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }

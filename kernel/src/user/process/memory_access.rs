@@ -158,13 +158,13 @@ pub fn create(
 ///
 unsafe fn ref_frame(phys_addr: PhysAddr) -> FrameRef {
     // Temp unborrow the frame from phys addr
-    let mut borrowed_frame = FrameRef::unborrow(phys_addr);
+    let mut borrowed_frame = unsafe { FrameRef::unborrow(phys_addr) };
 
     // Add new ref
     let frame_new_ref = borrowed_frame.clone();
 
     // Borrow it back
-    borrowed_frame.borrow();
+    unsafe { borrowed_frame.borrow() };
 
     frame_new_ref
 }

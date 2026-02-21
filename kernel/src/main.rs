@@ -5,13 +5,12 @@
 #![feature(slice_ptr_get)]
 #![feature(allocator_api)]
 #![feature(btree_cursors)]
-#![feature(let_chains)]
 #![feature(const_trait_impl)]
-#![feature(naked_functions)]
 #![feature(linked_list_cursors)]
 #![feature(trait_alias)]
 #![feature(never_type)]
 #![feature(step_trait)]
+#![feature(naked_functions_rustic_abi)]
 
 extern crate alloc;
 extern crate bootloader_api;
@@ -28,7 +27,7 @@ mod memory;
 mod user;
 
 use crate::memory::VirtAddr;
-use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
+use bootloader_api::{BootInfo, BootloaderConfig, config::Mapping, entry_point};
 use core::panic::PanicInfo;
 use log::{error, info};
 use syscalls::SyscallNumber;

@@ -2,12 +2,12 @@ use crate::process;
 
 use super::{exit, init};
 
-extern "Rust" {
+unsafe extern "Rust" {
     fn main() -> i32;
 }
 
 /// Program entry point
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn _start(_arg: usize) -> ! {
     // Note: the entry thread is not registered in the thread GC.
     // When this thread exits, the process will exit.

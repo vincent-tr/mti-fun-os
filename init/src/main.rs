@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions)]
 #![feature(used_with_arg)]
 
 extern crate alloc;
@@ -17,15 +16,15 @@ use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range};
 use alloc::boxed::Box;
 use libruntime::{
     ipc,
-    kobject::{self, Permissions, ThreadOptions, PAGE_SIZE},
+    kobject::{self, PAGE_SIZE, Permissions, ThreadOptions},
     process, state, vfs,
 };
 use log::{debug, info};
 
 // Special init start: need to setup its own stack
-#[naked]
-#[no_mangle]
-#[link_section = ".text_entry"]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text_entry")]
 pub unsafe extern "C" fn user_start() -> ! {
     naked_asm!(
         "
@@ -87,6 +86,18 @@ fn start_servers() {
 
     loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);
+
+    let process = process::Process::spawn(
+        "time-server",
+        ipc::Buffer::new_local(archive::TIME_SERVER),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn time server");
+
+    let _ = process;
+    sleep_forever(); ////////
+    //wait_port(vfs::iface::PORT_NAME);
 
     let process = process::Process::spawn(
         "vfs-server",

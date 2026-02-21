@@ -1,7 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
 use spin::RwLock;
 
-use super::{queue::Queue, Thread};
+use super::{Thread, queue::Queue};
 
 #[derive(Debug)]
 pub struct WaitQueue {

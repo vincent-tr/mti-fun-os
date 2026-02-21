@@ -3,7 +3,7 @@ use core::fmt;
 use async_trait::async_trait;
 use log::error;
 
-use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
+use super::{DentriesBlock, DirectoryEntry, FsServerError, messages};
 use crate::{
     ipc::{self, Handle},
     kobject,

@@ -8,8 +8,8 @@ use alloc::{string::String, sync::Arc, vec::Vec};
 use log::error;
 
 use super::{
-    messages, KVBlock, ProcessInfo, ProcessListBlock, ProcessServerError, ProcessStatus,
-    StartupInfo,
+    KVBlock, ProcessInfo, ProcessListBlock, ProcessServerError, ProcessStatus, StartupInfo,
+    messages,
 };
 
 /// Process server interface
@@ -44,7 +44,7 @@ pub trait ProcessServer {
     fn get_process_env(&self, sender_id: u64, handle: ipc::Handle) -> Result<KVBlock, Self::Error>;
 
     fn get_process_args(&self, sender_id: u64, handle: ipc::Handle)
-        -> Result<KVBlock, Self::Error>;
+    -> Result<KVBlock, Self::Error>;
 
     fn get_process_status(
         &self,

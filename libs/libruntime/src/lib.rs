@@ -2,7 +2,6 @@
 #![allow(internal_features)]
 #![feature(panic_internals)]
 #![feature(never_type)]
-#![feature(let_chains)]
 
 use core::hint::unreachable_unchecked;
 
@@ -58,7 +57,7 @@ pub fn exit() -> ! {
 }
 
 // Defined by linker script
-extern "C" {
+unsafe extern "C" {
     // init/fini array in text
     static __init_array_start: u8;
     static __init_array_end: u8;
@@ -70,6 +69,8 @@ unsafe fn make_array(start: &u8, end: &u8) -> &'static [fn()] {
     let start = start as *const u8 as *const fn();
     let end = end as *const u8 as *const fn();
 
-    let count = end.offset_from(start) as usize;
-    core::slice::from_raw_parts(start, count)
+    unsafe {
+        let count = end.offset_from(start) as usize;
+        core::slice::from_raw_parts(start, count)
+    }
 }

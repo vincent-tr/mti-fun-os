@@ -4,9 +4,9 @@ use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
 use super::{
+    MemoryObject,
     process::{AddressInfo, Process},
     thread::{self, WaitQueue},
-    MemoryObject,
 };
 use lazy_static::lazy_static;
 use spin::Mutex;

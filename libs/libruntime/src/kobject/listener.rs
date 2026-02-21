@@ -80,7 +80,7 @@ impl KObject for ThreadListener {
 
 impl KWaitable for ThreadListener {
     unsafe fn waitable_handle(&self) -> &Handle {
-        self.reader.waitable_handle()
+        unsafe { self.reader.waitable_handle() }
     }
 
     fn wait(&self) -> Result<(), Error> {
@@ -119,7 +119,7 @@ impl ThreadListener {
     }
 
     /// Get the filter that is setup on this listener.
-    pub fn filter(&self) -> ThreadListenerFilter {
+    pub fn filter(&self) -> ThreadListenerFilter<'_> {
         self.filter.as_ref()
     }
 }
@@ -194,7 +194,7 @@ impl KObject for ProcessListener {
 
 impl KWaitable for ProcessListener {
     unsafe fn waitable_handle(&self) -> &Handle {
-        self.reader.waitable_handle()
+        unsafe { self.reader.waitable_handle() }
     }
 
     fn wait(&self) -> Result<(), Error> {
@@ -233,7 +233,7 @@ impl ProcessListener {
     }
 
     /// Get the filter that is setup on this listener.
-    pub fn filter(&self) -> ProcessListenerFilter {
+    pub fn filter(&self) -> ProcessListenerFilter<'_> {
         self.filter.as_ref()
     }
 }

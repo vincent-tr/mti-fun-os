@@ -1,7 +1,7 @@
 use core::ops::Range;
 
 // Defined by linker script
-extern "C" {
+unsafe extern "C" {
     // overall
     static __start: u8;
     static __end: u8;

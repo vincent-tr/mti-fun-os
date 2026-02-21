@@ -6,7 +6,7 @@ use core::{
 
 use crate::{
     interrupts::Irq,
-    memory::{map_iomem, unmap_phys, Permissions, VirtAddr, PAGE_SIZE},
+    memory::{PAGE_SIZE, Permissions, VirtAddr, map_iomem, unmap_phys},
 };
 
 use super::cpu::CPUID;
@@ -19,7 +19,7 @@ use spin::Mutex;
 const FS_IN_SEC: usize = 1_000_000_000_000_000;
 
 mod registers {
-    use crate::memory::{is_page_aligned, PhysAddr, PAGE_SIZE};
+    use crate::memory::{PAGE_SIZE, PhysAddr, is_page_aligned};
     use bit_field::BitField;
     use x86_64::registers::model_specific::Msr;
 
@@ -152,19 +152,21 @@ impl LocalApic {
         let reg_value = registers::ApicBase::read();
         assert!(reg_value.enabled);
 
-        self.base_addr = map_iomem(
-            reg_value.address..reg_value.address + PAGE_SIZE as u64,
-            Permissions::READ | Permissions::WRITE,
-        )
+        self.base_addr = unsafe {
+            map_iomem(
+                reg_value.address..reg_value.address + PAGE_SIZE as u64,
+                Permissions::READ | Permissions::WRITE,
+            )
+        }
         .expect("could not map page into kernel space");
     }
 
     unsafe fn read(&self, reg: usize) -> u32 {
-        read_volatile((self.base_addr + reg as u64).as_ptr())
+        unsafe { read_volatile((self.base_addr + reg as u64).as_ptr()) }
     }
 
     unsafe fn write(&self, reg: usize, value: u32) {
-        write_volatile((self.base_addr + reg as u64).as_mut_ptr(), value);
+        unsafe { write_volatile((self.base_addr + reg as u64).as_mut_ptr(), value) };
     }
 
     /// Local APIC ID
@@ -257,7 +259,7 @@ impl LocalApic {
         unsafe { self.write(registers::LVT_THERMAL_SENSOR, value.0) };
     }
 
-    pub fn timer(&self) -> Timer {
+    pub fn timer(&self) -> Timer<'_> {
         Timer { apic: self }
     }
 }
@@ -708,7 +710,9 @@ impl Timer<'_> {
             init_count /= 2;
         }
 
-        debug!("Configure Local APIC timer: timer period={period_fs}fs delay={delay_fs}fs, initial count={init_count}, divider={divider}");
+        debug!(
+            "Configure Local APIC timer: timer period={period_fs}fs delay={delay_fs}fs, initial count={init_count}, divider={divider}"
+        );
 
         self.set_divider(divider as u32);
         self.set_initial_count(init_count as u32);

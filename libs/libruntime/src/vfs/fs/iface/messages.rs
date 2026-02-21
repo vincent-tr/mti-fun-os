@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::ipc::{buffer_messages::Buffer, Handle};
+use crate::ipc::{Handle, buffer_messages::Buffer};
 
 use crate::vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions};
 

@@ -8,7 +8,7 @@ use crate::{
     vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 
-use super::{messages, DentriesBlock, DirectoryEntry, FsServerError};
+use super::{DentriesBlock, DirectoryEntry, FsServerError, messages};
 
 pub type FsServerCallError = ipc::CallError<FsServerError>;
 

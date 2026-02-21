@@ -11,7 +11,7 @@ use spin::RwLock;
 
 use self::{
     scheduler::SCHEDULER,
-    thread::{add_ticks, load_segments, syscall_clear, update_state, WaitQueueRef, WaitingData},
+    thread::{WaitQueueRef, WaitingData, add_ticks, load_segments, syscall_clear, update_state},
     threads::THREADS,
 };
 pub use self::{

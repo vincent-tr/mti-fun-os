@@ -84,7 +84,7 @@ impl<'a, T: Sized + Copy> SyscallList<'a, T> {
     /// No borrow rule are checked
     ///
     pub unsafe fn count_ptr_arg(&self) -> usize {
-        ref_ptr(&self.count)
+        unsafe { ref_ptr(&self.count) }
     }
 
     /// Call after syscall to properly configure output slice
@@ -117,7 +117,7 @@ impl<T> SyscallInOutPtr<T> {
     }
 
     pub unsafe fn ptr_arg(&self) -> usize {
-        ref_ptr(&self.value)
+        unsafe { ref_ptr(&self.value) }
     }
 
     pub fn take(self) -> T {

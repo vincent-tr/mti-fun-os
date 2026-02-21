@@ -251,8 +251,7 @@ impl Mount {
     async fn unmount(&self) -> Result<(), VfsServerError> {
         trace!(
             "[FS API] unmount: path={}, handle={:?}",
-            self.path,
-            self.handle
+            self.path, self.handle
         );
         self.client
             .unmount(self.handle)
@@ -289,9 +288,7 @@ impl Mount {
     pub async fn lookup(&self, parent: NodeId, name: &str) -> Result<NodeId, VfsServerError> {
         trace!(
             "[FS API] lookup: path={}, parent={:?}, name={}",
-            self.path,
-            parent,
-            name
+            self.path, parent, name
         );
         self.client
             .lookup(self.handle, parent, name)
@@ -309,10 +306,7 @@ impl Mount {
     ) -> Result<NodeId, VfsServerError> {
         trace!(
             "[FS API] create: path={}, parent={:?}, name={}, type={:?}",
-            self.path,
-            parent,
-            name,
-            r#type
+            self.path, parent, name, r#type
         );
         self.client
             .create(self.handle, parent, name, r#type, permissions)
@@ -324,9 +318,7 @@ impl Mount {
     pub async fn remove(&self, parent: NodeId, name: &str) -> Result<NodeId, VfsServerError> {
         trace!(
             "[FS API] remove: path={}, parent={:?}, name={}",
-            self.path,
-            parent,
-            name
+            self.path, parent, name
         );
         self.client
             .remove(self.handle, parent, name)
@@ -344,11 +336,7 @@ impl Mount {
     ) -> Result<NodeId, VfsServerError> {
         trace!(
             "[FS API] move: path={}, src_parent={:?}, src_name={}, dst_parent={:?}, dst_name={}",
-            self.path,
-            src_parent,
-            src_name,
-            dst_parent,
-            dst_name
+            self.path, src_parent, src_name, dst_parent, dst_name
         );
         self.client
             .r#move(self.handle, src_parent, src_name, dst_parent, dst_name)
@@ -376,10 +364,7 @@ impl Mount {
     ) -> Result<(), VfsServerError> {
         trace!(
             "[FS API] set_metadata: path={}, node={:?}, permissions={:?}, size={:?}",
-            self.path,
-            node,
-            permissions,
-            size
+            self.path, node, permissions, size
         );
         self.client
             .set_metadata(self.handle, node, permissions, size, created, modified)
@@ -395,9 +380,7 @@ impl Mount {
     ) -> Result<Handle, VfsServerError> {
         trace!(
             "[FS API] open_file: path={}, node={:?}, permissions={:?}",
-            self.path,
-            node_id,
-            open_permissions
+            self.path, node_id, open_permissions
         );
         self.client
             .open_file(self.handle, node_id, open_permissions)
@@ -409,8 +392,7 @@ impl Mount {
     pub async fn close_file(&self, handle: Handle) -> Result<(), VfsServerError> {
         trace!(
             "[FS API] close_file: path={}, handle={:?}",
-            self.path,
-            handle
+            self.path, handle
         );
         self.client
             .close_file(self.handle, handle)
@@ -471,8 +453,7 @@ impl Mount {
     pub async fn close_dir(&self, handle: Handle) -> Result<(), VfsServerError> {
         trace!(
             "[FS API] close_dir: path={}, handle={:?}",
-            self.path,
-            handle
+            self.path, handle
         );
         self.client
             .close_dir(self.handle, handle)
@@ -498,10 +479,7 @@ impl Mount {
     ) -> Result<NodeId, VfsServerError> {
         trace!(
             "[FS API] create_symlink: path={}, parent={:?}, name={}, target={}",
-            self.path,
-            parent,
-            name,
-            target
+            self.path, parent, name, target
         );
         self.client
             .create_symlink(self.handle, parent, name, target)
@@ -513,8 +491,7 @@ impl Mount {
     pub async fn read_symlink(&self, node_id: NodeId) -> Result<String, VfsServerError> {
         trace!(
             "[FS API] read_symlink: path={}, node={:?}",
-            self.path,
-            node_id
+            self.path, node_id
         );
         self.client
             .read_symlink(self.handle, node_id)

@@ -1,9 +1,9 @@
 use core::slice::Iter;
 
-use crate::memory::{access_phys, is_page_aligned, phys_allocate, FrameRef, PAGE_SIZE};
+use crate::memory::{FrameRef, PAGE_SIZE, access_phys, is_page_aligned, phys_allocate};
 use alloc::{sync::Arc, vec::Vec};
 
-use super::{error::*, Error};
+use super::{Error, error::*};
 
 /// Represent a area in physical memory, that can be mapped into processes
 #[derive(Debug)]

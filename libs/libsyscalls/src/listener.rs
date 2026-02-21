@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{slice_ptr, syscalls::*, sysret_to_result, Handle, SyscallResult};
+use super::{Handle, SyscallResult, slice_ptr, syscalls::*, sysret_to_result};
 
 pub fn create_process(port: &Handle, pids: Option<&[u64]>) -> SyscallResult<Handle> {
     let (pid_list_ptr, pid_list_size) = if let Some(list) = pids {

@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use spin::RwLock;
 use syscalls::ThreadPriority;
 
-use super::{queue::Queue, Thread};
+use super::{Thread, queue::Queue};
 
 lazy_static! {
     pub static ref SCHEDULER: Scheduler = Scheduler::new();

@@ -3,7 +3,7 @@ use core::{fmt, mem, ptr, slice, str};
 use alloc::sync::Arc;
 
 use crate::{
-    kobject::{Mapping, MemoryObject, Permissions, Process, PAGE_SIZE},
+    kobject::{Mapping, MemoryObject, PAGE_SIZE, Permissions, Process},
     memory::align_up,
 };
 
@@ -73,7 +73,7 @@ impl KVBlock {
         assert!(offset + mem::size_of::<T>() <= self.mapping.len());
         assert!((self.mapping.address() + offset) % mem::align_of::<T>() == 0);
 
-        &*((self.mapping.address() + offset) as *const T)
+        unsafe { &*((self.mapping.address() + offset) as *const T) }
     }
 
     fn header(&self) -> &Header {
@@ -93,7 +93,7 @@ impl KVBlock {
     }
 
     /// Returns an iterator over the key-value entries in the KVBlock.
-    pub fn iter(&self) -> KVBlockIterator {
+    pub fn iter(&self) -> KVBlockIterator<'_> {
         KVBlockIterator {
             owner: self,
             current_index: 0,
@@ -241,15 +241,17 @@ impl KVEntry {
     /// Safety: The caller must ensure that the KVEntry is valid and followed by valid string data.
     pub unsafe fn key(&self) -> &str {
         let start_addr = (self as *const KVEntry as usize) + mem::size_of::<KVEntry>();
-        let buffer = slice::from_raw_parts(start_addr as *const u8, self.key_len as usize);
-        str::from_utf8_unchecked(buffer)
+        let buffer =
+            unsafe { slice::from_raw_parts(start_addr as *const u8, self.key_len as usize) };
+        unsafe { str::from_utf8_unchecked(buffer) }
     }
 
     /// Safety: The caller must ensure that the KVEntry is valid and followed by valid string data.
     pub unsafe fn value(&self) -> &str {
         let start_addr =
             (self as *const KVEntry as usize) + mem::size_of::<KVEntry>() + self.key_len as usize;
-        let buffer = slice::from_raw_parts(start_addr as *const u8, self.value_len as usize);
-        str::from_utf8_unchecked(buffer)
+        let buffer =
+            unsafe { slice::from_raw_parts(start_addr as *const u8, self.value_len as usize) };
+        unsafe { str::from_utf8_unchecked(buffer) }
     }
 }

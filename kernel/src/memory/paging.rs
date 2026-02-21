@@ -5,18 +5,18 @@ use crate::util::OnceLock;
 use spin::{Mutex, MutexGuard};
 
 use x86_64::{
+    PhysAddr, VirtAddr,
     instructions::tlb,
     registers::{
         control::{Cr3, Cr3Flags},
         model_specific::{Efer, EferFlags},
     },
     structures::paging::{
-        mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
-        page_table::PageTableEntry,
         FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageSize, PageTable,
         PageTableFlags, PageTableIndex, PhysFrame, Size1GiB, Size2MiB, Size4KiB, Translate,
+        mapper::{CleanUp, FlagUpdateError, MapToError, MapperFlush, TranslateResult, UnmapError},
+        page_table::PageTableEntry,
     },
-    PhysAddr, VirtAddr,
 };
 
 use super::{
@@ -269,7 +269,7 @@ unsafe fn prepare_mapping(
         "frame {:?} used by PageTable is not marked as used.",
         l4_entry.addr()
     );
-    for (l3_index, l3_entry) in phys_frame_to_page_table(l4_entry.addr())
+    for (l3_index, l3_entry) in unsafe { phys_frame_to_page_table(l4_entry.addr()) }
         .iter_mut()
         .enumerate()
     {
@@ -302,7 +302,7 @@ unsafe fn prepare_mapping(
             "frame {:?} used by PageTable is not marked as used.",
             l3_entry.addr()
         );
-        for (l2_index, l2_entry) in phys_frame_to_page_table(l3_entry.addr())
+        for (l2_index, l2_entry) in unsafe { phys_frame_to_page_table(l3_entry.addr()) }
             .iter_mut()
             .enumerate()
         {
@@ -335,7 +335,7 @@ unsafe fn prepare_mapping(
                 "frame {:?} used by PageTable is not marked as used.",
                 l2_entry.addr()
             );
-            for (l1_index, l1_entry) in phys_frame_to_page_table(l2_entry.addr())
+            for (l1_index, l1_entry) in unsafe { phys_frame_to_page_table(l2_entry.addr()) }
                 .iter_mut()
                 .enumerate()
             {
@@ -430,56 +430,60 @@ fn fix_flags(entry: &mut PageTableEntry) {
 }
 
 unsafe fn drop_mapping(l4_entry: &mut PageTableEntry) {
-    for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
-        if l3_entry.is_unused() {
-            continue;
-        }
-
-        assert!(
-            !l3_entry.flags().contains(PageTableFlags::HUGE_PAGE),
-            "HUGE_PAGE not handled"
-        );
-
-        for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
-            if l2_entry.is_unused() {
+    unsafe {
+        for l3_entry in phys_frame_to_page_table(l4_entry.addr()).iter_mut() {
+            if l3_entry.is_unused() {
                 continue;
             }
 
             assert!(
-                !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+                !l3_entry.flags().contains(PageTableFlags::HUGE_PAGE),
                 "HUGE_PAGE not handled"
             );
 
-            for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
-                if l1_entry.is_unused() {
+            for l2_entry in phys_frame_to_page_table(l3_entry.addr()).iter_mut() {
+                if l2_entry.is_unused() {
                     continue;
                 }
 
-                let frame = l1_entry.addr();
-                // Note: framebuffer maps memory outside physical memory
-                // ignore it.
-                if phys::check_frame(frame) && phys::used(frame) {
-                    mem::drop(FrameRef::unborrow(l1_entry.addr()));
+                assert!(
+                    !l2_entry.flags().contains(PageTableFlags::HUGE_PAGE),
+                    "HUGE_PAGE not handled"
+                );
+
+                for l1_entry in phys_frame_to_page_table(l2_entry.addr()).iter_mut() {
+                    if l1_entry.is_unused() {
+                        continue;
+                    }
+
+                    let frame = l1_entry.addr();
+                    // Note: framebuffer maps memory outside physical memory
+                    // ignore it.
+                    if phys::check_frame(frame) && phys::used(frame) {
+                        mem::drop(FrameRef::unborrow(l1_entry.addr()));
+                    }
+
+                    l1_entry.set_unused();
                 }
 
-                l1_entry.set_unused();
+                mem::drop(FrameRef::unborrow(l2_entry.addr()));
+                l2_entry.set_unused();
             }
 
-            mem::drop(FrameRef::unborrow(l2_entry.addr()));
-            l2_entry.set_unused();
+            mem::drop(FrameRef::unborrow(l3_entry.addr()));
+            l3_entry.set_unused();
         }
 
-        mem::drop(FrameRef::unborrow(l3_entry.addr()));
-        l3_entry.set_unused();
+        mem::drop(FrameRef::unborrow(l4_entry.addr()));
+        l4_entry.set_unused();
     }
-
-    mem::drop(FrameRef::unborrow(l4_entry.addr()));
-    l4_entry.set_unused();
 }
 
 unsafe fn get_current_page_table() -> &'static mut PageTable {
-    let (frame, _) = Cr3::read();
-    phys_frame_to_page_table(frame.start_address())
+    unsafe {
+        let (frame, _) = Cr3::read();
+        phys_frame_to_page_table(frame.start_address())
+    }
 }
 
 /// Install the provided address space as the current one
@@ -489,11 +493,13 @@ unsafe fn get_current_page_table() -> &'static mut PageTable {
 /// If the address space is not properly setup, we are dead.
 ///
 pub unsafe fn set_current_address_space(address_space: &AddressSpace) {
-    let frame = page_table_to_phys_frame(address_space.get_page_table());
-    Cr3::write(
-        PhysFrame::from_start_address_unchecked(frame),
-        Cr3Flags::empty(),
-    );
+    unsafe {
+        let frame = page_table_to_phys_frame(address_space.get_page_table());
+        Cr3::write(
+            PhysFrame::from_start_address_unchecked(frame),
+            Cr3Flags::empty(),
+        );
+    }
 }
 
 /// Describe an address space, which is a complete 64 bits space of virtual memory.
@@ -557,23 +563,25 @@ impl AddressSpace {
         permissions: Permissions,
         additional_flags: Option<AdditionalFlags>,
     ) -> Result<(), MapToError<Size4KiB>> {
-        assert!(addr.is_aligned(PAGE_SIZE as u64));
-        assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
+        unsafe {
+            assert!(addr.is_aligned(PAGE_SIZE as u64));
+            assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
 
-        let mut manager = self.create_manager();
-        let mut frame_allocator = FrameAllocatorImpl::default();
+            let mut manager = self.create_manager();
+            let mut frame_allocator = FrameAllocatorImpl::default();
 
-        let flusher = manager.map_to_with_table_flags(
-            Page::<Size4KiB>::from_start_address_unchecked(addr),
-            PhysFrame::from_start_address_unchecked(phys_addr),
-            create_flags(addr, permissions, additional_flags),
-            create_parent_flags(addr),
-            &mut frame_allocator,
-        )?;
+            let flusher = manager.map_to_with_table_flags(
+                Page::<Size4KiB>::from_start_address_unchecked(addr),
+                PhysFrame::from_start_address_unchecked(phys_addr),
+                create_flags(addr, permissions, additional_flags),
+                create_parent_flags(addr),
+                &mut frame_allocator,
+            )?;
 
-        self.flush(addr, flusher);
+            self.flush(addr, flusher);
 
-        Ok(())
+            Ok(())
+        }
     }
 
     pub unsafe fn remap(
@@ -583,36 +591,38 @@ impl AddressSpace {
         permissions: Permissions,
         additional_flags: Option<AdditionalFlags>,
     ) -> Result<FrameRef, UnmapError> {
-        assert!(addr.is_aligned(PAGE_SIZE as u64));
-        assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
+        unsafe {
+            assert!(addr.is_aligned(PAGE_SIZE as u64));
+            assert!(phys_addr.is_aligned(PAGE_SIZE as u64));
 
-        let mut manager = self.create_manager();
-        let mut frame_allocator = FrameAllocatorImpl::default();
+            let mut manager = self.create_manager();
+            let mut frame_allocator = FrameAllocatorImpl::default();
 
-        let (unmapped_frame, flusher) =
-            manager.unmap(Page::<Size4KiB>::from_start_address_unchecked(addr))?;
+            let (unmapped_frame, flusher) =
+                manager.unmap(Page::<Size4KiB>::from_start_address_unchecked(addr))?;
 
-        // Ignore this flush, we will apply the 'map' flush
-        flusher.ignore();
+            // Ignore this flush, we will apply the 'map' flush
+            flusher.ignore();
 
-        let flusher = manager
-            .map_to_with_table_flags(
-                Page::<Size4KiB>::from_start_address_unchecked(addr),
-                PhysFrame::from_start_address_unchecked(phys_addr),
-                create_flags(addr, permissions, additional_flags),
-                create_parent_flags(addr),
-                &mut frame_allocator,
-            )
-            .unwrap();
+            let flusher = manager
+                .map_to_with_table_flags(
+                    Page::<Size4KiB>::from_start_address_unchecked(addr),
+                    PhysFrame::from_start_address_unchecked(phys_addr),
+                    create_flags(addr, permissions, additional_flags),
+                    create_parent_flags(addr),
+                    &mut frame_allocator,
+                )
+                .unwrap();
 
-        // Note: all errors from map should not happen:
-        // - FrameAllocationFailed: we just unmapped the page, so no page table creation needed
-        // - ParentEntryHugePage: we just unmapped the page successfully, so not possible
-        // - PageAlreadyMapped: we just unmapped the page, so cannot be mapped anymore
+            // Note: all errors from map should not happen:
+            // - FrameAllocationFailed: we just unmapped the page, so no page table creation needed
+            // - ParentEntryHugePage: we just unmapped the page successfully, so not possible
+            // - PageAlreadyMapped: we just unmapped the page, so cannot be mapped anymore
 
-        self.flush(addr, flusher);
+            self.flush(addr, flusher);
 
-        Ok(FrameRef::unborrow(unmapped_frame.start_address()))
+            Ok(FrameRef::unborrow(unmapped_frame.start_address()))
+        }
     }
 
     pub unsafe fn update_permissions(
@@ -620,36 +630,40 @@ impl AddressSpace {
         addr: VirtAddr,
         permissions: Permissions,
     ) -> Result<(), FlagUpdateError> {
-        assert!(addr.is_aligned(PAGE_SIZE as u64));
+        unsafe {
+            assert!(addr.is_aligned(PAGE_SIZE as u64));
 
-        let mut manager = self.create_manager();
-        // Retrieve additional flags to keep them
-        let (_, _, additional_flags) = self.get_infos(addr);
+            let mut manager = self.create_manager();
+            // Retrieve additional flags to keep them
+            let (_, _, additional_flags) = self.get_infos(addr);
 
-        let flusher = manager.update_flags(
-            Page::<Size4KiB>::from_start_address_unchecked(addr),
-            create_flags(addr, permissions, Some(additional_flags)),
-        )?;
+            let flusher = manager.update_flags(
+                Page::<Size4KiB>::from_start_address_unchecked(addr),
+                create_flags(addr, permissions, Some(additional_flags)),
+            )?;
 
-        self.flush(addr, flusher);
+            self.flush(addr, flusher);
 
-        Ok(())
+            Ok(())
+        }
     }
 
     pub unsafe fn unmap(&mut self, addr: VirtAddr) -> Result<PhysAddr, UnmapError> {
-        assert!(addr.is_aligned(PAGE_SIZE as u64));
+        unsafe {
+            assert!(addr.is_aligned(PAGE_SIZE as u64));
 
-        let mut manager = self.create_manager();
-        let mut frame_allocator = FrameAllocatorImpl::default();
-        let page = Page::<Size4KiB>::from_start_address_unchecked(addr);
+            let mut manager = self.create_manager();
+            let mut frame_allocator = FrameAllocatorImpl::default();
+            let page = Page::<Size4KiB>::from_start_address_unchecked(addr);
 
-        let (unmapped_frame, flusher) = manager.unmap(page)?;
+            let (unmapped_frame, flusher) = manager.unmap(page)?;
 
-        self.flush(addr, flusher);
+            self.flush(addr, flusher);
 
-        manager.clean_up_addr_range(Page::range_inclusive(page, page), &mut frame_allocator);
+            manager.clean_up_addr_range(Page::range_inclusive(page, page), &mut frame_allocator);
 
-        Ok(unmapped_frame.start_address())
+            Ok(unmapped_frame.start_address())
+        }
     }
 
     pub unsafe fn get_infos(
@@ -722,7 +736,7 @@ unsafe impl FrameAllocator<Size4KiB> for FrameAllocatorImpl {
 impl FrameDeallocator<Size4KiB> for FrameAllocatorImpl {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame) {
         // Will be reclaimed on drop
-        FrameRef::unborrow(frame.start_address());
+        unsafe { FrameRef::unborrow(frame.start_address()) };
     }
 }
 
@@ -809,7 +823,7 @@ unsafe fn phys_frame_to_page_table(frame: PhysAddr) -> &'static mut PageTable {
     let virt = *PHYSICAL_MAPPING_ADDRESS.get() + frame.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
 
-    &mut *page_table_ptr
+    unsafe { &mut *page_table_ptr }
 }
 
 #[inline]

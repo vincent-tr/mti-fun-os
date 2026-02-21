@@ -8,7 +8,7 @@ use crate::user::{id_gen::IdGen, process::Process, weak_map::WeakMap};
 
 use crate::memory::VirtAddr;
 
-use super::{thread, Thread, ThreadPriority};
+use super::{Thread, ThreadPriority, thread};
 
 lazy_static! {
     pub static ref THREADS: Threads = Threads::new();

@@ -17,13 +17,13 @@ use crate::gdt::{
     KERNEL_CODE_SELECTOR, KERNEL_DATA_SELECTOR, USER_CODE_SELECTOR, USER_DATA_SELECTOR,
 };
 use crate::interrupts::{
-    tls_reg_read, tls_reg_write, Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS,
+    Exception, InterruptStack, SyscallArgs, USERLAND_RFLAGS, tls_reg_read, tls_reg_write,
 };
-use crate::memory::{is_userspace, VirtAddr};
+use crate::memory::{VirtAddr, is_userspace};
 use crate::user::{
     error::invalid_argument,
     listener,
-    process::{process_remove_thread, Process},
+    process::{Process, process_remove_thread},
     syscalls::SyscallExecutor,
 };
 
@@ -84,16 +84,16 @@ pub fn syscall_clear(thread: &Arc<Thread>) {
 
 pub unsafe fn save(thread: &Arc<Thread>) {
     let mut context = thread.context.lock();
-    context.save();
+    unsafe { context.save() };
 }
 
 pub unsafe fn load(thread: &Arc<Thread>) {
     let context = thread.context.lock();
-    context.load(thread.privileged);
+    unsafe { context.load(thread.privileged) };
 }
 
 pub unsafe fn load_segments(thread: &Arc<Thread>) {
-    ThreadContext::load_segments(thread.privileged);
+    unsafe { ThreadContext::load_segments(thread.privileged) };
 }
 
 /// Thread of execution
@@ -137,7 +137,11 @@ impl Thread {
         debug!(
             "Thread {} created (name={}, pid={}, privileged={}, priority={:?}, thread_start={:?}, stack_top={:?})",
             thread.id,
-            thread.name.read().as_ref().map_or("<None>", |str| str.as_str()),
+            thread
+                .name
+                .read()
+                .as_ref()
+                .map_or("<None>", |str| str.as_str()),
             thread.process.id(),
             thread.privileged,
             thread.priority(),
@@ -170,7 +174,7 @@ impl Thread {
     }
 
     /// Get the state of the thread
-    pub fn state(&self) -> RwLockReadGuard<ThreadState> {
+    pub fn state(&self) -> RwLockReadGuard<'_, ThreadState> {
         self.state.read()
     }
 
@@ -498,7 +502,7 @@ impl ThreadContext {
 
     /// Save the interrupt stack into the thread context
     pub unsafe fn save(&mut self) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         self.rax = interrupt_stack.scratch.rax;
         self.rcx = interrupt_stack.scratch.rcx;
@@ -524,7 +528,7 @@ impl ThreadContext {
 
     /// Load the thread context into the interrupt stack
     pub unsafe fn load(&self, privileged: bool) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         interrupt_stack.scratch.rax = self.rax;
         interrupt_stack.scratch.rcx = self.rcx;
@@ -558,7 +562,7 @@ impl ThreadContext {
 
     /// Setup the interrupt stack with the right segments.
     pub unsafe fn load_segments(privileged: bool) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         if privileged {
             interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR;

@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallResult};
+use super::{Handle, SyscallInOutPtr, SyscallResult, syscalls::*, sysret_to_result};
 
 pub fn create(size: usize) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();

@@ -115,7 +115,7 @@ impl kobject::KWaitable for ProcessWaiter {
     unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
         assert!(self.status == ProcessStatus::Running);
 
-        self.reader.waitable_handle()
+        unsafe { self.reader.waitable_handle() }
     }
 
     fn wait(&self) -> Result<(), kobject::Error> {

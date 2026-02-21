@@ -1,12 +1,12 @@
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libruntime::{
-    ipc::KHandles,
-    kobject::{self, MemoryObject, Permissions, Process, ThreadOptions, PAGE_SIZE},
     r#async,
+    ipc::KHandles,
+    kobject::{self, MemoryObject, PAGE_SIZE, Permissions, Process, ThreadOptions},
     sync::{
-        r#async::{Mutex as AsyncMutex, RwLock as AsyncRwLock},
         Mutex, RwLock,
+        r#async::{Mutex as AsyncMutex, RwLock as AsyncRwLock},
     },
     timer::{self, Duration},
 };

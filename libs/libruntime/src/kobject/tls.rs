@@ -106,23 +106,27 @@ impl TlsSlot {
     }
 
     unsafe fn set_tls_data(offset: usize, value: usize) {
-        asm!(
-            "mov fs:[{offset}], {value};",
-            offset = in(reg)offset,
-            value = in(reg)value,
-            options(nostack, preserves_flags)
-        );
+        unsafe {
+            asm!(
+                "mov fs:[{offset}], {value};",
+                offset = in(reg)offset,
+                value = in(reg)value,
+                options(nostack, preserves_flags)
+            )
+        };
     }
 
     unsafe fn get_tls_data(offset: usize) -> usize {
         let mut value: usize;
 
-        asm!(
-            "mov {value}, fs:[{offset}];",
-            offset = in(reg)offset,
-            value = out(reg)value,
-            options(nostack, preserves_flags)
-        );
+        unsafe {
+            asm!(
+                "mov {value}, fs:[{offset}];",
+                offset = in(reg)offset,
+                value = out(reg)value,
+                options(nostack, preserves_flags)
+            )
+        };
 
         value
     }

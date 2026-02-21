@@ -4,8 +4,8 @@ use core::slice;
 
 use crate::interrupts::SyscallArgs;
 use crate::memory::{
-    self, drop_initial_kernel_stack, drop_initial_ramdisk, is_page_aligned, page_aligned_up,
-    Permissions, PAGE_SIZE,
+    self, PAGE_SIZE, Permissions, drop_initial_kernel_stack, drop_initial_ramdisk, is_page_aligned,
+    page_aligned_up,
 };
 use crate::user;
 use crate::user::process;

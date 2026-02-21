@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{syscalls::*, sysret_to_result, MemoryStats, SyscallInOutPtr, SyscallResult};
+use super::{MemoryStats, SyscallInOutPtr, SyscallResult, syscalls::*, sysret_to_result};
 
 /// Get info about the process
 pub fn stats() -> SyscallResult<MemoryStats> {

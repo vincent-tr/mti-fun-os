@@ -3,7 +3,7 @@ use core::mem;
 use log::debug;
 use xmas_elf::sections;
 
-pub use crate::{wrap_res, LoaderError};
+pub use crate::{LoaderError, wrap_res};
 
 #[derive(Debug)]
 pub struct FuncArray<'a> {

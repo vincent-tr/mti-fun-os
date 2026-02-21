@@ -1,6 +1,6 @@
 use alloc::{string::String, vec::Vec};
 
-use super::{messages, KVBlock, ProcessInfo, ProcessListBlock, StartupInfo};
+use super::{KVBlock, ProcessInfo, ProcessListBlock, StartupInfo, messages};
 use crate::{
     ipc,
     kobject::{self, KObject},

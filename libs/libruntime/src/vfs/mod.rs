@@ -5,7 +5,7 @@ pub mod types;
 
 // client API
 pub use api::{
-    list_mounts, mount, r#move, remove, stat, unmount, Directory, File, Symlink, VfsObject,
+    Directory, File, Symlink, VfsObject, list_mounts, mount, r#move, remove, stat, unmount,
 };
 pub use iface::{DirectoryEntry, MountInfo, VfsServerCallError};
 pub use types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};

@@ -5,7 +5,7 @@ use core::{
 
 use alloc::vec::Vec;
 use bit_field::BitArray;
-use libsyscalls::{ipc, HandleType};
+use libsyscalls::{HandleType, ipc};
 
 type SysMessage = libsyscalls::Message;
 
@@ -345,17 +345,19 @@ impl Message {
             handles,
         };
 
-        *msg.data_mut() = *data;
+        unsafe {
+            *msg.data_mut() = *data;
+        }
 
         msg
     }
 
     unsafe fn from_receive_syscall(sys_msg: SysMessage) -> Message {
         let mut msg = Message::default();
-        msg.data.data = mem::transmute_copy(&sys_msg.data);
+        msg.data.data = unsafe { mem::transmute_copy(&sys_msg.data) };
 
         for (index, &sys_handle) in sys_msg.handles.iter().enumerate() {
-            msg.handles[index] = Handle::from_raw(sys_handle);
+            msg.handles[index] = unsafe { Handle::from_raw(sys_handle) };
         }
 
         msg

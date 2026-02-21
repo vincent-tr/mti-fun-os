@@ -2,9 +2,9 @@ use alloc::{string::String, sync::Arc, vec::Vec};
 use libruntime::{
     ipc::Handle,
     vfs::{
+        DirectoryEntry, HandlePermissions, NodeType, Permissions,
         iface::VfsServerError,
         types::{Metadata, NodeId},
-        DirectoryEntry, HandlePermissions, NodeType, Permissions,
     },
 };
 

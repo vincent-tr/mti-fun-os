@@ -17,7 +17,7 @@ mod timer;
 pub use self::context::Context;
 use self::engine::{register_syscall, register_syscall_raw};
 
-pub use engine::{execute_syscall, SyscallExecutor};
+pub use engine::{SyscallExecutor, execute_syscall};
 use engine::{exit, sleep};
 use syscalls::SyscallNumber;
 

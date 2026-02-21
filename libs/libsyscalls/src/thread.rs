@@ -6,7 +6,7 @@ use syscalls::{
 use crate::SyscallInStr;
 
 use super::{
-    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallList, SyscallResult,
+    Handle, SyscallInOutPtr, SyscallList, SyscallResult, ref_ptr, syscalls::*, sysret_to_result,
 };
 
 pub fn open_self() -> SyscallResult<Handle> {

@@ -1,9 +1,9 @@
 use alloc::{collections::btree_map::BTreeMap, format, string::String, vec::Vec};
 use libruntime::{kobject, memory, process::iface::ProcessServerError};
 use log::debug;
-use xmas_elf::{header, program, symbol_table::Entry, ElfFile};
+use xmas_elf::{ElfFile, header, program, symbol_table::Entry};
 
-use crate::error::{invalid_binary, ResultExt};
+use crate::error::{ResultExt, invalid_binary};
 
 /// Binary loader for ELF files
 ///

@@ -2,8 +2,9 @@ use crate::{
     error::ResultExt,
     loader::Loader,
     process::{
-        find_live_process, find_process, get_termination_registration_by_handle, list_processes,
-        list_termination_registrations_by_owner, ExitCode, Pid, Process, TerminationRegistration,
+        ExitCode, Pid, Process, TerminationRegistration, find_live_process, find_process,
+        get_termination_registration_by_handle, list_processes,
+        list_termination_registrations_by_owner,
     },
     state::State,
 };

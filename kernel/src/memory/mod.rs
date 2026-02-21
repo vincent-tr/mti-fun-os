@@ -17,12 +17,12 @@ use log::info;
 
 pub use config::{KERNEL_START, PAGE_SIZE};
 pub use paging::{
-    create_adress_space, drop_initial_kernel_stack, drop_initial_ramdisk,
-    set_current_address_space, AdditionalFlags, AddressSpace, Permissions,
+    AdditionalFlags, AddressSpace, Permissions, create_adress_space, drop_initial_kernel_stack,
+    drop_initial_ramdisk, set_current_address_space,
 };
 pub use phys::{AllocatorError, FrameRef};
-use x86_64::structures::paging::{mapper::MapToError, Size4KiB};
-pub use x86_64::{align_down, align_up, PhysAddr, VirtAddr};
+use x86_64::structures::paging::{Size4KiB, mapper::MapToError};
+pub use x86_64::{PhysAddr, VirtAddr, align_down, align_up};
 
 pub type MapError = MapToError<Size4KiB>;
 pub use syscalls::{KallocStats, KvmStats, MemoryStats, PhysStats};
@@ -146,7 +146,7 @@ pub fn view_phys<'a>(frame: &'a FrameRef) -> &'a [u8] {
 ///
 pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
     let addr = phys_to_virt(frame.frame());
-    slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE)
+    unsafe { slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE) }
 }
 
 /// Helper to permit map a set of physical pages into kernel space.
@@ -190,7 +190,7 @@ pub unsafe fn map_iomem(phys_frames: Range<PhysAddr>, perms: Permissions) -> Opt
     let len = (phys_frames.end - phys_frames.start) as usize;
     assert!(is_page_aligned(len));
 
-    match kvm::allocate_iomem(phys_frames.start, len / PAGE_SIZE, perms) {
+    match unsafe { kvm::allocate_iomem(phys_frames.start, len / PAGE_SIZE, perms) } {
         Ok(addr) => Some(addr),
         Err(err) => {
             // Ensure all arms are matched

@@ -6,9 +6,10 @@ use syscalls::{AddressInfo, ProcessInfo};
 use crate::{
     memory::{Permissions, VirtAddr},
     user::{
+        Error,
         error::{check_arg, check_found},
         handle::Handle,
-        process, thread, Error,
+        process, thread,
     },
 };
 

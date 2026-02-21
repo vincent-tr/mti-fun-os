@@ -1,5 +1,5 @@
 use core::{
-    ptr,
+    mem, ptr,
     sync::atomic::{AtomicBool, Ordering},
     task::Waker,
 };
@@ -21,7 +21,9 @@ unsafe impl Send for ReactorItem {}
 impl ReactorItem {
     pub fn new(waitable: &dyn kobject::KWaitable, ready: &AtomicBool, waker: Waker) -> Self {
         Self {
-            waitable: waitable as *const dyn kobject::KWaitable as *const _,
+            waitable: unsafe {
+                mem::transmute::<&dyn kobject::KWaitable, *const dyn kobject::KWaitable>(waitable)
+            },
             ready: ready as *const _,
             waker,
         }

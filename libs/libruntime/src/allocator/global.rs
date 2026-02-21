@@ -23,24 +23,24 @@ unsafe impl GlobalAlloc for GlobalDlmalloc {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut allocator = self.0.lock();
-        allocator.malloc(layout.size(), layout.align())
+        unsafe { allocator.malloc(layout.size(), layout.align()) }
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let mut allocator = self.0.lock();
-        allocator.free(ptr, layout.size(), layout.align())
+        unsafe { allocator.free(ptr, layout.size(), layout.align()) }
     }
 
     #[inline]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         let mut allocator = self.0.lock();
-        allocator.calloc(layout.size(), layout.align())
+        unsafe { allocator.calloc(layout.size(), layout.align()) }
     }
 
     #[inline]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let mut allocator = self.0.lock();
-        allocator.realloc(ptr, layout.size(), layout.align(), new_size)
+        unsafe { allocator.realloc(ptr, layout.size(), layout.align(), new_size) }
     }
 }

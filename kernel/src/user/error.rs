@@ -1,4 +1,4 @@
-use crate::memory::{is_page_aligned, is_userspace, Permissions, VirtAddr};
+use crate::memory::{Permissions, VirtAddr, is_page_aligned, is_userspace};
 
 pub use syscalls::Error;
 

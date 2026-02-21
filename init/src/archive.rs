@@ -14,9 +14,7 @@ macro_rules! include_bytes_aligned {
 
 // Make it 8 bytes aligned so that we can read headers properly
 macro_rules! include_elf_bytes {
-    ($path:expr) => {{
-        include_bytes_aligned!(8, $path)
-    }};
+    ($path:expr) => {{ include_bytes_aligned!(8, $path) }};
 }
 
 macro_rules! include_userland_binary {

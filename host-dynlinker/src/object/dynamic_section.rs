@@ -1,6 +1,6 @@
-use xmas_elf::{dynamic, sections, ElfFile, P64};
+use xmas_elf::{ElfFile, P64, dynamic, sections};
 
-pub use crate::{wrap_res, LoaderError};
+pub use crate::{LoaderError, wrap_res};
 
 #[derive(Debug)]
 pub struct DynamicSection<'a> {

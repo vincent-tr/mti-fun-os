@@ -156,8 +156,9 @@ impl ProcessEntry {
     /// Safety: The caller must ensure that the ProcessEntry is valid and followed by valid string data.
     pub unsafe fn to_process_info(&self) -> ProcessInfo {
         let name_start = (self as *const ProcessEntry as usize) + mem::size_of::<ProcessEntry>();
-        let name_bytes = slice::from_raw_parts(name_start as *const u8, self.name_len as usize);
-        let name = core::str::from_utf8_unchecked(name_bytes);
+        let name_bytes =
+            unsafe { slice::from_raw_parts(name_start as *const u8, self.name_len as usize) };
+        let name = unsafe { core::str::from_utf8_unchecked(name_bytes) };
 
         ProcessInfo {
             pid: self.pid,

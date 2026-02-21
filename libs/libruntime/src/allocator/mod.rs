@@ -85,10 +85,12 @@ impl<A: Allocator> Dlmalloc<A> {
     /// method contracts.
     #[inline]
     pub unsafe fn malloc(&mut self, size: usize, align: usize) -> *mut u8 {
-        if align <= self.0.malloc_alignment() {
-            self.0.malloc(size)
-        } else {
-            self.0.memalign(align, size)
+        unsafe {
+            if align <= self.0.malloc_alignment() {
+                self.0.malloc(size)
+            } else {
+                self.0.memalign(align, size)
+            }
         }
     }
 
@@ -96,11 +98,13 @@ impl<A: Allocator> Dlmalloc<A> {
     /// point to `size` bytes of zeros.
     #[inline]
     pub unsafe fn calloc(&mut self, size: usize, align: usize) -> *mut u8 {
-        let ptr = self.malloc(size, align);
-        if !ptr.is_null() && self.0.calloc_must_clear(ptr) {
-            ptr::write_bytes(ptr, 0, size);
+        unsafe {
+            let ptr = self.malloc(size, align);
+            if !ptr.is_null() && self.0.calloc_must_clear(ptr) {
+                ptr::write_bytes(ptr, 0, size);
+            }
+            ptr
         }
-        ptr
     }
 
     /// Deallocates a `ptr` with `size` and `align` as the previous request used
@@ -110,7 +114,7 @@ impl<A: Allocator> Dlmalloc<A> {
     /// method contracts.
     #[inline]
     pub unsafe fn free(&mut self, ptr: *mut u8, _size: usize, _align: usize) {
-        self.0.free(ptr)
+        unsafe { self.0.free(ptr) }
     }
 
     /// Reallocates `ptr`, a previous allocation with `old_size` and
@@ -130,16 +134,18 @@ impl<A: Allocator> Dlmalloc<A> {
         old_align: usize,
         new_size: usize,
     ) -> *mut u8 {
-        if old_align <= self.0.malloc_alignment() {
-            self.0.realloc(ptr, new_size)
-        } else {
-            let res = self.malloc(new_size, old_align);
-            if !res.is_null() {
-                let size = cmp::min(old_size, new_size);
-                ptr::copy_nonoverlapping(ptr, res, size);
-                self.free(ptr, old_size, old_align);
+        unsafe {
+            if old_align <= self.0.malloc_alignment() {
+                self.0.realloc(ptr, new_size)
+            } else {
+                let res = self.malloc(new_size, old_align);
+                if !res.is_null() {
+                    let size = cmp::min(old_size, new_size);
+                    ptr::copy_nonoverlapping(ptr, res, size);
+                    self.free(ptr, old_size, old_align);
+                }
+                res
             }
-            res
         }
     }
 }

@@ -1,7 +1,7 @@
 use core::{
     cell::RefCell,
     fmt,
-    future::{pending, Future},
+    future::{Future, pending},
     mem,
     pin::Pin,
     task,
@@ -23,7 +23,7 @@ use crate::{
     interrupts::SyscallArgs,
     user::{
         error::not_supported,
-        thread::{self, thread_sleep, thread_terminate, Thread, WaitQueue},
+        thread::{self, Thread, WaitQueue, thread_sleep, thread_terminate},
     },
 };
 
@@ -64,10 +64,11 @@ impl Handlers {
         syscall_number: SyscallNumber,
         handler: Handler,
     ) {
-        assert!(self
-            .handlers
-            .insert(syscall_number, Arc::from(handler))
-            .is_none());
+        assert!(
+            self.handlers
+                .insert(syscall_number, Arc::from(handler))
+                .is_none()
+        );
     }
 
     pub fn unregister(&mut self, syscall_number: SyscallNumber) {

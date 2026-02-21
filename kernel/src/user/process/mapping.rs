@@ -4,10 +4,10 @@ use alloc::sync::{Arc, Weak};
 
 use crate::{
     memory::{
-        is_page_aligned, is_userspace, AdditionalFlags, FrameRef, MapError, Permissions,
-        UnmapError, VirtAddr, PAGE_SIZE,
+        AdditionalFlags, FrameRef, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr,
+        is_page_aligned, is_userspace,
     },
-    user::{error::out_of_memory, Error, MemoryObject},
+    user::{Error, MemoryObject, error::out_of_memory},
 };
 
 use super::Process;
@@ -173,10 +173,10 @@ impl Mapping {
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             let mut frame = mobj.frame(phys_offset).clone();
 
-            match address_space.map(virt_addr, frame.frame(), perms, additional_flags) {
+            match unsafe { address_space.map(virt_addr, frame.frame(), perms, additional_flags) } {
                 Ok(_) => {
                     // Mark it as used
-                    frame.borrow();
+                    unsafe { frame.borrow() };
                 }
                 Err(err) => {
                     // match all arms
@@ -209,10 +209,10 @@ impl Mapping {
         let mut address_space = process.address_space().write();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
-            match address_space.unmap(virt_addr) {
+            match unsafe { address_space.unmap(virt_addr) } {
                 Ok(phys_addr) => {
                     // Unborrow
-                    let frame = FrameRef::unborrow(phys_addr);
+                    let frame = unsafe { FrameRef::unborrow(phys_addr) };
                     mem::drop(frame);
                 }
                 Err(err) => {

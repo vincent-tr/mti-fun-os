@@ -2,8 +2,8 @@ use super::messages::{
     KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
 use crate::{
-    kobject::{self, KObject},
     r#async,
+    kobject::{self, KObject},
 };
 use alloc::{boxed::Box, sync::Arc};
 use core::{fmt, future::Future, marker::PhantomData};

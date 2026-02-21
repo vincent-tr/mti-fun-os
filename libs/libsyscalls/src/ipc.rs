@@ -1,8 +1,8 @@
 use syscalls::{Message, PortInfo, SyscallNumber};
 
 use super::{
-    ref_ptr, syscalls::*, sysret_to_result, Handle, SyscallInOutPtr, SyscallInStr, SyscallList,
-    SyscallResult,
+    Handle, SyscallInOutPtr, SyscallInStr, SyscallList, SyscallResult, ref_ptr, syscalls::*,
+    sysret_to_result,
 };
 
 pub enum NameOrId<'a> {

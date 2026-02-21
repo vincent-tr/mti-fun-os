@@ -5,7 +5,7 @@ mod thread;
 
 use self::list::ListenerList;
 pub use self::{
-    process::{notify_process, ProcessListener},
-    thread::{notify_thread, ThreadListener},
+    process::{ProcessListener, notify_process},
+    thread::{ThreadListener, notify_thread},
 };
 pub use syscalls::{ProcessEventType, ThreadEventType};

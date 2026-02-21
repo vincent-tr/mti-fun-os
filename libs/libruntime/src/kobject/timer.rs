@@ -32,7 +32,7 @@ impl KObject for Timer {
 
 impl KWaitable for Timer {
     unsafe fn waitable_handle(&self) -> &Handle {
-        self.reader.waitable_handle()
+        unsafe { self.reader.waitable_handle() }
     }
 
     fn wait(&self) -> Result<(), Error> {

@@ -119,9 +119,7 @@ pub fn page_fault_handler(stack: &mut InterruptStack) {
 
         panic!(
             "EXCEPTION: PAGE FAULT\n  Error Code: {:?}\n  Accessed Address: {:#016x}\n  Instruction pointer: {:#016x}",
-            error_code,
-            accessed_address,
-            instruction_ptr
+            error_code, accessed_address, instruction_ptr
         );
     }
 

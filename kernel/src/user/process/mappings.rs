@@ -9,8 +9,8 @@ use core::{
 use alloc::{collections::BTreeMap, format, rc::Rc, sync::Arc, vec::Vec};
 
 use crate::{
-    memory::{Permissions, VirtAddr, KERNEL_START, PAGE_SIZE},
-    user::{error::out_of_memory, Error, MemoryObject},
+    memory::{KERNEL_START, PAGE_SIZE, Permissions, VirtAddr},
+    user::{Error, MemoryObject, error::out_of_memory},
 };
 
 use super::mapping::Mapping;
@@ -101,7 +101,7 @@ impl Area {
         }
     }
 
-    pub fn is_used(&self) -> Option<Ref<Mapping>> {
+    pub fn is_used(&self) -> Option<Ref<'_, Mapping>> {
         let content = self.content.borrow();
         if let AreaContent::Used(_) = &*content {
             let mapping_ref = Ref::map(content, |content| {

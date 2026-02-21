@@ -2,15 +2,15 @@ use core::{alloc::Layout, mem, ptr::NonNull, usize};
 
 use log::{debug, info};
 use spin::RwLock;
-use x86_64::{structures::paging::mapper::MapToError, PhysAddr, VirtAddr};
+use x86_64::{PhysAddr, VirtAddr, structures::paging::mapper::MapToError};
 
 use super::{
+    AdditionalFlags, FrameRef, KvmStats,
     buddy::{self, BuddyAllocator},
     config::{KERNEL_START, PAGE_SIZE, VMALLOC_END, VMALLOC_START},
     paging::{self, Permissions},
     phys,
     slab::{self, SCAllocator},
-    AdditionalFlags, FrameRef, KvmStats,
 };
 
 /*
@@ -529,6 +529,6 @@ impl<'a> buddy::NodeAllocator for NodeAllocator<'a> {
         let layout = Layout::new::<buddy::ListNode>();
 
         self.allocator
-            .deallocate(NonNull::new_unchecked(node as *mut u8), layout);
+            .deallocate(unsafe { NonNull::new_unchecked(node as *mut u8) }, layout);
     }
 }

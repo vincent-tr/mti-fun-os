@@ -37,9 +37,11 @@ pub fn main() -> i32 {
 
     let metadata = rtc_ports.read_status_register_b();
 
+    data.decode(metadata.is_binary_mode(), metadata.is_hour_format_24());
+
     debug!("binary mode: {}", metadata.is_binary_mode());
     debug!("24-hour format: {}", metadata.is_hour_format_24());
-    debug!("Current RTC data: {:#x?}", data);
+    debug!("Current RTC data: {:?}", data);
 
     loop {
         libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
@@ -151,4 +153,26 @@ struct RtcData {
     day: u8,
     month: u8,
     year: u8,
+}
+
+impl RtcData {
+    /// Decodes the RTC data based on the provided metadata (binary mode and hour format).
+    pub fn decode(&mut self, is_binary_mode: bool, is_24_hour_format: bool) {
+        if !is_binary_mode {
+            self.seconds = Self::bcd_to_binary(self.seconds);
+            self.minutes = Self::bcd_to_binary(self.minutes);
+            self.hours = Self::bcd_to_binary(self.hours & 0x7F) + (self.hours & 0x80); // Mask out PM bit for conversion
+            self.day = Self::bcd_to_binary(self.day);
+            self.month = Self::bcd_to_binary(self.month);
+            self.year = Self::bcd_to_binary(self.year);
+        }
+
+        if !is_24_hour_format && (self.hours & 0x80 != 0) {
+            self.hours = ((self.hours & 0x7F) + 12) % 24;
+        }
+    }
+
+    fn bcd_to_binary(value: u8) -> u8 {
+        ((value / 16) * 10) + (value & 0x0F)
+    }
 }

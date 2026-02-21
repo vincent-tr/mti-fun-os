@@ -119,7 +119,7 @@ impl ThreadListener {
     }
 
     /// Get the filter that is setup on this listener.
-    pub fn filter(&self) -> ThreadListenerFilter {
+    pub fn filter(&self) -> ThreadListenerFilter<'_> {
         self.filter.as_ref()
     }
 }
@@ -233,7 +233,7 @@ impl ProcessListener {
     }
 
     /// Get the filter that is setup on this listener.
-    pub fn filter(&self) -> ProcessListenerFilter {
+    pub fn filter(&self) -> ProcessListenerFilter<'_> {
         self.filter.as_ref()
     }
 }

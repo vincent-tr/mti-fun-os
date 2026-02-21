@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(naked_functions)]
 #![feature(used_with_arg)]
 
 extern crate alloc;
@@ -23,9 +22,9 @@ use libruntime::{
 use log::{debug, info};
 
 // Special init start: need to setup its own stack
-#[naked]
-#[no_mangle]
-#[link_section = ".text_entry"]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text_entry")]
 pub unsafe extern "C" fn user_start() -> ! {
     naked_asm!(
         "

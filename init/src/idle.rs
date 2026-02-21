@@ -64,9 +64,9 @@ fn prepare_mobj() -> Result<(kobject::MemoryObject, Range<usize>), Error> {
 }
 
 // Will run as idle process
-#[naked]
-#[no_mangle]
-#[link_section = ".text_idle"]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text_idle")]
 unsafe extern "C" fn idle() -> ! {
     naked_asm!(
         "

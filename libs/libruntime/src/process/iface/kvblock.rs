@@ -93,7 +93,7 @@ impl KVBlock {
     }
 
     /// Returns an iterator over the key-value entries in the KVBlock.
-    pub fn iter(&self) -> KVBlockIterator {
+    pub fn iter(&self) -> KVBlockIterator<'_> {
         KVBlockIterator {
             owner: self,
             current_index: 0,

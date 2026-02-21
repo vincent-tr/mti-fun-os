@@ -171,7 +171,7 @@ impl Process {
     }
 
     /// Reserve an area in the process VM, but no not back it with memory
-    pub fn map_reserve(&self, addr: Option<usize>, size: usize) -> Result<Mapping, Error> {
+    pub fn map_reserve(&self, addr: Option<usize>, size: usize) -> Result<Mapping<'_>, Error> {
         let addr = process::mmap(&self.handle, addr, size, Permissions::NONE, None, 0)?;
 
         Ok(unsafe { Mapping::unleak(self, addr..(addr + size), Permissions::NONE) })
@@ -185,7 +185,7 @@ impl Process {
         perms: Permissions,
         mobj: &MemoryObject,
         offset: usize,
-    ) -> Result<Mapping, Error> {
+    ) -> Result<Mapping<'_>, Error> {
         let addr = process::mmap(
             &self.handle,
             addr,

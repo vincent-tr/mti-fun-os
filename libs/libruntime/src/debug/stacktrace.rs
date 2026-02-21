@@ -107,7 +107,7 @@ impl StackFrame {
     }
 
     /// Get the location information of the frame
-    pub fn location(&self) -> Option<LocationInfo> {
+    pub fn location(&self) -> Option<LocationInfo<'_>> {
         find_location_info(self.address())
     }
 }

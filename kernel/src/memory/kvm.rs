@@ -529,6 +529,6 @@ impl<'a> buddy::NodeAllocator for NodeAllocator<'a> {
         let layout = Layout::new::<buddy::ListNode>();
 
         self.allocator
-            .deallocate(NonNull::new_unchecked(node as *mut u8), layout);
+            .deallocate(unsafe { NonNull::new_unchecked(node as *mut u8) }, layout);
     }
 }

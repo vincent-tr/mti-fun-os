@@ -259,7 +259,7 @@ impl LocalApic {
         unsafe { self.write(registers::LVT_THERMAL_SENSOR, value.0) };
     }
 
-    pub fn timer(&self) -> Timer {
+    pub fn timer(&self) -> Timer<'_> {
         Timer { apic: self }
     }
 }

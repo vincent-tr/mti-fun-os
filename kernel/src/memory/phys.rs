@@ -169,11 +169,11 @@ impl Allocator {
 
         // initialize descriptors
         // make all pages as used by default
-        let descs = &mut (*self.descriptors);
+        let descs = unsafe { &mut (*self.descriptors) };
         for desc in descs {
             *desc = Descriptor::new();
 
-            self.used_list.add(desc);
+            unsafe { self.used_list.add(desc) };
             desc.r#ref();
         }
     }
@@ -469,8 +469,10 @@ impl FrameRef {
     ///
     /// This function is unsafe because there is no way to check that `unborrow()` call matchs `borrow()` call.
     pub unsafe fn unborrow(frame: PhysAddr) -> Self {
-        debug_assert!(check_frame(frame));
-        Self::new(frame)
+        unsafe {
+            debug_assert!(check_frame(frame));
+            Self::new(frame)
+        }
     }
 
     /// Use this function when you want to borrow the frame, and forget the ref object (eg: it will be held by a page table, and we don't want to keep the FrameRef object alive with it)

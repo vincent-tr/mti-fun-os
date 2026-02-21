@@ -94,7 +94,7 @@ unsafe fn syscall_native_handler() {
 unsafe extern "C" fn syscall_handler() {
     userland_timer_end();
 
-    let stack = InterruptStack::current();
+    let stack = unsafe { InterruptStack::current() };
 
     let n = stack.scratch.rax;
     let context = SyscallArgs::from_stack(stack);

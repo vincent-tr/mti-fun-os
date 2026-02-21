@@ -101,7 +101,7 @@ impl Area {
         }
     }
 
-    pub fn is_used(&self) -> Option<Ref<Mapping>> {
+    pub fn is_used(&self) -> Option<Ref<'_, Mapping>> {
         let content = self.content.borrow();
         if let AreaContent::Used(_) = &*content {
             let mapping_ref = Ref::map(content, |content| {

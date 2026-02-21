@@ -456,7 +456,7 @@ impl<T> Rawlink<T> {
     /// - Returns reference of arbitrary lifetime.
     #[allow(dead_code)]
     pub unsafe fn resolve<'a>(&self) -> Option<&'a T> {
-        self.p.as_ref()
+        unsafe { self.p.as_ref() }
     }
 
     /// Convert the `Rawlink` into an Option value
@@ -466,7 +466,7 @@ impl<T> Rawlink<T> {
     /// - Dereference of raw pointer.
     /// - Returns reference of arbitrary lifetime.
     pub unsafe fn resolve_mut<'a>(&mut self) -> Option<&'a mut T> {
-        self.p.as_mut()
+        unsafe { self.p.as_mut() }
     }
 
     /// Return the `Rawlink` and replace with `Rawlink::none()`

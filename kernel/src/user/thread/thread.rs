@@ -174,7 +174,7 @@ impl Thread {
     }
 
     /// Get the state of the thread
-    pub fn state(&self) -> RwLockReadGuard<ThreadState> {
+    pub fn state(&self) -> RwLockReadGuard<'_, ThreadState> {
         self.state.read()
     }
 
@@ -528,7 +528,7 @@ impl ThreadContext {
 
     /// Load the thread context into the interrupt stack
     pub unsafe fn load(&self, privileged: bool) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         interrupt_stack.scratch.rax = self.rax;
         interrupt_stack.scratch.rcx = self.rcx;
@@ -562,7 +562,7 @@ impl ThreadContext {
 
     /// Setup the interrupt stack with the right segments.
     pub unsafe fn load_segments(privileged: bool) {
-        let interrupt_stack = InterruptStack::current();
+        let interrupt_stack = unsafe { InterruptStack::current() };
 
         if privileged {
             interrupt_stack.iret.code_segment = KERNEL_CODE_SELECTOR;

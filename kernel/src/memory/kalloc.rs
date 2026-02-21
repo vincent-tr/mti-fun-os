@@ -117,7 +117,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
             1..=ZoneAllocator::MAX_ALLOC_SIZE => {
                 trace!("Serving dealloc request with slabs allocator {layout:?}");
                 let mut slabs_allocator = self.slabs_allocator.lock();
-                slabs_allocator.deallocate(NonNull::new_unchecked(ptr), layout);
+                slabs_allocator.deallocate(unsafe { NonNull::new_unchecked(ptr) }, layout);
 
                 self.slabs_user.fetch_sub(layout.size(), Ordering::Relaxed);
                 self.slabs_allocated.fetch_sub(

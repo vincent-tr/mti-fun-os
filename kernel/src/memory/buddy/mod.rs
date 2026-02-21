@@ -224,15 +224,17 @@ impl<const ORDER: usize, NodeAlloc: NodeAllocator> BuddyAllocator<ORDER, NodeAll
     }
 
     unsafe fn alloc_node(&mut self, address: VirtAddr) -> *mut ListNode {
-        let item = self.node_allocator.allocate();
+        unsafe {
+            let item = self.node_allocator.allocate();
 
-        (*item).init(address);
+            (*item).init(address);
 
-        item
+            item
+        }
     }
 
     unsafe fn dealloc_node(&mut self, node: *mut ListNode) {
-        self.node_allocator.deallocate(node);
+        unsafe { self.node_allocator.deallocate(node) };
     }
 }
 

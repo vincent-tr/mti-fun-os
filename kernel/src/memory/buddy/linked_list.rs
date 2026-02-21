@@ -25,8 +25,10 @@ impl LinkedList {
 
     /// Push `item` to the front of the list
     pub unsafe fn push(&mut self, item: *mut ListNode) {
-        (*item).next = self.head;
-        self.head = item;
+        unsafe {
+            (*item).next = self.head;
+            self.head = item;
+        }
     }
 
     /// Try to remove the first item in the list

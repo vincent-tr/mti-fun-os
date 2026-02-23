@@ -419,6 +419,7 @@ dependencies = [
  "libruntime",
  "libsyscalls",
  "log",
+ "syscalls",
  "xmas-elf",
  "zero",
 ]

@@ -2,6 +2,7 @@
 
 mod error;
 mod handle;
+pub mod init;
 mod ioport;
 mod ipc;
 mod listener;

@@ -13,3 +13,4 @@ xmas-elf = { workspace = true }
 zero = { workspace = true }
 libruntime = { path = "../libs/libruntime", default-features = false }
 libsyscalls = { path = "../libs/libsyscalls" }
+syscalls = { path = "../syscalls" }

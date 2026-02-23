@@ -11,13 +11,16 @@ mod offsets;
 mod state_server;
 mod tests;
 
-use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range};
+use core::{arch::naked_asm, hint::unreachable_unchecked, mem::size_of, ops::Range};
 
 use alloc::boxed::Box;
 use libruntime::{
     ipc,
     kobject::{self, PAGE_SIZE, Permissions, ThreadOptions},
-    process, state, vfs,
+    memory::align_up,
+    process, state,
+    sync::spin::OnceLock,
+    vfs,
 };
 use log::{debug, info};
 
@@ -39,11 +42,16 @@ pub unsafe extern "C" fn user_start() -> ! {
     );
 }
 
-extern "C" fn entry(binary_len: usize) -> ! {
+extern "C" fn entry(init_info_ptr: usize) -> ! {
+    // Get init info
+    let init_info = unsafe { &*(init_info_ptr as *const syscalls::init::InitInfo) };
+
     // let binary = unsafe { slice::from_raw_parts(offsets::global().start as *const u8, binary_len) };
     libruntime::init();
 
-    apply_memory_protections(binary_len);
+    apply_memory_protections(init_info.init_mapping.mapping_size);
+
+    unsafe { load_init_info(init_info) };
 
     // Jump to a safer thread, with better stack
     let mut options = ThreadOptions::default();
@@ -53,6 +61,9 @@ extern "C" fn entry(binary_len: usize) -> ! {
     libsyscalls::thread::exit().expect("Failed to exit thread");
     unsafe { unreachable_unchecked() };
 }
+
+/// Init info provided by the kernel at startup, it contains information about the initial mapping of the init process
+static INIT_INFO: OnceLock<syscalls::init::InitInfo> = OnceLock::new();
 
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");
@@ -188,6 +199,27 @@ fn apply_memory_protections(binary_len: usize) {
             range.len()
         );
     }
+}
+
+/// Safety: do not use reference to init info after this, as the memory used by the kernel to pass it will be released.
+unsafe fn load_init_info(init_info: &syscalls::init::InitInfo) {
+    INIT_INFO
+        .set(init_info.clone())
+        .expect("Could not set init info");
+
+    // Release the memory used by the kernel to pass the init info, as we have copied it
+    let addr = init_info as *const syscalls::init::InitInfo as usize;
+    assert!(addr % PAGE_SIZE == 0);
+    let size = align_up(size_of::<syscalls::init::InitInfo>(), PAGE_SIZE);
+
+    unsafe {
+        kobject::Mapping::unleak(
+            kobject::Process::current(),
+            addr..addr + size,
+            Permissions::READ,
+        )
+    }
+    .leak();
 }
 
 /// Wait for a server port to be available

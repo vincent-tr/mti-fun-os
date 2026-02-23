@@ -12,7 +12,7 @@ mod offsets;
 mod state_server;
 mod tests;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, format};
 use libruntime::{ipc, kobject, process, state, vfs};
 use log::{debug, info};
 
@@ -33,7 +33,7 @@ fn main(info: Box<syscalls::init::InitInfo>) {
     // tests::sync::test_async_mutex();
     // tests::sync::test_async_rwlock();
 
-    start_servers();
+    start_servers(&info);
     setup_initial_filesystem();
 
     // tests::process::list_processes();
@@ -44,7 +44,7 @@ fn main(info: Box<syscalls::init::InitInfo>) {
     // libruntime::exit();
 }
 
-fn start_servers() {
+fn start_servers(info: &syscalls::init::InitInfo) {
     state_server::start();
     wait_port(state::iface::PORT_NAME);
 
@@ -66,7 +66,41 @@ fn start_servers() {
         "display-server",
         ipc::Buffer::new_local(archive::DISPLAY_SERVER),
         &[],
-        &[],
+        &[
+            (
+                "framebuffer.address",
+                &format!("{}", info.framebuffer.address),
+            ),
+            (
+                "framebuffer.byte_len",
+                &format!("{}", info.framebuffer.byte_len),
+            ),
+            ("framebuffer.width", &format!("{}", info.framebuffer.width)),
+            (
+                "framebuffer.height",
+                &format!("{}", info.framebuffer.height),
+            ),
+            (
+                "framebuffer.pixel_format.red_mask",
+                &format!("{}", info.framebuffer.pixel_format.red_mask),
+            ),
+            (
+                "framebuffer.pixel_format.green_mask",
+                &format!("{}", info.framebuffer.pixel_format.green_mask),
+            ),
+            (
+                "framebuffer.pixel_format.blue_mask",
+                &format!("{}", info.framebuffer.pixel_format.blue_mask),
+            ),
+            (
+                "framebuffer.bytes_per_pixel",
+                &format!("{}", info.framebuffer.bytes_per_pixel),
+            ),
+            (
+                "framebuffer.stride",
+                &format!("{}", info.framebuffer.stride),
+            ),
+        ],
     )
     .expect("Could not spawn display server");
 

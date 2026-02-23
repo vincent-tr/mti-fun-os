@@ -10,6 +10,10 @@ extern crate libruntime;
 pub fn main() -> i32 {
     info!("Display server started");
 
+    for (name, value) in libruntime::process::SelfProcess::get().args_all() {
+        info!("Arg: {} = {}", name, value);
+    }
+
     loop {
         libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
     }

@@ -60,8 +60,20 @@ fn start_servers() {
     .expect("Could not spawn time server");
 
     let _ = process;
+    //wait_port(time::iface::PORT_NAME);
+
+    let process = process::Process::spawn(
+        "display-server",
+        ipc::Buffer::new_local(archive::DISPLAY_SERVER),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn display server");
+
+    let _ = process;
+    //wait_port(display::iface::PORT_NAME);
+
     sleep_forever(); ////////
-    //wait_port(vfs::iface::PORT_NAME);
 
     let process = process::Process::spawn(
         "vfs-server",

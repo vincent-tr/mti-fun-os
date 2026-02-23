@@ -24,6 +24,9 @@ use libruntime::{
 };
 use log::{debug, info};
 
+/// Init info provided by the kernel at startup, it contains information about the initial mapping of the init process
+static INIT_INFO: OnceLock<syscalls::init::InitInfo> = OnceLock::new();
+
 // Special init start: need to setup its own stack
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
@@ -61,9 +64,6 @@ extern "C" fn entry(init_info_ptr: usize) -> ! {
     libsyscalls::thread::exit().expect("Failed to exit thread");
     unsafe { unreachable_unchecked() };
 }
-
-/// Init info provided by the kernel at startup, it contains information about the initial mapping of the init process
-static INIT_INFO: OnceLock<syscalls::init::InitInfo> = OnceLock::new();
 
 fn main() {
     idle::create_idle_process().expect("Could not create idle process");

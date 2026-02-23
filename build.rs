@@ -29,8 +29,8 @@ fn main() {
     println!("cargo:rerun-if-changed={}", init.display());
 
     let mut config = bootloader::BootConfig::default();
-    config.frame_buffer.minimum_framebuffer_height = Some(720);
     config.frame_buffer.minimum_framebuffer_width = Some(1280);
+    config.frame_buffer.minimum_framebuffer_height = Some(1024);
 
     // create an UEFI disk image (optional)
     let uefi_path = out_dir.join("uefi.img");

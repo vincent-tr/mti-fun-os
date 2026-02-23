@@ -15,6 +15,6 @@ pub fn main() -> i32 {
     }
 
     loop {
-        libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
+        libruntime::time::sleep(libruntime::time::Duration::from_seconds(1));
     }
 }

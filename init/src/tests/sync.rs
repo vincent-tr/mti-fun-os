@@ -8,7 +8,7 @@ use libruntime::{
         Mutex, RwLock,
         r#async::{Mutex as AsyncMutex, RwLock as AsyncRwLock},
     },
-    timer::{self, Duration},
+    time::{self, Duration},
 };
 use libsyscalls::futex;
 use log::info;
@@ -60,7 +60,7 @@ pub fn test_futex() {
         ready_reader.blocking_receive().expect("receive failed");
 
         // Give it time to sleep on futex
-        timer::sleep(Duration::from_milliseconds(100));
+        time::sleep(Duration::from_milliseconds(100));
 
         // Change value and wake
         futex_var.store(1, Ordering::SeqCst);
@@ -121,7 +121,7 @@ pub fn test_futex() {
         }
 
         // Give them time to sleep
-        timer::sleep(Duration::from_milliseconds(100));
+        time::sleep(Duration::from_milliseconds(100));
 
         // Wake all
         let woken = futex::wake(futex, NUM_WAITERS).expect("futex wake failed");
@@ -201,7 +201,7 @@ pub fn test_futex() {
         ready_reader.blocking_receive().expect("receive failed");
 
         // Give it time to sleep on futex
-        timer::sleep(Duration::from_milliseconds(100));
+        time::sleep(Duration::from_milliseconds(100));
 
         // Unmap the region - this should wake the waiter
         drop(mapping);
@@ -305,7 +305,7 @@ pub fn test_mutex() {
         let worker = move || {
             for _ in 0..10 {
                 let _guard = mutex_clone.lock();
-                timer::sleep(Duration::from_milliseconds(1));
+                time::sleep(Duration::from_milliseconds(1));
             }
             let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
@@ -318,7 +318,7 @@ pub fn test_mutex() {
         // Main thread also acquires lock
         for _ in 0..10 {
             let _guard = mutex.lock();
-            timer::sleep(Duration::from_milliseconds(1));
+            time::sleep(Duration::from_milliseconds(1));
         }
 
         done_reader.blocking_receive().expect("receive failed");
@@ -369,7 +369,7 @@ pub fn test_rwlock() {
             let reader = move || {
                 let guard = lock.read();
                 assert_eq!(*guard, 42);
-                timer::sleep(Duration::from_milliseconds(10));
+                time::sleep(Duration::from_milliseconds(10));
 
                 let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
                 done_sender.send(&mut msg).expect("send failed");
@@ -425,7 +425,7 @@ pub fn test_rwlock() {
         // Acquire write lock
         let mut guard = lock.write();
         *guard = 100;
-        timer::sleep(Duration::from_milliseconds(50));
+        time::sleep(Duration::from_milliseconds(50));
         drop(guard);
 
         // Wait for reader
@@ -448,7 +448,7 @@ pub fn test_rwlock() {
             for i in 0..5 {
                 let mut guard = lock_clone.write();
                 *guard = i * 10;
-                timer::sleep(Duration::from_milliseconds(5));
+                time::sleep(Duration::from_milliseconds(5));
             }
             let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender_clone.send(&mut msg).expect("send failed");
@@ -465,7 +465,7 @@ pub fn test_rwlock() {
                 let guard = lock_clone.read();
                 let value = *guard;
                 assert!(value % 10 == 0, "reader saw invalid value: {}", value);
-                timer::sleep(Duration::from_milliseconds(5));
+                time::sleep(Duration::from_milliseconds(5));
             }
             let mut msg = unsafe { kobject::Message::new::<u32>(&0, KHandles::new().into()) };
             done_sender.send(&mut msg).expect("send failed");
@@ -603,7 +603,7 @@ pub fn test_async_mutex() {
         r#async::spawn(async move {
             let mut guard = mutex1.lock().await;
             guard.push(4);
-            timer::sleep(Duration::from_milliseconds(10));
+            time::sleep(Duration::from_milliseconds(10));
         });
 
         r#async::spawn(async move {
@@ -677,7 +677,7 @@ pub fn test_async_rwlock() {
                 let guard = lock.read().await;
                 read_count.fetch_add(1, Ordering::SeqCst);
                 assert_eq!(*guard, 42, "Reader {} saw wrong value", i);
-                timer::sleep(Duration::from_milliseconds(10));
+                time::sleep(Duration::from_milliseconds(10));
                 read_count.fetch_sub(1, Ordering::SeqCst);
             });
         }
@@ -705,13 +705,13 @@ pub fn test_async_rwlock() {
         r#async::spawn(async move {
             let mut guard = lock_writer.write().await;
             *guard = 10;
-            timer::sleep(Duration::from_milliseconds(50));
+            time::sleep(Duration::from_milliseconds(50));
             *guard = 20;
             writer_done_clone.store(1, Ordering::SeqCst);
         });
 
         // Give writer time to acquire lock
-        timer::sleep(Duration::from_milliseconds(10));
+        time::sleep(Duration::from_milliseconds(10));
 
         let lock_reader = lock.clone();
         let writer_done_clone = writer_done.clone();
@@ -776,7 +776,7 @@ pub fn test_async_rwlock() {
                 let mut guard = lock_writer.write().await;
                 *guard = i * 10;
                 ops_writer.fetch_add(1, Ordering::SeqCst);
-                timer::sleep(Duration::from_milliseconds(5));
+                time::sleep(Duration::from_milliseconds(5));
             }
         });
 
@@ -790,7 +790,7 @@ pub fn test_async_rwlock() {
                     let value = *guard;
                     assert!(value % 10 == 0, "reader saw invalid value: {}", value);
                     ops.fetch_add(1, Ordering::SeqCst);
-                    timer::sleep(Duration::from_milliseconds(3));
+                    time::sleep(Duration::from_milliseconds(3));
                 }
             });
         }

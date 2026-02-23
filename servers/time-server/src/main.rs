@@ -16,6 +16,6 @@ pub fn main() -> i32 {
     info!("Current RTC time: {}", rtc_clock);
 
     loop {
-        libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
+        libruntime::time::sleep(libruntime::time::Duration::from_seconds(1));
     }
 }

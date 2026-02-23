@@ -161,7 +161,7 @@ fn wait_port(name: &'static str) {
         match kobject::Port::open_by_name(name) {
             Ok(_) => break,
             Err(kobject::Error::ObjectNotFound) => {
-                libruntime::timer::sleep(libruntime::timer::Duration::from_milliseconds(100));
+                libruntime::time::sleep(libruntime::time::Duration::from_milliseconds(100));
                 debug!("waiting for '{}' port...", name);
             }
             Err(e) => panic!("Could not open '{}' port: {}", name, e),
@@ -174,6 +174,6 @@ fn wait_port(name: &'static str) {
 fn sleep_forever() -> ! {
     debug!("Going to sleep...");
     loop {
-        libruntime::timer::sleep(libruntime::timer::Duration::from_seconds(1));
+        libruntime::time::sleep(libruntime::time::Duration::from_seconds(1));
     }
 }

@@ -404,7 +404,7 @@ fn test_metadata() {
         assert!(metadata1.modified > 0, "Modified timestamp should be set");
 
         // Write to file
-        time::sleep(time::Duration::from_milliseconds(10));
+        time::sleep(time::Duration::milliseconds(10));
         // Resize file to allocate space before writing
         file.resisze(6).expect("Failed to resize file");
         file.write(0, b"update").expect("Failed to write");

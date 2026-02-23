@@ -15,6 +15,7 @@ lazy_static = { workspace = true }
 log = { workspace = true }
 spin = { workspace = true }
 typed-arena = { workspace = true }
+time = { workspace = true }
 libsyscalls = { path = "../libsyscalls" }
 
 [features]

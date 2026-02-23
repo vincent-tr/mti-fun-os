@@ -513,6 +513,7 @@ dependencies = [
  "libsyscalls",
  "log",
  "spin 0.10.0",
+ "time",
  "typed-arena",
 ]
 

@@ -28,10 +28,15 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", init.display());
 
+    let mut config = bootloader::BootConfig::default();
+    config.frame_buffer.minimum_framebuffer_height = Some(720);
+    config.frame_buffer.minimum_framebuffer_width = Some(1280);
+
     // create an UEFI disk image (optional)
     let uefi_path = out_dir.join("uefi.img");
     bootloader::UefiBoot::new(&kernel)
         .set_ramdisk(&init)
+        .set_boot_config(&config)
         .create_disk_image(&uefi_path)
         .unwrap();
 
@@ -39,6 +44,7 @@ fn main() {
     let bios_path = out_dir.join("bios.img");
     bootloader::BiosBoot::new(&kernel)
         .set_ramdisk(&init)
+        .set_boot_config(&config)
         .create_disk_image(&bios_path)
         .unwrap();
 

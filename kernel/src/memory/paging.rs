@@ -80,7 +80,7 @@ pub fn create_adress_space() -> Result<AddressSpace, AllocatorError> {
 
     unsafe {
         let mut frame = phys::allocate()?;
-        access_phys(&frame).fill(0);
+        access_phys(frame.frame()).fill(0);
 
         let virt = *PHYSICAL_MAPPING_ADDRESS.get() + frame.borrow().as_u64();
 

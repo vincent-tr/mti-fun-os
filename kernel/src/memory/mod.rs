@@ -131,8 +131,8 @@ pub fn page_aligned_down(addr: usize) -> usize {
 ///
 /// Return a virtual address that corresponds to a view of the physical address
 #[inline]
-pub fn view_phys<'a>(frame: &'a FrameRef) -> &'a [u8] {
-    let addr = phys_to_virt(frame.frame());
+pub fn view_phys(frame: PhysAddr) -> &'static [u8] {
+    let addr = phys_to_virt(frame);
     unsafe { slice::from_raw_parts(addr.as_ptr(), PAGE_SIZE) }
 }
 
@@ -144,8 +144,8 @@ pub fn view_phys<'a>(frame: &'a FrameRef) -> &'a [u8] {
 /// - Concurrent mutable accesses are not checked.
 /// - Caller must ensure that no other access or view on the page occurs at the same time.
 ///
-pub unsafe fn access_phys<'a>(frame: &'a FrameRef) -> &'a mut [u8] {
-    let addr = phys_to_virt(frame.frame());
+pub unsafe fn access_phys(frame: PhysAddr) -> &'static mut [u8] {
+    let addr = phys_to_virt(frame);
     unsafe { slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE) }
 }
 

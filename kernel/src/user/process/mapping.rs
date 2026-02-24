@@ -1,11 +1,11 @@
-use core::{mem, ops::Range};
+use core::ops::Range;
 
 use alloc::sync::{Arc, Weak};
 
 use crate::{
     memory::{
-        AdditionalFlags, FrameRef, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr,
-        is_page_aligned, is_userspace,
+        AdditionalFlags, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr, is_page_aligned,
+        is_userspace,
     },
     user::{Error, MemoryObject, error::out_of_memory},
 };
@@ -171,12 +171,13 @@ impl Mapping {
         let mobj = self.memory_object.as_ref().unwrap();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
-            let mut frame = mobj.frame(phys_offset).clone();
+            let frame = mobj.frame(phys_offset);
 
-            match unsafe { address_space.map(virt_addr, frame.frame(), perms, additional_flags) } {
+            // Note: no need to mark the frames as used, because we already keep the memory object.
+            match unsafe { address_space.map(virt_addr, frame, perms, additional_flags) } {
                 Ok(_) => {
                     // Mark it as used
-                    unsafe { frame.borrow() };
+                    unsafe { mobj.borrow_frame(phys_offset) };
                 }
                 Err(err) => {
                     // match all arms
@@ -207,13 +208,13 @@ impl Mapping {
     unsafe fn unmap(&mut self) {
         let process = self.process();
         let mut address_space = process.address_space().write();
+        let mobj = self.memory_object.as_ref().unwrap();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             match unsafe { address_space.unmap(virt_addr) } {
                 Ok(phys_addr) => {
                     // Unborrow
-                    let frame = unsafe { FrameRef::unborrow(phys_addr) };
-                    mem::drop(frame);
+                    unsafe { mobj.unborrow_frame(phys_addr) };
                 }
                 Err(err) => {
                     // match all arms

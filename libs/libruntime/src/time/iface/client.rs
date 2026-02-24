@@ -1,3 +1,5 @@
+use core::ptr;
+
 use super::messages;
 use crate::ipc;
 
@@ -28,7 +30,9 @@ impl Client {
             query_handles,
         )?;
 
-        let wall_time = ::time::UtcDateTime::from_unix_timestamp_nanos(reply.timestamp)
+        let timestamp = unsafe { ptr::read_unaligned(reply.timestamp.as_ptr() as *const i128) };
+
+        let wall_time = ::time::UtcDateTime::from_unix_timestamp_nanos(timestamp)
             .expect("Could not load timestamp");
 
         Ok(wall_time)

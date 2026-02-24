@@ -1,3 +1,5 @@
+use core::mem;
+
 use alloc::fmt;
 
 /// Name of the IPC port for the time server.
@@ -46,5 +48,7 @@ pub struct GetWallTimeQueryParameters {}
 #[repr(C)]
 pub struct GetWallTimeReply {
     /// Timestamp in nanoseconds since the Unix epoch (January 1, 1970).
-    pub timestamp: i128,
+    ///
+    /// Since IPC data structures are 8-bytes aligned, we use an unaligned byte array to store the i128 timestamp.
+    pub timestamp: [u8; mem::size_of::<i128>()],
 }

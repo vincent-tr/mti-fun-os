@@ -1,3 +1,5 @@
+use core::ptr;
+
 use crate::{ipc, kobject};
 use alloc::sync::Arc;
 
@@ -42,11 +44,17 @@ impl<Impl: TimeServer + 'static> Server<Impl> {
     ) -> Result<(messages::GetWallTimeReply, ipc::KHandles), TimeServerError> {
         let timestamp = self.inner.get_wall_time(sender_id).map_err(Into::into)?;
 
-        Ok((
-            messages::GetWallTimeReply {
-                timestamp: timestamp.unix_timestamp_nanos(),
-            },
-            ipc::KHandles::new(),
-        ))
+        let reply = messages::GetWallTimeReply {
+            timestamp: Default::default(),
+        };
+
+        unsafe {
+            ptr::write_unaligned(
+                reply.timestamp.as_ptr() as *mut i128,
+                timestamp.unix_timestamp_nanos(),
+            )
+        };
+
+        Ok((reply, ipc::KHandles::new()))
     }
 }

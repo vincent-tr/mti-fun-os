@@ -53,8 +53,9 @@ screenshot:
 	@command -v socat >/dev/null 2>&1 || (echo "Error: socat is not installed. Install with: sudo apt install socat" && exit 1)
 	@command -v magick >/dev/null 2>&1 || (echo "Error: ImageMagick is not installed. Install with: sudo apt install imagemagick" && exit 1)
 	@echo "Taking screenshot..."
-	@echo '{"execute":"qmp_capabilities"}' | socat - UNIX-CONNECT:/tmp/qmp-socket >/dev/null 2>&1 || (echo "Error: QEMU not running or QMP socket not available." && exit 1)
-	@echo '{"execute":"screendump", "arguments":{"filename":"/tmp/screenshot.ppm"}}' | socat - UNIX-CONNECT:/tmp/qmp-socket >/dev/null 2>&1
-	@magick /tmp/screenshot.ppm /tmp/screenshot.png 2>/dev/null && \
-	echo "Screenshot saved to /tmp/screenshot.png" && \
-	code /tmp/screenshot.png
+	@(echo '{"execute":"qmp_capabilities"}'; echo '{"execute":"screendump", "arguments":{"filename":"/tmp/screenshot.ppm"}}') | socat - UNIX-CONNECT:/tmp/qmp-socket >/dev/null 2>&1 || (echo "Error: QEMU not running or QMP socket not available." && exit 1)
+	@sleep 0.2
+	@test -f /tmp/screenshot.ppm || (echo "Error: Screenshot file was not created by QEMU" && exit 1)
+	@magick /tmp/screenshot.ppm /tmp/screenshot.png 2>/dev/null
+	@echo "Screenshot saved to /tmp/screenshot.png"
+	@code /tmp/screenshot.png

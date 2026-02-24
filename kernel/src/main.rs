@@ -117,14 +117,16 @@ fn build_init_info(
 ) -> Box<syscalls::init::InitInfo> {
     let pixel_format = match fb_info.pixel_format {
         bootloader_api::info::PixelFormat::Rgb => syscalls::init::PixelFormat {
-            red_mask: 0x00FF_0000,
-            green_mask: 0x0000_FF00,
-            blue_mask: 0x0000_00FF,
-        },
-        bootloader_api::info::PixelFormat::Bgr => syscalls::init::PixelFormat {
+            // little endian, so red is in the least significant byte
             red_mask: 0x0000_00FF,
             green_mask: 0x0000_FF00,
             blue_mask: 0x00FF_0000,
+        },
+        bootloader_api::info::PixelFormat::Bgr => syscalls::init::PixelFormat {
+            // little endian, so blue is in the least significant byte
+            red_mask: 0x00FF_0000,
+            green_mask: 0x0000_FF00,
+            blue_mask: 0x0000_00FF,
         },
         bootloader_api::info::PixelFormat::Unknown {
             red_position,

@@ -7,6 +7,7 @@ use super::{DentriesBlock, DirectoryEntry, FsServerError, messages};
 use crate::{
     ipc::{self, Handle},
     kobject,
+    time::DateTime,
     vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
@@ -66,8 +67,8 @@ pub trait FileSystem: Send + Sync + fmt::Debug {
         node_id: NodeId,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), Self::Error>;
 
     /// Open a file.
@@ -319,8 +320,16 @@ impl<Impl: FileSystem + 'static> Server<Impl> {
                 query.node_id,
                 query.permissions,
                 query.size,
-                query.created,
-                query.modified,
+                query
+                    .created
+                    .map(TryInto::try_into)
+                    .transpose()
+                    .map_err(|_| FsServerError::InvalidArgument)?,
+                query
+                    .modified
+                    .map(TryInto::try_into)
+                    .transpose()
+                    .map_err(|_| FsServerError::InvalidArgument)?,
             )
             .await
             .map_err(Into::into)?;

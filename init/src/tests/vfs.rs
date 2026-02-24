@@ -1,5 +1,5 @@
 use libruntime::{
-    time,
+    time::{self, DateTime, iface::Timestamp},
     vfs::{self, VfsObject},
 };
 use log::info;
@@ -400,8 +400,14 @@ fn test_metadata() {
         let file = vfs::File::create("/metafile3", perms).expect("Failed to create file");
 
         let metadata1 = file.stat().expect("Failed to stat file");
-        assert!(metadata1.created > 0, "Created timestamp should be set");
-        assert!(metadata1.modified > 0, "Modified timestamp should be set");
+        assert!(
+            metadata1.created != Timestamp::default(),
+            "Created timestamp should be set"
+        );
+        assert!(
+            metadata1.modified != Timestamp::default(),
+            "Modified timestamp should be set"
+        );
 
         // Write to file
         time::sleep(time::Duration::milliseconds(10));
@@ -415,7 +421,9 @@ fn test_metadata() {
             "Created timestamp should not change"
         );
         assert!(
-            metadata2.modified >= metadata1.modified,
+            DateTime::try_from(metadata2.modified).expect("Failed to get modified timestamp")
+                >= DateTime::try_from(metadata1.modified)
+                    .expect("Failed to get modified timestamp"),
             "Modified timestamp should be updated"
         );
 

@@ -1,5 +1,5 @@
 use super::messages;
-use crate::ipc;
+use crate::{ipc, time::DateTime};
 
 pub type TimeServerCallError = ipc::CallError<messages::TimeServerError>;
 
@@ -18,7 +18,7 @@ impl Client {
     }
 
     /// call ipc GetWallTime
-    pub fn get_wall_time(&self) -> Result<::time::UtcDateTime, TimeServerCallError> {
+    pub fn get_wall_time(&self) -> Result<DateTime, TimeServerCallError> {
         let query = messages::GetWallTimeQueryParameters {};
         let query_handles = ipc::KHandles::new();
 
@@ -28,8 +28,7 @@ impl Client {
             query_handles,
         )?;
 
-        let wall_time =
-            ::time::UtcDateTime::try_from(reply.timestamp).expect("Could not load timestamp");
+        let wall_time = DateTime::try_from(reply.timestamp).expect("Could not load timestamp");
 
         Ok(wall_time)
     }

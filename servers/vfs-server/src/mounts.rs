@@ -5,6 +5,7 @@ use hashbrown::HashMap;
 use libruntime::{
     ipc::{CallError, Handle},
     sync::r#async::RwLock,
+    time::DateTime,
     vfs::{
         fs::iface::{Client, FsServerCallError, FsServerError},
         iface::{DirectoryEntry, MountInfo, VfsServerError},
@@ -359,8 +360,8 @@ impl Mount {
         node: NodeId,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), VfsServerError> {
         trace!(
             "[FS API] set_metadata: path={}, node={:?}, permissions={:?}, size={:?}",

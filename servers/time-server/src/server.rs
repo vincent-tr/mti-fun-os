@@ -42,7 +42,7 @@ impl Server {
 impl TimeServer for Server {
     type Error = TimeServerError;
 
-    fn get_wall_time(&self, _sender_id: u64) -> Result<time::UtcDateTime, Self::Error> {
+    fn get_wall_time(&self, _sender_id: u64) -> Result<DateTime, Self::Error> {
         let now_monotonic = Self::now_monotonic();
         let elapsed = now_monotonic - self.boot_monotonic;
         let now_wall = self.boot_wall + elapsed;

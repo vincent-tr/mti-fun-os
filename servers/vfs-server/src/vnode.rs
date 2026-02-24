@@ -1,6 +1,7 @@
 use alloc::{string::String, sync::Arc, vec::Vec};
 use libruntime::{
     ipc::Handle,
+    time::DateTime,
     vfs::{
         DirectoryEntry, HandlePermissions, NodeType, Permissions,
         iface::VfsServerError,
@@ -159,8 +160,8 @@ impl VNode {
         &self,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), VfsServerError> {
         self.mount()
             .await

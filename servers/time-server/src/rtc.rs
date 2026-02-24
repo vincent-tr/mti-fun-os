@@ -1,8 +1,8 @@
-use libruntime::kobject;
+use libruntime::{kobject, time::DateTime};
 use log::debug;
-use time::{Date, Month, Time, UtcDateTime};
+use time::{Date, Month, Time};
 
-pub fn read_rtc() -> UtcDateTime {
+pub fn read_rtc() -> DateTime {
     // https://wiki.osdev.org/CMOS#The_Real-Time_Clock
     //
     // The second alternative is to be prepared for dodgy/inconsistent values and cope with them if they occur.
@@ -35,7 +35,7 @@ pub fn read_rtc() -> UtcDateTime {
     debug!("24-hour format: {}", metadata.is_hour_format_24());
     debug!("Current RTC data: {:?}", data);
 
-    UtcDateTime::new(
+    DateTime::new(
         Date::from_calendar_date(
             data.year as i32 + 2000, // Assuming RTC year is offset from 2000
             Month::try_from(data.month).expect("Invalid month value"),

@@ -7,6 +7,7 @@ use alloc::{string::String, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     ipc::Handle,
+    time::{DateTime, get_wall_time},
     vfs::{
         fs::iface::FsServerError,
         iface::DirectoryEntry,
@@ -164,8 +165,8 @@ impl FsInstance {
                 .get_file_data()
                 .map(|data| data.len())
                 .unwrap_or(0),
-            created: node.created,
-            modified: node.modified,
+            created: node.created.into(),
+            modified: node.modified.into(),
         })
     }
 
@@ -175,8 +176,8 @@ impl FsInstance {
         node_id: NodeId,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), FsServerError> {
         let node = self
             .nodes
@@ -419,7 +420,7 @@ impl FsInstance {
     fn new_node(&mut self, kind: NodeKind, perms: Permissions) -> NodeId {
         let id = self.id_generator.fetch_add(1, Ordering::SeqCst);
         let node_id = NodeId::from(id);
-        let now = Self::now();
+        let now = get_wall_time();
 
         self.nodes.insert(
             node_id,
@@ -462,7 +463,7 @@ impl FsInstance {
 
     fn node_updated(&mut self, node_id: NodeId) {
         let node = self.nodes.get_mut(&node_id).expect("Node not found");
-        node.modified = Self::now();
+        node.modified = get_wall_time();
     }
 
     fn get_parent_entries(
@@ -495,12 +496,6 @@ impl FsInstance {
             .ok_or(FsServerError::NodeBadType)
     }
 
-    fn now() -> u64 {
-        // TODO: use a real clock source here
-        let ticks = libruntime::kobject::Timer::now().expect("Could not get current time");
-        ticks / 1000 // convert to milliseconds
-    }
-
     fn new_handle() -> Handle {
         State::get().handle_generator().generate()
     }
@@ -518,11 +513,11 @@ struct Node {
     /// Number of hard links to this node. If this count drops to zero, the node can be deleted from the file system.
     link_count: usize,
 
-    /// Creation time of the node, in milliseconds since the Unix epoch.
-    created: u64,
+    /// Creation time of the node.
+    created: DateTime,
 
-    /// Last modification time of the node, in milliseconds since the Unix epoch.
-    modified: u64,
+    /// Last modification time of the node.
+    modified: DateTime,
 }
 
 /// Kind of a node in the file system, which can be a file, directory, or symbolic link, along with its specific data.

@@ -1,4 +1,4 @@
-use crate::{ipc, kobject};
+use crate::{ipc, kobject, time::DateTime};
 use alloc::sync::Arc;
 
 use super::{TimeServerError, messages};
@@ -7,7 +7,7 @@ use super::{TimeServerError, messages};
 pub trait TimeServer {
     type Error: Into<TimeServerError>;
 
-    fn get_wall_time(&self, sender_id: u64) -> Result<::time::UtcDateTime, Self::Error>;
+    fn get_wall_time(&self, sender_id: u64) -> Result<DateTime, Self::Error>;
 }
 
 /// The main server structure

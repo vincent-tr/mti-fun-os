@@ -6,6 +6,7 @@ use hashbrown::HashMap;
 use libruntime::{
     ipc::Handle,
     sync::RwLock,
+    time::DateTime,
     vfs::{
         fs::iface::{FileSystem, FsServerError},
         iface::DirectoryEntry,
@@ -126,8 +127,8 @@ impl FileSystem for Server {
         node_id: NodeId,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), Self::Error> {
         let instance = self.get_instance(mount_handle)?;
 

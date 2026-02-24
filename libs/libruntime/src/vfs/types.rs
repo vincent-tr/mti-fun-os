@@ -1,5 +1,6 @@
 // Reuse the Permissions type from the kobject module, since it is the same as the one used for paging permissions.
 pub use crate::kobject::Permissions;
+use crate::time::iface::Timestamp;
 
 use bitflags::bitflags;
 
@@ -20,11 +21,11 @@ pub struct Metadata {
     /// For directories and symlinks, this field is ignored and should be set to 0.
     pub size: usize,
 
-    /// Creation time of the node, in milliseconds since the Unix epoch.
-    pub created: u64,
+    /// Creation time of the node
+    pub created: Timestamp,
 
-    /// Last modification time of the node, in milliseconds since the Unix epoch.
-    pub modified: u64,
+    /// Last modification time of the node
+    pub modified: Timestamp,
 }
 
 /// Types of nodes in the filesystem.

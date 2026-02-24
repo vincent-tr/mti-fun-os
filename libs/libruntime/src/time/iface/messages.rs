@@ -1,7 +1,7 @@
+use crate::time::DateTime;
 use core::{mem, ptr};
 
 use alloc::fmt;
-use time::UtcDateTime;
 
 /// Name of the IPC port for the time server.
 pub const PORT_NAME: &str = "time-server";
@@ -55,7 +55,7 @@ pub struct GetWallTimeReply {
 }
 
 /// A wrapper around the timestamp to allow unaligned access.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Timestamp([u8; mem::size_of::<i128>()]);
 
@@ -65,11 +65,11 @@ impl From<Timestamp> for i128 {
     }
 }
 
-impl TryFrom<Timestamp> for UtcDateTime {
+impl TryFrom<Timestamp> for DateTime {
     type Error = ();
 
     fn try_from(value: Timestamp) -> Result<Self, Self::Error> {
-        UtcDateTime::from_unix_timestamp_nanos(i128::from(value)).map_err(|_| ())
+        DateTime::from_unix_timestamp_nanos(i128::from(value)).map_err(|_| ())
     }
 }
 
@@ -83,8 +83,8 @@ impl From<i128> for Timestamp {
     }
 }
 
-impl From<UtcDateTime> for Timestamp {
-    fn from(value: UtcDateTime) -> Self {
+impl From<DateTime> for Timestamp {
+    fn from(value: DateTime) -> Self {
         Self::from(value.unix_timestamp_nanos())
     }
 }

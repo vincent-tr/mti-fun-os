@@ -1,8 +1,10 @@
 use core::fmt;
 
-use crate::ipc::{Handle, buffer_messages::Buffer};
-
-use crate::vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions};
+use crate::{
+    ipc::{Handle, buffer_messages::Buffer},
+    time::iface::Timestamp,
+    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
+};
 
 /// Version of the fs management messages.
 pub const VERSION: u16 = 1;
@@ -223,11 +225,11 @@ pub struct SetMetadataQueryParameters {
     /// The new size of the node. If None, the size will not be changed.
     pub size: Option<usize>,
 
-    /// The new created time of the node, in milliseconds since the Unix epoch. If None, the created time will not be changed.
-    pub created: Option<u64>,
+    /// The new created time of the node. If None, the created time will not be changed.
+    pub created: Option<Timestamp>,
 
-    /// The new modified time of the node, in milliseconds since the Unix epoch. If None, the modified time will not be changed.
-    pub modified: Option<u64>,
+    /// The new modified time of the node. If None, the modified time will not be changed.
+    pub modified: Option<Timestamp>,
 }
 
 /// Reply of the SetMetadata message.

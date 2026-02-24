@@ -5,6 +5,7 @@ use alloc::{boxed::Box, string::String, vec::Vec};
 use crate::{
     ipc::{self, Handle},
     kobject::KObject,
+    time::DateTime,
     vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 
@@ -188,16 +189,16 @@ impl Client<'_> {
         node_id: NodeId,
         permissions: Option<Permissions>,
         size: Option<usize>,
-        created: Option<u64>,
-        modified: Option<u64>,
+        created: Option<DateTime>,
+        modified: Option<DateTime>,
     ) -> Result<(), FsServerCallError> {
         let query = messages::SetMetadataQueryParameters {
             mount_handle,
             node_id,
             permissions,
             size,
-            created,
-            modified,
+            created: created.map(Into::into),
+            modified: modified.map(Into::into),
         };
 
         let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::SetMetadataQueryParameters, messages::SetMetadataReply, FsServerError>(

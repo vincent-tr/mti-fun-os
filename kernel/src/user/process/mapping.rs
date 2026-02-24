@@ -4,8 +4,7 @@ use alloc::sync::{Arc, Weak};
 
 use crate::{
     memory::{
-        AdditionalFlags, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr, is_page_aligned,
-        is_userspace,
+        MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr, is_page_aligned, is_userspace,
     },
     user::{Error, MemoryObject, error::out_of_memory},
 };
@@ -42,7 +41,7 @@ impl Mapping {
             unsafe {
                 // If the map fails, size has been sert to the partially mapped part, so that the mapping is consistent.
                 // Leaving will drop the partial map properly.
-                mapping.map(perms, None)?;
+                mapping.map(perms)?;
             }
         }
 
@@ -159,11 +158,7 @@ impl Mapping {
         return true;
     }
 
-    unsafe fn map(
-        &mut self,
-        perms: Permissions,
-        additional_flags: Option<AdditionalFlags>,
-    ) -> Result<(), Error> {
+    unsafe fn map(&mut self, perms: Permissions) -> Result<(), Error> {
         let mut phys_offset = self.offset;
 
         let process = self.process();
@@ -174,7 +169,8 @@ impl Mapping {
             let frame = mobj.frame(phys_offset);
 
             // Note: no need to mark the frames as used, because we already keep the memory object.
-            match unsafe { address_space.map(virt_addr, frame, perms, additional_flags) } {
+            match unsafe { address_space.map(virt_addr, frame, perms, Some(mobj.mapping_flags())) }
+            {
                 Ok(_) => {
                     // Mark it as used
                     unsafe { mobj.borrow_frame(phys_offset) };

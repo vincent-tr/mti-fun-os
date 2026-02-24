@@ -1,6 +1,8 @@
 use core::{mem, ops::Range};
 
-use crate::memory::{FrameRef, PAGE_SIZE, access_phys, is_page_aligned, phys_allocate};
+use crate::memory::{
+    AdditionalFlags, FrameRef, PAGE_SIZE, access_phys, is_page_aligned, phys_allocate,
+};
 use alloc::{collections::btree_set::BTreeSet, sync::Arc, vec::Vec};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -18,10 +20,19 @@ impl MemoryObject {
         Ok(Arc::new(Self(Type::Physical(PhysicalMemory::new(size)?))))
     }
 
-    pub fn new_iomem(address: PhysAddr, size: usize) -> Result<Arc<Self>, Error> {
-        // TODO: check ranges
+    /// Create a new memory object that represents the given region of device memory
+    pub fn new_iomem(
+        address: PhysAddr,
+        size: usize,
+        write_through: bool,
+        no_cache: bool,
+    ) -> Result<Arc<Self>, Error> {
+        let mut flags = AdditionalFlags::new();
+        flags.write_through(write_through);
+        flags.no_cache(no_cache);
+
         Ok(Arc::new(Self(Type::Device(DeviceMemory::new(
-            address, size,
+            address, size, flags,
         )?))))
     }
 
@@ -64,6 +75,11 @@ impl MemoryObject {
     /// Iterates over the frames of the memory object
     pub fn frames_iter(&self) -> impl Iterator<Item = PhysAddr> + '_ {
         (0..self.0.frame_count()).map(|i| self.0.frame(i))
+    }
+
+    /// Get the additional mapping flags for this memory object, if any
+    pub fn mapping_flags(&self) -> AdditionalFlags {
+        self.0.mapping_flags()
     }
 }
 
@@ -112,6 +128,14 @@ impl Type {
         match self {
             Type::Physical(phys) => unsafe { phys.unborrow_frame(phys_addr) },
             Type::Device(device) => unsafe { device.unborrow_frame(phys_addr) },
+        }
+    }
+
+    /// Get the additional mapping flags for this memory object, if any
+    pub fn mapping_flags(&self) -> AdditionalFlags {
+        match self {
+            Type::Physical(phys) => phys.mapping_flags(),
+            Type::Device(device) => device.mapping_flags(),
         }
     }
 }
@@ -191,6 +215,11 @@ impl PhysicalMemory {
         let frame = unsafe { FrameRef::unborrow(phys_addr) };
         mem::drop(frame);
     }
+
+    /// Get the additional mapping flags for this memory object, if any
+    pub fn mapping_flags(&self) -> AdditionalFlags {
+        AdditionalFlags::new()
+    }
 }
 
 /// A memory object that represents a region of device memory
@@ -201,11 +230,18 @@ struct DeviceMemory {
 
     /// The number of frames in the device memory region
     frames: usize,
+
+    /// The additional mapping flags for this memory object, if any
+    mapping_flags: AdditionalFlags,
 }
 
 impl DeviceMemory {
     /// Create a new memory object that represents the given region of device memory
-    pub fn new(address: PhysAddr, size: usize) -> Result<Self, Error> {
+    pub fn new(
+        address: PhysAddr,
+        size: usize,
+        mapping_flags: AdditionalFlags,
+    ) -> Result<Self, Error> {
         check_page_alignment(address.as_u64() as usize)?;
         check_page_alignment(size)?;
         check_positive(size)?;
@@ -215,7 +251,11 @@ impl DeviceMemory {
             return Err(Error::MemoryAccessDenied);
         }
 
-        Ok(Self { address, frames })
+        Ok(Self {
+            address,
+            frames,
+            mapping_flags,
+        })
     }
 
     fn range(address: PhysAddr, frames: usize) -> Range<u64> {
@@ -252,6 +292,11 @@ impl DeviceMemory {
     /// This function is unsafe because there is no way to check that `unborrow()` call matchs `borrow()` call.
     pub unsafe fn unborrow_frame(&self, _phys_addr: PhysAddr) {
         // No-op for device memory
+    }
+
+    /// Get the additional mapping flags for this memory object, if any
+    pub fn mapping_flags(&self) -> AdditionalFlags {
+        self.mapping_flags
     }
 }
 

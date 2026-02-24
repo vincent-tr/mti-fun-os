@@ -747,25 +747,25 @@ fn is_user_address(addr: VirtAddr) -> bool {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AdditionalFlags {
-    pub write_through: Option<bool>,
-    pub no_cache: Option<bool>,
+    pub write_through: bool,
+    pub no_cache: bool,
 }
 
 impl AdditionalFlags {
     pub const fn new() -> Self {
         Self {
-            write_through: None,
-            no_cache: None,
+            write_through: false,
+            no_cache: false,
         }
     }
 
     pub fn write_through(&mut self, value: bool) -> &mut Self {
-        self.write_through = Some(value);
+        self.write_through = value;
         self
     }
 
     pub fn no_cache(&mut self, value: bool) -> &mut Self {
-        self.no_cache = Some(value);
+        self.no_cache = value;
         self
     }
 }
@@ -793,11 +793,11 @@ fn create_flags(
     }
 
     if let Some(additional_flags) = additional_flags {
-        if let Some(true) = additional_flags.write_through {
+        if additional_flags.write_through {
             flags |= PageTableFlags::WRITE_THROUGH;
         }
 
-        if let Some(true) = additional_flags.no_cache {
+        if additional_flags.no_cache {
             flags |= PageTableFlags::NO_CACHE;
         }
     }

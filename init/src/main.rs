@@ -64,6 +64,7 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     info!("Current time: {}", time::get_wall_time());
 
+    // TODO: move in archive
     let process = process::Process::spawn(
         "display-server",
         ipc::Buffer::new_local(archive::DISPLAY_SERVER),
@@ -109,8 +110,6 @@ fn start_servers(info: &syscalls::init::InitInfo) {
     let _ = process;
     //wait_port(display::iface::PORT_NAME);
 
-    sleep_forever(); ////////
-
     let process = process::Process::spawn(
         "vfs-server",
         ipc::Buffer::new_local(archive::VFS_SERVER),
@@ -132,6 +131,17 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     let _ = process;
     wait_port("memfs-server");
+
+    let process = process::Process::spawn(
+        "archivefs-server",
+        ipc::Buffer::new_local(archive::ARCHIVEFS_SERVER),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn archivefs server");
+
+    let _ = process;
+    //wait_port("archivefs-server");
 }
 
 fn setup_initial_filesystem() {

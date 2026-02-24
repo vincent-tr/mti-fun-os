@@ -23,6 +23,7 @@ members = [
   "servers/memfs-server",
   "servers/time-server",
   "servers/display-server",
+  "servers/archivefs-server",
   "host-dynlinker",
 ]
 

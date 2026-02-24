@@ -36,3 +36,4 @@ pub static TIME_SERVER: &[u8] = include_userland_binary!("time-server");
 pub static VFS_SERVER: &[u8] = include_userland_binary!("vfs-server");
 pub static MEMFS_SERVER: &[u8] = include_userland_binary!("memfs-server");
 pub static DISPLAY_SERVER: &[u8] = include_userland_binary!("display-server");
+pub static ARCHIVEFS_SERVER: &[u8] = include_userland_binary!("archivefs-server");

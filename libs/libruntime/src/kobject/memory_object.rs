@@ -58,6 +58,25 @@ impl MemoryObject {
         })
     }
 
+    /// Open an existing memory object that represents the given region of device memory
+    ///
+    /// # Safety
+    ///
+    /// - The caller must ensure that the specified address and size are valid device memory.
+    /// - The caller must also ensure that the mapping flags are appropriate for the intended use of the memory object.
+    pub unsafe fn open_iomem(
+        address: usize,
+        size: usize,
+        write_through: bool,
+        no_cache: bool,
+    ) -> Result<Self, Error> {
+        let handle = memory_object::open_iomem(address, size, write_through, no_cache)?;
+        Ok(Self {
+            handle,
+            cached_size: Mutex::new(Some(size)),
+        })
+    }
+
     pub fn size(&self) -> Result<usize, Error> {
         let mut value = self.cached_size.lock();
         if let Some(size) = *value {

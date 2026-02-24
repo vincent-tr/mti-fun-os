@@ -98,7 +98,6 @@ tail -f serial.log
 ### kernel
 
 - multi-core
-- iomem to userland
 - irq to userland
 
 ### runtime
@@ -122,8 +121,7 @@ tail -f serial.log
     - -C prefer dynamic
 - vfs
   - archive fs
-- RTC/time server (kernel: ioport)
-- screen/graphics (kernel: iomem)
+- screen/graphics
 - find something simple to have kernel irq and kernel DMA
 - net
 

@@ -20,6 +20,8 @@ fn main() {
         .arg("-nographic")
         .arg("-monitor")
         .arg("stdio")
+        .arg("-qmp")
+        .arg("unix:/tmp/qmp-socket,server,nowait")
         .arg("-serial")
         .arg("file:serial.log")
         .arg("-s");

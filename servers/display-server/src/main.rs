@@ -1,7 +1,13 @@
 #![no_std]
 #![no_main]
+#![allow(internal_features)]
 #![feature(core_intrinsics)]
 
+use embedded_graphics::{
+    pixelcolor::Rgb888,
+    prelude::*,
+    primitives::{Circle, PrimitiveStyle},
+};
 use log::info;
 
 mod framebuffer;
@@ -28,6 +34,13 @@ pub fn main() -> i32 {
     let shape = BufferShape::new(byte_len, width, height, stride, bytes_per_pixel);
     let pixel_format = PixelFormat::new(red_mask, green_mask, blue_mask, bytes_per_pixel);
     let mut framebuffer = FrameBuffer::open(address, shape, pixel_format);
+
+    let circle = Circle::new(Point::new(220, 220), 200)
+        .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 10));
+
+    circle.draw(&mut framebuffer).expect("Fail to draw circle");
+
+    framebuffer.flip();
 
     loop {
         libruntime::time::sleep(libruntime::time::Duration::seconds(1));

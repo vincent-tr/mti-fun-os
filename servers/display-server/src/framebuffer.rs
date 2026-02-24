@@ -106,8 +106,8 @@ impl FrameBuffer {
             point.y
         );
 
-        let pixel_offset = (point.y as usize) * self.shape.stride
-            + (point.x as usize) * self.shape.bytes_per_pixel;
+        let pixel_offset = ((point.y as usize) * self.shape.stride + (point.x as usize))
+            * self.shape.bytes_per_pixel;
         let pixel_data = self.pixel_format.rgb_to_native(color);
 
         let range = pixel_offset..pixel_offset + self.shape.bytes_per_pixel;
@@ -122,13 +122,11 @@ impl DrawTarget for FrameBuffer {
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+        I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for pixel in pixels {
-            let embedded_graphics::Pixel(point, color) = pixel;
+            let Pixel(point, color) = pixel;
             self.draw_pixel(point, color);
-
-            let color_value = self.pixel_format.rgb_to_native(color);
         }
         Ok(())
     }
@@ -159,6 +157,13 @@ impl BufferShape {
         stride: usize,
         bytes_per_pixel: usize,
     ) -> Self {
+        assert!(
+            stride >= width,
+            "Stride ({}) must be at least width ({})",
+            stride,
+            width,
+        );
+
         assert!(
             bytes_per_pixel <= size_of::<u32>(),
             "Unsupported bytes per pixel: {}",

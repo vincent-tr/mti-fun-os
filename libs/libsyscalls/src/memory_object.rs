@@ -1,6 +1,6 @@
 use syscalls::SyscallNumber;
 
-use super::{Handle, SyscallInOutPtr, SyscallResult, syscalls::*, sysret_to_result};
+use super::{Handle, IoMemFlags, SyscallInOutPtr, SyscallResult, syscalls::*, sysret_to_result};
 
 pub fn create(size: usize) -> SyscallResult<Handle> {
     let mut new_handle = Handle::invalid();
@@ -8,6 +8,36 @@ pub fn create(size: usize) -> SyscallResult<Handle> {
         syscall2(
             SyscallNumber::MemoryObjectCreate,
             size,
+            new_handle.as_syscall_ptr(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(new_handle)
+}
+
+pub fn open_iomem(
+    phys_addr: usize,
+    size: usize,
+    write_through: bool,
+    no_cache: bool,
+) -> SyscallResult<Handle> {
+    let mut flags = IoMemFlags::NONE;
+    if write_through {
+        flags |= IoMemFlags::WRITE_THROUGH;
+    }
+    if no_cache {
+        flags |= IoMemFlags::NO_CACHE;
+    }
+
+    let mut new_handle = Handle::invalid();
+    let ret = unsafe {
+        syscall4(
+            SyscallNumber::MemoryObjectOpenIoMem,
+            phys_addr,
+            size,
+            flags.bits() as usize,
             new_handle.as_syscall_ptr(),
         )
     };

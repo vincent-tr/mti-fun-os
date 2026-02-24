@@ -7,6 +7,7 @@ mod ioport;
 mod ipc;
 mod listener;
 mod memory;
+mod memory_object;
 mod permissions;
 mod process;
 mod thread;
@@ -18,6 +19,7 @@ pub use ioport::*;
 pub use ipc::*;
 pub use listener::*;
 pub use memory::*;
+pub use memory_object::*;
 pub use permissions::*;
 pub use process::*;
 pub use thread::*;
@@ -63,6 +65,7 @@ pub enum SyscallNumber {
     ThreadResume,
 
     MemoryObjectCreate,
+    MemoryObjectOpenIoMem,
     MemoryObjectSize,
 
     PortCreate,

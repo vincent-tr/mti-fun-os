@@ -57,6 +57,10 @@ pub fn init() {
     register_syscall(SyscallNumber::ThreadResume, thread::resume);
 
     register_syscall(SyscallNumber::MemoryObjectCreate, memory_object::create);
+    register_syscall(
+        SyscallNumber::MemoryObjectOpenIoMem,
+        memory_object::open_iomem,
+    );
     register_syscall(SyscallNumber::MemoryObjectSize, memory_object::size);
 
     register_syscall(SyscallNumber::PortOpen, ipc::open);

@@ -13,7 +13,7 @@ mod state_server;
 mod tests;
 
 use alloc::{boxed::Box, format};
-use libruntime::{ipc, kobject, process, state, vfs};
+use libruntime::{ipc, kobject, process, state, time, vfs};
 use log::{debug, info};
 
 fn main(info: Box<syscalls::init::InitInfo>) {
@@ -60,7 +60,9 @@ fn start_servers(info: &syscalls::init::InitInfo) {
     .expect("Could not spawn time server");
 
     let _ = process;
-    //wait_port(time::iface::PORT_NAME);
+    wait_port(time::iface::PORT_NAME);
+
+    info!("Current time: {}", time::get_wall_time());
 
     let process = process::Process::spawn(
         "display-server",

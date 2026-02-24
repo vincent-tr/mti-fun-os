@@ -1,21 +1,20 @@
 #![no_std]
 #![no_main]
 
-use log::info;
+use libruntime::time::iface::build_ipc_server;
+
+use crate::server::Server;
 
 extern crate alloc;
 extern crate libruntime;
 
 mod rtc;
+mod server;
 
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
-    info!("Time server started");
+    let server = Server::new();
+    let ipc_server = build_ipc_server(server).expect("failed to build time-server IPC server");
 
-    let rtc_clock = rtc::read_rtc();
-    info!("Current RTC time: {}", rtc_clock);
-
-    loop {
-        libruntime::time::sleep(libruntime::time::Duration::seconds(1));
-    }
+    ipc_server.run()
 }

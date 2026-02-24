@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+embedded-graphics = { workspace = true }
 log = { workspace = true }
 libruntime = { path = "../../libs/libruntime" }

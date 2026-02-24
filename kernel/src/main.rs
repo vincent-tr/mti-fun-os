@@ -34,7 +34,10 @@ use bootloader_api::{
 use core::{ops::Range, panic::PanicInfo};
 use log::{error, info};
 use syscalls::SyscallNumber;
-use x86_64::registers::model_specific::{Efer, EferFlags};
+use x86_64::{
+    PhysAddr,
+    registers::model_specific::{Efer, EferFlags},
+};
 
 const CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -69,7 +72,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         .framebuffer
         .as_ref()
         .expect("No framebuffer defined");
-    let fb_ptr = fb_info.buffer().as_ptr() as u64;
+    let fb_ptr = PhysAddr::new_truncate(fb_info.buffer().as_ptr() as u64).as_u64();
     let fb_info = fb_info.info();
 
     gdt::init();

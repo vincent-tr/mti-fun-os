@@ -18,7 +18,7 @@ use log::info;
 pub use config::{KERNEL_START, PAGE_SIZE};
 pub use paging::{
     AdditionalFlags, AddressSpace, Permissions, create_adress_space, drop_initial_kernel_stack,
-    drop_initial_ramdisk, set_current_address_space,
+    drop_initial_ramdisk, set_current_address_space, translate_early,
 };
 pub use phys::{AllocatorError, FrameRef};
 use x86_64::structures::paging::{Size4KiB, mapper::MapToError};

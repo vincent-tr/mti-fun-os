@@ -486,6 +486,33 @@ unsafe fn get_current_page_table() -> &'static mut PageTable {
     }
 }
 
+/// Translate a virtual address to physical address using the current page table
+///
+/// This can be used early during boot before paging initialization to translate
+/// addresses from the bootloader (like the framebuffer).
+///
+/// # Safety
+///
+/// Must be called with valid virtual address while page tables are intact.
+pub unsafe fn translate_early(virt: VirtAddr, phys_mapping: VirtAddr) -> Option<PhysAddr> {
+    unsafe {
+        // Read CR3 to get the current page table physical address
+        let (frame, _) = Cr3::read();
+        let phys_addr = frame.start_address();
+
+        // Manually convert to virtual address using the provided physical mapping offset
+        let page_table_virt = phys_mapping + phys_addr.as_u64();
+        let page_table: &mut PageTable = &mut *(page_table_virt.as_mut_ptr());
+
+        let mapper = OffsetPageTable::new(page_table, phys_mapping);
+
+        match mapper.translate(virt) {
+            TranslateResult::Mapped { frame, offset, .. } => Some(frame.start_address() + offset),
+            _ => None,
+        }
+    }
+}
+
 /// Install the provided address space as the current one
 ///
 /// # Safety

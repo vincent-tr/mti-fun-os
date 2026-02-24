@@ -72,7 +72,15 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         .framebuffer
         .as_ref()
         .expect("No framebuffer defined");
-    let fb_ptr = PhysAddr::new_truncate(fb_info.buffer().as_ptr() as u64).as_u64();
+
+    let fb_addr = unsafe {
+        memory::translate_early(
+            VirtAddr::from_ptr(fb_info.buffer().as_ptr()),
+            physical_memory_offset,
+        )
+        .expect("Failed to translate framebuffer virtual address")
+    };
+
     let fb_info = fb_info.info();
 
     gdt::init();
@@ -89,7 +97,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    let init_info = build_init_info(&ramdisk, fb_info, fb_ptr);
+    let init_info = build_init_info(&ramdisk, fb_info, fb_addr);
 
     interrupts::syscall_switch(
         SyscallNumber::InitSetup as usize,
@@ -105,7 +113,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 fn build_init_info(
     ramdisk: &Range<usize>,
     fb_info: FrameBufferInfo,
-    fb_ptr: u64,
+    fb_addr: PhysAddr,
 ) -> Box<syscalls::init::InitInfo> {
     let pixel_format = match fb_info.pixel_format {
         bootloader_api::info::PixelFormat::Rgb => syscalls::init::PixelFormat {
@@ -135,7 +143,7 @@ fn build_init_info(
             mapping_size: ramdisk.len(),
         },
         framebuffer: syscalls::init::Framebuffer {
-            address: fb_ptr as usize,
+            address: fb_addr.as_u64() as usize,
             byte_len: fb_info.byte_len,
             width: fb_info.width,
             height: fb_info.height,

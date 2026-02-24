@@ -6,7 +6,7 @@ pub use client::{Client, TimeServerCallError};
 use server::Server;
 pub use server::TimeServer;
 
-pub use messages::{PORT_NAME, TimeServerError};
+pub use messages::{PORT_NAME, TimeServerError, Timestamp};
 
 use crate::{ipc, kobject};
 

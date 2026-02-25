@@ -1,3 +1,5 @@
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use crate::{
     error::ResultExt,
     loader::Loader,
@@ -13,9 +15,12 @@ use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
-    process::iface::{
-        KVBlock, ProcessInfo, ProcessServer, ProcessServerError, ProcessStatus, StartupInfo,
-        SymBlock,
+    process::{
+        self,
+        iface::{
+            KVBlock, ProcessInfo, ProcessServer, ProcessServerError, ProcessStatus, StartupInfo,
+            SymBlock,
+        },
     },
 };
 use log::{debug, error, info, warn};
@@ -23,6 +28,7 @@ use log::{debug, error, info, warn};
 /// The main server structure
 #[derive(Debug)]
 pub struct Server {
+    initialized: AtomicBool,
     handles: ipc::HandleTable<'static, Process>,
     handle_generator: &'static ipc::HandleGenerator,
 }
@@ -48,7 +54,43 @@ impl ProcessServer for Server {
         }
     }
 
+    fn bootstrap(
+        &self,
+        _sender_id: u64,
+        init_binary: &[u8],
+        process_server_binary: &[u8],
+    ) -> Result<(), Self::Error> {
+        // The server handle requests sequentially.
+        if self.initialized.load(Ordering::SeqCst) {
+            error!("Process server already initialized");
+            return Err(ProcessServerError::InvalidArgument);
+        }
+
+        self.register_init(init_binary)?;
+        self.register_idle()?;
+        self.register_self(process_server_binary)?;
+
+        // Now that we are initialized, we can run runtime process init, in a separate thread to avoid deadlock (process init will call process server)
+        {
+            let mut options = kobject::ThreadOptions::default();
+            options.name("process-init");
+
+            let entry = move || {
+                // run process init
+                process::SelfProcess::get();
+            };
+
+            kobject::Thread::start(entry, options).expect("failed to start process-init thread");
+        }
+
+        self.initialized.store(true, Ordering::SeqCst);
+
+        debug!("Process server bootstrap completed");
+        Ok(())
+    }
+
     fn get_startup_info(&self, sender_id: u64) -> Result<StartupInfo, Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
@@ -64,6 +106,7 @@ impl ProcessServer for Server {
     }
 
     fn update_name(&self, sender_id: u64, new_name: &str) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
@@ -81,6 +124,7 @@ impl ProcessServer for Server {
     }
 
     fn update_env(&self, sender_id: u64, new_env: KVBlock) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
@@ -93,6 +137,7 @@ impl ProcessServer for Server {
     }
 
     fn set_exit_code(&self, sender_id: u64, exit_code: i32) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let info = find_live_process(sender_id).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
@@ -112,21 +157,21 @@ impl ProcessServer for Server {
         environment: KVBlock,
         arguments: KVBlock,
     ) -> Result<(ipc::Handle, u64), Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
 
         info!("Creating process {}", name);
 
         let loader = Loader::new(binary)?;
 
-        let symbols = loader.get_symbols().unwrap_or_else(|e| {
-            warn!(
-                "Failed to load symbol information for process {}: {}",
-                name, e
-            );
-            BTreeMap::new()
-        });
+        let symbols = {
+            let symbols = loader.get_symbols().unwrap_or_else(|e| {
+                warn!("Failed to load symbols for process {}: {}", name, e);
+                BTreeMap::new()
+            });
 
-        let symbols = SymBlock::build(&symbols);
+            SymBlock::build(&symbols)
+        };
 
         let process = kobject::Process::create(name).runtime_err("Failed to create process")?;
 
@@ -193,6 +238,7 @@ impl ProcessServer for Server {
     }
 
     fn open_process(&self, sender_id: u64, pid: u64) -> Result<(ipc::Handle, u64), Self::Error> {
+        self.check_initialized()?;
         let info = find_process(Pid::from(pid)).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -204,6 +250,7 @@ impl ProcessServer for Server {
     }
 
     fn close_process(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         self.handles.close(sender_id, handle).ok_or_else(|| {
             error!("Invalid process handle: {:?}", handle);
             ProcessServerError::InvalidArgument
@@ -213,6 +260,7 @@ impl ProcessServer for Server {
     }
 
     fn get_process_name(&self, sender_id: u64, handle: ipc::Handle) -> Result<String, Self::Error> {
+        self.check_initialized()?;
         let info = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -222,6 +270,7 @@ impl ProcessServer for Server {
     }
 
     fn get_process_env(&self, sender_id: u64, handle: ipc::Handle) -> Result<KVBlock, Self::Error> {
+        self.check_initialized()?;
         let info = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -235,6 +284,7 @@ impl ProcessServer for Server {
         sender_id: u64,
         handle: ipc::Handle,
     ) -> Result<KVBlock, Self::Error> {
+        self.check_initialized()?;
         let info = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -248,6 +298,7 @@ impl ProcessServer for Server {
         sender_id: u64,
         handle: ipc::Handle,
     ) -> Result<ProcessStatus, Self::Error> {
+        self.check_initialized()?;
         let info = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -263,6 +314,7 @@ impl ProcessServer for Server {
     }
 
     fn terminate_process(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         let info = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Process not found: {}", sender_id);
             ProcessServerError::InvalidArgument
@@ -285,6 +337,7 @@ impl ProcessServer for Server {
     }
 
     fn list_processes(&self, _sender_id: u64) -> Result<Vec<ProcessInfo>, Self::Error> {
+        self.check_initialized()?;
         let processes = list_processes()
             .iter()
             .map(|p| ProcessInfo {
@@ -310,6 +363,7 @@ impl ProcessServer for Server {
         port: kobject::PortSender,
         correlation: u64,
     ) -> Result<ipc::Handle, Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let info = self
             .handles
@@ -333,6 +387,7 @@ impl ProcessServer for Server {
         sender_id: u64,
         registration_handle: ipc::Handle,
     ) -> Result<(), Self::Error> {
+        self.check_initialized()?;
         let sender_id = Pid::from(sender_id);
         let (target_pid, owner_handle) =
             get_termination_registration_by_handle(registration_handle).ok_or_else(|| {
@@ -365,27 +420,34 @@ impl Server {
         let handles = ipc::HandleTable::new(handle_generator);
 
         let server = Self {
+            initialized: AtomicBool::new(false),
             handles,
             handle_generator,
         };
 
-        server.register_init()?;
-        server.register_idle()?;
-        server.register_self()?;
-
         Ok(server)
+    }
+
+    fn check_initialized(&self) -> Result<(), ProcessServerError> {
+        if !self.initialized.load(Ordering::SeqCst) {
+            error!("Process server not initialized");
+            return Err(ProcessServerError::RuntimeError);
+        }
+        Ok(())
     }
 
     const INIT_PID: u64 = 1;
     const IDLE_PID: u64 = 2;
 
     /// Register the init process in the system, so it shows up in process lists.
-    fn register_init(&self) -> Result<(), kobject::Error> {
+    fn register_init(&self, binary: &[u8]) -> Result<(), ProcessServerError> {
         // Note: this is fishy, we should really find the main thread differently
         const INIT_MAIN_THREAD_TID: u64 = 3;
 
-        let process = kobject::Process::open(Self::INIT_PID)?;
-        let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)?;
+        let process =
+            kobject::Process::open(Self::INIT_PID).runtime_err("Failed to open init process")?;
+        let main_thread = kobject::Thread::open(INIT_MAIN_THREAD_TID)
+            .runtime_err("Failed to open init main thread")?;
 
         assert!(
             process.name().expect("failed to get process name") == "init",
@@ -397,6 +459,15 @@ impl Server {
             "Init process's main thread is expected to be named 'main'"
         );
 
+        let symbols = {
+            let symbols = Loader::new(binary)?.get_symbols().unwrap_or_else(|e| {
+                warn!("Failed to load symbols for process init: {}", e);
+                BTreeMap::new()
+            });
+
+            SymBlock::build(&symbols)
+        };
+
         Process::new(
             Pid::INVALID,
             process,
@@ -404,19 +475,21 @@ impl Server {
             String::from("init"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
-            Self::get_empty_symblock(),
+            symbols,
         );
 
         Ok(())
     }
 
     /// Register the idle process in the system, so it shows up in process lists.
-    fn register_idle(&self) -> Result<(), kobject::Error> {
+    fn register_idle(&self) -> Result<(), ProcessServerError> {
         // Note: this is fishy, we should really find the idle thread differently
         const IDLE_MAIN_THREAD_TID: u64 = 4;
 
-        let process = kobject::Process::open(Self::IDLE_PID)?;
-        let main_thread = kobject::Thread::open(IDLE_MAIN_THREAD_TID)?;
+        let process =
+            kobject::Process::open(Self::IDLE_PID).runtime_err("Failed to open idle process")?;
+        let main_thread = kobject::Thread::open(IDLE_MAIN_THREAD_TID)
+            .runtime_err("Failed to open idle main thread")?;
 
         assert!(
             process.name().expect("failed to get process name") == "idle",
@@ -428,6 +501,9 @@ impl Server {
             "Idle process's main thread is expected to be named 'idle'"
         );
 
+        // No symbols for idle process, since it's not a real process and doesn't have a real binary
+        let symbols = SymBlock::build(&BTreeMap::new());
+
         Process::new(
             Pid::from(Self::INIT_PID),
             process,
@@ -435,16 +511,26 @@ impl Server {
             String::from("idle"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
-            Self::get_empty_symblock(),
+            symbols,
         );
 
         Ok(())
     }
 
     /// Register the process-server itself in the system
-    fn register_self(&self) -> Result<(), kobject::Error> {
+    fn register_self(&self, binary: &[u8]) -> Result<(), ProcessServerError> {
         let process = kobject::Process::current().clone();
-        let main_thread = kobject::Thread::open_self()?;
+        let main_thread =
+            kobject::Thread::open_self().runtime_err("Failed to open self main thread")?;
+
+        let symbols = {
+            let symbols = Loader::new(binary)?.get_symbols().unwrap_or_else(|e| {
+                warn!("Failed to load symbols for process process-server: {}", e);
+                BTreeMap::new()
+            });
+
+            SymBlock::build(&symbols)
+        };
 
         Process::new(
             Pid::from(Self::INIT_PID),
@@ -453,7 +539,7 @@ impl Server {
             String::from("process-server"),
             Self::get_empty_kvblock(),
             Self::get_empty_kvblock(),
-            Self::get_empty_symblock(),
+            symbols,
         );
 
         Ok(())
@@ -466,14 +552,5 @@ impl Server {
         }
 
         KVBlock::from_memory_object(EMPTY_KVBLOCK.clone()).expect("Failed to create KVBlock")
-    }
-
-    fn get_empty_symblock() -> SymBlock {
-        // Since symblocks are immutable, we can cache an empty one
-        lazy_static! {
-            static ref EMPTY_SYMBLOCK: SymBlock = SymBlock::build(&BTreeMap::new());
-        }
-
-        EMPTY_SYMBLOCK.clone()
     }
 }

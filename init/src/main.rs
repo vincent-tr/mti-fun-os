@@ -18,7 +18,7 @@ use libruntime::{ipc, kobject, process, state, time, vfs};
 use log::{debug, info};
 
 fn main(info: &syscalls::init::InitInfo) {
-    debug!("Init info: {:#?}", info);
+    debug!("Init info: {:?}", info);
 
     idle::create_idle_process().expect("Could not create idle process");
 

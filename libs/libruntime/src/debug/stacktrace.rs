@@ -1,5 +1,6 @@
 use alloc::{boxed::Box, vec::Vec};
 use core::{arch::asm, ops::Index};
+use libsyscalls::ThreadContext;
 
 use super::{LocationInfo, find_location_info};
 
@@ -13,7 +14,10 @@ struct FrameWalker {
 }
 
 impl FrameWalker {
-    pub fn from_current() -> &'static FrameWalker {
+    /// # Safety
+    ///
+    /// Only valid on the current stack.
+    pub unsafe fn from_current() -> &'static FrameWalker {
         let mut frame_ptr: *mut FrameWalker;
         unsafe {
             asm!(
@@ -24,6 +28,13 @@ impl FrameWalker {
         }
 
         unsafe { &*frame_ptr }
+    }
+
+    pub fn from_context(context: &ThreadContext) -> Self {
+        FrameWalker {
+            rbp: context.rbp as *mut FrameWalker,
+            rip: context.instruction_pointer,
+        }
     }
 
     pub fn valid(&self) -> bool {
@@ -52,8 +63,18 @@ pub struct StackTrace(Box<[StackFrame]>);
 impl StackTrace {
     /// Capture the stacktrace of the current thread
     pub fn capture() -> Self {
+        let walker = unsafe { FrameWalker::from_current() };
+        Self::capture_from_walker(walker)
+    }
+
+    /// Capture the stacktrace from a given thread context
+    pub fn capture_from_context(context: &ThreadContext) -> Self {
+        let walker = FrameWalker::from_context(context);
+        Self::capture_from_walker(&walker)
+    }
+
+    fn capture_from_walker(mut walker: &FrameWalker) -> Self {
         let mut frames = Vec::new();
-        let mut walker = FrameWalker::from_current();
 
         while walker.valid() {
             // RIP points to the following instruction.
@@ -67,8 +88,6 @@ impl StackTrace {
 
         Self(frames.into_boxed_slice())
     }
-
-    // TODO: capture from thread context (thread in error state)
 
     /// Iterate over frames
     pub fn iter(&self) -> core::slice::Iter<'_, StackFrame> {

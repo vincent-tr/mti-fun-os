@@ -157,6 +157,7 @@ impl Thread {
 
         ThreadRuntime::get().add_thread(ThreadRuntimeData::new(
             obj.tid(),
+            obj.clone(),
             stack_reservation,
             tls_reservation,
         ));
@@ -514,8 +515,12 @@ impl ThreadRuntime {
             }
 
             if let ThreadEventType::Error = event.r#type {
-                let thread = Thread::open(event.tid).expect("Could not open thread in error");
-                let supervisor = ThreadSupervisor::new(&thread);
+                let data = data.lock();
+                let thread_data = data
+                    .get(&event.tid)
+                    .expect("Thread in error but not found in runtime data");
+
+                let supervisor = ThreadSupervisor::new(&thread_data.handle);
                 let error = supervisor.error_info().expect("Could not get error info");
 
                 // Panic on thread error so that the whole process is terminated.
@@ -528,14 +533,21 @@ impl ThreadRuntime {
 #[derive(Debug)]
 struct ThreadRuntimeData {
     tid: u64,
+    handle: Thread,
     stack_reservation: Range<usize>,
     tls_reservation: Range<usize>,
 }
 
 impl ThreadRuntimeData {
-    pub fn new(tid: u64, stack_reservation: Range<usize>, tls_reservation: Range<usize>) -> Self {
+    pub fn new(
+        tid: u64,
+        handle: Thread,
+        stack_reservation: Range<usize>,
+        tls_reservation: Range<usize>,
+    ) -> Self {
         Self {
             tid,
+            handle,
             stack_reservation,
             tls_reservation,
         }

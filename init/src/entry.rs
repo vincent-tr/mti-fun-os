@@ -31,7 +31,7 @@ extern "C" fn entry(init_info_ptr: usize) -> ! {
 
     let init_info = unsafe { &*(init_info_ptr as *const syscalls::init::InitInfo) };
 
-    apply_memory_protections(init_info.init_mapping.mapping_size);
+    apply_memory_protections(init_info.init_mapping.size);
 
     let info = unsafe { load_init_info(init_info) };
 

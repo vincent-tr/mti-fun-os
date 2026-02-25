@@ -36,7 +36,7 @@ boot.cpio: init-build process-server-build time-server-build vfs-server-build me
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/memfs-server $$TMPDIR/servers/memfs-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/display-server $$TMPDIR/servers/display-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/archivefs-server; \
-	cd $$TMPDIR && find . -print -depth | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
+	cd $$TMPDIR && find . -depth -print | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
 	rm -rf $$TMPDIR
 	@echo "Boot archive created: target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio"
 

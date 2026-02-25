@@ -16,10 +16,10 @@ use alloc::vec::Vec;
 use log::info;
 use syscalls::{SyscallNumber, ThreadPriority, init};
 
-const INIT_BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
-const INIT_SIZE_OF_HEADERS: usize = PAGE_SIZE;
 const INFO_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x100000);
+const INIT_BASE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x200000);
 const ARCHIVE_ADDRESS: VirtAddr = VirtAddr::new_truncate(0x1000000);
+const INIT_SIZE_OF_HEADERS: usize = PAGE_SIZE;
 
 pub fn setup(context: SyscallArgs) {
     let ramdisk = context.arg1()..context.arg2();

@@ -79,6 +79,39 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     info!("Current time: {}", time::get_wall_time());
 
+    let process = process::Process::spawn(
+        "vfs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/vfs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn vfs server");
+
+    let _ = process;
+    wait_port(vfs::iface::PORT_NAME);
+
+    let process = process::Process::spawn(
+        "memfs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/memfs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn memfs server");
+
+    let _ = process;
+    wait_port("memfs-server");
+
+    let process = process::Process::spawn(
+        "archivefs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/archivefs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn archivefs server");
+
+    let _ = process;
+    //wait_port("archivefs-server");
+
     // TODO: move in archive
     let process = process::Process::spawn(
         "display-server",
@@ -124,39 +157,6 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     let _ = process;
     //wait_port(display::iface::PORT_NAME);
-
-    let process = process::Process::spawn(
-        "vfs-server",
-        ipc::Buffer::new_local(archive_find(archive, "servers/vfs-server")),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn vfs server");
-
-    let _ = process;
-    wait_port(vfs::iface::PORT_NAME);
-
-    let process = process::Process::spawn(
-        "memfs-server",
-        ipc::Buffer::new_local(archive_find(archive, "servers/memfs-server")),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn memfs server");
-
-    let _ = process;
-    wait_port("memfs-server");
-
-    let process = process::Process::spawn(
-        "archivefs-server",
-        ipc::Buffer::new_local(archive_find(archive, "servers/archivefs-server")),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn archivefs server");
-
-    let _ = process;
-    //wait_port("archivefs-server");
 }
 
 fn setup_initial_filesystem() {

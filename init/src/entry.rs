@@ -1,11 +1,7 @@
-use core::{arch::naked_asm, hint::unreachable_unchecked, mem::size_of, ops::Range};
+use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range};
 
 use crate::{main, offsets};
-use alloc::boxed::Box;
-use libruntime::{
-    kobject::{self, PAGE_SIZE, Permissions, ThreadOptions},
-    memory::align_up,
-};
+use libruntime::kobject::{self, PAGE_SIZE, Permissions, ThreadOptions};
 use log::debug;
 
 // Special init start: need to setup its own stack
@@ -33,12 +29,10 @@ extern "C" fn entry(init_info_ptr: usize) -> ! {
 
     apply_memory_protections(init_info.init_mapping.size);
 
-    let info = unsafe { load_init_info(init_info) };
-
     // Jump to a safer thread, with better stack
     let mut options = ThreadOptions::default();
     options.name("main");
-    kobject::Thread::start(|| main(info), options).expect("Could not start main thread");
+    kobject::Thread::start(|| main(init_info), options).expect("Could not start main thread");
 
     libsyscalls::thread::exit().expect("Failed to exit thread");
     unsafe { unreachable_unchecked() };
@@ -87,25 +81,4 @@ fn apply_memory_protections(binary_len: usize) {
             range.len()
         );
     }
-}
-
-/// Safety: do not use reference to init info after this, as the memory used by the kernel to pass it will be released.
-unsafe fn load_init_info(init_info: &syscalls::init::InitInfo) -> Box<syscalls::init::InitInfo> {
-    let data = Box::new(init_info.clone());
-
-    // Release the memory used by the kernel to pass the init info, as we have copied it
-    let addr = init_info as *const syscalls::init::InitInfo as usize;
-    assert!(addr % PAGE_SIZE == 0);
-    let size = align_up(size_of::<syscalls::init::InitInfo>(), PAGE_SIZE);
-
-    unsafe {
-        kobject::Mapping::unleak(
-            kobject::Process::current(),
-            addr..addr + size,
-            Permissions::READ,
-        )
-    }
-    .leak();
-
-    data
 }

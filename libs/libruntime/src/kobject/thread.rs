@@ -1,10 +1,12 @@
-use core::{hint::unreachable_unchecked, mem, ops::Range};
+use core::{fmt, hint::unreachable_unchecked, mem, ops::Range};
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use lazy_static::lazy_static;
 use libsyscalls::{Handle, HandleType, thread};
 use log::debug;
 use spin::Mutex;
+
+use crate::debug::StackTrace;
 
 use super::{tls::TLS_SIZE, *};
 
@@ -157,6 +159,7 @@ impl Thread {
 
         ThreadRuntime::get().add_thread(ThreadRuntimeData::new(
             obj.tid(),
+            obj.clone(),
             stack_reservation,
             tls_reservation,
         ));
@@ -493,49 +496,138 @@ impl ThreadRuntime {
 
             let event = listener.receive().expect("could not read listener");
 
-            if let ThreadEventType::Terminated = event.r#type {
-                // Thread terminated. Can reclaim its stack/TLS
-                // Note that if the thread has been remotely created, we have no info on this
-                let mut data = data.lock();
-
-                if let Some(item) = data.remove(&event.tid) {
-                    debug!(
-                        "Dropping tid={}: stack reservation=[0x{:016X} - 0x{:016X}], TLSreservation=[0x{:016X} - 0x{:016X}]",
-                        event.tid,
-                        item.stack_reservation.start,
-                        item.stack_reservation.end,
-                        item.tls_reservation.start,
-                        item.tls_reservation.end
-                    );
-
-                    // Explicit
-                    mem::drop(item);
-                }
-            }
-
-            if let ThreadEventType::Error = event.r#type {
-                let thread = Thread::open(event.tid).expect("Could not open thread in error");
-                let supervisor = ThreadSupervisor::new(&thread);
-                let error = supervisor.error_info().expect("Could not get error info");
-
-                // Panic on thread error so that the whole process is terminated.
-                panic!("Thread {} is in error: {:?}", event.tid, error);
+            match event.r#type {
+                ThreadEventType::Terminated => Self::thread_terminated(event.tid, &data),
+                ThreadEventType::Error => Self::thread_error(event.tid, &data),
+                _ => {}
             }
         }
+    }
+
+    fn thread_terminated(tid: u64, data: &Mutex<BTreeMap<u64, ThreadRuntimeData>>) {
+        // Thread terminated. Can reclaim its stack/TLS
+        // Note that if the thread has been remotely created, we have no info on this
+        let mut data = data.lock();
+
+        if let Some(item) = data.remove(&tid) {
+            debug!(
+                "Dropping tid={}: stack reservation=[0x{:016X} - 0x{:016X}], TLSreservation=[0x{:016X} - 0x{:016X}]",
+                tid,
+                item.stack_reservation.start,
+                item.stack_reservation.end,
+                item.tls_reservation.start,
+                item.tls_reservation.end
+            );
+
+            // Explicit
+            mem::drop(item);
+        }
+    }
+
+    fn thread_error(tid: u64, data: &Mutex<BTreeMap<u64, ThreadRuntimeData>>) -> ! {
+        use alloc::fmt::Write;
+
+        let data = data.lock();
+        let thread_data = data.get(&tid).expect(&format!(
+            "Thread in error but not found in runtime data (tid={})",
+            tid
+        ));
+
+        let supervisor = ThreadSupervisor::new(&thread_data.handle);
+        let error = supervisor.error_info().expect("Could not get error info");
+        let context = supervisor.context().expect("Could not get thread context");
+
+        let mut msg = String::new();
+
+        writeln!(&mut msg, "Thread {} error", tid,).unwrap();
+
+        writeln!(&mut msg, "\n----------\n").unwrap();
+
+        writeln!(&mut msg, "{}", ExceptionFormatter(&error)).unwrap();
+
+        writeln!(&mut msg, "\nRegisters:").unwrap();
+        writeln!(
+            &mut msg,
+            "  rax: {:#018x}  rbx: {:#018x}  rcx: {:#018x}  rdx: {:#018x}",
+            context.rax, context.rbx, context.rcx, context.rdx
+        )
+        .unwrap();
+        writeln!(
+            &mut msg,
+            "  rsi: {:#018x}  rdi: {:#018x}  rbp: {:#018x}  rsp: {:#018x}",
+            context.rsi, context.rdi, context.rbp, context.rsp
+        )
+        .unwrap();
+        writeln!(
+            &mut msg,
+            "  r8:  {:#018x}  r9:  {:#018x}  r10: {:#018x}  r11: {:#018x}",
+            context.r8, context.r9, context.r10, context.r11
+        )
+        .unwrap();
+        writeln!(
+            &mut msg,
+            "  r12: {:#018x}  r13: {:#018x}  r14: {:#018x}  r15: {:#018x}",
+            context.r12, context.r13, context.r14, context.r15
+        )
+        .unwrap();
+        writeln!(
+            &mut msg,
+            "  rip: {:#018x}  flags: {:#018x}  tls: {:#018x}",
+            context.instruction_pointer, context.cpu_flags, context.tls
+        )
+        .unwrap();
+
+        writeln!(
+            &mut msg,
+            "\nStack bounds: [{:#018x} - {:#018x}] (size: {} bytes)",
+            thread_data.stack_reservation.start,
+            thread_data.stack_reservation.end,
+            thread_data.stack_reservation.end - thread_data.stack_reservation.start
+        )
+        .unwrap();
+
+        let stacktrace = StackTrace::capture_from_context(&context);
+        writeln!(&mut msg, "\nStacktrace:").unwrap();
+
+        for frame in stacktrace.iter() {
+            if let Some(info) = frame.location() {
+                writeln!(
+                    &mut msg,
+                    "  at {} +{}",
+                    info.function_name(),
+                    info.function_offset()
+                )
+                .unwrap();
+            } else {
+                writeln!(&mut msg, "  at 0x{0:016X}", frame.address()).unwrap();
+            }
+        }
+
+        writeln!(&mut msg, "\n----------\n").unwrap();
+
+        // Panic on thread error so that the whole process is terminated.
+        panic!("{}", msg);
     }
 }
 
 #[derive(Debug)]
 struct ThreadRuntimeData {
     tid: u64,
+    handle: Thread,
     stack_reservation: Range<usize>,
     tls_reservation: Range<usize>,
 }
 
 impl ThreadRuntimeData {
-    pub fn new(tid: u64, stack_reservation: Range<usize>, tls_reservation: Range<usize>) -> Self {
+    pub fn new(
+        tid: u64,
+        handle: Thread,
+        stack_reservation: Range<usize>,
+        tls_reservation: Range<usize>,
+    ) -> Self {
         Self {
             tid,
+            handle,
             stack_reservation,
             tls_reservation,
         }
@@ -552,5 +644,85 @@ impl Drop for ThreadRuntimeData {
         process
             .unmap(&self.tls_reservation)
             .expect(&format!("Could not free tls for thread {}", self.tid));
+    }
+}
+
+/// Format an exception with detailed human-readable information
+struct ExceptionFormatter<'a>(&'a Exception);
+
+impl<'a> fmt::Display for ExceptionFormatter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Exception::DivideError => write!(f, "Divide by zero error"),
+            Exception::Debug => write!(f, "Debug exception"),
+            Exception::NonMaskableInterrupt => write!(f, "Non-maskable interrupt"),
+            Exception::Breakpoint => write!(f, "Breakpoint"),
+            Exception::Overflow => write!(f, "Overflow"),
+            Exception::BoundRangeExceeded => write!(f, "Bound range exceeded"),
+            Exception::InvalidOpcode => write!(f, "Invalid opcode"),
+            Exception::DeviceNotAvailable => write!(f, "Device not available"),
+            Exception::DoubleFault => write!(f, "Double fault"),
+            Exception::InvalidTSS => write!(f, "Invalid TSS"),
+            Exception::SegmentNotPresent(code) => {
+                write!(f, "Segment not present (error code: {:#x})", code)
+            }
+            Exception::StackSegmentFault(code) => {
+                write!(f, "Stack segment fault (error code: {:#x})", code)
+            }
+            Exception::GeneralProtectionFault(code) => {
+                write!(f, "General protection fault (error code: {:#x})", code)
+            }
+            Exception::PageFault(error_code, address) => {
+                write!(f, "Page fault at address {:#x}: ", address)?;
+
+                // Decode error code bits
+                let present = (*error_code & 0x1) != 0;
+                let write = (*error_code & 0x2) != 0;
+                let user = (*error_code & 0x4) != 0;
+                let malformed_table = (*error_code & 0x8) != 0;
+                let instruction = (*error_code & 0x10) != 0;
+
+                if present {
+                    write!(f, "protection violation")?;
+                } else {
+                    write!(f, "page not present")?;
+                }
+
+                if write {
+                    write!(f, " during write")?;
+                } else if instruction {
+                    write!(f, " during instruction fetch")?;
+                } else {
+                    write!(f, " during read")?;
+                }
+
+                if user {
+                    write!(f, " in user mode")?;
+                } else {
+                    write!(f, " in supervisor mode")?;
+                }
+
+                if malformed_table {
+                    write!(f, " (malformed table)")?;
+                }
+
+                write!(f, " (error code: {:#x})", error_code)
+            }
+            Exception::X87FloatingPoint => write!(f, "x87 floating point exception"),
+            Exception::AlignmentCheck => write!(f, "Alignment check"),
+            Exception::MachineCheck => write!(f, "Machine check"),
+            Exception::SimdFloatingPoint => write!(f, "SIMD floating point exception"),
+            Exception::Virtualization => write!(f, "Virtualization exception"),
+            Exception::CpProtectionException(code) => {
+                write!(f, "Control protection exception (error code: {:#x})", code)
+            }
+            Exception::HvInjectionException => write!(f, "Hypervisor injection exception"),
+            Exception::VmmCommunicationException(code) => {
+                write!(f, "VMM communication exception (error code: {:#x})", code)
+            }
+            Exception::SecurityException(code) => {
+                write!(f, "Security exception (error code: {:#x})", code)
+            }
+        }
     }
 }

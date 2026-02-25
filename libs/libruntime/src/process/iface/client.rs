@@ -23,6 +23,37 @@ impl Client {
         }
     }
 
+    /// call ipc Bootstrap
+    pub fn bootstrap(
+        &self,
+        init_binary: &[u8],
+        process_server_binary: &[u8],
+    ) -> Result<(), ProcessServerCallError> {
+        let (init_binary_memobj, init_binary_buffer) =
+            ipc::Buffer::new_local(init_binary).into_shared();
+        let (process_server_binary_memobj, process_server_binary_buffer) =
+            ipc::Buffer::new_local(process_server_binary).into_shared();
+
+        let query = messages::BootstrapQueryParameters {
+            init_binary: init_binary_buffer,
+            process_server_binary: process_server_binary_buffer,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::BootstrapQueryParameters::HANDLE_INIT_BINARY_MOBJ] =
+            init_binary_memobj.into_handle();
+        query_handles[messages::BootstrapQueryParameters::HANDLE_PROCESS_SERVER_BINARY_MOBJ] =
+            process_server_binary_memobj.into_handle();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::BootstrapQueryParameters, messages::BootstrapReply, messages::ProcessServerError>(
+            messages::Type::Bootstrap,
+            query,
+            query_handles,
+        )?;
+
+        Ok(())
+    }
+
     /// call ipc GetStartupInfo
     pub fn get_startup_info(&self) -> Result<StartupInfo, ProcessServerCallError> {
         let query = messages::GetStartupInfoQueryParameters {};

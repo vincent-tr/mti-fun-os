@@ -3,9 +3,15 @@
 ## Setup
 
 ```shell
+# qemu
 pacman -S extra/qemu-base # archlinux
 sudo apt install qemu-system-x86 # ubuntu
+# toolchain
 rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+# cpio image tools
+pacman -S cpio
+# screenshot tools
+pacman -S socat magick # archlinux
 ```
 
 ## Build image

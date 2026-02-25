@@ -31,7 +31,7 @@ use alloc::boxed::Box;
 use bootloader_api::{
     BootInfo, BootloaderConfig, config::Mapping, entry_point, info::FrameBufferInfo,
 };
-use core::{ops::Range, panic::PanicInfo};
+use core::panic::PanicInfo;
 use log::{error, info};
 use syscalls::SyscallNumber;
 use x86_64::{
@@ -97,7 +97,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     interrupts::init_userland();
     user::init();
 
-    let init_info = build_init_info(&ramdisk, fb_info, fb_addr);
+    let init_info = build_init_info(fb_info, fb_addr);
 
     interrupts::syscall_switch(
         SyscallNumber::InitSetup as usize,
@@ -110,11 +110,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     );
 }
 
-fn build_init_info(
-    ramdisk: &Range<usize>,
-    fb_info: FrameBufferInfo,
-    fb_addr: PhysAddr,
-) -> Box<syscalls::init::InitInfo> {
+fn build_init_info(fb_info: FrameBufferInfo, fb_addr: PhysAddr) -> Box<syscalls::init::InitInfo> {
     let pixel_format = match fb_info.pixel_format {
         bootloader_api::info::PixelFormat::Rgb => syscalls::init::PixelFormat {
             // little endian, so red is in the least significant byte
@@ -141,9 +137,11 @@ fn build_init_info(
     };
 
     Box::new(syscalls::init::InitInfo {
-        init_mapping: syscalls::init::InitMapping {
-            mapping_size: ramdisk.len(),
-        },
+        // uninitialized for now,
+        info_mapping: Default::default(),
+        init_mapping: Default::default(),
+        archive_mapping: Default::default(),
+        //
         framebuffer: syscalls::init::Framebuffer {
             address: fb_addr.as_u64() as usize,
             byte_len: fb_info.byte_len,

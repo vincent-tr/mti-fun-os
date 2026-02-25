@@ -7,6 +7,7 @@ edition = "2024"
 bit_field = { workspace = true }
 bitflags = { workspace = true }
 bootloader_api = { workspace = true }
+cpio_reader = { workspace = true }
 hashbrown = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }

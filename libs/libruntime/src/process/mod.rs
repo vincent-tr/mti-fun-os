@@ -360,3 +360,14 @@ fn block_to_vec(block: &KVBlock) -> Vec<(String, String)> {
 
     entries
 }
+
+/// Initializes the process server by registering the init and idle processes, and itself.
+///
+/// # Safety
+///
+/// Reserved for init, should not be used by other processes.
+pub unsafe fn initialize_process_server(init_binary: &[u8], process_server_binary: &[u8]) {
+    CLIENT
+        .bootstrap(init_binary, process_server_binary)
+        .expect("failed to bootstrap process server");
+}

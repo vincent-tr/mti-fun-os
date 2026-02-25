@@ -4,7 +4,6 @@
 
 extern crate alloc;
 
-mod archive;
 mod entry;
 mod idle;
 mod loader;
@@ -12,12 +11,14 @@ mod offsets;
 mod state_server;
 mod tests;
 
+use core::slice;
+
 use alloc::{boxed::Box, format};
 use libruntime::{ipc, kobject, process, state, time, vfs};
 use log::{debug, info};
 
-fn main(info: Box<syscalls::init::InitInfo>) {
-    debug!("Init info: {:#?}", info);
+fn main(info: &syscalls::init::InitInfo) {
+    debug!("Init info: {:?}", info);
 
     idle::create_idle_process().expect("Could not create idle process");
 
@@ -45,15 +46,29 @@ fn main(info: Box<syscalls::init::InitInfo>) {
 }
 
 fn start_servers(info: &syscalls::init::InitInfo) {
+    let archive = unsafe {
+        slice::from_raw_parts(
+            info.archive_mapping.address as *const u8,
+            info.archive_mapping.size,
+        )
+    };
+
     state_server::start();
     wait_port(state::iface::PORT_NAME);
 
-    loader::load("process-server", archive::PROCESS_SERVER).expect("Could not load process server");
+    let init_binary = archive_find(archive, "init");
+    let process_server_binary = archive_find(archive, "servers/process-server");
+    loader::load("process-server", process_server_binary).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);
+
+    // Initialize process server
+    unsafe { process::initialize_process_server(init_binary, process_server_binary) };
+    // Initialize our own process stuff
+    process::SelfProcess::get();
 
     let process = process::Process::spawn(
         "time-server",
-        ipc::Buffer::new_local(archive::TIME_SERVER),
+        ipc::Buffer::new_local(archive_find(archive, "servers/time-server")),
         &[],
         &[],
     )
@@ -64,10 +79,43 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     info!("Current time: {}", time::get_wall_time());
 
+    let process = process::Process::spawn(
+        "vfs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/vfs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn vfs server");
+
+    let _ = process;
+    wait_port(vfs::iface::PORT_NAME);
+
+    let process = process::Process::spawn(
+        "memfs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/memfs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn memfs server");
+
+    let _ = process;
+    wait_port("memfs-server");
+
+    let process = process::Process::spawn(
+        "archivefs-server",
+        ipc::Buffer::new_local(archive_find(archive, "servers/archivefs-server")),
+        &[],
+        &[],
+    )
+    .expect("Could not spawn archivefs server");
+
+    let _ = process;
+    //wait_port("archivefs-server");
+
     // TODO: move in archive
     let process = process::Process::spawn(
         "display-server",
-        ipc::Buffer::new_local(archive::DISPLAY_SERVER),
+        ipc::Buffer::new_local(archive_find(archive, "servers/display-server")),
         &[],
         &[
             (
@@ -109,39 +157,6 @@ fn start_servers(info: &syscalls::init::InitInfo) {
 
     let _ = process;
     //wait_port(display::iface::PORT_NAME);
-
-    let process = process::Process::spawn(
-        "vfs-server",
-        ipc::Buffer::new_local(archive::VFS_SERVER),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn vfs server");
-
-    let _ = process;
-    wait_port(vfs::iface::PORT_NAME);
-
-    let process = process::Process::spawn(
-        "memfs-server",
-        ipc::Buffer::new_local(archive::MEMFS_SERVER),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn memfs server");
-
-    let _ = process;
-    wait_port("memfs-server");
-
-    let process = process::Process::spawn(
-        "archivefs-server",
-        ipc::Buffer::new_local(archive::ARCHIVEFS_SERVER),
-        &[],
-        &[],
-    )
-    .expect("Could not spawn archivefs server");
-
-    let _ = process;
-    //wait_port("archivefs-server");
 }
 
 fn setup_initial_filesystem() {
@@ -165,6 +180,17 @@ fn setup_initial_filesystem() {
             mount.fs_port_name, mount.mount_point
         );
     }
+}
+
+/// Find a file in the archive, and return its content as a byte slice.
+fn archive_find<'a>(archive: &'a [u8], name: &str) -> &'a [u8] {
+    for entry in cpio_reader::iter_files(archive) {
+        if entry.name() == name {
+            return entry.file();
+        }
+    }
+
+    panic!("Could not find '{}' in archive", name);
 }
 
 /// Wait for a server port to be available

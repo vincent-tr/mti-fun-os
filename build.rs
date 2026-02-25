@@ -21,12 +21,11 @@ fn main() {
 
     let base_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let profile =
-        std::env::var("MTI_FUN_OS_INIT_PROFILE").expect("MTI_FUN_OS_INIT_PROFILE not set");
-    let target = std::env::var("MTI_FUN_OS_INIT_TARGET").expect("MTI_FUN_OS_INIT_TARGET not set");
+        std::env::var("MTI_FUN_OS_KERNEL_PROFILE").expect("MTI_FUN_OS_KERNEL_PROFILE not set");
 
-    let init = PathBuf::from(format!("{base_dir}/target/{target}/{profile}/init"));
+    let archive = PathBuf::from(format!("{base_dir}/target/{profile}/boot.cpio"));
 
-    println!("cargo:rerun-if-changed={}", init.display());
+    println!("cargo:rerun-if-changed={}", archive.display());
 
     let mut config = bootloader::BootConfig::default();
     config.frame_buffer.minimum_framebuffer_width = Some(1280);
@@ -35,7 +34,7 @@ fn main() {
     // create an UEFI disk image (optional)
     let uefi_path = out_dir.join("uefi.img");
     bootloader::UefiBoot::new(&kernel)
-        .set_ramdisk(&init)
+        .set_ramdisk(&archive)
         .set_boot_config(&config)
         .create_disk_image(&uefi_path)
         .unwrap();
@@ -43,7 +42,7 @@ fn main() {
     // create a BIOS disk image
     let bios_path = out_dir.join("bios.img");
     bootloader::BiosBoot::new(&kernel)
-        .set_ramdisk(&init)
+        .set_ramdisk(&archive)
         .set_boot_config(&config)
         .create_disk_image(&bios_path)
         .unwrap();

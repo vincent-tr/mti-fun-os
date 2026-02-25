@@ -18,6 +18,13 @@ pub trait ProcessServer {
 
     fn process_terminated(&self, _pid: u64) {}
 
+    fn bootstrap(
+        &self,
+        sender_id: u64,
+        init_binary: &[u8],
+        process_server_binary: &[u8],
+    ) -> Result<(), Self::Error>;
+
     fn get_startup_info(&self, sender_id: u64) -> Result<StartupInfo, Self::Error>;
 
     fn update_name(&self, sender_id: u64, new_name: &str) -> Result<(), Self::Error>;
@@ -90,6 +97,7 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
         );
         let builder = builder.with_process_exit_handler(Self::process_terminated_handler);
 
+        let builder = builder.with_handler(messages::Type::Bootstrap, Self::bootstrap_handler);
         let builder = builder.with_handler(
             messages::Type::GetStartupInfo,
             Self::get_startup_info_handler,
@@ -138,6 +146,41 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
 
     fn process_terminated_handler(&self, pid: u64) {
         self.inner.process_terminated(pid);
+    }
+
+    fn bootstrap_handler(
+        &self,
+        query: messages::BootstrapQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::BootstrapReply, ipc::KHandles), ProcessServerError> {
+        let init_binary_view = {
+            let handle =
+                query_handles.take(messages::BootstrapQueryParameters::HANDLE_INIT_BINARY_MOBJ);
+            ipc::BufferView::new(handle, &query.init_binary, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create init binary buffer reader")?
+        };
+
+        let process_server_binary_view = {
+            let handle = query_handles
+                .take(messages::BootstrapQueryParameters::HANDLE_PROCESS_SERVER_BINARY_MOBJ);
+            ipc::BufferView::new(
+                handle,
+                &query.process_server_binary,
+                ipc::BufferViewAccess::ReadOnly,
+            )
+            .invalid_arg("Failed to create process server binary buffer reader")?
+        };
+
+        self.inner
+            .bootstrap(
+                sender_id,
+                init_binary_view.buffer(),
+                process_server_binary_view.buffer(),
+            )
+            .map_err(Into::into)?;
+
+        Ok((messages::BootstrapReply {}, ipc::KHandles::new()))
     }
 
     fn get_startup_info_handler(

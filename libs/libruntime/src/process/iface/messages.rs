@@ -12,8 +12,11 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
+    /// Special message for process-server init
+    Bootstrap = 1,
+
     /// Messages for self process management
-    GetStartupInfo = 1,
+    GetStartupInfo,
     UpdateName,
     UpdateEnv,
     SetExitCode,
@@ -73,6 +76,24 @@ impl fmt::Display for ProcessServerError {
         }
     }
 }
+
+/// Parameters for the Bootstrap message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BootstrapQueryParameters {
+    pub init_binary: Buffer,
+    pub process_server_binary: Buffer,
+}
+
+impl BootstrapQueryParameters {
+    pub const HANDLE_INIT_BINARY_MOBJ: usize = 1;
+    pub const HANDLE_PROCESS_SERVER_BINARY_MOBJ: usize = 2;
+}
+
+/// Reply for the Bootstrap message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BootstrapReply {}
 
 /// Parameters for the GetStartupInfo message.
 #[derive(Debug, Clone, Copy)]

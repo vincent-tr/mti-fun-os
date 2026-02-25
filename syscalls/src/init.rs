@@ -2,19 +2,28 @@
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct InitInfo {
-    /// Information about the mapping of the init process binary.
-    pub init_mapping: InitMapping,
+    /// Information about the mapping of the init info structure itself.
+    pub info_mapping: Mapping,
+
+    /// Information about the mapping of the init process binary, used for init to complete its own mapping.
+    pub init_mapping: Mapping,
+
+    /// Information about the mapping of the archive containing the servers used for bootstrapping the system.
+    pub archive_mapping: Mapping,
 
     /// Information about the framebuffer.
     pub framebuffer: Framebuffer,
 }
 
-/// Information about the mapping of the init process binary, used for init to complete its own mapping.
-#[derive(Debug, Clone)]
+/// Information about a mapping area.
+#[derive(Debug, Clone, Default)]
 #[repr(C)]
-pub struct InitMapping {
-    /// Len of the actually mapped area, which is the size of the binary rounded up to page size.
-    pub mapping_size: usize,
+pub struct Mapping {
+    /// The virtual address of the mapping.
+    pub address: usize,
+
+    /// The size of the mapping in bytes.
+    pub size: usize,
 }
 
 /// Information about the framebuffer, used for init to setup its own framebuffer mapping and provide framebuffer info to userland.

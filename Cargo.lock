@@ -477,6 +477,7 @@ name = "init"
 version = "0.1.0"
 dependencies = [
  "bit_field",
+ "cpio_reader",
  "hashbrown 0.15.2",
  "lazy_static",
  "libc",

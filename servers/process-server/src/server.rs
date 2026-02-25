@@ -15,6 +15,7 @@ use lazy_static::lazy_static;
 use libruntime::{
     ipc,
     kobject::{self, KObject},
+    memory::AlignedBuffer,
     process::{
         self,
         iface::{
@@ -162,7 +163,8 @@ impl ProcessServer for Server {
 
         info!("Creating process {}", name);
 
-        let loader = Loader::new(binary)?;
+        let aligned_binary = AlignedBuffer::from_slice(binary, Loader::ALIGNMENT);
+        let loader = Loader::new(aligned_binary.as_slice())?;
 
         let symbols = {
             let symbols = loader.get_symbols().unwrap_or_else(|e| {
@@ -460,10 +462,13 @@ impl Server {
         );
 
         let symbols = {
-            let symbols = Loader::new(binary)?.get_symbols().unwrap_or_else(|e| {
-                warn!("Failed to load symbols for process init: {}", e);
-                BTreeMap::new()
-            });
+            let aligned_binary = AlignedBuffer::from_slice(binary, Loader::ALIGNMENT);
+            let symbols = Loader::new(aligned_binary.as_slice())?
+                .get_symbols()
+                .unwrap_or_else(|e| {
+                    warn!("Failed to load symbols for process init: {}", e);
+                    BTreeMap::new()
+                });
 
             SymBlock::build(&symbols)
         };
@@ -524,10 +529,13 @@ impl Server {
             kobject::Thread::open_self().runtime_err("Failed to open self main thread")?;
 
         let symbols = {
-            let symbols = Loader::new(binary)?.get_symbols().unwrap_or_else(|e| {
-                warn!("Failed to load symbols for process process-server: {}", e);
-                BTreeMap::new()
-            });
+            let aligned_binary = AlignedBuffer::from_slice(binary, Loader::ALIGNMENT);
+            let symbols = Loader::new(aligned_binary.as_slice())?
+                .get_symbols()
+                .unwrap_or_else(|e| {
+                    warn!("Failed to load symbols for process process-server: {}", e);
+                    BTreeMap::new()
+                });
 
             SymBlock::build(&symbols)
         };

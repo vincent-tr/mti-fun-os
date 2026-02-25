@@ -13,6 +13,9 @@ pub struct Loader<'a> {
 }
 
 impl<'a> Loader<'a> {
+    /// Required alignment for using data.
+    pub const ALIGNMENT: usize = 8;
+
     /// Create a new loader from the given binary data, and validate it
     pub fn new(binary: &'a [u8]) -> Result<Self, ProcessServerError> {
         let loader = Loader {

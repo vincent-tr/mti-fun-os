@@ -79,6 +79,8 @@ impl ProcessServer for Server {
             let entry = move || {
                 // run process init
                 process::SelfProcess::get();
+
+                debug!("Process init completed");
             };
 
             kobject::Thread::start(entry, options).expect("failed to start process-init thread");

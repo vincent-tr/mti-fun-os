@@ -32,7 +32,7 @@ pub fn create(
     arg: usize,
     tls: VirtAddr,
 ) -> Arc<Thread> {
-    let thread = THREADS.create(
+    THREADS.create(
         name,
         process,
         privileged,
@@ -41,12 +41,7 @@ pub fn create(
         stack_top,
         arg,
         tls,
-    );
-
-    assert!(thread.state().is_ready());
-    SCHEDULER.add(thread.clone());
-
-    thread
+    )
 }
 
 pub fn find(tid: u64) -> Option<Arc<Thread>> {
@@ -158,7 +153,7 @@ pub fn thread_terminate(thread: &Arc<Thread>) {
                 wait_queue.remove(&thread);
             }
         }
-        ThreadState::Error(_) => {
+        ThreadState::Created | ThreadState::Error(_) => {
             // Nothing to do, thread is already in no queue
         }
         ThreadState::Terminated => {
@@ -196,7 +191,7 @@ pub fn thread_error(error: Exception) {
 
 /// Resume the given errored thread
 pub fn thread_resume(thread: &Arc<Thread>) {
-    assert!(thread.state().is_error().is_some());
+    assert!(thread.state().is_created() | thread.state().is_error().is_some());
 
     // Set it ready
     update_state(&thread, ThreadState::Ready);

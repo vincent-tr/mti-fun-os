@@ -68,6 +68,7 @@ pub struct ThreadOptions<'a> {
     stack_size: usize,
     priority: ThreadPriority,
     privileged: bool,
+    suspended: bool,
 }
 
 impl Default for ThreadOptions<'_> {
@@ -78,6 +79,7 @@ impl Default for ThreadOptions<'_> {
             stack_size: STACK_SIZE,
             priority: ThreadPriority::Normal,
             privileged: false,
+            suspended: false,
         }
     }
 }
@@ -116,11 +118,17 @@ impl<'a> ThreadOptions<'a> {
         self.privileged = value;
         self
     }
+
+    /// Set if the thread starts in a suspended state
+    pub fn suspended(&mut self, value: bool) -> &mut Self {
+        self.suspended = value;
+        self
+    }
 }
 
 impl Thread {
-    /// Start a new thread
-    pub fn start<Entry: FnOnce() + 'static>(
+    /// Create a new thread
+    pub fn create<Entry: FnOnce() + 'static>(
         entry: Entry,
         options: ThreadOptions,
     ) -> Result<Self, Error> {
@@ -136,6 +144,7 @@ impl Thread {
             options.name,
             unsafe { Process::current().handle() },
             options.privileged,
+            true,
             options.priority,
             Self::thread_entry,
             stack_top_addr,
@@ -163,6 +172,11 @@ impl Thread {
             stack_reservation,
             tls_reservation,
         ));
+
+        // Now that all is ready, we can start the thread if needed
+        if !options.suspended {
+            obj.resume().expect("Could not resume thread");
+        }
 
         Ok(obj)
     }
@@ -305,11 +319,22 @@ impl Thread {
         }
     }
 
+    /// Resume the thread
+    ///
+    /// This can be called for 2 reasons:
+    /// - the thread was created in suspended state
+    /// - the thread is in error state and we want to resume it
+    pub fn resume(&self) -> Result<(), Error> {
+        thread::resume(&self.handle)?;
+
+        Ok(())
+    }
+
     /// Kill the target thread
     ///
     /// # Safety
     /// - the objects on the local stack won't be dropped. The stack memory will be freed without executing destructors
-    /// - the TLS objects won't be dropped. The TLS slots memory of the thread will be freed without executing descrutors
+    /// - the TLS objects won't be dropped. The TLS slots memory of the thread will be freed without executing destructors
     pub unsafe fn kill(&self) -> Result<(), Error> {
         thread::kill(&self.handle)?;
 
@@ -389,7 +414,7 @@ impl<'a> ThreadSupervisor<'a> {
 
     /// When the thread is in error state, resume it
     pub fn resume(&self) -> Result<(), Error> {
-        thread::resume(unsafe { &self.target.handle() })?;
+        self.target.resume()?;
 
         Ok(())
     }
@@ -457,7 +482,7 @@ impl ThreadRuntime {
 
         let entry = move || Self::worker(exit_receiver, data);
 
-        Thread::start(entry, options).expect("Could not start thread");
+        Thread::create(entry, options).expect("Could not start thread");
     }
 
     /// Exit the GC thread

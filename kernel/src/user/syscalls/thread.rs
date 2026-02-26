@@ -11,7 +11,7 @@ use crate::{
     user::{
         Error,
         error::{check_arg, check_found, check_is_userspace, invalid_argument},
-        thread::{self, thread_resume},
+        thread,
     },
 };
 
@@ -101,6 +101,10 @@ pub async fn create(context: Context) -> Result<(), Error> {
         check_is_userspace(VirtAddr::new(params.tls as u64))?,
     );
 
+    if !params.suspended {
+        thread::thread_resume(&new_thread);
+    }
+
     let handle = process.handles().open_thread(new_thread);
 
     handle_out.set(handle);
@@ -158,6 +162,7 @@ pub async fn info(context: Context) -> Result<(), Error> {
 
     // Convert kernel state into syscall state
     let state = match *target_thread.state() {
+        thread::ThreadState::Created => ThreadState::Created,
         thread::ThreadState::Executing => ThreadState::Executing,
         thread::ThreadState::Ready => ThreadState::Ready,
         thread::ThreadState::Waiting(_) => ThreadState::Waiting,
@@ -321,9 +326,9 @@ pub async fn resume(context: Context) -> Result<(), Error> {
 
     let target_thread = process.handles().get_thread(thread_handle.into())?;
 
-    check_arg(target_thread.state().is_error().is_some())?;
+    check_arg(target_thread.state().is_created() | target_thread.state().is_error().is_some())?;
 
-    thread_resume(&target_thread);
+    thread::thread_resume(&target_thread);
 
     Ok(())
 }

@@ -128,7 +128,7 @@ impl Thread {
             process,
             privileged,
             priority: AtomicU64::new(priority as u64),
-            state: RwLock::new(ThreadState::Ready), // a thread is ready by default
+            state: RwLock::new(ThreadState::Created),
             context: Mutex::new(ThreadContext::new(thread_start, stack_top, arg, tls)),
             syscall: Mutex::new(None),
             ticks: AtomicUsize::new(0),
@@ -221,7 +221,10 @@ impl Thread {
             match *state {
                 ThreadState::Executing => true,
                 ThreadState::Ready => false,
-                ThreadState::Waiting(_) | ThreadState::Error(_) | ThreadState::Terminated => {
+                ThreadState::Created
+                | ThreadState::Waiting(_)
+                | ThreadState::Error(_)
+                | ThreadState::Terminated => {
                     panic!("Bad thread state to exit syscall: {:?}", *state)
                 }
             }
@@ -292,6 +295,11 @@ impl Drop for Thread {
 /// State of a thread
 #[derive(Debug)]
 pub enum ThreadState {
+    /// The thread has been created but not yet started executing.
+    ///
+    /// It can be resumed to start executing
+    Created,
+
     /// The thread is currently executing.
     ///
     /// When in kernel mode, this is the one that is currently configured as current, and on the interrupt stack
@@ -399,6 +407,14 @@ impl From<Weak<WaitQueue>> for WaitQueueRef {
 }
 
 impl ThreadState {
+    pub fn is_created(&self) -> bool {
+        if let ThreadState::Created = self {
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn is_executing(&self) -> bool {
         if let ThreadState::Executing = self {
             true

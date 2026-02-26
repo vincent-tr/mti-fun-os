@@ -26,6 +26,7 @@ pub fn create_idle_process() -> Result<(), Error> {
         Some("idle"),
         unsafe { &process.handle() },
         true, // need privileged to run "hlt"
+        false,
         ThreadPriority::Idle,
         entry_point, // same vaddr in idle process
         0,           // no stack

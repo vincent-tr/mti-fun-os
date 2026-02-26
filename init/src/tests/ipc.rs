@@ -20,7 +20,7 @@ pub fn do_ipc() {
     let mut options = ThreadOptions::default();
     options.name("echo");
 
-    kobject::Thread::start(echo, options).expect("could not create echo thread");
+    kobject::Thread::create(echo, options).expect("could not create echo thread");
 
     let mut msg = unsafe { kobject::Message::new::<i32>(&42, KHandles::new().into()) };
     main_sender.send(&mut msg).expect("send failed");

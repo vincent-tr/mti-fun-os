@@ -136,7 +136,7 @@ fn create_process(
     // Init does setup its stack itself.
     let stack_top = VirtAddr::zero();
 
-    user::thread::create(
+    let thread = user::thread::create(
         Some("entry"),
         process.clone(),
         false,
@@ -146,6 +146,8 @@ fn create_process(
         arg,
         VirtAddr::zero(),
     );
+
+    user::thread::thread_resume(&thread);
 }
 
 fn mapping_info(address: VirtAddr, buffer: &[u8]) -> init::Mapping {

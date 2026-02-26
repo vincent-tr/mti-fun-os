@@ -83,7 +83,7 @@ impl ProcessServer for Server {
                 debug!("Process init completed");
             };
 
-            kobject::Thread::start(entry, options).expect("failed to start process-init thread");
+            kobject::Thread::create(entry, options).expect("failed to start process-init thread");
         }
 
         self.initialized.store(true, Ordering::SeqCst);
@@ -203,6 +203,7 @@ impl ProcessServer for Server {
             let thread_handle = libsyscalls::thread::create(
                 Some("main"),
                 unsafe { process.handle() },
+                false,
                 false,
                 kobject::ThreadPriority::Normal,
                 entry_point,

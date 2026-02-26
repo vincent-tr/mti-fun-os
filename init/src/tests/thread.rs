@@ -79,13 +79,13 @@ pub fn listen_threads() {
         let mut options = ThreadOptions::default();
         options.name("debugbreak");
         let thread_debugbreak =
-            kobject::Thread::start(debugbreak, options).expect("could not create thread");
+            kobject::Thread::create(debugbreak, options).expect("could not create thread");
 
         // Keep thread handle alive
         let mut options = ThreadOptions::default();
         options.name("pagefault");
         let thread_pagefault =
-            kobject::Thread::start(pagefault, options).expect("could not create thread");
+            kobject::Thread::create(pagefault, options).expect("could not create thread");
 
         debug!("debugbreak_tid = {}", thread_debugbreak.tid());
         debug!("pagefault_tid = {}", thread_pagefault.tid());
@@ -153,7 +153,7 @@ pub fn listen_threads() {
 
     let mut options = ThreadOptions::default();
     options.name("thread-listener");
-    kobject::Thread::start(listen, options).expect("Could not create listen thread");
+    kobject::Thread::create(listen, options).expect("Could not create listen thread");
 }
 
 /// Test timer with 1 second interval
@@ -171,4 +171,25 @@ pub fn interval_second() {
             .expect("failed to receive timer event");
         info!("tick armed at {}, fired at {}", now, msg.now);
     }
+}
+
+/// Test creating a thread in suspended state, and resuming it after some time
+#[allow(dead_code)]
+pub fn create_suspended() {
+    let mut options = kobject::ThreadOptions::default();
+    options.suspended(true);
+
+    let thread = kobject::Thread::create(
+        || {
+            debug!("Hello from thread thread!");
+        },
+        options,
+    )
+    .expect("Failed to create thread");
+    debug!("Thread created but suspended");
+
+    libruntime::time::sleep(libruntime::time::Duration::seconds(2));
+    thread.resume().expect("Could not resume thread");
+    libruntime::time::sleep(libruntime::time::Duration::seconds(2));
+    panic!("Thread test complete");
 }

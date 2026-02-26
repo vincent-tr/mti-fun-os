@@ -22,7 +22,7 @@ pub fn start() {
         ipc_server.run();
     };
 
-    kobject::Thread::start(entry, options).expect("failed to start state-server thread");
+    kobject::Thread::create(entry, options).expect("failed to start state-server thread");
 }
 
 /// The main server structure

@@ -32,7 +32,7 @@ extern "C" fn entry(init_info_ptr: usize) -> ! {
     // Jump to a safer thread, with better stack
     let mut options = ThreadOptions::default();
     options.name("main");
-    kobject::Thread::start(|| main(init_info), options).expect("Could not start main thread");
+    kobject::Thread::create(|| main(init_info), options).expect("Could not start main thread");
 
     libsyscalls::thread::exit().expect("Failed to exit thread");
     unsafe { unreachable_unchecked() };

@@ -110,6 +110,9 @@ tail -f serial.log
 
 - add guards hits to "page fault of interest" (+ auto grow of stack)
 - object-oriented TLS
+- thread-runtime:
+  - initially created thread by process-server (and by init for process server) are not registered in the thread runtime. We need to add main thread handle, tid, tls and stack info to GetStartupInfo, and enhance this init phase to init at the same time process AND thread
+  - threads are started in pause state, we can get the hande, fill the info, then we resume (start) it - OR - the worker thread of runtime should handle thread creation. This way event are always ordered, and only it handles updates to thread list
 
 ### servers
 

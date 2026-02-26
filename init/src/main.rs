@@ -24,6 +24,7 @@ fn main(info: &syscalls::init::InitInfo) {
 
     // tests::thread::dump_processes_threads();
     // tests::thread::listen_threads();
+    // tests::thread::create_suspended();
     // tests::ipc::do_ipc();
     // tests::basic::kmem_stats();
     // tests::basic::test_unwind();

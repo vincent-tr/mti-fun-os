@@ -54,7 +54,7 @@ pub fn test_futex() {
 
         let mut options = ThreadOptions::default();
         options.name("futex-waiter");
-        let _thread = kobject::Thread::start(waiter, options).expect("failed to start thread");
+        let _thread = kobject::Thread::create(waiter, options).expect("failed to start thread");
 
         // Wait for waiter to be ready
         ready_reader.blocking_receive().expect("receive failed");
@@ -115,7 +115,7 @@ pub fn test_futex() {
             let mut options = ThreadOptions::default();
             let name = alloc::format!("futex-waiter-{}", i);
             options.name(&name);
-            kobject::Thread::start(waiter, options).expect("failed to start thread");
+            kobject::Thread::create(waiter, options).expect("failed to start thread");
 
             ready_reader.blocking_receive().expect("receive failed");
         }
@@ -195,7 +195,7 @@ pub fn test_futex() {
 
         let mut options = ThreadOptions::default();
         options.name("futex-unmap-waiter");
-        let _thread = kobject::Thread::start(waiter, options).expect("failed to start thread");
+        let _thread = kobject::Thread::create(waiter, options).expect("failed to start thread");
 
         // Wait for waiter to be ready
         ready_reader.blocking_receive().expect("receive failed");
@@ -277,7 +277,7 @@ pub fn test_mutex() {
             let mut options = ThreadOptions::default();
             let name = alloc::format!("mutex-worker-{}", i);
             options.name(&name);
-            kobject::Thread::start(worker, options).expect("failed to start thread");
+            kobject::Thread::create(worker, options).expect("failed to start thread");
         }
 
         // Wait for all threads
@@ -313,7 +313,7 @@ pub fn test_mutex() {
 
         let mut options = ThreadOptions::default();
         options.name("mutex-sleeper");
-        kobject::Thread::start(worker, options).expect("failed to start thread");
+        kobject::Thread::create(worker, options).expect("failed to start thread");
 
         // Main thread also acquires lock
         for _ in 0..10 {
@@ -378,7 +378,7 @@ pub fn test_rwlock() {
             let mut options = ThreadOptions::default();
             let name = alloc::format!("reader-{}", i);
             options.name(&name);
-            kobject::Thread::start(reader, options).expect("failed to start thread");
+            kobject::Thread::create(reader, options).expect("failed to start thread");
         }
 
         // Wait for all readers
@@ -417,7 +417,7 @@ pub fn test_rwlock() {
 
         let mut options = ThreadOptions::default();
         options.name("reader");
-        kobject::Thread::start(reader, options).expect("failed to start thread");
+        kobject::Thread::create(reader, options).expect("failed to start thread");
 
         // Wait for reader to be ready
         ready_reader.blocking_receive().expect("receive failed");
@@ -456,7 +456,7 @@ pub fn test_rwlock() {
 
         let mut options = ThreadOptions::default();
         options.name("writer");
-        kobject::Thread::start(writer, options).expect("failed to start thread");
+        kobject::Thread::create(writer, options).expect("failed to start thread");
 
         // Start reader thread
         let lock_clone = Arc::clone(&lock);
@@ -473,7 +473,7 @@ pub fn test_rwlock() {
 
         let mut options = ThreadOptions::default();
         options.name("reader");
-        kobject::Thread::start(reader, options).expect("failed to start thread");
+        kobject::Thread::create(reader, options).expect("failed to start thread");
 
         // Wait for both
         done_reader.blocking_receive().expect("receive failed");

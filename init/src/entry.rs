@@ -23,7 +23,7 @@ pub unsafe extern "C" fn user_start() -> ! {
 }
 
 extern "C" fn entry(init_info_ptr: usize) -> ! {
-    libruntime::init();
+    unsafe { libruntime::init() };
 
     let init_info = unsafe { &*(init_info_ptr as *const syscalls::init::InitInfo) };
 

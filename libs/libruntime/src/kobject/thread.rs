@@ -12,6 +12,18 @@ use super::{tls::TLS_SIZE, *};
 
 pub const STACK_SIZE: usize = PAGE_SIZE * 20;
 
+pub(crate) unsafe fn init() {
+    unsafe {
+        ThreadRuntime::get().init();
+    }
+}
+
+pub unsafe fn exit() {
+    unsafe {
+        ThreadRuntime::get().exit();
+    }
+}
+
 /// Thread
 #[derive(Debug)]
 pub struct Thread {
@@ -469,8 +481,13 @@ impl ThreadRuntime {
         }
     }
 
-    /// Start the GC thread
-    pub fn init(&self) {
+    /// Intialize the thread runtime.
+    ///
+    /// # Safety
+    ///
+    /// - must be called only once, from the main thread. Calling it multiple times or from other threads may cause undefined behavior.
+    unsafe fn init(&self) {
+        // Start maintenance thread
         let (exit_receiver, exit_port) = Port::create(None).expect("Could not create port");
         *self.exit_port.lock() = Some(exit_port);
 
@@ -483,10 +500,26 @@ impl ThreadRuntime {
         let entry = move || Self::worker(exit_receiver, data);
 
         Thread::create(entry, options).expect("Could not start thread");
+
+        // Register self main thread (created by our creator)
+        let main_thread = Thread::open_self().expect("Could not open self thread");
+        let main_thread_data = ThreadRuntimeData::new(
+            main_thread.tid(),
+            main_thread,
+            // No stack or TLS to free for main thread, its exit will exit the whole process
+            0..0,
+            0..0,
+        );
+
+        self.add_thread(main_thread_data);
     }
 
-    /// Exit the GC thread
-    pub fn terminate(&self) {
+    /// Exit the thread runtime
+    ///
+    /// # Safety
+    ///
+    /// - must be called only once, from the main thread. Calling it multiple times or from other threads may cause undefined behavior.
+    unsafe fn exit(&self) {
         let mut message = Message::default();
         let mut exit_port = self.exit_port.lock();
 
@@ -663,12 +696,22 @@ impl Drop for ThreadRuntimeData {
     fn drop(&mut self) {
         let process = Process::current();
 
-        process
-            .unmap(&self.stack_reservation)
-            .expect(&format!("Could not free stack for thread {}", self.tid));
-        process
-            .unmap(&self.tls_reservation)
-            .expect(&format!("Could not free tls for thread {}", self.tid));
+        // Empty reservation can happen for remotely created threads, for which we have no info on stack/TLS
+        // This normally occur only on the main thread, since all other threads are created through our API, and the main thread exits, so it should not happen
+        //
+        // One notable case is the first init thread created by the kernel. It has no freeable stack (part of the binary image), and no TLS (since it's created before we init the TLS allocator).
+
+        if !self.stack_reservation.is_empty() {
+            process
+                .unmap(&self.stack_reservation)
+                .expect(&format!("Could not free stack for thread {}", self.tid));
+        }
+
+        if !self.tls_reservation.is_empty() {
+            process
+                .unmap(&self.tls_reservation)
+                .expect(&format!("Could not free tls for thread {}", self.tid));
+        }
     }
 }
 

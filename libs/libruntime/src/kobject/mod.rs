@@ -52,10 +52,14 @@ pub mod helpers {
     pub use super::tls::TLS_SIZE;
 }
 
-pub(crate) fn init() {
-    thread::ThreadRuntime::get().init();
+pub(crate) unsafe fn init() {
+    unsafe {
+        thread::init();
+    };
 }
 
-pub(crate) fn terminate() {
-    thread::ThreadRuntime::get().terminate();
+pub(crate) unsafe fn exit() {
+    unsafe {
+        thread::exit();
+    };
 }

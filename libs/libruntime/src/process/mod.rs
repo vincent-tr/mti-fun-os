@@ -3,7 +3,11 @@ pub mod iface;
 use alloc::{string::String, vec::Vec};
 use log::debug;
 
-use crate::{debug::init_symbols, ipc, kobject, sync::RwLock};
+use crate::{
+    debug::init_symbols,
+    ipc, kobject,
+    sync::{RwLock, spin::OnceLock},
+};
 
 use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification, SymBlock};
 
@@ -221,17 +225,18 @@ pub struct SelfProcess {
 }
 
 impl SelfProcess {
-    /// Get the current process
-    pub fn get() -> &'static Self {
-        lazy_static::lazy_static! {
-          static ref CURRENT: SelfProcess = SelfProcess::new();
-        }
+    fn cell() -> &'static OnceLock<SelfProcess> {
+        static INSTANCE: OnceLock<SelfProcess> = OnceLock::new();
 
-        &CURRENT
+        &INSTANCE
     }
 
-    /// Create a new SelfProcess instance, with data fetched from the process server.
-    fn new() -> Self {
+    /// Get the current process
+    pub fn get() -> &'static Self {
+        Self::cell().get().expect("process not initialized")
+    }
+
+    fn init() {
         let startup_info = CLIENT
             .get_startup_info()
             .expect("failed to get startup info");
@@ -239,12 +244,16 @@ impl SelfProcess {
         // Init the global symbol information for debugging
         init_symbols(startup_info.symbols.clone());
 
-        Self {
+        let instance = Self {
             name: RwLock::new(startup_info.name),
             env: RwLock::new(startup_info.env),
             args: startup_info.args,
             symbols: startup_info.symbols,
-        }
+        };
+
+        Self::cell()
+            .set(instance)
+            .expect("process already initialized");
     }
 
     /// Get the process name
@@ -370,4 +379,14 @@ pub unsafe fn initialize_process_server(init_binary: &[u8], process_server_binar
     CLIENT
         .bootstrap(init_binary, process_server_binary)
         .expect("failed to bootstrap process server");
+}
+
+/// Initializes the process subsystem for the current process, allowing to use the Process API.
+///
+/// # Safety
+///
+/// Reserved for initialization code, should not be used by other parts of the process.
+pub unsafe fn init() {
+    // Force process init so that we get the symbols (for panic)
+    SelfProcess::init();
 }

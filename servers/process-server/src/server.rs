@@ -78,8 +78,9 @@ impl ProcessServer for Server {
 
             let entry = move || {
                 // run process init
-                process::SelfProcess::get();
-
+                unsafe {
+                    process::init();
+                }
                 debug!("Process init completed");
             };
 

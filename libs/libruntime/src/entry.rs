@@ -12,19 +12,10 @@ extern "C" fn _start(_arg: usize) -> ! {
     // Note: the entry thread is not registered in the thread GC.
     // When this thread exits, the process will exit.
 
-    init();
-
-    // Force process init so that we get the symbols (for panic)
-    #[cfg(feature = "init-process")]
-    init_process();
+    unsafe { init() };
 
     let exit_code = unsafe { main() };
     process::SelfProcess::get().set_exit_code(exit_code);
 
-    exit();
-}
-
-#[cfg(feature = "init-process")]
-fn init_process() {
-    process::SelfProcess::get();
+    unsafe { exit() };
 }

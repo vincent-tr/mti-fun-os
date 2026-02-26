@@ -62,10 +62,13 @@ fn start_servers(info: &syscalls::init::InitInfo) {
     loader::load("process-server", process_server_binary).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);
 
-    // Initialize process server
-    unsafe { process::initialize_process_server(init_binary, process_server_binary) };
-    // Initialize our own process stuff
-    process::SelfProcess::get();
+    unsafe {
+        // Initialize process server
+        process::initialize_process_server(init_binary, process_server_binary);
+
+        // Initialize our own process stuff
+        process::init();
+    }
 
     let process = process::Process::spawn(
         "time-server",

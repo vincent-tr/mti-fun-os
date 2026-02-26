@@ -25,24 +25,29 @@ pub mod sync;
 pub mod time;
 pub mod vfs;
 
-pub fn init() {
+pub unsafe fn init() {
     logging::init();
     debug!("init");
 
-    kobject::init();
-
-    // run global constructors
     unsafe {
+        // run global constructors
         let init_array = make_array(&__init_array_start, &__init_array_end);
         for constructor in init_array {
             constructor();
         }
+
+        kobject::init();
+
+        #[cfg(feature = "init-process")]
+        process::init();
     }
 }
 
-pub fn exit() -> ! {
+pub unsafe fn exit() -> ! {
     // run global destructors
     unsafe {
+        kobject::exit();
+
         let fini_array = make_array(&__fini_array_start, &__fini_array_end);
         for destructor in fini_array.iter().rev() {
             destructor();
@@ -50,8 +55,6 @@ pub fn exit() -> ! {
     }
 
     debug!("exit");
-    kobject::terminate();
-
     libsyscalls::process::exit().expect("Could not exit process");
     unsafe { unreachable_unchecked() };
 }

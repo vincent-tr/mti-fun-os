@@ -77,6 +77,9 @@ checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 name = "archivefs-server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "hashbrown 0.15.2",
+ "lazy_static",
  "libruntime",
  "log",
 ]

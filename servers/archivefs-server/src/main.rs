@@ -1,16 +1,22 @@
 #![no_std]
 #![no_main]
 
-use log::info;
-
 extern crate alloc;
 extern crate libruntime;
 
+mod instance;
+mod server;
+mod state;
+
+use libruntime::vfs::fs::iface::build_ipc_server;
+
+use crate::server::Server;
+
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
-    info!("ArchiveFS server started");
+    let server = Server::new();
+    let ipc_server = build_ipc_server(server, "archivefs-server")
+        .expect("failed to build archivefs-server IPC server");
 
-    // TODO: Implement archivefs server logic
-
-    0
+    ipc_server.run()
 }

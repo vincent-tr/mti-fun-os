@@ -37,6 +37,7 @@ pub fn create(
     name: Option<&str>,
     process: &Handle,
     privileged: bool,
+    suspended: bool,
     priority: ThreadPriority,
     entry_point: extern "C" fn(usize) -> !,
     stack_top: usize,
@@ -49,6 +50,7 @@ pub fn create(
     let params = ThreadCreationParameters {
         process_handle: unsafe { process.as_syscall_value() } as u64,
         privileged,
+        suspended,
         priority,
         entry_point: entry_point as usize,
         stack_top,

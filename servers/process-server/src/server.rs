@@ -204,6 +204,7 @@ impl ProcessServer for Server {
                 Some("main"),
                 unsafe { process.handle() },
                 false,
+                false,
                 kobject::ThreadPriority::Normal,
                 entry_point,
                 stack_top_addr,

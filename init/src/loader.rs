@@ -51,6 +51,7 @@ pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
         Some("main"),
         unsafe { process.handle() },
         false,
+        false,
         kobject::ThreadPriority::Normal,
         entry_point,
         stack_top_addr,

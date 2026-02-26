@@ -136,6 +136,7 @@ impl Thread {
             options.name,
             unsafe { Process::current().handle() },
             options.privileged,
+            false,
             options.priority,
             Self::thread_entry,
             stack_top_addr,

@@ -7,6 +7,7 @@ use core::str;
 pub struct ThreadCreationParameters {
     pub process_handle: u64,
     pub privileged: bool,
+    pub suspended: bool,
     pub priority: ThreadPriority,
     pub entry_point: usize,
     pub stack_top: usize,
@@ -32,10 +33,15 @@ pub enum ThreadPriority {
 #[repr(u64)]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum ThreadState {
+    /// The thread has been created but not yet started executing.
+    ///
+    /// It can be resumed to start executing
+    Created = 1,
+
     /// The thread is currently executing.
     ///
     /// When in kernel mode, this is the one that is currently configured as current, and on the interrupt stack
-    Executing = 1,
+    Executing,
 
     /// This thread is ready to be scheduled
     Ready,

@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use core::hash::{Hash, Hasher};
 pub use cpio_reader::Mode;
 use libruntime::time::DateTime;
 
@@ -142,11 +143,22 @@ impl ArchiveString {
     }
 
     /// Returns the string slice corresponding to this archive string, allowing clients to access the name of the file or directory represented by this string.
-    ///
-    /// # Safety
-    /// - The provided archive must be the same archive from which this string was constructed.
-    pub unsafe fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         // Safety: the constructor has been passed a str, so the content of the buffer is valid UTF-8.
         unsafe { str::from_utf8_unchecked(self.0.as_slice()) }
     }
 }
+
+impl Hash for ArchiveString {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
+
+impl PartialEq for ArchiveString {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for ArchiveString {}

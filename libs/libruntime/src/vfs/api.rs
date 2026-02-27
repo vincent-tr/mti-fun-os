@@ -116,7 +116,7 @@ impl File {
     }
 
     /// Resizes the file to the new size.
-    pub fn resisze(&self, new_size: usize) -> Result<(), VfsServerCallError> {
+    pub fn resize(&self, new_size: usize) -> Result<(), VfsServerCallError> {
         CLIENT.resize(self.handle(), new_size)
     }
 }

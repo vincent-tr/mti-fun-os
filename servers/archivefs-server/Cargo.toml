@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-trait = { workspace = true }
+cpio_reader = { workspace = true }
 hashbrown = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }

@@ -24,6 +24,7 @@ members = [
   "servers/time-server",
   "servers/display-server",
   "servers/archivefs-server",
+  "servers/pci-server",
   "host-dynlinker",
 ]
 

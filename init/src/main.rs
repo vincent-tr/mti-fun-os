@@ -157,6 +157,11 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
 }
 
 fn start_extended_servers(info: &syscalls::init::InitInfo) {
+    let options = process::ProcessOptions::from_path("/mnt/archive/servers/pci-server")
+        .expect("Failed to load pci-server");
+    let process = process::Process::spawn(options).expect("Could not spawn pci server");
+    let _ = process;
+
     let mut options = process::ProcessOptions::from_path("/mnt/archive/servers/display-server")
         .expect("Failed to load file");
     options.set_arg(

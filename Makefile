@@ -8,7 +8,7 @@ export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
 export BUILD_ARGS := -Zjson-target-spec
 
-.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build boot.cpio clean screenshot
+.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build boot.cpio clean screenshot
 
 all: run
 
@@ -24,7 +24,7 @@ build: format image-build
 image-build: boot.cpio
 	cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
-boot.cpio: init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build
+boot.cpio: init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build
 	@echo "Creating boot.cpio archive..."
 	@TMPDIR=$$(mktemp -d); \
 	mkdir -p $$TMPDIR/servers; \
@@ -36,6 +36,7 @@ boot.cpio: init-build process-server-build time-server-build vfs-server-build me
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/memfs-server $$TMPDIR/servers/memfs-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/display-server $$TMPDIR/servers/display-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/archivefs-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/pci-server; \
 	cd $$TMPDIR && find . -depth -print | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
 	rm -rf $$TMPDIR
 	@echo "Boot archive created: target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio"
@@ -61,6 +62,9 @@ display-server-build:
 archivefs-server-build:
 	cd servers/archivefs-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
+pci-server-build:
+	cd servers/pci-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+
 clean:
 	cargo clean
 	cd init && cargo clean
@@ -69,6 +73,7 @@ clean:
 	cd servers/memfs-server && cargo clean
 	cd servers/display-server && cargo clean
 	cd servers/archivefs-server && cargo clean
+	cd servers/pci-server && cargo clean
 	rm -f target/*/boot.cpio
 
 screenshot:

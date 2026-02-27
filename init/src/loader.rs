@@ -1,7 +1,7 @@
 use core::{error::Error, fmt};
 use libruntime::{
     kobject::{self, KObject},
-    memory,
+    memory::{self, AlignedBuffer},
 };
 use log::debug;
 use xmas_elf::{ElfFile, header, program};
@@ -9,7 +9,10 @@ use xmas_elf::{ElfFile, header, program};
 // Very simple loader.
 // It only loads static binaries for now, with no checks
 pub fn load(name: &str, binary: &[u8]) -> Result<(), LoaderError> {
-    let elf_file = xmas_elf::ElfFile::new(binary)?;
+    // Use an aligned buffer so that we can safely read the ELF header and program headers without worrying about unaligned access
+    let buffer = AlignedBuffer::from_slice(binary, 8);
+
+    let elf_file = xmas_elf::ElfFile::new(buffer.as_slice())?;
 
     for program_header in elf_file.program_iter() {
         program::sanity_check(program_header, &elf_file)?;

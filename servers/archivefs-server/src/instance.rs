@@ -1,21 +1,22 @@
-use core::{
-    cmp::min,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use core::cmp::min;
 
 use alloc::{string::String, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     ipc::Handle,
-    time::{DateTime, get_wall_time},
+    time::DateTime,
     vfs::{
         fs::iface::FsServerError,
         iface::DirectoryEntry,
         types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
 };
+use log::{debug, error};
 
-use crate::state::State;
+use crate::{
+    archive::{Archive, ArchiveBuffer, ArchiveEntry, ArchiveString},
+    state::State,
+};
 
 /// Instance of a file system, representing a mounted file system with its own state and operations.
 #[derive(Debug)]
@@ -28,28 +29,65 @@ pub struct FsInstance {
 
     /// Mapping of open file handles to their corresponding NodeIds, allowing the file system to track which nodes are currently opened by clients.
     opened_nodes: HashMap<Handle, NodeId>,
-
-    /// Atomic counter for generating unique NodeIds for new nodes created in the file system. This ensures that each node has a distinct identifier.
-    id_generator: AtomicU64,
 }
 
 impl FsInstance {
     /// Creates a new instance of the file system with an empty root directory.
-    pub fn new(args: &[u8]) -> Self {
+    pub fn new(args: &[u8]) -> Result<Self, FsServerError> {
+        // Copy the buffer into archive
+        let archive = Archive::new(args);
+
+        let mut names = HashMap::new();
+        let mut inodes = HashMap::new();
+
+        for entry in archive.iter_entries() {
+            if names.insert(entry.name().clone(), entry.clone()).is_some() {
+                error!("Duplicate file name in archive: '{}'", entry.name());
+                return Err(FsServerError::InvalidArgument);
+            }
+
+            if inodes.insert(entry.inode(), entry.clone()).is_some() {
+                error!(
+                    "Duplicate inode in archive: '{}' (hardlinks not supported)",
+                    entry.inode()
+                );
+                return Err(FsServerError::InvalidArgument);
+            }
+
+            if !entry.mode().contains(cpio_reader::Mode::DIRECTORY)
+                && !entry.mode().contains(cpio_reader::Mode::REGULAR_FILE)
+                && !entry.mode().contains(cpio_reader::Mode::SYMBOLIK_LINK)
+            {
+                error!(
+                    "Unsupported file type in archive for '{}': mode=0o{:o}",
+                    entry.name(),
+                    entry.mode().bits()
+                );
+                return Err(FsServerError::InvalidArgument);
+            }
+
+            debug!(
+                "Found file: name='{}', ino={}, mode=0o{:o}, mtime={}",
+                entry.name(),
+                entry.inode(),
+                entry.mode().bits(),
+                entry.mtime(),
+            );
+        }
+
         let mut instance = Self {
             nodes: HashMap::new(),
             root: None,
             opened_nodes: HashMap::new(),
-            id_generator: AtomicU64::new(1),
         };
-
-        let root = instance.new_node(
-            NodeKind::new_directory(),
-            Permissions::READ | Permissions::EXECUTE | Permissions::WRITE,
-        );
-        instance.root = Some(root);
-
-        instance
+        /*
+                let root = instance.new_node(
+                    NodeKind::new_directory(),
+                    Permissions::READ | Permissions::EXECUTE | Permissions::WRITE,
+                );
+                instance.root = Some(root);
+        */
+        Ok(instance)
     }
 
     /// Retrieves the NodeId of the root directory of the file system.
@@ -73,6 +111,8 @@ impl FsInstance {
             .get(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
+        let created = node.created.into();
+
         Ok(Metadata {
             r#type: node.kind.r#type(),
             permissions: node.perms,
@@ -81,8 +121,8 @@ impl FsInstance {
                 .get_file_data()
                 .map(|data| data.len())
                 .unwrap_or(0),
-            created: node.created.into(),
-            modified: node.modified.into(),
+            created,
+            modified: created, // Since the archive is read-only, we can use the same timestamp for created and modified
         })
     }
 
@@ -104,19 +144,14 @@ impl FsInstance {
         let handle = Self::new_handle();
         self.opened_nodes.insert(handle, node_id);
 
-        self.link_node(node_id);
-
         Ok(handle)
     }
 
     /// Closes an open file handle, removing it from the tracking map of opened nodes.
     pub fn close_file(&mut self, handle: Handle) -> Result<(), FsServerError> {
-        let node_id = self
-            .opened_nodes
+        self.opened_nodes
             .remove(&handle)
             .ok_or(FsServerError::InvalidArgument)?;
-
-        self.unlink_node(node_id);
 
         Ok(())
     }
@@ -168,19 +203,14 @@ impl FsInstance {
         let handle = Self::new_handle();
         self.opened_nodes.insert(handle, node_id);
 
-        self.link_node(node_id);
-
         Ok(handle)
     }
 
     /// Closes an open directory handle, removing it from the tracking map of opened nodes.
     pub fn close_dir(&mut self, handle: Handle) -> Result<(), FsServerError> {
-        let node_id = self
-            .opened_nodes
+        self.opened_nodes
             .remove(&handle)
             .ok_or(FsServerError::InvalidArgument)?;
-
-        self.unlink_node(node_id);
 
         Ok(())
     }
@@ -206,7 +236,7 @@ impl FsInstance {
         let dentries = entries
             .iter()
             .map(|(name, &node_id)| DirectoryEntry {
-                name: name.clone(),
+                name: String::from(name),
                 r#type: self
                     .nodes
                     .get(&node_id)
@@ -233,59 +263,10 @@ impl FsInstance {
         Ok(String::from(target))
     }
 
-    fn new_node(&mut self, kind: NodeKind, perms: Permissions) -> NodeId {
-        let id = self.id_generator.fetch_add(1, Ordering::SeqCst);
-        let node_id = NodeId::from(id);
-        let now = get_wall_time();
-
-        self.nodes.insert(
-            node_id,
-            Node {
-                kind,
-                perms,
-                link_count: 1,
-                created: now,
-                modified: now,
-            },
-        );
-
-        node_id
-    }
-
-    fn link_node(&mut self, node_id: NodeId) {
-        let node = self.nodes.get_mut(&node_id).expect("Node should exist");
-        node.link_count += 1;
-    }
-
-    fn unlink_node(&mut self, node_id: NodeId) {
-        let node = self.nodes.get_mut(&node_id).expect("Node should exist");
-
-        assert!(node.link_count > 0, "Link count should never be negative");
-        node.link_count -= 1;
-
-        if node.link_count > 0 {
-            return;
-        }
-
-        let removed_node = self.nodes.remove(&node_id).expect("Failed to remove node");
-
-        // if that's a directory, collect all its children and unlink them as well
-        if let Some(entries) = removed_node.kind.get_directory_entries() {
-            for (_, &child_id) in entries {
-                self.unlink_node(child_id);
-            }
-        }
-    }
-
-    fn node_updated(&mut self, node_id: NodeId) {
-        let node = self.nodes.get_mut(&node_id).expect("Node not found");
-        node.modified = get_wall_time();
-    }
-
     fn get_parent_entries(
         &self,
         node_id: NodeId,
-    ) -> Result<&HashMap<String, NodeId>, FsServerError> {
+    ) -> Result<&HashMap<ArchiveString, NodeId>, FsServerError> {
         let parent_node = self
             .nodes
             .get(&node_id)
@@ -294,21 +275,6 @@ impl FsInstance {
         parent_node
             .kind
             .get_directory_entries()
-            .ok_or(FsServerError::NodeBadType)
-    }
-
-    fn get_parent_entries_mut(
-        &mut self,
-        node_id: NodeId,
-    ) -> Result<&mut HashMap<String, NodeId>, FsServerError> {
-        let parent_node = self
-            .nodes
-            .get_mut(&node_id)
-            .ok_or(FsServerError::NodeNotFound)?;
-
-        parent_node
-            .kind
-            .get_directory_entries_mut()
             .ok_or(FsServerError::NodeBadType)
     }
 
@@ -326,34 +292,25 @@ struct Node {
     /// Permissions of the node, which determine who can read, write, or execute it.
     perms: Permissions,
 
-    /// Number of hard links to this node. If this count drops to zero, the node can be deleted from the file system.
-    link_count: usize,
-
     /// Creation time of the node.
     created: DateTime,
-
-    /// Last modification time of the node.
-    modified: DateTime,
 }
 
 /// Kind of a node in the file system, which can be a file, directory, or symbolic link, along with its specific data.
 #[derive(Debug)]
 enum NodeKind {
-    File { data: Vec<u8> },
-    Directory { entries: HashMap<String, NodeId> },
-    Symlink { target: String },
+    File {
+        data: ArchiveBuffer,
+    },
+    Directory {
+        entries: HashMap<ArchiveString, NodeId>,
+    },
+    Symlink {
+        target: ArchiveString,
+    },
 }
 
 impl NodeKind {
-    /// Creates a new NodeKind based on the given NodeType.
-    pub fn new(r#type: NodeType) -> Self {
-        match r#type {
-            NodeType::File => Self::new_file(),
-            NodeType::Directory => Self::new_directory(),
-            NodeType::Symlink => panic!("Symlink creation requires a target path"),
-        }
-    }
-
     /// Returns the NodeType corresponding to this NodeKind.
     pub fn r#type(&self) -> NodeType {
         match self {
@@ -364,19 +321,17 @@ impl NodeKind {
     }
 
     /// Creates a new directory node with the given entries.
-    pub fn new_file() -> Self {
-        NodeKind::File { data: Vec::new() }
+    pub fn new_file(data: ArchiveBuffer) -> Self {
+        NodeKind::File { data }
     }
 
     /// Creates a new directory node with the given entries.
-    pub fn new_directory() -> Self {
-        NodeKind::Directory {
-            entries: HashMap::new(),
-        }
+    pub fn new_directory(entries: HashMap<ArchiveString, NodeId>) -> Self {
+        NodeKind::Directory { entries }
     }
 
     /// Creates a new symbolic link node with the given target path.
-    pub fn new_symlink(target: String) -> Self {
+    pub fn new_symlink(target: ArchiveString) -> Self {
         NodeKind::Symlink { target }
     }
 
@@ -393,32 +348,14 @@ impl NodeKind {
     /// If this node is a file, returns a reference to its data. Otherwise, returns `None`.
     pub fn get_file_data(&self) -> Option<&[u8]> {
         if let NodeKind::File { data } = self {
-            Some(data)
-        } else {
-            None
-        }
-    }
-
-    /// If this node is a file, returns a mutable reference to its data. Otherwise, returns `None`.
-    pub fn get_file_data_mut(&mut self) -> Option<&mut Vec<u8>> {
-        if let NodeKind::File { data } = self {
-            Some(data)
+            Some(data.as_slice())
         } else {
             None
         }
     }
 
     /// If this node is a directory, returns a reference to its entries. Otherwise, returns `None`.
-    pub fn get_directory_entries(&self) -> Option<&HashMap<String, NodeId>> {
-        if let NodeKind::Directory { entries } = self {
-            Some(entries)
-        } else {
-            None
-        }
-    }
-
-    /// If this node is a directory, returns a mutable reference to its entries. Otherwise, returns `None`.
-    pub fn get_directory_entries_mut(&mut self) -> Option<&mut HashMap<String, NodeId>> {
+    pub fn get_directory_entries(&self) -> Option<&HashMap<ArchiveString, NodeId>> {
         if let NodeKind::Directory { entries } = self {
             Some(entries)
         } else {
@@ -429,7 +366,7 @@ impl NodeKind {
     /// If this node is a symbolic link, returns its target path. Otherwise, returns `None`.
     pub fn get_symlink_target(&self) -> Option<&str> {
         if let NodeKind::Symlink { target } = self {
-            Some(target)
+            Some(target.as_str())
         } else {
             None
         }

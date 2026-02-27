@@ -213,7 +213,7 @@ impl FileSystem for Server {
     }
 
     async fn mount(&self, args: &[u8]) -> Result<(Handle, NodeId), Self::Error> {
-        let instance = Arc::new(RwLock::new(FsInstance::new(args)));
+        let instance = Arc::new(RwLock::new(FsInstance::new(args)?));
         let mount_handle = Self::new_handle();
         let root_node_id = instance.read().get_root();
 

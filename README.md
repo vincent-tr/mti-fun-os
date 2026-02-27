@@ -105,6 +105,7 @@ tail -f serial.log
 
 - multi-core
 - irq to userland
+- dma (physical contigous pages?)
 
 ### runtime
 
@@ -125,9 +126,6 @@ tail -f serial.log
     -> build PE + dllimport/dllexport ?
     -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
     - -C prefer dynamic
-- vfs
-  - archive fs
 - screen/graphics
-- find something simple to have kernel irq and kernel DMA
 - net
 

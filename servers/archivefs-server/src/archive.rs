@@ -1,5 +1,9 @@
-use alloc::sync::Arc;
-use core::hash::{Hash, Hasher};
+use alloc::{string::String, sync::Arc};
+use core::{
+    borrow::Borrow,
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+};
 pub use cpio_reader::Mode;
 use libruntime::time::DateTime;
 
@@ -146,6 +150,30 @@ impl ArchiveString {
     pub fn as_str(&self) -> &str {
         // Safety: the constructor has been passed a str, so the content of the buffer is valid UTF-8.
         unsafe { str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+}
+
+impl Borrow<str> for ArchiveString {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<ArchiveString> for String {
+    fn from(archive_string: ArchiveString) -> Self {
+        String::from(archive_string.as_str())
+    }
+}
+
+impl From<&ArchiveString> for String {
+    fn from(archive_string: &ArchiveString) -> Self {
+        String::from(archive_string.as_str())
+    }
+}
+
+impl Display for ArchiveString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 

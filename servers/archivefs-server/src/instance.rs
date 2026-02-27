@@ -37,20 +37,28 @@ impl FsInstance {
         // Copy the buffer into archive
         let archive = Archive::new(args);
 
+        let mut instance = Self {
+            nodes: HashMap::new(),
+            root: None,
+            opened_nodes: HashMap::new(),
+        };
+
         let mut names = HashMap::new();
-        let mut inodes = HashMap::new();
 
         for entry in archive.iter_entries() {
-            if names.insert(entry.name().clone(), entry.clone()).is_some() {
-                error!("Duplicate file name in archive: '{}'", entry.name());
+            let node_id = NodeId::from(entry.inode() as u64);
+            let node = Node::new(&entry)?;
+
+            if instance.nodes.insert(node_id, node).is_some() {
+                error!(
+                    "Duplicate inode in archive: '{:?}' (hardlinks not supported)",
+                    node_id
+                );
                 return Err(FsServerError::InvalidArgument);
             }
 
-            if inodes.insert(entry.inode(), entry.clone()).is_some() {
-                error!(
-                    "Duplicate inode in archive: '{}' (hardlinks not supported)",
-                    entry.inode()
-                );
+            if names.insert(entry.name().clone(), node_id).is_some() {
+                error!("Duplicate file name in archive: '{}'", entry.name());
                 return Err(FsServerError::InvalidArgument);
             }
 
@@ -75,11 +83,45 @@ impl FsInstance {
             );
         }
 
-        let mut instance = Self {
-            nodes: HashMap::new(),
-            root: None,
-            opened_nodes: HashMap::new(),
-        };
+        // We have all nodes created, now we can setup the directory entries
+        for (archive_name, &node_id) in &names {
+            let name = archive_name.as_str();
+
+            // root
+            if name == "." {
+                instance.root = Some(node_id);
+                continue;
+            }
+
+            // If there is no '/', the parent is the root directory
+            let (parent_path, node_name) = if let Some(index) = name.rfind('/') {
+                (
+                    &name[..index],
+                    archive_name.cloned_substr(index + 1..name.len()),
+                )
+            } else {
+                (".", archive_name.clone())
+            };
+
+            let parent_id = names.get(parent_path).copied().ok_or_else(|| {
+                error!(
+                    "Parent directory '{}' not found for entry '{}'",
+                    parent_path, name
+                );
+                FsServerError::InvalidArgument
+            })?;
+
+            let parent_node = instance.nodes.get_mut(&parent_id).ok_or_else(|| {
+                error!(
+                    "Parent node with id {:?} not found for entry '{}'",
+                    parent_id, name
+                );
+                FsServerError::InvalidArgument
+            })?;
+
+            parent_node.add_directory_entry(node_name, node_id)?;
+        }
+
         /*
                 let root = instance.new_node(
                     NodeKind::new_directory(),
@@ -341,6 +383,20 @@ impl Node {
         }
     }
 
+    /// During build, adds a child entry to this node if it is a directory. Returns an error if this node is not a directory.
+    pub fn add_directory_entry(
+        &mut self,
+        name: ArchiveString,
+        node_id: NodeId,
+    ) -> Result<(), FsServerError> {
+        if let NodeKind::Directory { entries } = &mut self.kind {
+            entries.insert(name, node_id);
+            Ok(())
+        } else {
+            Err(FsServerError::NodeBadType)
+        }
+    }
+
     /// If this node is a symbolic link, returns its target path. Otherwise, returns `None`.
     pub fn get_symlink_target(&self) -> Option<&str> {
         if let NodeKind::Symlink { target } = &self.kind {
@@ -380,6 +436,11 @@ impl NodeKind {
                 target: unsafe { ArchiveString::from_buffer(entry.content().clone()) },
             })
         } else {
+            error!(
+                "Unsupported file type in archive for '{}': mode=0o{:o}",
+                entry.name(),
+                entry.mode().bits()
+            );
             Err(FsServerError::InvalidArgument)
         }
     }

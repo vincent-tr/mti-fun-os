@@ -3,6 +3,7 @@ use core::{
     borrow::Borrow,
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
+    ops::Range,
 };
 pub use cpio_reader::Mode;
 use libruntime::time::DateTime;
@@ -24,11 +25,6 @@ impl Archive {
         }
     }
 
-    /// Returns a reference to the raw byte buffer of the archive, allowing clients to access the entire archive data if needed.
-    pub fn buffer(&self) -> &[u8] {
-        &self.buffer
-    }
-
     /// Returns an iterator over the entries in the archive, allowing clients to access each file's metadata and content.
     pub fn iter_entries(&self) -> impl Iterator<Item = ArchiveEntry> {
         cpio_reader::iter_files(&self.buffer).map(|entry| {
@@ -41,7 +37,6 @@ impl Archive {
 /// An archive entry represents a single file or directory in the archive, containing metadata such as the name, size, and type of the entry, as well as a reference to its content.
 #[derive(Debug, Clone)]
 pub struct ArchiveEntry {
-    buffer: Arc<[u8]>,
     name: ArchiveString,
     inode: u32,
     mode: Mode,
@@ -66,7 +61,6 @@ impl ArchiveEntry {
         };
 
         ArchiveEntry {
-            buffer,
             name,
             inode: entry.ino(),
             mode: entry.mode(),
@@ -167,6 +161,21 @@ impl ArchiveString {
     pub fn as_str(&self) -> &str {
         // Safety: the constructor has been passed a str, so the content of the buffer is valid UTF-8.
         unsafe { str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+
+    /// Returns a new `ArchiveString` that is a substring of this string, based on the given range of byte indices.
+    pub fn cloned_substr(&self, range: Range<usize>) -> ArchiveString {
+        assert!(range.start <= range.end);
+        assert!(range.end <= self.0.length);
+
+        let offset = self.0.offset + range.start;
+        let length = range.end - range.start;
+
+        ArchiveString(ArchiveBuffer {
+            buffer: self.0.buffer.clone(),
+            offset,
+            length,
+        })
     }
 }
 

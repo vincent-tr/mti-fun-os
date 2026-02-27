@@ -114,13 +114,9 @@ impl FsInstance {
         let created = node.created.into();
 
         Ok(Metadata {
-            r#type: node.kind.r#type(),
+            r#type: node.r#type(),
             permissions: node.perms,
-            size: node
-                .kind
-                .get_file_data()
-                .map(|data| data.len())
-                .unwrap_or(0),
+            size: node.get_file_data().map(|data| data.len()).unwrap_or(0),
             created,
             modified: created, // Since the archive is read-only, we can use the same timestamp for created and modified
         })
@@ -137,7 +133,7 @@ impl FsInstance {
             .get_mut(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
-        if !node.kind.is_file() {
+        if !node.is_file() {
             return Err(FsServerError::NodeBadType);
         }
 
@@ -174,10 +170,7 @@ impl FsInstance {
             .get(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
-        let data = node
-            .kind
-            .get_file_data()
-            .ok_or(FsServerError::NodeBadType)?;
+        let data = node.get_file_data().ok_or(FsServerError::NodeBadType)?;
 
         if offset >= data.len() {
             return Err(FsServerError::InvalidArgument);
@@ -196,7 +189,7 @@ impl FsInstance {
             .get_mut(&node_id)
             .ok_or(FsServerError::NodeNotFound)?;
 
-        if !node.kind.is_directory() {
+        if !node.is_directory() {
             return Err(FsServerError::NodeBadType);
         }
 
@@ -229,7 +222,6 @@ impl FsInstance {
             .ok_or(FsServerError::NodeNotFound)?;
 
         let entries = node
-            .kind
             .get_directory_entries()
             .ok_or(FsServerError::NodeBadType)?;
 
@@ -241,7 +233,6 @@ impl FsInstance {
                     .nodes
                     .get(&node_id)
                     .expect("Node should exist")
-                    .kind
                     .r#type(),
             })
             .collect();
@@ -256,7 +247,6 @@ impl FsInstance {
             .ok_or(FsServerError::NodeNotFound)?;
 
         let target = node
-            .kind
             .get_symlink_target()
             .ok_or(FsServerError::NodeBadType)?;
 
@@ -273,7 +263,6 @@ impl FsInstance {
             .ok_or(FsServerError::NodeNotFound)?;
 
         parent_node
-            .kind
             .get_directory_entries()
             .ok_or(FsServerError::NodeBadType)
     }
@@ -296,6 +285,72 @@ struct Node {
     created: DateTime,
 }
 
+impl Node {
+    /// Creates a new node from the given archive entry, extracting its type, permissions, and content to initialize the node's kind and metadata.
+    pub fn new(entry: &ArchiveEntry) -> Result<Self, FsServerError> {
+        let mut perms = Permissions::NONE;
+        if entry.mode().contains(cpio_reader::Mode::USER_READABLE) {
+            perms |= Permissions::READ;
+        }
+        if entry.mode().contains(cpio_reader::Mode::USER_EXECUTABLE) {
+            perms |= Permissions::EXECUTE;
+        }
+        // Note: ReadOnly archive -> no write permissions
+
+        Ok(Self {
+            kind: NodeKind::new(entry)?,
+            perms,
+            created: entry.mtime(),
+        })
+    }
+
+    /// Returns the NodeType corresponding to this NodeKind.
+    pub fn r#type(&self) -> NodeType {
+        match self.kind {
+            NodeKind::File { .. } => NodeType::File,
+            NodeKind::Directory { .. } => NodeType::Directory,
+            NodeKind::Symlink { .. } => NodeType::Symlink,
+        }
+    }
+
+    /// Checks if the node is a directory.
+    pub fn is_directory(&self) -> bool {
+        matches!(self.kind, NodeKind::Directory { .. })
+    }
+
+    /// Checks if the node is a file.
+    pub fn is_file(&self) -> bool {
+        matches!(self.kind, NodeKind::File { .. })
+    }
+
+    /// If this node is a file, returns a reference to its data. Otherwise, returns `None`.
+    pub fn get_file_data(&self) -> Option<&[u8]> {
+        if let NodeKind::File { data } = &self.kind {
+            Some(data.as_slice())
+        } else {
+            None
+        }
+    }
+
+    /// If this node is a directory, returns a reference to its entries. Otherwise, returns `None`.
+    pub fn get_directory_entries(&self) -> Option<&HashMap<ArchiveString, NodeId>> {
+        if let NodeKind::Directory { entries } = &self.kind {
+            Some(entries)
+        } else {
+            None
+        }
+    }
+
+    /// If this node is a symbolic link, returns its target path. Otherwise, returns `None`.
+    pub fn get_symlink_target(&self) -> Option<&str> {
+        if let NodeKind::Symlink { target } = &self.kind {
+            Some(target.as_str())
+        } else {
+            None
+        }
+    }
+}
+
 /// Kind of a node in the file system, which can be a file, directory, or symbolic link, along with its specific data.
 #[derive(Debug)]
 enum NodeKind {
@@ -311,64 +366,21 @@ enum NodeKind {
 }
 
 impl NodeKind {
-    /// Returns the NodeType corresponding to this NodeKind.
-    pub fn r#type(&self) -> NodeType {
-        match self {
-            NodeKind::File { .. } => NodeType::File,
-            NodeKind::Directory { .. } => NodeType::Directory,
-            NodeKind::Symlink { .. } => NodeType::Symlink,
-        }
-    }
-
-    /// Creates a new directory node with the given entries.
-    pub fn new_file(data: ArchiveBuffer) -> Self {
-        NodeKind::File { data }
-    }
-
-    /// Creates a new directory node with the given entries.
-    pub fn new_directory(entries: HashMap<ArchiveString, NodeId>) -> Self {
-        NodeKind::Directory { entries }
-    }
-
-    /// Creates a new symbolic link node with the given target path.
-    pub fn new_symlink(target: ArchiveString) -> Self {
-        NodeKind::Symlink { target }
-    }
-
-    /// Checks if the node is a directory.
-    pub fn is_directory(&self) -> bool {
-        matches!(self, NodeKind::Directory { .. })
-    }
-
-    /// Checks if the node is a file.
-    pub fn is_file(&self) -> bool {
-        matches!(self, NodeKind::File { .. })
-    }
-
-    /// If this node is a file, returns a reference to its data. Otherwise, returns `None`.
-    pub fn get_file_data(&self) -> Option<&[u8]> {
-        if let NodeKind::File { data } = self {
-            Some(data.as_slice())
+    pub fn new(entry: &ArchiveEntry) -> Result<Self, FsServerError> {
+        if entry.mode().contains(cpio_reader::Mode::DIRECTORY) {
+            Ok(NodeKind::Directory {
+                entries: HashMap::new(),
+            })
+        } else if entry.mode().contains(cpio_reader::Mode::REGULAR_FILE) {
+            Ok(NodeKind::File {
+                data: entry.content().clone(),
+            })
+        } else if entry.mode().contains(cpio_reader::Mode::SYMBOLIK_LINK) {
+            Ok(NodeKind::Symlink {
+                target: unsafe { ArchiveString::from_buffer(entry.content().clone()) },
+            })
         } else {
-            None
-        }
-    }
-
-    /// If this node is a directory, returns a reference to its entries. Otherwise, returns `None`.
-    pub fn get_directory_entries(&self) -> Option<&HashMap<ArchiveString, NodeId>> {
-        if let NodeKind::Directory { entries } = self {
-            Some(entries)
-        } else {
-            None
-        }
-    }
-
-    /// If this node is a symbolic link, returns its target path. Otherwise, returns `None`.
-    pub fn get_symlink_target(&self) -> Option<&str> {
-        if let NodeKind::Symlink { target } = self {
-            Some(target.as_str())
-        } else {
-            None
+            Err(FsServerError::InvalidArgument)
         }
     }
 }

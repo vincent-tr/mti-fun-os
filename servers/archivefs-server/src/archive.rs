@@ -46,7 +46,7 @@ pub struct ArchiveEntry {
     inode: u32,
     mode: Mode,
     mtime: DateTime,
-    content: Option<ArchiveBuffer>,
+    content: ArchiveBuffer,
 }
 
 impl ArchiveEntry {
@@ -60,9 +60,9 @@ impl ArchiveEntry {
             DateTime::from_unix_timestamp(entry.mtime() as i64).expect("Invalid unxi timestamp");
 
         let content = if entry.file().len() > 0 {
-            Some(unsafe { ArchiveBuffer::new(buffer.clone(), entry.file()) })
+            unsafe { ArchiveBuffer::new(buffer.clone(), entry.file()) }
         } else {
-            None
+            ArchiveBuffer::empty()
         };
 
         ArchiveEntry {
@@ -96,8 +96,8 @@ impl ArchiveEntry {
     }
 
     /// Returns the content of the archive entry as a byte slice, if it has any content (i.e., if it's a regular file).
-    pub fn content(&self) -> Option<&ArchiveBuffer> {
-        self.content.as_ref()
+    pub fn content(&self) -> &ArchiveBuffer {
+        &self.content
     }
 }
 
@@ -110,6 +110,15 @@ pub struct ArchiveBuffer {
 }
 
 impl ArchiveBuffer {
+    /// An empty `ArchiveBuffer` that can be used for entries with no content (e.g., directories).
+    pub fn empty() -> Self {
+        ArchiveBuffer {
+            buffer: Arc::new([]),
+            offset: 0,
+            length: 0,
+        }
+    }
+
     /// Constructs a new `ArchiveBuffer` from the given slice, calculating the offset and length based on the position of the slice within the archive's buffer.
     ///
     /// # Safety
@@ -138,6 +147,14 @@ impl ArchiveBuffer {
 pub struct ArchiveString(ArchiveBuffer);
 
 impl ArchiveString {
+    /// Constructs a new `ArchiveString` from the five `ArchiveBuffer`.
+    ///
+    /// # Safety
+    /// - The caller must ensure that the provided buffer contains valid UTF-8 data, as the resulting `ArchiveString` will be interpreted as a string slice.
+    pub unsafe fn from_buffer(buffer: ArchiveBuffer) -> Self {
+        ArchiveString(buffer)
+    }
+
     /// Constructs a new `ArchiveString` from the given slice, calculating the offset and length based on the position of the slice within the archive's buffer.
     ///
     /// # Safety

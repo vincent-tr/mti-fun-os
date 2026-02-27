@@ -1,6 +1,7 @@
 use super::handler::InterruptStack;
 use core::arch::naked_asm;
 use core::fmt;
+use core::sync::atomic::{Ordering, fence};
 use memoffset::offset_of;
 use x86_64::structures::gdt::SegmentSelector;
 
@@ -92,6 +93,7 @@ unsafe fn syscall_native_handler() {
 }
 
 unsafe extern "C" fn syscall_handler() {
+    fence(Ordering::Acquire);
     userland_timer_end();
 
     let stack = unsafe { InterruptStack::current() };
@@ -104,6 +106,7 @@ unsafe extern "C" fn syscall_handler() {
     thread_setup_sysret();
 
     userland_timer_begin();
+    fence(Ordering::Release);
 }
 
 /// Represent the context of a syscall

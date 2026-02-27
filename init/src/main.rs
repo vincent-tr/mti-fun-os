@@ -36,7 +36,7 @@ fn main(info: &syscalls::init::InitInfo) {
     // tests::sync::test_async_rwlock();
 
     start_servers(&info);
-    setup_initial_filesystem();
+    setup_initial_filesystem(&info);
 
     // tests::process::list_processes();
     // tests::vfs::test_vfs();
@@ -114,7 +114,7 @@ fn start_servers(info: &syscalls::init::InitInfo) {
     .expect("Could not spawn archivefs server");
 
     let _ = process;
-    //wait_port("archivefs-server");
+    wait_port("archivefs-server");
 
     // TODO: move in archive
     let process = process::Process::spawn(
@@ -163,17 +163,33 @@ fn start_servers(info: &syscalls::init::InitInfo) {
     //wait_port(display::iface::PORT_NAME);
 }
 
-fn setup_initial_filesystem() {
+fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
     debug!("Setting up initial filesystem...");
 
     let args = Box::new([0u8; 0]);
 
     vfs::mount("/", "memfs-server", args.as_slice()).expect("Could not mount memfs");
+
     vfs::Directory::create(
-        "/init",
+        "/mnt",
         vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE,
     )
-    .expect("Could not create /init directory");
+    .expect("Could not create /mnt directory");
+
+    vfs::Directory::create(
+        "/mnt/archive",
+        vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE,
+    )
+    .expect("Could not create /mnt/archive directory");
+
+    let args = unsafe {
+        slice::from_raw_parts(
+            info.archive_mapping.address as *const u8,
+            info.archive_mapping.size,
+        )
+    };
+
+    vfs::mount("/mnt/archive", "archivefs-server", args).expect("Could not mount archivefs");
 
     debug!("Initial filesystem setup complete");
 

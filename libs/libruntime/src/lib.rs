@@ -2,6 +2,7 @@
 #![allow(internal_features)]
 #![feature(panic_internals)]
 #![feature(never_type)]
+#![feature(str_as_str)]
 
 use core::hint::unreachable_unchecked;
 

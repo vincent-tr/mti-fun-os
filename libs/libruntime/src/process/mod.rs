@@ -1,12 +1,13 @@
 pub mod iface;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{borrow::Cow, string::String, vec::Vec};
 use log::debug;
 
 use crate::{
     debug::init_symbols,
     ipc, kobject,
     sync::{RwLock, spin::OnceLock},
+    vfs::{self, VfsObject, VfsServerCallError},
 };
 
 use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification, SymBlock};
@@ -17,6 +18,103 @@ lazy_static::lazy_static! {
 
 pub type ProcessServerError = ipc::CallError<iface::ProcessServerError>;
 
+/// Options for spawning a new process.
+#[derive(Debug)]
+pub struct ProcessOptions<'a> {
+    name: Cow<'a, str>,
+    binary: Cow<'a, [u8]>,
+    env: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    args: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+}
+
+impl<'a> ProcessOptions<'a> {
+    /// Create ProcessOptions from a binary buffer. The buffer should contain the entire binary to execute.
+    ///
+    /// The environment variables will be inherited from the current process, and the arguments will be empty.
+    pub fn from_buffer<Name, Buffer>(name: Name, buffer: Buffer) -> Self
+    where
+        Name: Into<Cow<'a, str>>,
+        Buffer: Into<Cow<'a, [u8]>>,
+    {
+        Self {
+            name: name.into(),
+            binary: buffer.into(),
+            env: Self::current_env(),
+            args: Vec::new(),
+        }
+    }
+
+    /// Create ProcessOptions from a file path. The path should be an absolute path to the binary to execute.
+    ///
+    /// The environment variables will be inherited from the current process, and the arguments will be empty.
+    pub fn from_path(path: &'a str) -> Result<Self, VfsServerCallError> {
+        let file = vfs::File::open(path, vfs::HandlePermissions::READ)?;
+        // Ensure that the file has execute permissions
+        let metadata = file.stat()?;
+        if !metadata.permissions.contains(vfs::Permissions::EXECUTE) {
+            return Err(VfsServerCallError::KernelError(
+                kobject::Error::MemoryAccessDenied,
+            ));
+        }
+
+        // Allocate proper buffer to directly fill ipc buffer
+        let mut buffer = Vec::with_capacity(metadata.size);
+        unsafe { buffer.set_len(metadata.size) };
+
+        let bytes_read = file.read(0, &mut buffer)?;
+        if bytes_read != metadata.size {
+            return Err(VfsServerCallError::KernelError(
+                kobject::Error::ObjectNotReady,
+            ));
+        }
+
+        // TODO: move to vfs utilities
+        // Extract file from path
+        let file_name = path.rsplit('/').next().unwrap_or(path);
+
+        Ok(Self {
+            name: Cow::Borrowed(file_name),
+            binary: Cow::Owned(buffer),
+            env: Self::current_env(),
+            args: Vec::new(),
+        })
+    }
+
+    fn current_env() -> Vec<(Cow<'a, str>, Cow<'a, str>)> {
+        SelfProcess::get()
+            .env_all()
+            .into_iter()
+            .map(|(k, v)| (Cow::Owned(k), Cow::Owned(v)))
+            .collect()
+    }
+
+    /// Reset the environment variables to an empty list.
+    pub fn reset_env(&mut self) -> &mut Self {
+        self.env.clear();
+        self
+    }
+
+    /// Add an environment variable to the process.
+    pub fn set_env<Key, Value>(&mut self, key: Key, value: Value) -> &mut Self
+    where
+        Key: Into<Cow<'a, str>>,
+        Value: Into<Cow<'a, str>>,
+    {
+        self.env.push((key.into(), value.into()));
+        self
+    }
+
+    /// Add an argument to the process.
+    pub fn set_arg<Key, Value>(&mut self, key: Key, value: Value) -> &mut Self
+    where
+        Key: Into<Cow<'a, str>>,
+        Value: Into<Cow<'a, str>>,
+    {
+        self.args.push((key.into(), value.into()));
+        self
+    }
+}
+
 /// High level process management API.
 #[derive(Debug)]
 pub struct Process {
@@ -26,13 +124,21 @@ pub struct Process {
 
 impl Process {
     /// Spawn a new process with the given name, binary, environment variables and arguments.
-    pub fn spawn(
-        name: &str,
-        binary: ipc::Buffer<'_>,
-        env: &[(&str, &str)],
-        args: &[(&str, &str)],
-    ) -> Result<Self, ProcessServerError> {
-        let (handle, pid) = CLIENT.create_process(name, binary, env, args)?;
+    pub fn spawn(options: ProcessOptions<'_>) -> Result<Self, ProcessServerError> {
+        let name = options.name.as_str();
+        let binary = ipc::Buffer::new_local(options.binary.as_slice());
+        let env: Vec<_> = options
+            .env
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        let args: Vec<_> = options
+            .args
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+
+        let (handle, pid) = CLIENT.create_process(name, binary, &env, &args)?;
 
         Ok(Self { handle, pid })
     }

@@ -145,16 +145,6 @@ impl<'a> Loader<'a> {
         let file_size = program_header.file_size() as usize;
         let align = program_header.align() as usize;
 
-        debug!(
-            "Loading segment: virtual_addr={:#x}, virtual_size={:#x}, file_addr={:#x}, file_size={:#x}, align={:#x}, flags={:?}",
-            virtual_addr,
-            virtual_size,
-            file_addr,
-            file_size,
-            align,
-            program_header.flags()
-        );
-
         assert!(program_header.align() as usize >= kobject::PAGE_SIZE);
 
         let start = memory::align_down(virtual_addr, align);
@@ -164,6 +154,34 @@ impl<'a> Loader<'a> {
         let offset = virtual_addr - start;
         let segment_data = &self.elf_file.input[file_addr..(file_addr + file_size)];
         let mem_obj = Self::create_segment_data(segment_data, offset, size)?;
+
+        debug!(
+            "Loading segment: start={:#x}, end={:#x}, size={:#x}, virtual_addr={:#x}, virtual_size={:#x}, file_addr={:#x}, file_size={:#x}, align={:#x}, flags={:?} ({}{}{})",
+            start,
+            end,
+            size,
+            virtual_addr,
+            virtual_size,
+            file_addr,
+            file_size,
+            align,
+            program_header.flags(),
+            if program_header.flags().is_read() {
+                "R"
+            } else {
+                "-"
+            },
+            if program_header.flags().is_write() {
+                "W"
+            } else {
+                "-"
+            },
+            if program_header.flags().is_execute() {
+                "X"
+            } else {
+                "-"
+            },
+        );
 
         let mut perms = kobject::Permissions::empty();
         let flags = program_header.flags();

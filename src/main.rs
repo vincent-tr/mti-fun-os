@@ -24,7 +24,9 @@ fn main() {
         .arg("unix:/tmp/qmp-socket,server,nowait")
         .arg("-serial")
         .arg("file:serial.log")
-        .arg("-s");
+        .arg("-s")
+        .arg("-nic")
+        .arg("user,model=e1000,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80");
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }

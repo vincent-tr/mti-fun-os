@@ -88,21 +88,37 @@ impl PciConfig {
         let mut devices = Vec::new();
 
         for device in 0..32 {
-            for function in 0..8 {
-                let pci_device = PciDevice::new(bus, device, function);
-
-                let id = self.read_u32(pci_device, 0x00);
-
-                let vendor_id = id & 0xFFFF;
-                if vendor_id == 0xFFFF {
-                    continue; // No device present
-                }
-
+            if let Some(pci_device) = self.scan_function(bus, device, 0) {
                 devices.push(pci_device);
+
+                // If the multi-function bit (bit 7) is set, there may be additional functions to scan
+                if self.get_header_type(pci_device) & 0x80 != 0 {
+                    for function in 1..8 {
+                        if let Some(pci_device) = self.scan_function(bus, device, function) {
+                            devices.push(pci_device);
+                        }
+                    }
+                }
             }
         }
 
         devices
+    }
+
+    fn scan_function(&self, bus: u8, device: u8, function: u8) -> Option<PciDevice> {
+        let pci_device = PciDevice::new(bus, device, function);
+        let vendor_id = self.read_u16(pci_device, 0x00);
+
+        if vendor_id == 0xFFFF {
+            None // No device present
+        } else {
+            Some(pci_device)
+        }
+    }
+
+    /// Gets the header type of the specified PCI device.
+    fn get_header_type(&self, device: PciDevice) -> u8 {
+        self.read_u8(device, 0x0E)
     }
 
     /// Gets the vendor ID and device ID of the specified PCI device.

@@ -3,6 +3,7 @@ use core::intrinsics::volatile_copy_nonoverlapping_memory;
 use alloc::{boxed::Box, vec::Vec};
 use embedded_graphics::{pixelcolor::Rgb888, prelude::DrawTarget, prelude::*};
 use libruntime::kobject;
+use log::debug;
 
 /// A simple framebuffer implementation for the display server.
 #[derive(Debug)]
@@ -56,6 +57,33 @@ impl FrameBuffer {
                 .expect("Failed to map back buffer")
         };
 
+        debug!(
+            "Framebuffer config: width={}, height={}, stride={}, bytes_per_pixel={}, pixel_format={{red_mask={:#x}, green_mask={:#x}, blue_mask={:#x}}}",
+            shape.width,
+            shape.height,
+            shape.stride,
+            shape.bytes_per_pixel,
+            pixel_format.red_mask,
+            pixel_format.green_mask,
+            pixel_format.blue_mask,
+        );
+
+        debug!(
+            "Framebuffer front buffer mapped at {:#x}-{:#x} (len={:#x}) -> physical {:#x}-{:#x}",
+            front_buffer.address(),
+            front_buffer.address() + front_buffer.len(),
+            front_buffer.len(),
+            address,
+            address + shape.byte_len,
+        );
+
+        debug!(
+            "Framebuffer back buffer mapped at {:#x}-{:#x} (len={:#x})",
+            back_buffer.address(),
+            back_buffer.address() + back_buffer.len(),
+            back_buffer.len(),
+        );
+
         Self {
             pixel_format,
             shape,
@@ -85,22 +113,22 @@ impl FrameBuffer {
     }
 
     fn draw_pixel(&mut self, point: Point, color: Rgb888) {
-        debug_assert!(
+        assert!(
             point.x >= 0,
             "X coordinate must be non-negative: {}",
             point.x
         );
-        debug_assert!(
+        assert!(
             point.y >= 0,
             "Y coordinate must be non-negative: {}",
             point.y
         );
-        debug_assert!(
+        assert!(
             (point.x as usize) < self.shape.width,
             "X coordinate out of bounds: {}",
             point.x
         );
-        debug_assert!(
+        assert!(
             (point.y as usize) < self.shape.height,
             "Y coordinate out of bounds: {}",
             point.y

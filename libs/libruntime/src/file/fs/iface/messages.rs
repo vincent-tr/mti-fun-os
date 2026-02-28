@@ -1,9 +1,9 @@
 use core::fmt;
 
 use crate::{
+    file::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     ipc::{Handle, buffer_messages::Buffer},
     time::iface::Timestamp,
-    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 
 /// Version of the fs management messages.

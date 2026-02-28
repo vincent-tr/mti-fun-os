@@ -3,10 +3,10 @@ use core::pin::Pin;
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 use crate::{
+    file::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     ipc::{self, Handle},
     kobject::KObject,
     time::DateTime,
-    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 
 use super::{DentriesBlock, DirectoryEntry, FsServerError, messages};

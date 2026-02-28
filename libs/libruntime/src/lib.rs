@@ -16,6 +16,7 @@ pub mod collections;
 pub mod debug;
 #[cfg(feature = "entry")]
 mod entry;
+pub mod file;
 pub mod ipc;
 pub mod kobject;
 mod logging;
@@ -24,7 +25,6 @@ pub mod process;
 pub mod state;
 pub mod sync;
 pub mod time;
-pub mod vfs;
 
 pub unsafe fn init() {
     logging::init();

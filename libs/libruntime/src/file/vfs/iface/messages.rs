@@ -8,7 +8,7 @@ pub const PORT_NAME: &str = "vfs-server";
 /// Version of the VFS management messages.
 pub const VERSION: u16 = 1;
 
-use crate::vfs::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};
+use crate::file::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};
 
 /// Types of messages used in VFS management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

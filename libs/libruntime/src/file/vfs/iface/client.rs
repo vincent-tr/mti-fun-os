@@ -2,12 +2,12 @@ use alloc::{string::String, vec::Vec};
 
 use super::{DirectoryEntry, MountInfo, messages};
 use crate::{
+    file::{
+        types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
+        vfs::iface::{dentries_block::DentriesBlock, mounts_block::MountsBlock},
+    },
     ipc::{self, Handle},
     kobject::KObject,
-    vfs::{
-        iface::{dentries_block::DentriesBlock, mounts_block::MountsBlock},
-        types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
-    },
 };
 
 pub type VfsServerCallError = ipc::CallError<messages::VfsServerError>;

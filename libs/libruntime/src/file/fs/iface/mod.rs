@@ -5,8 +5,7 @@ mod server;
 use crate::{ipc, kobject};
 
 // Reuse directory entry types from VFS
-use super::super::iface::DentriesBlock;
-pub use super::super::iface::DirectoryEntry;
+pub use crate::file::vfs::iface::{DentriesBlock, DirectoryEntry};
 
 pub use client::{Client, FsServerCallError};
 pub use messages::FsServerError;

@@ -4,14 +4,13 @@ use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use hashbrown::HashMap;
 use libruntime::{
+    file::{
+        fs::iface::{DirectoryEntry, FileSystem, FsServerError},
+        types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
+    },
     ipc::Handle,
     sync::RwLock,
     time::DateTime,
-    vfs::{
-        fs::iface::{FileSystem, FsServerError},
-        iface::DirectoryEntry,
-        types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
-    },
 };
 
 use crate::{instance::FsInstance, state::State};

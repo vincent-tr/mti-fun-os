@@ -1,6 +1,6 @@
 use libruntime::{
+    file::{self, VfsObject},
     time::{self, DateTime, iface::Timestamp},
-    vfs::{self, VfsObject},
 };
 use log::info;
 
@@ -25,11 +25,11 @@ fn test_directories() {
     // Test 1: Create directories
     info!("Test 1: Create directories");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
 
-        vfs::Directory::create("/test1", perms).expect("Failed to create /test1");
-        vfs::Directory::create("/test1/subdir", perms).expect("Failed to create /test1/subdir");
-        vfs::Directory::create("/test1/subdir/nested", perms)
+        file::Directory::create("/test1", perms).expect("Failed to create /test1");
+        file::Directory::create("/test1/subdir", perms).expect("Failed to create /test1/subdir");
+        file::Directory::create("/test1/subdir/nested", perms)
             .expect("Failed to create /test1/subdir/nested");
 
         info!("Test 1: PASSED");
@@ -38,14 +38,14 @@ fn test_directories() {
     // Test 2: List directory contents
     info!("Test 2: List directory contents");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
 
-        let dir = vfs::Directory::create("/test2", perms).expect("Failed to create /test2");
-        vfs::Directory::create("/test2/dir1", perms).expect("Failed to create /test2/dir1");
-        vfs::Directory::create("/test2/dir2", perms).expect("Failed to create /test2/dir2");
-        vfs::File::create(
+        let dir = file::Directory::create("/test2", perms).expect("Failed to create /test2");
+        file::Directory::create("/test2/dir1", perms).expect("Failed to create /test2/dir1");
+        file::Directory::create("/test2/dir2", perms).expect("Failed to create /test2/dir2");
+        file::File::create(
             "/test2/file1",
-            vfs::Permissions::READ | vfs::Permissions::WRITE,
+            file::Permissions::READ | file::Permissions::WRITE,
         )
         .expect("Failed to create /test2/file1");
 
@@ -64,14 +64,14 @@ fn test_directories() {
                 "dir1" | "dir2" => {
                     assert_eq!(
                         entry.r#type,
-                        vfs::NodeType::Directory,
+                        file::NodeType::Directory,
                         "dir should be Directory type"
                     );
                 }
                 "file1" => {
                     assert_eq!(
                         entry.r#type,
-                        vfs::NodeType::File,
+                        file::NodeType::File,
                         "file1 should be File type"
                     );
                 }
@@ -85,17 +85,18 @@ fn test_directories() {
     // Test 3: Remove directories
     info!("Test 3: Remove directories");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
 
-        let dir = vfs::Directory::create("/test3", perms).expect("Failed to create /test3");
-        vfs::Directory::create("/test3/toremove", perms).expect("Failed to create /test3/toremove");
+        let dir = file::Directory::create("/test3", perms).expect("Failed to create /test3");
+        file::Directory::create("/test3/toremove", perms)
+            .expect("Failed to create /test3/toremove");
 
         // Verify it exists
         let entries = dir.list().expect("Failed to list directory");
         assert_eq!(entries.len(), 1, "Directory should have 1 entry");
 
         // Remove it
-        vfs::remove("/test3/toremove").expect("Failed to remove directory");
+        file::remove("/test3/toremove").expect("Failed to remove directory");
 
         // Verify it's gone
         let entries = dir.list().expect("Failed to list directory");
@@ -107,12 +108,12 @@ fn test_directories() {
     // Test 4: Open existing directory
     info!("Test 4: Open existing directory");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
 
-        vfs::Directory::create("/test4", perms).expect("Failed to create /test4");
+        file::Directory::create("/test4", perms).expect("Failed to create /test4");
 
         // Open it again (should succeed)
-        let _dir = vfs::Directory::open("/test4").expect("Failed to open existing directory");
+        let _dir = file::Directory::open("/test4").expect("Failed to open existing directory");
 
         info!("Test 4: PASSED");
     }
@@ -120,27 +121,27 @@ fn test_directories() {
     // Test 5: Cannot remove non-empty directory
     info!("Test 5: Cannot remove non-empty directory");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
 
-        vfs::Directory::create("/test5", perms).expect("Failed to create /test5");
+        file::Directory::create("/test5", perms).expect("Failed to create /test5");
 
         // Add a file to the directory
-        let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        vfs::File::create("/test5/somefile", file_perms)
+        let file_perms = file::Permissions::READ | file::Permissions::WRITE;
+        file::File::create("/test5/somefile", file_perms)
             .expect("Failed to create file in directory");
 
         // Try to remove the non-empty directory (should fail)
-        let result = vfs::remove("/test5");
+        let result = file::remove("/test5");
         assert!(
             result.is_err(),
             "Should not be able to remove non-empty directory"
         );
 
         // Also test with a subdirectory
-        vfs::Directory::create("/test5b", perms).expect("Failed to create /test5b");
-        vfs::Directory::create("/test5b/subdir", perms).expect("Failed to create subdirectory");
+        file::Directory::create("/test5b", perms).expect("Failed to create /test5b");
+        file::Directory::create("/test5b/subdir", perms).expect("Failed to create subdirectory");
 
-        let result = vfs::remove("/test5b");
+        let result = file::remove("/test5b");
         assert!(
             result.is_err(),
             "Should not be able to remove directory with subdirectory"
@@ -159,8 +160,8 @@ fn test_files() {
     // Test 1: Create and write to file
     info!("Test 1: Create and write to file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/testfile1", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/testfile1", perms).expect("Failed to create file");
 
         let data = b"Hello, VFS!";
         // Resize file to allocate space before writing
@@ -174,8 +175,8 @@ fn test_files() {
     // Test 2: Read from file
     info!("Test 2: Read from file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/testfile2", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/testfile2", perms).expect("Failed to create file");
 
         let data = b"Test data for reading";
         // Resize file to allocate space before writing
@@ -194,8 +195,8 @@ fn test_files() {
     // Test 3: Write at offset
     info!("Test 3: Write at offset");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/testfile3", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/testfile3", perms).expect("Failed to create file");
 
         // Resize file to allocate space before writing
         file.resize(4).expect("Failed to resize file");
@@ -212,8 +213,8 @@ fn test_files() {
     // Test 4: Resize file
     info!("Test 4: Resize file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/testfile4", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/testfile4", perms).expect("Failed to create file");
 
         // Resize file to allocate space before writing
         file.resize(5).expect("Failed to resize file");
@@ -245,15 +246,15 @@ fn test_files() {
     // Test 5: Open existing file
     info!("Test 5: Open existing file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/testfile5", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/testfile5", perms).expect("Failed to create file");
         // Resize file to allocate space before writing
         file.resize(8).expect("Failed to resize file");
         file.write(0, b"existing").expect("Failed to write");
         drop(file);
 
         // Open existing file
-        let file = vfs::File::open("/testfile5", vfs::HandlePermissions::READ)
+        let file = file::File::open("/testfile5", file::HandlePermissions::READ)
             .expect("Failed to open existing file");
 
         let mut buffer = [0u8; 8];
@@ -266,13 +267,13 @@ fn test_files() {
     // Test 6: Remove file
     info!("Test 6: Remove file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        vfs::File::create("/testfile6", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        file::File::create("/testfile6", perms).expect("Failed to create file");
 
-        vfs::remove("/testfile6").expect("Failed to remove file");
+        file::remove("/testfile6").expect("Failed to remove file");
 
         // Try to open removed file (should fail)
-        let result = vfs::File::open("/testfile6", vfs::HandlePermissions::READ);
+        let result = file::File::open("/testfile6", file::HandlePermissions::READ);
         assert!(result.is_err(), "Should not be able to open removed file");
 
         info!("Test 6: PASSED");
@@ -281,25 +282,25 @@ fn test_files() {
     // Test 7: Move file
     info!("Test 7: Move file");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/testmove", perms).expect("Failed to create directory");
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/testmove", perms).expect("Failed to create directory");
 
-        let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
+        let file_perms = file::Permissions::READ | file::Permissions::WRITE;
         let file =
-            vfs::File::create("/testmove/oldname", file_perms).expect("Failed to create file");
+            file::File::create("/testmove/oldname", file_perms).expect("Failed to create file");
         // Resize file to allocate space before writing
         file.resize(7).expect("Failed to resize file");
         file.write(0, b"move me").expect("Failed to write");
         drop(file);
 
-        vfs::r#move("/testmove/oldname", "/testmove/newname").expect("Failed to move file");
+        file::r#move("/testmove/oldname", "/testmove/newname").expect("Failed to move file");
 
         // Old name should not exist
-        let result = vfs::File::open("/testmove/oldname", vfs::HandlePermissions::READ);
+        let result = file::File::open("/testmove/oldname", file::HandlePermissions::READ);
         assert!(result.is_err(), "Old name should not exist");
 
         // New name should exist with same content
-        let file = vfs::File::open("/testmove/newname", vfs::HandlePermissions::READ)
+        let file = file::File::open("/testmove/newname", file::HandlePermissions::READ)
             .expect("Failed to open moved file");
         let mut buffer = [0u8; 7];
         file.read(0, &mut buffer).expect("Failed to read");
@@ -318,22 +319,22 @@ fn test_metadata() {
     // Test 1: File metadata
     info!("Test 1: File metadata");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/metafile", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/metafile", perms).expect("Failed to create file");
 
         // Resize file to allocate space before writing
         file.resize(13).expect("Failed to resize file");
         file.write(0, b"metadata test").expect("Failed to write");
 
         let metadata = file.stat().expect("Failed to stat file");
-        assert_eq!(metadata.r#type, vfs::NodeType::File, "Should be a file");
+        assert_eq!(metadata.r#type, file::NodeType::File, "Should be a file");
         assert_eq!(metadata.size, 13, "File size should be 13");
         assert!(
-            metadata.permissions.contains(vfs::Permissions::READ),
+            metadata.permissions.contains(file::Permissions::READ),
             "Should have read permission"
         );
         assert!(
-            metadata.permissions.contains(vfs::Permissions::WRITE),
+            metadata.permissions.contains(file::Permissions::WRITE),
             "Should have write permission"
         );
 
@@ -343,21 +344,21 @@ fn test_metadata() {
     // Test 2: Directory metadata
     info!("Test 2: Directory metadata");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        let dir = vfs::Directory::create("/metadir", perms).expect("Failed to create directory");
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        let dir = file::Directory::create("/metadir", perms).expect("Failed to create directory");
 
         let metadata = dir.stat().expect("Failed to stat directory");
         assert_eq!(
             metadata.r#type,
-            vfs::NodeType::Directory,
+            file::NodeType::Directory,
             "Should be a directory"
         );
         assert!(
-            metadata.permissions.contains(vfs::Permissions::READ),
+            metadata.permissions.contains(file::Permissions::READ),
             "Should have read permission"
         );
         assert!(
-            metadata.permissions.contains(vfs::Permissions::EXECUTE),
+            metadata.permissions.contains(file::Permissions::EXECUTE),
             "Should have execute permission"
         );
 
@@ -367,26 +368,26 @@ fn test_metadata() {
     // Test 3: Change permissions
     info!("Test 3: Change permissions");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/metafile2", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/metafile2", perms).expect("Failed to create file");
 
         let metadata = file.stat().expect("Failed to stat file");
         assert!(
-            metadata.permissions.contains(vfs::Permissions::WRITE),
+            metadata.permissions.contains(file::Permissions::WRITE),
             "Should have write permission initially"
         );
 
         // Change permissions to read-only
-        file.set_permissions(vfs::Permissions::READ)
+        file.set_permissions(file::Permissions::READ)
             .expect("Failed to set permissions");
 
         let metadata = file.stat().expect("Failed to stat file");
         assert!(
-            metadata.permissions.contains(vfs::Permissions::READ),
+            metadata.permissions.contains(file::Permissions::READ),
             "Should have read permission"
         );
         assert!(
-            !metadata.permissions.contains(vfs::Permissions::WRITE),
+            !metadata.permissions.contains(file::Permissions::WRITE),
             "Should not have write permission after change"
         );
 
@@ -396,8 +397,8 @@ fn test_metadata() {
     // Test 4: Timestamps
     info!("Test 4: Timestamps");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/metafile3", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/metafile3", perms).expect("Failed to create file");
 
         let metadata1 = file.stat().expect("Failed to stat file");
         assert!(
@@ -441,20 +442,20 @@ fn test_symlinks() {
     info!("Test 1: Create symlink");
     {
         let dir_perms =
-            vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/linktest", dir_perms).expect("Failed to create directory");
+            file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/linktest", dir_perms).expect("Failed to create directory");
 
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/linktest/target", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/linktest/target", perms).expect("Failed to create file");
         // Resize file to allocate space before writing
         file.resize(14).expect("Failed to resize file");
         file.write(0, b"target content").expect("Failed to write");
         drop(file);
 
-        vfs::Symlink::create("/linktest/link", "/linktest/target")
+        file::Symlink::create("/linktest/link", "/linktest/target")
             .expect("Failed to create symlink");
 
-        let symlink = vfs::Symlink::open("/linktest/link").expect("Failed to open symlink");
+        let symlink = file::Symlink::open("/linktest/link").expect("Failed to open symlink");
         let target = symlink.target().expect("Failed to read symlink target");
         assert_eq!(target, "/linktest/target", "Symlink target should match");
 
@@ -465,21 +466,21 @@ fn test_symlinks() {
     info!("Test 2: Follow symlink");
     {
         let dir_perms =
-            vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/linktest2", dir_perms).expect("Failed to create directory");
+            file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/linktest2", dir_perms).expect("Failed to create directory");
 
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/linktest2/target", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/linktest2/target", perms).expect("Failed to create file");
         // Resize file to allocate space before writing
         file.resize(12).expect("Failed to resize file");
         file.write(0, b"through link").expect("Failed to write");
         drop(file);
 
-        vfs::Symlink::create("/linktest2/link", "/linktest2/target")
+        file::Symlink::create("/linktest2/link", "/linktest2/target")
             .expect("Failed to create symlink");
 
         // Open file through symlink
-        let file = vfs::File::open("/linktest2/link", vfs::HandlePermissions::READ)
+        let file = file::File::open("/linktest2/link", file::HandlePermissions::READ)
             .expect("Failed to open file through symlink");
 
         let mut buffer = [0u8; 100];
@@ -496,15 +497,15 @@ fn test_symlinks() {
     // Test 3: Relative symlink
     info!("Test 3: Relative symlink");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/linktest3", perms).expect("Failed to create directory");
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/linktest3", perms).expect("Failed to create directory");
 
-        let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        vfs::File::create("/linktest3/target", file_perms).expect("Failed to create file");
+        let file_perms = file::Permissions::READ | file::Permissions::WRITE;
+        file::File::create("/linktest3/target", file_perms).expect("Failed to create file");
 
-        vfs::Symlink::create("/linktest3/link", "target").expect("Failed to create symlink");
+        file::Symlink::create("/linktest3/link", "target").expect("Failed to create symlink");
 
-        let symlink = vfs::Symlink::open("/linktest3/link").expect("Failed to open symlink");
+        let symlink = file::Symlink::open("/linktest3/link").expect("Failed to open symlink");
         let target = symlink.target().expect("Failed to read symlink target");
         assert_eq!(target, "target", "Relative symlink target should match");
 
@@ -515,23 +516,23 @@ fn test_symlinks() {
     info!("Test 4: Symlink chain");
     {
         let dir_perms =
-            vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/linktest4", dir_perms).expect("Failed to create directory");
+            file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/linktest4", dir_perms).expect("Failed to create directory");
 
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/linktest4/target", perms).expect("Failed to create file");
+        let perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/linktest4/target", perms).expect("Failed to create file");
         // Resize file to allocate space before writing
         file.resize(12).expect("Failed to resize file");
         file.write(0, b"end of chain").expect("Failed to write");
         drop(file);
 
-        vfs::Symlink::create("/linktest4/link1", "/linktest4/target")
+        file::Symlink::create("/linktest4/link1", "/linktest4/target")
             .expect("Failed to create symlink");
-        vfs::Symlink::create("/linktest4/link2", "/linktest4/link1")
+        file::Symlink::create("/linktest4/link2", "/linktest4/link1")
             .expect("Failed to create symlink");
 
         // Open through chain
-        let file = vfs::File::open("/linktest4/link2", vfs::HandlePermissions::READ)
+        let file = file::File::open("/linktest4/link2", file::HandlePermissions::READ)
             .expect("Failed to open file through symlink chain");
 
         let mut buffer = [0u8; 100];
@@ -555,7 +556,7 @@ fn test_mounts() {
     // Test 1: List mounts
     info!("Test 1: List mounts");
     {
-        let mounts = vfs::list_mounts().expect("Failed to list mounts");
+        let mounts = file::list_mounts().expect("Failed to list mounts");
         assert!(!mounts.is_empty(), "Should have at least one mount");
 
         // Root should be mounted
@@ -573,19 +574,19 @@ fn test_mounts() {
     // Test 2: Mount and unmount
     info!("Test 2: Mount and unmount");
     {
-        let perms = vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE;
-        vfs::Directory::create("/mountpoint", perms).expect("Failed to create mount point");
+        let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
+        file::Directory::create("/mountpoint", perms).expect("Failed to create mount point");
 
-        vfs::mount("/mountpoint", "memfs-server", &[]).expect("Failed to mount filesystem");
+        file::mount("/mountpoint", "memfs-server", &[]).expect("Failed to mount filesystem");
 
         // Verify it's in the mount list
-        let mounts = vfs::list_mounts().expect("Failed to list mounts");
+        let mounts = file::list_mounts().expect("Failed to list mounts");
         let new_mount = mounts.iter().find(|m| m.mount_point == "/mountpoint");
         assert!(new_mount.is_some(), "New mount should be in list");
 
         // Create a file in the mounted filesystem
-        let file_perms = vfs::Permissions::READ | vfs::Permissions::WRITE;
-        let file = vfs::File::create("/mountpoint/testfile", file_perms)
+        let file_perms = file::Permissions::READ | file::Permissions::WRITE;
+        let file = file::File::create("/mountpoint/testfile", file_perms)
             .expect("Failed to create file in mounted fs");
         // Resize file to allocate space before writing
         file.resize(8).expect("Failed to resize file");
@@ -593,10 +594,10 @@ fn test_mounts() {
         drop(file);
 
         // Unmount
-        vfs::unmount("/mountpoint").expect("Failed to unmount filesystem");
+        file::unmount("/mountpoint").expect("Failed to unmount filesystem");
 
         // Verify it's no longer in the mount list
-        let mounts = vfs::list_mounts().expect("Failed to list mounts");
+        let mounts = file::list_mounts().expect("Failed to list mounts");
         let removed_mount = mounts.iter().find(|m| m.mount_point == "/mountpoint");
         assert!(removed_mount.is_none(), "Mount should be removed from list");
 

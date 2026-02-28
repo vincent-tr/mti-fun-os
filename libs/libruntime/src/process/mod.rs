@@ -5,9 +5,9 @@ use log::debug;
 
 use crate::{
     debug::init_symbols,
+    file::{self, VfsObject, VfsServerCallError},
     ipc, kobject,
     sync::{RwLock, spin::OnceLock},
-    vfs::{self, VfsObject, VfsServerCallError},
 };
 
 use iface::{Client, KVBlock, ProcessInfo, ProcessStatus, ProcessTerminatedNotification, SymBlock};
@@ -48,10 +48,10 @@ impl<'a> ProcessOptions<'a> {
     ///
     /// The environment variables will be inherited from the current process, and the arguments will be empty.
     pub fn from_path(path: &'a str) -> Result<Self, VfsServerCallError> {
-        let file = vfs::File::open(path, vfs::HandlePermissions::READ)?;
+        let file = file::File::open(path, file::HandlePermissions::READ)?;
         // Ensure that the file has execute permissions
         let metadata = file.stat()?;
-        if !metadata.permissions.contains(vfs::Permissions::EXECUTE) {
+        if !metadata.permissions.contains(file::Permissions::EXECUTE) {
             return Err(VfsServerCallError::KernelError(
                 kobject::Error::MemoryAccessDenied,
             ));

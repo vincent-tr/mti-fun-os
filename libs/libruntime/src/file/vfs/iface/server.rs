@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use log::error;
 
 use crate::{
+    file::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
     ipc::{self, Handle},
     kobject,
-    vfs::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
 };
 
 use super::{

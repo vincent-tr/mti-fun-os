@@ -1,9 +1,9 @@
 use libruntime::{
-    ipc::Handle,
-    vfs::{
-        iface::VfsServerError,
+    file::{
         types::{HandlePermissions, NodeType},
+        vfs::iface::VfsServerError,
     },
+    ipc::Handle,
 };
 
 use crate::vnode::VNode;

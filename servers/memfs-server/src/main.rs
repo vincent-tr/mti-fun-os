@@ -8,7 +8,7 @@ mod instance;
 mod server;
 mod state;
 
-use libruntime::vfs::fs::iface::build_ipc_server;
+use libruntime::file::fs::iface::build_ipc_server;
 
 use crate::server::Server;
 

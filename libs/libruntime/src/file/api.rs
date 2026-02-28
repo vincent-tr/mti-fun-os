@@ -1,8 +1,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use super::iface::{Client, DirectoryEntry, MountInfo, VfsServerCallError, VfsServerError};
 use super::types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions};
+use super::vfs::iface::{Client, DirectoryEntry, MountInfo, VfsServerCallError, VfsServerError};
 
 use crate::ipc::Handle;
 

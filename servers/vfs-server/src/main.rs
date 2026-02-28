@@ -12,7 +12,7 @@ mod server;
 mod state;
 mod vnode;
 
-use libruntime::vfs::iface::build_ipc_server;
+use libruntime::file::vfs::iface::build_ipc_server;
 
 use crate::server::Server;
 

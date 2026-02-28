@@ -14,7 +14,7 @@ mod tests;
 use core::{mem, slice};
 
 use alloc::{boxed::Box, format};
-use libruntime::{kobject, process, state, time, vfs};
+use libruntime::{file, kobject, process, state, time};
 use log::{debug, info};
 
 fn main(info: &syscalls::init::InitInfo) {
@@ -39,7 +39,7 @@ fn main(info: &syscalls::init::InitInfo) {
     setup_initial_filesystem(&info);
 
     // tests::process::list_processes();
-    // tests::vfs::test_vfs();
+    // tests::file::test_vfs();
 
     start_extended_servers(&info);
 
@@ -96,7 +96,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
     let process = process::Process::spawn(options).expect("Could not spawn vfs server");
 
     let _ = process;
-    wait_port(vfs::iface::PORT_NAME);
+    wait_port(file::vfs::iface::PORT_NAME);
 
     let options = process::ProcessOptions::from_buffer(
         "memfs-server",
@@ -122,17 +122,17 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
 
     let args = Box::new([0u8; 0]);
 
-    vfs::mount("/", "memfs-server", args.as_slice()).expect("Could not mount memfs");
+    file::mount("/", "memfs-server", args.as_slice()).expect("Could not mount memfs");
 
-    vfs::Directory::create(
+    file::Directory::create(
         "/mnt",
-        vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE,
+        file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE,
     )
     .expect("Could not create /mnt directory");
 
-    vfs::Directory::create(
+    file::Directory::create(
         "/mnt/archive",
-        vfs::Permissions::READ | vfs::Permissions::WRITE | vfs::Permissions::EXECUTE,
+        file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE,
     )
     .expect("Could not create /mnt/archive directory");
 
@@ -143,11 +143,11 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
         )
     };
 
-    vfs::mount("/mnt/archive", "archivefs-server", args).expect("Could not mount archivefs");
+    file::mount("/mnt/archive", "archivefs-server", args).expect("Could not mount archivefs");
 
     debug!("Initial filesystem setup complete");
 
-    let mounts = vfs::list_mounts().expect("Could not list mounts");
+    let mounts = file::list_mounts().expect("Could not list mounts");
     for mount in mounts {
         info!(
             "Mounted '{}' at '{}'",

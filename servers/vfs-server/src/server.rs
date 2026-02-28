@@ -4,11 +4,11 @@ use log::error;
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use libruntime::{
-    ipc::{self, Handle},
-    vfs::{
-        iface::{DirectoryEntry, MountInfo, VfsServer, VfsServerError},
+    file::{
         types::{HandlePermissions, Metadata, NodeType, OpenMode, Permissions},
+        vfs::iface::{DirectoryEntry, MountInfo, VfsServer, VfsServerError},
     },
+    ipc::{self, Handle},
 };
 
 use crate::{

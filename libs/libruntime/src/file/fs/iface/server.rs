@@ -5,10 +5,10 @@ use log::error;
 
 use super::{DentriesBlock, DirectoryEntry, FsServerError, messages};
 use crate::{
+    file::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     ipc::{self, Handle},
     kobject,
     time::DateTime,
-    vfs::types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
 };
 use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 

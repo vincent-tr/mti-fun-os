@@ -3,13 +3,12 @@ use core::cmp::min;
 use alloc::{string::String, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
-    ipc::Handle,
-    time::DateTime,
-    vfs::{
-        fs::iface::FsServerError,
-        iface::DirectoryEntry,
+    file::{
+        fs::iface::{DirectoryEntry, FsServerError},
         types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
+    ipc::Handle,
+    time::DateTime,
 };
 use log::{debug, error};
 

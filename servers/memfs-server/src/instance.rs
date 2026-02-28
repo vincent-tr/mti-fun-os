@@ -6,13 +6,12 @@ use core::{
 use alloc::{string::String, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
-    ipc::Handle,
-    time::{DateTime, get_wall_time},
-    vfs::{
-        fs::iface::FsServerError,
-        iface::DirectoryEntry,
+    file::{
+        fs::iface::{DirectoryEntry, FsServerError},
         types::{HandlePermissions, Metadata, NodeId, NodeType, Permissions},
     },
+    ipc::Handle,
+    time::{DateTime, get_wall_time},
 };
 
 use crate::state::State;

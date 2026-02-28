@@ -2,8 +2,8 @@ use core::num::NonZeroUsize;
 
 use alloc::string::String;
 use libruntime::{
+    file::{NodeType, Permissions},
     sync::Mutex,
-    vfs::{NodeType, Permissions},
 };
 use lru::LruCache;
 

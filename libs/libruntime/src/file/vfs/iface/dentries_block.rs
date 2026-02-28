@@ -1,8 +1,8 @@
 use alloc::{string::String, vec::Vec};
 use core::{mem, ptr, slice};
 
+use crate::file::types::NodeType;
 use crate::memory::align_up;
-use crate::vfs::types::NodeType;
 
 /// Version of the DentriesBlock format.
 const VERSION: u32 = 1;

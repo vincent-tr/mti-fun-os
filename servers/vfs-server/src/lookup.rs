@@ -1,7 +1,7 @@
 use alloc::{collections::vec_deque::VecDeque, string::String, vec::Vec};
-use libruntime::vfs::{
-    iface::VfsServerError,
+use libruntime::file::{
     types::{NodeType, Permissions},
+    vfs::iface::VfsServerError,
 };
 
 use crate::{mounts::MountTable, vnode::VNode};

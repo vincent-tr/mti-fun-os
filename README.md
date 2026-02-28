@@ -105,7 +105,7 @@ tail -f serial.log
 
 - multi-core
 - irq to userland
-- dma (physical contigous pages?)
+- dma
 
 ### runtime
 

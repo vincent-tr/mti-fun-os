@@ -515,10 +515,10 @@ impl fmt::Display for PciClassKind {
             }
             Self::Encryption(sub) => f.format_with_subtype("Encryption", sub),
             Self::SignalProcessing(sub) => f.format_with_subtype("Signal Processing", sub),
-            Self::ProcessingAccelerator(..) => write!(f, "Processing Accelerator"),
-            Self::NonEssentialInstrumentation(..) => write!(f, "Non-Essential Instrumentation"),
-            Self::CoProcessor(..) => write!(f, "Co-Processor"),
-            Self::Unknown(..) => write!(f, "Unknown"),
+            Self::ProcessingAccelerator(..) => f.write_str("Processing Accelerator"),
+            Self::NonEssentialInstrumentation(..) => f.write_str("Non-Essential Instrumentation"),
+            Self::CoProcessor(..) => f.write_str("Co-Processor"),
+            Self::Unknown(..) => f.write_str("Unknown"),
         }
     }
 }
@@ -526,9 +526,9 @@ impl fmt::Display for PciClassKind {
 impl fmt::Display for UnclassifiedSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotVgaCompatible(_) => write!(f, "Non-VGA-Compatible"),
-            Self::VgaCompatible(_) => write!(f, "VGA-Compatible"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::NotVgaCompatible(_) => f.write_str("Non-VGA-Compatible"),
+            Self::VgaCompatible(_) => f.write_str("VGA-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -536,31 +536,16 @@ impl fmt::Display for UnclassifiedSubclass {
 impl fmt::Display for MassStorageSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ScsiBus(_) => write!(f, "SCSI Bus Controller"),
-            Self::Ide(prog) => match prog {
-                IdeProgIf::Unknown(_) => write!(f, "IDE Controller"),
-                _ => write!(f, "IDE Controller - {}", prog),
-            },
-            Self::FloppyDisk(_) => write!(f, "Floppy Disk Controller"),
-            Self::IpiBus(_) => write!(f, "IPI Bus Controller"),
-            Self::Raid(_) => write!(f, "RAID Controller"),
-            Self::Ata(prog) => match prog {
-                AtaProgIf::Unknown(_) => write!(f, "ATA Controller"),
-                _ => write!(f, "ATA Controller - {}", prog),
-            },
-            Self::Sata(prog) => match prog {
-                SataProgIf::Unknown(_) => write!(f, "Serial ATA"),
-                _ => write!(f, "Serial ATA - {}", prog),
-            },
-            Self::Sas(prog) => match prog {
-                SasProgIf::Unknown(_) => write!(f, "Serial Attached SCSI"),
-                _ => write!(f, "Serial Attached SCSI - {}", prog),
-            },
-            Self::Nvm(prog) => match prog {
-                NvmProgIf::Unknown(_) => write!(f, "Non-Volatile Memory"),
-                _ => write!(f, "Non-Volatile Memory - {}", prog),
-            },
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::ScsiBus(_) => f.write_str("SCSI Bus Controller"),
+            Self::Ide(prog) => f.format_with_subtype("IDE Controller", prog),
+            Self::FloppyDisk(_) => f.write_str("Floppy Disk Controller"),
+            Self::IpiBus(_) => f.write_str("IPI Bus Controller"),
+            Self::Raid(_) => f.write_str("RAID Controller"),
+            Self::Ata(prog) => f.format_with_subtype("ATA Controller", prog),
+            Self::Sata(prog) => f.format_with_subtype("Serial ATA", prog),
+            Self::Sas(prog) => f.format_with_subtype("Serial Attached SCSI", prog),
+            Self::Nvm(prog) => f.format_with_subtype("Non-Volatile Memory", prog),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -568,25 +553,23 @@ impl fmt::Display for MassStorageSubclass {
 impl fmt::Display for IdeProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::IsaCompatibilityOnly => write!(f, "ISA Compatibility mode-only"),
-            Self::PciNativeOnly => write!(f, "PCI native mode-only"),
+            Self::IsaCompatibilityOnly => f.write_str("ISA Compatibility mode-only"),
+            Self::PciNativeOnly => f.write_str("PCI native mode-only"),
             Self::IsaCompatibilitySwitchable => {
-                write!(f, "ISA Compatibility, switchable to PCI native")
+                f.write_str("ISA Compatibility, switchable to PCI native")
             }
-            Self::PciNativeSwitchable => write!(f, "PCI native, switchable to ISA compatibility"),
+            Self::PciNativeSwitchable => f.write_str("PCI native, switchable to ISA compatibility"),
             Self::IsaCompatibilityOnlyBusMastering => {
-                write!(f, "ISA Compatibility mode-only, bus mastering")
+                f.write_str("ISA Compatibility mode-only, bus mastering")
             }
-            Self::PciNativeOnlyBusMastering => write!(f, "PCI native mode-only, bus mastering"),
-            Self::IsaCompatibilitySwitchableBusMastering => write!(
-                f,
-                "ISA Compatibility, switchable to PCI native, bus mastering"
-            ),
-            Self::PciNativeSwitchableBusMastering => write!(
-                f,
-                "PCI native, switchable to ISA compatibility, bus mastering"
-            ),
-            Self::Unknown(_) => write!(f, ""),
+            Self::PciNativeOnlyBusMastering => f.write_str("PCI native mode-only, bus mastering"),
+            Self::IsaCompatibilitySwitchableBusMastering => {
+                f.write_str("ISA Compatibility, switchable to PCI native, bus mastering")
+            }
+            Self::PciNativeSwitchableBusMastering => {
+                f.write_str("PCI native, switchable to ISA compatibility, bus mastering")
+            }
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -594,9 +577,9 @@ impl fmt::Display for IdeProgIf {
 impl fmt::Display for AtaProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SingleDma => write!(f, "Single DMA"),
-            Self::ChainedDma => write!(f, "Chained DMA"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::SingleDma => f.write_str("Single DMA"),
+            Self::ChainedDma => f.write_str("Chained DMA"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -604,10 +587,10 @@ impl fmt::Display for AtaProgIf {
 impl fmt::Display for SataProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::VendorSpecific => write!(f, "Vendor Specific Interface"),
-            Self::Ahci => write!(f, "AHCI 1.0"),
-            Self::SerialStorageBus => write!(f, "Serial Storage Bus"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::VendorSpecific => f.write_str("Vendor Specific Interface"),
+            Self::Ahci => f.write_str("AHCI 1.0"),
+            Self::SerialStorageBus => f.write_str("Serial Storage Bus"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -615,9 +598,9 @@ impl fmt::Display for SataProgIf {
 impl fmt::Display for SasProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Sas => write!(f, "SAS"),
-            Self::SerialStorageBus => write!(f, "Serial Storage Bus"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Sas => f.write_str("SAS"),
+            Self::SerialStorageBus => f.write_str("Serial Storage Bus"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -625,9 +608,9 @@ impl fmt::Display for SasProgIf {
 impl fmt::Display for NvmProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NvmHci => write!(f, "NVMHCI"),
-            Self::NvmExpress => write!(f, "NVM Express"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::NvmHci => f.write_str("NVMHCI"),
+            Self::NvmExpress => f.write_str("NVM Express"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -635,16 +618,16 @@ impl fmt::Display for NvmProgIf {
 impl fmt::Display for NetworkSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ethernet(_) => write!(f, "Ethernet Controller"),
-            Self::TokenRing(_) => write!(f, "Token Ring Controller"),
-            Self::Fddi(_) => write!(f, "FDDI Controller"),
-            Self::Atm(_) => write!(f, "ATM Controller"),
-            Self::Isdn(_) => write!(f, "ISDN Controller"),
-            Self::WorldFip(_) => write!(f, "WorldFip Controller"),
-            Self::PicmgMultiComputing(_) => write!(f, "PICMG 2.14 Multi Computing"),
-            Self::Infiniband(_) => write!(f, "Infiniband Controller"),
-            Self::Fabric(_) => write!(f, "Fabric Controller"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Ethernet(_) => f.write_str("Ethernet Controller"),
+            Self::TokenRing(_) => f.write_str("Token Ring Controller"),
+            Self::Fddi(_) => f.write_str("FDDI Controller"),
+            Self::Atm(_) => f.write_str("ATM Controller"),
+            Self::Isdn(_) => f.write_str("ISDN Controller"),
+            Self::WorldFip(_) => f.write_str("WorldFip Controller"),
+            Self::PicmgMultiComputing(_) => f.write_str("PICMG 2.14 Multi Computing"),
+            Self::Infiniband(_) => f.write_str("Infiniband Controller"),
+            Self::Fabric(_) => f.write_str("Fabric Controller"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -653,9 +636,9 @@ impl fmt::Display for DisplaySubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Vga(prog) => f.format_with_subtype("VGA Compatible Controller", prog),
-            Self::Xga(_) => write!(f, "XGA Controller"),
-            Self::Controller3D(_) => write!(f, "3D Controller (Not VGA-Compatible)"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Xga(_) => f.write_str("XGA Controller"),
+            Self::Controller3D(_) => f.write_str("3D Controller (Not VGA-Compatible)"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -663,9 +646,9 @@ impl fmt::Display for DisplaySubclass {
 impl fmt::Display for VgaProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::VgaController => write!(f, "VGA Controller"),
-            Self::Compatible8514 => write!(f, "8514-Compatible"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::VgaController => f.write_str("VGA Controller"),
+            Self::Compatible8514 => f.write_str("8514-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -673,11 +656,11 @@ impl fmt::Display for VgaProgIf {
 impl fmt::Display for MultimediaSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Video(_) => write!(f, "Multimedia Video Controller"),
-            Self::Audio(_) => write!(f, "Multimedia Audio Controller"),
-            Self::ComputerTelephony(_) => write!(f, "Computer Telephony Device"),
-            Self::AudioDevice(_) => write!(f, "Audio Device"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Video(_) => f.write_str("Multimedia Video Controller"),
+            Self::Audio(_) => f.write_str("Multimedia Audio Controller"),
+            Self::ComputerTelephony(_) => f.write_str("Computer Telephony Device"),
+            Self::AudioDevice(_) => f.write_str("Audio Device"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -685,9 +668,9 @@ impl fmt::Display for MultimediaSubclass {
 impl fmt::Display for MemorySubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ram(_) => write!(f, "RAM Controller"),
-            Self::Flash(_) => write!(f, "Flash Controller"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Ram(_) => f.write_str("RAM Controller"),
+            Self::Flash(_) => f.write_str("Flash Controller"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -695,20 +678,20 @@ impl fmt::Display for MemorySubclass {
 impl fmt::Display for BridgeSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Host(_) => write!(f, "Host Bridge"),
-            Self::Isa(_) => write!(f, "ISA Bridge"),
-            Self::Eisa(_) => write!(f, "EISA Bridge"),
-            Self::Mca(_) => write!(f, "MCA Bridge"),
+            Self::Host(_) => f.write_str("Host Bridge"),
+            Self::Isa(_) => f.write_str("ISA Bridge"),
+            Self::Eisa(_) => f.write_str("EISA Bridge"),
+            Self::Mca(_) => f.write_str("MCA Bridge"),
             Self::PciToPci(prog) => f.format_with_subtype("PCI-to-PCI Bridge", prog),
-            Self::Pcmcia(_) => write!(f, "PCMCIA Bridge"),
-            Self::NuBus(_) => write!(f, "NuBus Bridge"),
-            Self::CardBus(_) => write!(f, "CardBus Bridge"),
+            Self::Pcmcia(_) => f.write_str("PCMCIA Bridge"),
+            Self::NuBus(_) => f.write_str("NuBus Bridge"),
+            Self::CardBus(_) => f.write_str("CardBus Bridge"),
             Self::RaceWay(prog) => f.format_with_subtype("RACEway Bridge", prog),
             Self::PciToPciSemiTransparent(prog) => {
                 f.format_with_subtype("PCI-to-PCI Semi-Transparent Bridge", prog)
             }
-            Self::InfiniBandToPci(_) => write!(f, "InfiniBand-to-PCI Host Bridge"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::InfiniBandToPci(_) => f.write_str("InfiniBand-to-PCI Host Bridge"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -716,9 +699,9 @@ impl fmt::Display for BridgeSubclass {
 impl fmt::Display for PciToPciProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NormalDecode => write!(f, "Normal Decode"),
-            Self::SubtractiveDecode => write!(f, "Subtractive Decode"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::NormalDecode => f.write_str("Normal Decode"),
+            Self::SubtractiveDecode => f.write_str("Subtractive Decode"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -726,9 +709,9 @@ impl fmt::Display for PciToPciProgIf {
 impl fmt::Display for RaceWayProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Transparent => write!(f, "Transparent Mode"),
-            Self::Endpoint => write!(f, "Endpoint Mode"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Transparent => f.write_str("Transparent Mode"),
+            Self::Endpoint => f.write_str("Endpoint Mode"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -736,11 +719,13 @@ impl fmt::Display for RaceWayProgIf {
 impl fmt::Display for SemiTransparentProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PrimaryTowardsCpu => write!(f, "Semi-Transparent, Primary bus towards host CPU"),
-            Self::SecondaryTowardsCpu => {
-                write!(f, "Semi-Transparent, Secondary bus towards host CPU")
+            Self::PrimaryTowardsCpu => {
+                f.write_str("Semi-Transparent, Primary bus towards host CPU")
             }
-            Self::Unknown(_) => write!(f, ""),
+            Self::SecondaryTowardsCpu => {
+                f.write_str("Semi-Transparent, Secondary bus towards host CPU")
+            }
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -750,11 +735,11 @@ impl fmt::Display for SimpleCommunicationSubclass {
         match self {
             Self::Serial(prog) => f.format_with_subtype("Serial Controller", prog),
             Self::Parallel(prog) => f.format_with_subtype("Parallel Controller", prog),
-            Self::MultiportSerial(_) => write!(f, "Multiport Serial Controller"),
+            Self::MultiportSerial(_) => f.write_str("Multiport Serial Controller"),
             Self::Modem(prog) => f.format_with_subtype("Modem", prog),
-            Self::Gpib(_) => write!(f, "IEEE 488.1/2 (GPIB) Controller"),
-            Self::SmartCard(_) => write!(f, "Smart Card Controller"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Gpib(_) => f.write_str("IEEE 488.1/2 (GPIB) Controller"),
+            Self::SmartCard(_) => f.write_str("Smart Card Controller"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -762,14 +747,14 @@ impl fmt::Display for SimpleCommunicationSubclass {
 impl fmt::Display for SerialProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Compatible8250 => write!(f, "8250-Compatible (Generic XT)"),
-            Self::Compatible16450 => write!(f, "16450-Compatible"),
-            Self::Compatible16550 => write!(f, "16550-Compatible"),
-            Self::Compatible16650 => write!(f, "16650-Compatible"),
-            Self::Compatible16750 => write!(f, "16750-Compatible"),
-            Self::Compatible16850 => write!(f, "16850-Compatible"),
-            Self::Compatible16950 => write!(f, "16950-Compatible"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Compatible8250 => f.write_str("8250-Compatible (Generic XT)"),
+            Self::Compatible16450 => f.write_str("16450-Compatible"),
+            Self::Compatible16550 => f.write_str("16550-Compatible"),
+            Self::Compatible16650 => f.write_str("16650-Compatible"),
+            Self::Compatible16750 => f.write_str("16750-Compatible"),
+            Self::Compatible16850 => f.write_str("16850-Compatible"),
+            Self::Compatible16950 => f.write_str("16950-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -777,12 +762,12 @@ impl fmt::Display for SerialProgIf {
 impl fmt::Display for ParallelProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Standard => write!(f, "Standard Parallel Port"),
-            Self::BiDirectional => write!(f, "Bi-Directional Parallel Port"),
-            Self::Ecp => write!(f, "ECP 1.X Compliant Parallel Port"),
-            Self::Ieee1284Controller => write!(f, "IEEE 1284 Controller"),
-            Self::Ieee1284Target => write!(f, "IEEE 1284 Target Device"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Standard => f.write_str("Standard Parallel Port"),
+            Self::BiDirectional => f.write_str("Bi-Directional Parallel Port"),
+            Self::Ecp => f.write_str("ECP 1.X Compliant Parallel Port"),
+            Self::Ieee1284Controller => f.write_str("IEEE 1284 Controller"),
+            Self::Ieee1284Target => f.write_str("IEEE 1284 Target Device"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -790,12 +775,12 @@ impl fmt::Display for ParallelProgIf {
 impl fmt::Display for ModemProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic => write!(f, "Generic Modem"),
-            Self::Hayes16450 => write!(f, "Hayes 16450-Compatible"),
-            Self::Hayes16550 => write!(f, "Hayes 16550-Compatible"),
-            Self::Hayes16650 => write!(f, "Hayes 16650-Compatible"),
-            Self::Hayes16750 => write!(f, "Hayes 16750-Compatible"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic => f.write_str("Generic Modem"),
+            Self::Hayes16450 => f.write_str("Hayes 16450-Compatible"),
+            Self::Hayes16550 => f.write_str("Hayes 16550-Compatible"),
+            Self::Hayes16650 => f.write_str("Hayes 16650-Compatible"),
+            Self::Hayes16750 => f.write_str("Hayes 16750-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -807,10 +792,10 @@ impl fmt::Display for BaseSystemPeripheralSubclass {
             Self::Dma(prog) => f.format_with_subtype("DMA Controller", prog),
             Self::Timer(prog) => f.format_with_subtype("Timer", prog),
             Self::Rtc(prog) => f.format_with_subtype("RTC Controller", prog),
-            Self::PciHotPlug(_) => write!(f, "PCI Hot-Plug Controller"),
-            Self::SdHost(_) => write!(f, "SD Host controller"),
-            Self::Iommu(_) => write!(f, "IOMMU"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::PciHotPlug(_) => f.write_str("PCI Hot-Plug Controller"),
+            Self::SdHost(_) => f.write_str("SD Host controller"),
+            Self::Iommu(_) => f.write_str("IOMMU"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -818,12 +803,12 @@ impl fmt::Display for BaseSystemPeripheralSubclass {
 impl fmt::Display for PicProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic8259 => write!(f, "Generic 8259-Compatible"),
-            Self::IsaCompatible => write!(f, "ISA-Compatible"),
-            Self::EisaCompatible => write!(f, "EISA-Compatible"),
-            Self::IoApic => write!(f, "I/O APIC"),
-            Self::IoXApic => write!(f, "I/O(x) APIC"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic8259 => f.write_str("Generic 8259-Compatible"),
+            Self::IsaCompatible => f.write_str("ISA-Compatible"),
+            Self::EisaCompatible => f.write_str("EISA-Compatible"),
+            Self::IoApic => f.write_str("I/O APIC"),
+            Self::IoXApic => f.write_str("I/O(x) APIC"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -831,10 +816,10 @@ impl fmt::Display for PicProgIf {
 impl fmt::Display for DmaProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic8237 => write!(f, "Generic 8237-Compatible"),
-            Self::IsaCompatible => write!(f, "ISA-Compatible"),
-            Self::EisaCompatible => write!(f, "EISA-Compatible"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic8237 => f.write_str("Generic 8237-Compatible"),
+            Self::IsaCompatible => f.write_str("ISA-Compatible"),
+            Self::EisaCompatible => f.write_str("EISA-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -842,11 +827,11 @@ impl fmt::Display for DmaProgIf {
 impl fmt::Display for TimerProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic8254 => write!(f, "Generic 8254-Compatible"),
-            Self::IsaCompatible => write!(f, "ISA-Compatible"),
-            Self::EisaCompatible => write!(f, "EISA-Compatible"),
-            Self::Hpet => write!(f, "HPET"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic8254 => f.write_str("Generic 8254-Compatible"),
+            Self::IsaCompatible => f.write_str("ISA-Compatible"),
+            Self::EisaCompatible => f.write_str("EISA-Compatible"),
+            Self::Hpet => f.write_str("HPET"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -854,9 +839,9 @@ impl fmt::Display for TimerProgIf {
 impl fmt::Display for RtcProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic => write!(f, "Generic RTC"),
-            Self::IsaCompatible => write!(f, "ISA-Compatible"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic => f.write_str("Generic RTC"),
+            Self::IsaCompatible => f.write_str("ISA-Compatible"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -864,12 +849,12 @@ impl fmt::Display for RtcProgIf {
 impl fmt::Display for InputDeviceSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Keyboard(_) => write!(f, "Keyboard Controller"),
-            Self::Digitizer(_) => write!(f, "Digitizer Pen"),
-            Self::Mouse(_) => write!(f, "Mouse Controller"),
-            Self::Scanner(_) => write!(f, "Scanner Controller"),
+            Self::Keyboard(_) => f.write_str("Keyboard Controller"),
+            Self::Digitizer(_) => f.write_str("Digitizer Pen"),
+            Self::Mouse(_) => f.write_str("Mouse Controller"),
+            Self::Scanner(_) => f.write_str("Scanner Controller"),
             Self::Gameport(prog) => f.format_with_subtype("Gameport Controller", prog),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -877,9 +862,9 @@ impl fmt::Display for InputDeviceSubclass {
 impl fmt::Display for GameportProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic => write!(f, "Generic"),
-            Self::Extended => write!(f, "Extended"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic => f.write_str("Generic"),
+            Self::Extended => f.write_str("Extended"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -887,8 +872,8 @@ impl fmt::Display for GameportProgIf {
 impl fmt::Display for DockingStationSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic => write!(f, "Generic"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic => f.write_str("Generic"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -896,15 +881,15 @@ impl fmt::Display for DockingStationSubclass {
 impl fmt::Display for ProcessorSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I386(_) => write!(f, "386"),
-            Self::I486(_) => write!(f, "486"),
-            Self::Pentium(_) => write!(f, "Pentium"),
-            Self::PentiumPro(_) => write!(f, "Pentium Pro"),
-            Self::Alpha(_) => write!(f, "Alpha"),
-            Self::PowerPc(_) => write!(f, "PowerPC"),
-            Self::Mips(_) => write!(f, "MIPS"),
-            Self::CoProcessor(_) => write!(f, "Co-Processor"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::I386(_) => f.write_str("386"),
+            Self::I486(_) => f.write_str("486"),
+            Self::Pentium(_) => f.write_str("Pentium"),
+            Self::PentiumPro(_) => f.write_str("Pentium Pro"),
+            Self::Alpha(_) => f.write_str("Alpha"),
+            Self::PowerPc(_) => f.write_str("PowerPC"),
+            Self::Mips(_) => f.write_str("MIPS"),
+            Self::CoProcessor(_) => f.write_str("Co-Processor"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -913,16 +898,16 @@ impl fmt::Display for SerialBusSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::FireWire(prog) => f.format_with_subtype("FireWire (IEEE 1394)", prog),
-            Self::AccessBus(_) => write!(f, "ACCESS Bus"),
-            Self::Ssa(_) => write!(f, "SSA"),
+            Self::AccessBus(_) => f.write_str("ACCESS Bus"),
+            Self::Ssa(_) => f.write_str("SSA"),
             Self::Usb(prog) => f.format_with_subtype("USB", prog),
-            Self::FibreChannel(_) => write!(f, "Fibre Channel"),
-            Self::SmBus(_) => write!(f, "SMBus"),
-            Self::InfiniBand(_) => write!(f, "InfiniBand"),
+            Self::FibreChannel(_) => f.write_str("Fibre Channel"),
+            Self::SmBus(_) => f.write_str("SMBus"),
+            Self::InfiniBand(_) => f.write_str("InfiniBand"),
             Self::Ipmi(prog) => f.format_with_subtype("IPMI", prog),
-            Self::Sercos(_) => write!(f, "SERCOS (IEC 61491)"),
-            Self::CanBus(_) => write!(f, "CANbus"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Sercos(_) => f.write_str("SERCOS (IEC 61491)"),
+            Self::CanBus(_) => f.write_str("CANbus"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -930,9 +915,9 @@ impl fmt::Display for SerialBusSubclass {
 impl fmt::Display for FireWireProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Generic => write!(f, "Generic"),
-            Self::Ohci => write!(f, "OHCI"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Generic => f.write_str("Generic"),
+            Self::Ohci => f.write_str("OHCI"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -940,13 +925,13 @@ impl fmt::Display for FireWireProgIf {
 impl fmt::Display for UsbProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Uhci => write!(f, "UHCI"),
-            Self::Ohci => write!(f, "OHCI"),
-            Self::Ehci => write!(f, "EHCI (USB2)"),
-            Self::Xhci => write!(f, "XHCI (USB3)"),
-            Self::Unspecified => write!(f, "Unspecified"),
-            Self::UsbDevice => write!(f, "USB Device (Not a host controller)"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Uhci => f.write_str("UHCI"),
+            Self::Ohci => f.write_str("OHCI"),
+            Self::Ehci => f.write_str("EHCI (USB2)"),
+            Self::Xhci => f.write_str("XHCI (USB3)"),
+            Self::Unspecified => f.write_str("Unspecified"),
+            Self::UsbDevice => f.write_str("USB Device (Not a host controller)"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -954,10 +939,10 @@ impl fmt::Display for UsbProgIf {
 impl fmt::Display for IpmiProgIf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Smic => write!(f, "SMIC"),
-            Self::KeyboardControllerStyle => write!(f, "Keyboard Controller Style"),
-            Self::BlockTransfer => write!(f, "Block Transfer"),
-            Self::Unknown(_) => write!(f, ""),
+            Self::Smic => f.write_str("SMIC"),
+            Self::KeyboardControllerStyle => f.write_str("Keyboard Controller Style"),
+            Self::BlockTransfer => f.write_str("Block Transfer"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -965,14 +950,14 @@ impl fmt::Display for IpmiProgIf {
 impl fmt::Display for WirelessSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Irda(_) => write!(f, "iRDA Compatible Controller"),
-            Self::ConsumerIr(_) => write!(f, "Consumer IR Controller"),
-            Self::Rf(_) => write!(f, "RF Controller"),
-            Self::Bluetooth(_) => write!(f, "Bluetooth Controller"),
-            Self::Broadband(_) => write!(f, "Broadband Controller"),
-            Self::Ethernet802_1a(_) => write!(f, "Ethernet Controller (802.1a)"),
-            Self::Ethernet802_1b(_) => write!(f, "Ethernet Controller (802.1b)"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Irda(_) => f.write_str("iRDA Compatible Controller"),
+            Self::ConsumerIr(_) => f.write_str("Consumer IR Controller"),
+            Self::Rf(_) => f.write_str("RF Controller"),
+            Self::Bluetooth(_) => f.write_str("Bluetooth Controller"),
+            Self::Broadband(_) => f.write_str("Broadband Controller"),
+            Self::Ethernet802_1a(_) => f.write_str("Ethernet Controller (802.1a)"),
+            Self::Ethernet802_1b(_) => f.write_str("Ethernet Controller (802.1b)"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -980,8 +965,8 @@ impl fmt::Display for WirelessSubclass {
 impl fmt::Display for IntelligentSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I20(_) => write!(f, "I20"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::I20(_) => f.write_str("I20"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -989,11 +974,11 @@ impl fmt::Display for IntelligentSubclass {
 impl fmt::Display for SatelliteCommunicationSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Tv(_) => write!(f, "Satellite TV Controller"),
-            Self::Audio(_) => write!(f, "Satellite Audio Controller"),
-            Self::Voice(_) => write!(f, "Satellite Voice Controller"),
-            Self::Data(_) => write!(f, "Satellite Data Controller"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Tv(_) => f.write_str("Satellite TV Controller"),
+            Self::Audio(_) => f.write_str("Satellite Audio Controller"),
+            Self::Voice(_) => f.write_str("Satellite Voice Controller"),
+            Self::Data(_) => f.write_str("Satellite Data Controller"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -1002,10 +987,10 @@ impl fmt::Display for EncryptionSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NetworkAndComputing(_) => {
-                write!(f, "Network and Computing Encryption/Decryption")
+                f.write_str("Network and Computing Encryption/Decryption")
             }
-            Self::Entertainment(_) => write!(f, "Entertainment Encryption/Decryption"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::Entertainment(_) => f.write_str("Entertainment Encryption/Decryption"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }
@@ -1013,11 +998,11 @@ impl fmt::Display for EncryptionSubclass {
 impl fmt::Display for SignalProcessingSubclass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DpioModules(_) => write!(f, "DPIO Modules"),
-            Self::PerformanceCounters(_) => write!(f, "Performance Counters"),
-            Self::CommunicationSynchronizer(_) => write!(f, "Communication Synchronizer"),
-            Self::SignalProcessingManagement(_) => write!(f, "Signal Processing Management"),
-            Self::Unknown(_, _) => write!(f, ""),
+            Self::DpioModules(_) => f.write_str("DPIO Modules"),
+            Self::PerformanceCounters(_) => f.write_str("Performance Counters"),
+            Self::CommunicationSynchronizer(_) => f.write_str("Communication Synchronizer"),
+            Self::SignalProcessingManagement(_) => f.write_str("Signal Processing Management"),
+            Self::Unknown(..) => Ok(()),
         }
     }
 }

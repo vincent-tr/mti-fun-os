@@ -1,2 +1,2 @@
 pub mod iface;
-mod types;
+pub mod types;

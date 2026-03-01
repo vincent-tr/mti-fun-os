@@ -39,7 +39,8 @@ impl From<Type> for u16 {
 pub enum PciServerError {
     InvalidArgument = 1,
     RuntimeError,
-    NotFound,
+    DeviceNotFound,
+    DeviceInUse,
 }
 
 impl fmt::Display for PciServerError {
@@ -47,7 +48,8 @@ impl fmt::Display for PciServerError {
         match self {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
-            Self::NotFound => write!(f, "NotFound"),
+            Self::DeviceNotFound => write!(f, "DeviceNotFound"),
+            Self::DeviceInUse => write!(f, "DeviceInUse"),
         }
     }
 }

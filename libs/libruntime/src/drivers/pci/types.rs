@@ -1,7 +1,7 @@
 use core::fmt;
 
 /// PCI device address
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct PciAddress {
     /// The bus number of the PCI address (0-255).
@@ -25,7 +25,7 @@ impl fmt::Display for PciAddress {
 }
 
 /// PCI device ID (vendor ID and device ID)
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct PciDeviceId {
     /// The vendor ID of the PCI device (16 bits).
@@ -42,7 +42,7 @@ impl fmt::Display for PciDeviceId {
 }
 
 /// PCI class information
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct PciClass {
     /// The class code of the PCI device (8 bits).

@@ -1,13 +1,11 @@
 [package]
-name = "vfs-server"
+name = "memfs-server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 async-trait = { workspace = true }
-futures = { workspace = true }
 hashbrown = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
-lru = { workspace = true }
-libruntime = { path = "../../libs/libruntime" }
+libruntime = { path = "../../../libs/libruntime" }

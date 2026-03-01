@@ -239,6 +239,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "e1000-server"
+version = "0.1.0"
+dependencies = [
+ "hashbrown 0.15.2",
+ "lazy_static",
+ "libruntime",
+ "log",
+]
+
+[[package]]
 name = "embedded-graphics"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -676,6 +686,16 @@ dependencies = [
  "bootloader",
  "kernel",
  "ovmf-prebuilt",
+]
+
+[[package]]
+name = "net-server"
+version = "0.1.0"
+dependencies = [
+ "hashbrown 0.15.2",
+ "lazy_static",
+ "libruntime",
+ "log",
 ]
 
 [[package]]

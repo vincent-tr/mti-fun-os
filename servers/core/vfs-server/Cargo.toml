@@ -1,12 +1,13 @@
 [package]
-name = "archivefs-server"
+name = "vfs-server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 async-trait = { workspace = true }
-cpio_reader = { workspace = true }
+futures = { workspace = true }
 hashbrown = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
-libruntime = { path = "../../libs/libruntime" }
+lru = { workspace = true }
+libruntime = { path = "../../../libs/libruntime" }

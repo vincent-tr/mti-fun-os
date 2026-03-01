@@ -45,10 +45,11 @@ impl Server {
             let device = Arc::new(Device::new(address, id, class));
 
             debug!(
-                "Found PCI device: address {}, id {}, class {}",
+                "Found PCI device: address {}, id {}, class {} ({})",
                 device.address(),
                 device.device_id(),
-                device.class()
+                device.class(),
+                device.class().kind()
             );
 
             self.devices.insert(device.address(), device);

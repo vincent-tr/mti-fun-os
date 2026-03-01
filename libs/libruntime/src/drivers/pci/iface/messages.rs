@@ -5,6 +5,8 @@ use crate::{
     ipc::{Handle, buffer_messages::Buffer},
 };
 
+use super::PciDeviceInfo;
+
 /// Name of the IPC port for the PCI server.
 pub const PORT_NAME: &str = "pci-server";
 
@@ -37,6 +39,7 @@ impl From<Type> for u16 {
 pub enum PciServerError {
     InvalidArgument = 1,
     RuntimeError,
+    NotFound,
 }
 
 impl fmt::Display for PciServerError {
@@ -44,6 +47,7 @@ impl fmt::Display for PciServerError {
         match self {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
+            Self::NotFound => write!(f, "NotFound"),
         }
     }
 }
@@ -106,21 +110,13 @@ pub struct ListByDeviceIdReply {
 pub struct GetByAddressQueryParameters {
     /// The address of the device to query for.
     pub address: PciAddress,
-
-    /// Buffer to write the list of devices info into.
-    pub buffer: Buffer,
-}
-
-impl GetByAddressQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the GetByAddress message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GetByAddressReply {
-    /// Number of bytes used in the buffer to write the list of devices info (if the call succeeds)
-    pub buffer_used_len: usize,
+    pub device_info: PciDeviceInfo,
 }
 
 /// Parameters for the Open message.

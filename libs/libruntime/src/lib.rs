@@ -14,6 +14,7 @@ mod allocator;
 pub mod r#async;
 pub mod collections;
 pub mod debug;
+pub mod drivers;
 #[cfg(feature = "entry")]
 mod entry;
 pub mod file;

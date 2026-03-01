@@ -70,6 +70,7 @@ impl Device {
     }
 
     /// Returns whether the device is currently in use.
+    #[allow(dead_code)]
     pub fn is_in_use(&self) -> bool {
         self.in_use.load(Ordering::SeqCst)
     }

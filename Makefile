@@ -27,18 +27,22 @@ image-build: boot.cpio
 boot.cpio: init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build e1000-server-build net-server-build
 	@echo "Creating boot.cpio archive..."
 	@TMPDIR=$$(mktemp -d); \
-	mkdir -p $$TMPDIR/servers; \
+	mkdir -p $$TMPDIR/servers/core; \
+	mkdir -p $$TMPDIR/servers/fs; \
+	mkdir -p $$TMPDIR/servers/bus; \
+	mkdir -p $$TMPDIR/servers/drivers/net; \
+	mkdir -p $$TMPDIR/servers/net; \
 	mkdir -p target/$(MTI_FUN_OS_KERNEL_PROFILE); \
 	cp target/$(MTI_FUN_OS_INIT_TARGET)/$(MTI_FUN_OS_INIT_PROFILE)/init $$TMPDIR/init; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/process-server $$TMPDIR/servers/process-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/time-server $$TMPDIR/servers/time-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/vfs-server $$TMPDIR/servers/vfs-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/memfs-server $$TMPDIR/servers/memfs-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/display-server $$TMPDIR/servers/display-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/archivefs-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/pci-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/e1000-server $$TMPDIR/servers/e1000-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/net-server $$TMPDIR/servers/net-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/process-server $$TMPDIR/servers/core/process-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/time-server $$TMPDIR/servers/core/time-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/vfs-server $$TMPDIR/servers/core/vfs-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/display-server $$TMPDIR/servers/core/display-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/memfs-server $$TMPDIR/servers/fs/memfs-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/fs/archivefs-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/bus/pci-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/e1000-server $$TMPDIR/servers/drivers/net/e1000-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/net-server $$TMPDIR/servers/net/net-server; \
 	cd $$TMPDIR && find . -depth -print | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
 	rm -rf $$TMPDIR
 	@echo "Boot archive created: target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio"

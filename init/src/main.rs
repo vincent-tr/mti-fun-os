@@ -65,7 +65,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
     wait_port(state::iface::PORT_NAME);
 
     let init_binary = archive_find(archive, "init");
-    let process_server_binary = archive_find(archive, "servers/process-server");
+    let process_server_binary = archive_find(archive, "servers/core/process-server");
     loader::load("process-server", process_server_binary).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);
 
@@ -80,7 +80,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
     // Required by memfs-server to be able to set timestamps to created directories and files
     let options = process::ProcessOptions::from_buffer(
         "time-server",
-        archive_find(archive, "servers/time-server"),
+        archive_find(archive, "servers/core/time-server"),
     );
     let process = process::Process::spawn(options).expect("Could not spawn time server");
 
@@ -91,7 +91,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
 
     let options = process::ProcessOptions::from_buffer(
         "vfs-server",
-        archive_find(archive, "servers/vfs-server"),
+        archive_find(archive, "servers/core/vfs-server"),
     );
     let process = process::Process::spawn(options).expect("Could not spawn vfs server");
 
@@ -100,7 +100,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
 
     let options = process::ProcessOptions::from_buffer(
         "memfs-server",
-        archive_find(archive, "servers/memfs-server"),
+        archive_find(archive, "servers/fs/memfs-server"),
     );
     let process = process::Process::spawn(options).expect("Could not spawn memfs server");
 
@@ -109,7 +109,7 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
 
     let options = process::ProcessOptions::from_buffer(
         "archivefs-server",
-        archive_find(archive, "servers/archivefs-server"),
+        archive_find(archive, "servers/fs/archivefs-server"),
     );
     let process = process::Process::spawn(options).expect("Could not spawn archivefs server");
 
@@ -157,13 +157,14 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
 }
 
 fn start_extended_servers(info: &syscalls::init::InitInfo) {
-    let options = process::ProcessOptions::from_path("/mnt/archive/servers/pci-server")
+    let options = process::ProcessOptions::from_path("/mnt/archive/servers/bus/pci-server")
         .expect("Failed to load pci-server");
     let process = process::Process::spawn(options).expect("Could not spawn pci server");
     let _ = process;
 
-    let mut options = process::ProcessOptions::from_path("/mnt/archive/servers/display-server")
-        .expect("Failed to load file");
+    let mut options =
+        process::ProcessOptions::from_path("/mnt/archive/servers/core/display-server")
+            .expect("Failed to load file");
     options.set_arg(
         "framebuffer.address",
         format!("{}", info.framebuffer.address),

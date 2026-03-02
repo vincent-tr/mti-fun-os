@@ -59,7 +59,7 @@ SECTIONS {
         PROVIDE(__data_end = .);
     }
 
-     PROVIDE(__end = .);
+    PROVIDE(__end = .);
 
     /DISCARD/ : {
         *(.comment*)

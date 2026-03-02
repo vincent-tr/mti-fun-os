@@ -71,6 +71,46 @@ impl fmt::Display for PciClass {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct PciHeader {
+    /// The subsystem vendor ID of the PCI device (16 bits).
+    pub subsystem_vendor_id: u16,
+
+    /// The subsystem ID of the PCI device (16 bits).
+    pub subsystem_id: u16,
+
+    /// The base address registers (BARs) of the PCI device, which specify the memory or I/O address ranges used by the device.
+    pub bars: [Option<Bar>; 6],
+
+    /// The interrupt line of the PCI device (0-15).
+    pub interrupt_line: Option<u8>,
+
+    /// The interrupt pin of the PCI device (INTA#, INTB#, INTC#, INTD#).
+    pub interrupt_pin: Option<InterruptPin>,
+}
+
+/// Pin number of the PCI interrupt pin (INTA#, INTB#, INTC#, INTD#)
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum InterruptPin {
+    PinA,
+    PinB,
+    PinC,
+    PinD,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Bar {
+    Memory {
+        address: usize,
+        size: usize,
+        prefetchable: bool,
+    },
+    Io {
+        address: usize,
+        size: usize,
+    },
+}
+
 /// PCI class kind (e.g., mass storage, network controller, etc.)
 ///
 /// Note: source here: https://wiki.osdev.org/PCI#Class_Codes

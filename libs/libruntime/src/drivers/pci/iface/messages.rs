@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::{
-    drivers::pci::types::PciAddress,
+    drivers::pci::types::{PciAddress, PciHeader},
     ipc::{Handle, buffer_messages::Buffer},
 };
 
@@ -24,6 +24,10 @@ pub enum Type {
     // Handles management messages
     Open,
     Close,
+    GetHeader,
+    Enable,
+    ReadConfig,
+    WriteConfig,
 }
 
 impl From<Type> for u16 {
@@ -128,3 +132,94 @@ pub struct CloseQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CloseReply {}
+
+/// Parameters for the GetHeader message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetHeaderQueryParameters {
+    /// Handle to the device to get the header from.
+    pub handle: Handle,
+}
+
+/// Reply for the GetHeader message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct GetHeaderReply {
+    /// The header of the device.
+    pub header: PciHeader,
+}
+
+/// Parameters for the Enable message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EnableQueryParameters {
+    /// Handle to the device to enable.
+    pub handle: Handle,
+
+    /// Whether to enable memory access for the device.
+    pub memory: bool,
+
+    /// Whether to enable I/O access for the device.
+    pub io: bool,
+
+    /// Whether to enable bus mastering for the device.
+    pub bus_master: bool,
+}
+
+/// Reply for the Enable message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EnableReply {}
+
+/// Parameters for the ReadConfig message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadConfigQueryParameters {
+    /// Handle to the device to read the config from.
+    pub handle: Handle,
+
+    /// The offset to read from.
+    pub offset: u16,
+
+    /// The width of the read (1, 2, or 4 bytes).
+    pub width: ConfigWidth,
+}
+
+/// Reply for the ReadConfig message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadConfigReply {
+    /// The value read from the config space.
+    pub value: u32,
+}
+
+/// Parameters for the WriteConfig message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteConfigQueryParameters {
+    /// Handle to the device to write the config to.
+    pub handle: Handle,
+
+    /// The offset to write to.
+    pub offset: u16,
+
+    /// The width of the write (1, 2, or 4 bytes).
+    pub width: ConfigWidth,
+
+    /// The value to write to the config space.
+    pub value: u32,
+}
+
+/// Reply for the WriteConfig message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteConfigReply {}
+
+/// Width of a PCI config space access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ConfigWidth {
+    U8 = 1,
+    U16 = 2,
+    U32 = 4,
+}

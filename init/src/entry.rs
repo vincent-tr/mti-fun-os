@@ -1,6 +1,6 @@
 use core::{arch::naked_asm, hint::unreachable_unchecked, ops::Range};
 
-use crate::{main, offsets};
+use crate::{InitInfo, main, offsets};
 use libruntime::kobject::{self, PAGE_SIZE, Permissions, ThreadOptions};
 use log::debug;
 
@@ -25,9 +25,13 @@ pub unsafe extern "C" fn user_start() -> ! {
 extern "C" fn entry(init_info_ptr: usize) -> ! {
     unsafe { libruntime::init() };
 
-    let init_info = unsafe { &*(init_info_ptr as *const syscalls::init::InitInfo) };
+    // Apply memory protections before doing anything else, to be sure we are protected even if something goes wrong later
+    {
+        let init_info = unsafe { &*(init_info_ptr as *const syscalls::init::InitInfo) };
+        apply_memory_protections(init_info.init_mapping.size);
+    }
 
-    apply_memory_protections(init_info.init_mapping.size);
+    let init_info = unsafe { InitInfo::from_raw(init_info_ptr as *const syscalls::init::InitInfo) };
 
     // Jump to a safer thread, with better stack
     let mut options = ThreadOptions::default();

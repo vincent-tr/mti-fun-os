@@ -6,18 +6,20 @@ extern crate alloc;
 
 mod entry;
 mod idle;
+mod info;
 mod loader;
 mod offsets;
 mod state_server;
 mod tests;
 
-use core::{mem, slice};
+use core::mem;
 
 use alloc::{boxed::Box, format};
+use info::InitInfo;
 use libruntime::{file, kobject, process, state, time};
 use log::{debug, info};
 
-fn main(info: &syscalls::init::InitInfo) {
+fn main(info: InitInfo) {
     debug!("Init info: {:?}", info);
 
     idle::create_idle_process().expect("Could not create idle process");
@@ -35,7 +37,7 @@ fn main(info: &syscalls::init::InitInfo) {
     // tests::sync::test_async_mutex();
     // tests::sync::test_async_rwlock();
 
-    start_base_servers(&info);
+    start_core_servers(&info);
     setup_initial_filesystem(&info);
 
     // tests::process::list_processes();
@@ -43,29 +45,21 @@ fn main(info: &syscalls::init::InitInfo) {
 
     start_extended_servers(&info);
 
-    unsafe { clean_init_info(&info) };
-    // We cannot use info from here, so override it to make sure we don't accidentally use it
-    let info = ();
-    let _ = info;
+    mem::drop(info);
 
     // init cannot exit, it runs the state server
     sleep_forever();
     // libruntime::exit();
 }
 
-fn start_base_servers(info: &syscalls::init::InitInfo) {
-    let archive = unsafe {
-        slice::from_raw_parts(
-            info.archive_mapping.address as *const u8,
-            info.archive_mapping.size,
-        )
-    };
+fn start_core_servers(info: &InitInfo) {
+    let helper = CoreServersSetupHelper::new(info);
 
     state_server::start();
     wait_port(state::iface::PORT_NAME);
 
-    let init_binary = archive_find(archive, "init");
-    let process_server_binary = archive_find(archive, "servers/core/process-server");
+    let init_binary = helper.archive_find("init");
+    let process_server_binary = helper.archive_find("servers/core/process-server");
     loader::load("process-server", process_server_binary).expect("Could not load process server");
     wait_port(process::iface::PORT_NAME);
 
@@ -78,46 +72,16 @@ fn start_base_servers(info: &syscalls::init::InitInfo) {
     }
 
     // Required by memfs-server to be able to set timestamps to created directories and files
-    let options = process::ProcessOptions::from_buffer(
-        "time-server",
-        archive_find(archive, "servers/core/time-server"),
-    );
-    let process = process::Process::spawn(options).expect("Could not spawn time server");
-
-    let _ = process;
-    wait_port(time::iface::PORT_NAME);
+    helper.start_server("servers/core/time-server", time::iface::PORT_NAME);
 
     info!("Current time: {}", time::get_wall_time());
 
-    let options = process::ProcessOptions::from_buffer(
-        "vfs-server",
-        archive_find(archive, "servers/core/vfs-server"),
-    );
-    let process = process::Process::spawn(options).expect("Could not spawn vfs server");
-
-    let _ = process;
-    wait_port(file::vfs::iface::PORT_NAME);
-
-    let options = process::ProcessOptions::from_buffer(
-        "memfs-server",
-        archive_find(archive, "servers/fs/memfs-server"),
-    );
-    let process = process::Process::spawn(options).expect("Could not spawn memfs server");
-
-    let _ = process;
-    wait_port("memfs-server");
-
-    let options = process::ProcessOptions::from_buffer(
-        "archivefs-server",
-        archive_find(archive, "servers/fs/archivefs-server"),
-    );
-    let process = process::Process::spawn(options).expect("Could not spawn archivefs server");
-
-    let _ = process;
-    wait_port("archivefs-server");
+    helper.start_server("servers/core/vfs-server", file::vfs::iface::PORT_NAME);
+    helper.start_server("servers/fs/memfs-server", "memfs-server");
+    helper.start_server("servers/fs/archivefs-server", "archivefs-server");
 }
 
-fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
+fn setup_initial_filesystem(info: &InitInfo) {
     debug!("Setting up initial filesystem...");
 
     let args = Box::new([0u8; 0]);
@@ -136,14 +100,8 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
     )
     .expect("Could not create /mnt/archive directory");
 
-    let args = unsafe {
-        slice::from_raw_parts(
-            info.archive_mapping.address as *const u8,
-            info.archive_mapping.size,
-        )
-    };
-
-    file::mount("/mnt/archive", "archivefs-server", args).expect("Could not mount archivefs");
+    file::mount("/mnt/archive", "archivefs-server", info.archive_buffer())
+        .expect("Could not mount archivefs");
 
     debug!("Initial filesystem setup complete");
 
@@ -156,7 +114,7 @@ fn setup_initial_filesystem(info: &syscalls::init::InitInfo) {
     }
 }
 
-fn start_extended_servers(info: &syscalls::init::InitInfo) {
+fn start_extended_servers(info: &InitInfo) {
     let options = process::ProcessOptions::from_path("/mnt/archive/servers/bus/pci-server")
         .expect("Failed to load pci-server");
     let process = process::Process::spawn(options).expect("Could not spawn pci server");
@@ -167,47 +125,42 @@ fn start_extended_servers(info: &syscalls::init::InitInfo) {
             .expect("Failed to load file");
     options.set_arg(
         "framebuffer.address",
-        format!("{}", info.framebuffer.address),
+        format!("{}", info.framebuffer().address),
     );
     options.set_arg(
         "framebuffer.byte_len",
-        format!("{}", info.framebuffer.byte_len),
+        format!("{}", info.framebuffer().byte_len),
     );
-    options.set_arg("framebuffer.width", format!("{}", info.framebuffer.width));
-    options.set_arg("framebuffer.height", format!("{}", info.framebuffer.height));
+    options.set_arg("framebuffer.width", format!("{}", info.framebuffer().width));
+    options.set_arg(
+        "framebuffer.height",
+        format!("{}", info.framebuffer().height),
+    );
     options.set_arg(
         "framebuffer.pixel_format.red_mask",
-        format!("{}", info.framebuffer.pixel_format.red_mask),
+        format!("{}", info.framebuffer().pixel_format.red_mask),
     );
     options.set_arg(
         "framebuffer.pixel_format.green_mask",
-        format!("{}", info.framebuffer.pixel_format.green_mask),
+        format!("{}", info.framebuffer().pixel_format.green_mask),
     );
     options.set_arg(
         "framebuffer.pixel_format.blue_mask",
-        format!("{}", info.framebuffer.pixel_format.blue_mask),
+        format!("{}", info.framebuffer().pixel_format.blue_mask),
     );
     options.set_arg(
         "framebuffer.bytes_per_pixel",
-        format!("{}", info.framebuffer.bytes_per_pixel),
+        format!("{}", info.framebuffer().bytes_per_pixel),
     );
-    options.set_arg("framebuffer.stride", format!("{}", info.framebuffer.stride));
+    options.set_arg(
+        "framebuffer.stride",
+        format!("{}", info.framebuffer().stride),
+    );
 
     let process = process::Process::spawn(options).expect("Could not spawn display server");
 
     let _ = process;
     //wait_port(display::iface::PORT_NAME);
-}
-
-/// Find a file in the archive, and return its content as a byte slice.
-fn archive_find<'a>(archive: &'a [u8], name: &str) -> &'a [u8] {
-    for entry in cpio_reader::iter_files(archive) {
-        if entry.name() == name {
-            return entry.file();
-        }
-    }
-
-    panic!("Could not find '{}' in archive", name);
 }
 
 /// Wait for a server port to be available
@@ -226,25 +179,45 @@ fn wait_port(name: &'static str) {
     info!("found '{}' port", name);
 }
 
-/// Clean up the init info, unmapping the archive and such, as we don't need it anymore
-///
-/// # Safety
-/// - This should only be called once, and after this, the info should not be used anymore
-unsafe fn clean_init_info(info: &syscalls::init::InitInfo) {
-    let process = kobject::Process::current();
+/// A helper struct to setup the core servers.
+#[derive(Debug)]
+struct CoreServersSetupHelper<'a> {
+    archive: &'a [u8],
+}
 
-    let clean_mapping = |mapping: &syscalls::init::Mapping| {
-        let range = mapping.address..mapping.address + mapping.size;
-        unsafe {
-            let mapping = kobject::Mapping::unleak(process, range, kobject::Permissions::READ);
-            // explicit
-            mem::drop(mapping);
+impl<'a> CoreServersSetupHelper<'a> {
+    /// Create a new CoreServersSetupHelper from the init info, which contains the archive mapping.
+    pub fn new(info: &'a InitInfo) -> Self {
+        Self {
+            archive: info.archive_buffer(),
         }
-    };
+    }
 
-    clean_mapping(&info.archive_mapping);
-    // Clean last because we cannot use info itself after this
-    clean_mapping(&info.info_mapping);
+    /// Start a server from the archive.
+    pub fn start_server(&self, archive_path: &str, port_name: &'static str) {
+        let name = archive_path
+            .rsplit('/')
+            .next()
+            .expect("Could not get server name");
+        let options = process::ProcessOptions::from_buffer(name, self.archive_find(archive_path));
+
+        let process =
+            process::Process::spawn(options).expect(&format!("Could not spawn {} server", name,));
+
+        let _ = process;
+        wait_port(port_name);
+    }
+
+    /// Find a file in the archive, and return its contents as a byte slice.
+    pub fn archive_find(&self, path: &str) -> &'a [u8] {
+        for entry in cpio_reader::iter_files(self.archive) {
+            if entry.name() == path {
+                return entry.file();
+            }
+        }
+
+        panic!("Could not find '{}' in archive", path);
+    }
 }
 
 fn sleep_forever() -> ! {

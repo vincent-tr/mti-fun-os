@@ -18,8 +18,7 @@ pub const VERSION: u16 = 1;
 #[repr(u16)]
 pub enum Type {
     // Discovery messages
-    ListByClass,
-    ListByDeviceId,
+    List,
     GetByAddress,
 
     // Handles management messages
@@ -57,9 +56,15 @@ impl fmt::Display for PciServerError {
 /// Parameters for the ListByClass message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ListByClassQueryParameters {
+pub struct ListQueryParameters {
+    /// The vendor ID to query for (16 bits).
+    pub vendor_id: Option<u16>,
+
+    /// The device ID to query for (16 bits).
+    pub device_id: Option<u16>,
+
     /// The class code to query for (8 bits).
-    pub class: u8,
+    pub class: Option<u8>,
 
     /// The subclass code to query for (8 bits).
     pub subclass: Option<u8>,
@@ -68,40 +73,14 @@ pub struct ListByClassQueryParameters {
     pub buffer: Buffer,
 }
 
-impl ListByClassQueryParameters {
+impl ListQueryParameters {
     pub const HANDLE_BUFFER_MOBJ: usize = 1;
 }
 
-/// Reply for the ListByClass message.
+/// Reply for the List message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ListByClassReply {
-    /// Number of bytes used in the buffer to write the list of devices info (if the call succeeds)
-    pub buffer_used_len: usize,
-}
-
-/// Parameters for the ListByDeviceId message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ListByDeviceIdQueryParameters {
-    /// The vendor ID to query for (16 bits).
-    pub vendor_id: u16,
-
-    /// The device ID to query for (16 bits).
-    pub device_id: Option<u16>,
-
-    /// Buffer to write the list of devices info into.
-    pub buffer: Buffer,
-}
-
-impl ListByDeviceIdQueryParameters {
-    pub const HANDLE_BUFFER_MOBJ: usize = 1;
-}
-
-/// Reply for the ListByDeviceId message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ListByDeviceIdReply {
+pub struct ListReply {
     /// Number of bytes used in the buffer to write the list of devices info (if the call succeeds)
     pub buffer_used_len: usize,
 }

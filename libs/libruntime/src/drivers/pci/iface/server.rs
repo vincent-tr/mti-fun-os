@@ -11,20 +11,14 @@ pub use messages::PciServerError;
 pub trait PciServer {
     type Error: Into<PciServerError>;
 
-    /// List all PCI devices that match the given class and optional subclass.
-    fn list_by_class(
+    /// List all PCI devices that match the criteria.
+    fn list(
         &self,
         sender_id: u64,
-        class: u8,
-        subclass: Option<u8>,
-    ) -> Result<Vec<PciDeviceInfo>, Self::Error>;
-
-    /// List all PCI devices that match the given vendor ID and optional device ID.
-    fn list_by_device_id(
-        &self,
-        sender_id: u64,
-        vendor_id: u16,
+        vendor_id: Option<u16>,
         device_id: Option<u16>,
+        class: Option<u8>,
+        subclass: Option<u8>,
     ) -> Result<Vec<PciDeviceInfo>, Self::Error>;
 
     /// Get device information for the PCI device at the given address.
@@ -59,12 +53,7 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             messages::VERSION,
         );
 
-        let builder =
-            builder.with_handler(messages::Type::ListByClass, Self::list_by_class_handler);
-        let builder = builder.with_handler(
-            messages::Type::ListByDeviceId,
-            Self::list_by_device_id_handler,
-        );
+        let builder = builder.with_handler(messages::Type::List, Self::list_handler);
         let builder =
             builder.with_handler(messages::Type::GetByAddress, Self::get_by_address_handler);
         let builder = builder.with_handler(messages::Type::Open, Self::open_handler);
@@ -73,20 +62,25 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         builder.build()
     }
 
-    fn list_by_class_handler(
+    fn list_handler(
         &self,
-        query: messages::ListByClassQueryParameters,
+        query: messages::ListQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::ListByClassReply, ipc::KHandles), PciServerError> {
+    ) -> Result<(messages::ListReply, ipc::KHandles), PciServerError> {
         let devices = self
             .inner
-            .list_by_class(sender_id, query.class, query.subclass)
+            .list(
+                sender_id,
+                query.vendor_id,
+                query.device_id,
+                query.class,
+                query.subclass,
+            )
             .map_err(Into::into)?;
 
         let mut buffer_view = {
-            let handle =
-                query_handles.take(messages::ListByClassQueryParameters::HANDLE_BUFFER_MOBJ);
+            let handle = query_handles.take(messages::ListQueryParameters::HANDLE_BUFFER_MOBJ);
             ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
                 .invalid_arg("Failed to create buffer view")?
         };
@@ -102,41 +96,7 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         };
 
         Ok((
-            messages::ListByClassReply { buffer_used_len },
-            ipc::KHandles::new(),
-        ))
-    }
-
-    fn list_by_device_id_handler(
-        &self,
-        query: messages::ListByDeviceIdQueryParameters,
-        mut query_handles: ipc::KHandles,
-        sender_id: u64,
-    ) -> Result<(messages::ListByDeviceIdReply, ipc::KHandles), PciServerError> {
-        let devices = self
-            .inner
-            .list_by_device_id(sender_id, query.vendor_id, query.device_id)
-            .map_err(Into::into)?;
-
-        let mut buffer_view = {
-            let handle =
-                query_handles.take(messages::ListByDeviceIdQueryParameters::HANDLE_BUFFER_MOBJ);
-            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
-                .invalid_arg("Failed to create buffer view")?
-        };
-
-        let buffer = buffer_view.buffer_mut();
-        let result = InfoBlock::build(&devices, buffer);
-
-        let buffer_used_len = match result {
-            Ok(size) => size,
-            Err(_required_size) => {
-                return Err(PciServerError::InvalidArgument);
-            }
-        };
-
-        Ok((
-            messages::ListByDeviceIdReply { buffer_used_len },
+            messages::ListReply { buffer_used_len },
             ipc::KHandles::new(),
         ))
     }

@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::{
@@ -60,53 +60,42 @@ impl Server {
 impl iface::PciServer for Server {
     type Error = iface::PciServerError;
 
-    fn list_by_class(
+    fn list(
         &self,
         _sender_id: u64,
-        class: u8,
+        vendor_id: Option<u16>,
+        device_id: Option<u16>,
+        class: Option<u8>,
         subclass: Option<u8>,
     ) -> Result<Vec<iface::PciDeviceInfo>, PciServerError> {
         let mut list = Vec::new();
 
-        let is_match: Box<dyn Fn(&Device) -> bool> = if let Some(subclass) = subclass {
-            Box::new(move |device: &Device| {
-                let dev_class = device.class();
-                dev_class.class == class && dev_class.subclass == subclass
-            })
-        } else {
-            Box::new(move |device: &Device| device.class().class == class)
-        };
-
         for device in self.devices.values() {
-            if is_match(device) {
-                list.push(device.info());
+            if let Some(vendor_id) = vendor_id
+                && device.device_id().vendor != vendor_id
+            {
+                continue;
             }
-        }
 
-        Ok(list)
-    }
-
-    fn list_by_device_id(
-        &self,
-        _sender_id: u64,
-        vendor_id: u16,
-        device_id: Option<u16>,
-    ) -> Result<Vec<iface::PciDeviceInfo>, PciServerError> {
-        let mut list = Vec::new();
-
-        let is_match: Box<dyn Fn(&Device) -> bool> = if let Some(device_id) = device_id {
-            Box::new(move |device: &Device| {
-                let dev_id = device.device_id();
-                dev_id.vendor == vendor_id && dev_id.device == device_id
-            })
-        } else {
-            Box::new(|device: &Device| device.device_id().vendor == vendor_id)
-        };
-
-        for device in self.devices.values() {
-            if is_match(device) {
-                list.push(device.info());
+            if let Some(device_id) = device_id
+                && device.device_id().device != device_id
+            {
+                continue;
             }
+
+            if let Some(class) = class
+                && device.class().class != class
+            {
+                continue;
+            }
+
+            if let Some(subclass) = subclass
+                && device.class().subclass != subclass
+            {
+                continue;
+            }
+
+            list.push(device.info());
         }
 
         Ok(list)

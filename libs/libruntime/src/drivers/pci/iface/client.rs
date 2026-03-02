@@ -23,10 +23,12 @@ impl Client {
         }
     }
 
-    /// List all PCI devices that match the given class and optional subclass.
-    pub fn list_by_class(
+    /// List all PCI devices that match the given criteria.
+    pub fn list(
         &self,
-        class: u8,
+        vendor_id: Option<u16>,
+        device_id: Option<u16>,
+        class: Option<u8>,
         subclass: Option<u8>,
     ) -> Result<Vec<PciDeviceInfo>, PciServerCallError> {
         // We don't know how many devices there are, so we start with a small buffer and grow it until it's big enough.
@@ -41,78 +43,24 @@ impl Client {
 
             let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
 
-            let query = messages::ListByClassQueryParameters {
+            let query = messages::ListQueryParameters {
+                vendor_id,
+                device_id,
                 class,
                 subclass,
                 buffer,
             };
 
             let mut query_handles = ipc::KHandles::new();
-            query_handles[messages::ListByClassQueryParameters::HANDLE_BUFFER_MOBJ] =
+            query_handles[messages::ListQueryParameters::HANDLE_BUFFER_MOBJ] =
                 buffer_mobj.into_handle();
 
             let res = self.ipc_client.call::<
                 messages::Type,
-                messages::ListByClassQueryParameters,
-                messages::ListByClassReply,
+                messages::ListQueryParameters,
+                messages::ListReply,
                 messages::PciServerError,
-            >(messages::Type::ListByClass, query, query_handles);
-
-            if let Err(ipc::CallError::ReplyError(messages::PciServerError::InvalidArgument)) = res
-            {
-                // Buffer too small, try again with a larger buffer
-                size *= 2;
-                continue;
-            }
-
-            let (reply, _reply_handles) = res?;
-
-            unsafe { allocated_buffer.set_len(reply.buffer_used_len) };
-            break allocated_buffer;
-        };
-
-        let devices = InfoBlock::read(&allocated_buffer)
-            .expect("Failed to read PCI devices block from buffer");
-
-        Ok(devices)
-    }
-
-    /// List all PCI devices that match the given vendor ID and optional device ID.
-    pub fn list_by_device_id(
-        &self,
-        vendor_id: u16,
-        device_id: Option<u16>,
-    ) -> Result<Vec<PciDeviceInfo>, PciServerCallError> {
-        // We don't know how many devices there are, so we start with a small buffer and grow it until it's big enough.
-        let mut size = 256;
-
-        let allocated_buffer = loop {
-            let mut allocated_buffer = {
-                let mut vec = Vec::with_capacity(size);
-                unsafe { vec.set_len(size) };
-                vec
-            };
-
-            let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
-
-            let query = messages::ListByDeviceIdQueryParameters {
-                vendor_id,
-                device_id,
-                buffer,
-            };
-
-            let mut query_handles = ipc::KHandles::new();
-            query_handles[messages::ListByDeviceIdQueryParameters::HANDLE_BUFFER_MOBJ] =
-                buffer_mobj.into_handle();
-
-            let res = self.ipc_client.call::<
-                messages::Type,
-                messages::ListByDeviceIdQueryParameters,
-                messages::ListByDeviceIdReply,
-                messages::PciServerError,
-            >(
-                messages::Type::ListByDeviceId, query, query_handles
-            );
+            >(messages::Type::List, query, query_handles);
 
             if let Err(ipc::CallError::ReplyError(messages::PciServerError::InvalidArgument)) = res
             {

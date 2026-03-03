@@ -3,7 +3,7 @@ use alloc::{sync::Arc, vec::Vec};
 use crate::{ipc, kobject};
 
 use super::{PciDeviceInfo, info_block::InfoBlock, messages};
-use crate::drivers::pci::types::PciAddress;
+use crate::drivers::pci::types::{PciAddress, PciHeader};
 
 pub use messages::PciServerError;
 
@@ -33,6 +33,36 @@ pub trait PciServer {
 
     /// Close a handle to a PCI device.
     fn close(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error>;
+
+    /// Get the PCI header for a device.
+    fn get_header(&self, sender_id: u64, handle: ipc::Handle) -> Result<PciHeader, Self::Error>;
+
+    /// Enable or disable memory, I/O, and bus mastering for a device.
+    fn enable(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        memory: bool,
+        io: bool,
+        bus_master: bool,
+    ) -> Result<(), Self::Error>;
+
+    /// Read from the PCI config space for a device.
+    fn read_config(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        offset: usize,
+    ) -> Result<u32, Self::Error>;
+
+    /// Write to the PCI config space for a device.
+    fn write_config(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        offset: usize,
+        value: u32,
+    ) -> Result<(), Self::Error>;
 }
 
 /// The main server structure
@@ -58,6 +88,10 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             builder.with_handler(messages::Type::GetByAddress, Self::get_by_address_handler);
         let builder = builder.with_handler(messages::Type::Open, Self::open_handler);
         let builder = builder.with_handler(messages::Type::Close, Self::close_handler);
+        let builder = builder.with_handler(messages::Type::GetHeader, Self::get_header_handler);
+        let builder = builder.with_handler(messages::Type::Enable, Self::enable_handler);
+        let builder = builder.with_handler(messages::Type::ReadConfig, Self::read_config_handler);
+        let builder = builder.with_handler(messages::Type::WriteConfig, Self::write_config_handler);
 
         builder.build()
     }
@@ -143,6 +177,66 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::CloseReply {}, ipc::KHandles::new()))
+    }
+
+    fn get_header_handler(
+        &self,
+        query: messages::GetHeaderQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::GetHeaderReply, ipc::KHandles), PciServerError> {
+        let header = self
+            .inner
+            .get_header(sender_id, query.handle)
+            .map_err(Into::into)?;
+
+        Ok((messages::GetHeaderReply { header }, ipc::KHandles::new()))
+    }
+
+    fn enable_handler(
+        &self,
+        query: messages::EnableQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::EnableReply, ipc::KHandles), PciServerError> {
+        self.inner
+            .enable(
+                sender_id,
+                query.handle,
+                query.memory,
+                query.io,
+                query.bus_master,
+            )
+            .map_err(Into::into)?;
+
+        Ok((messages::EnableReply {}, ipc::KHandles::new()))
+    }
+
+    fn read_config_handler(
+        &self,
+        query: messages::ReadConfigQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::ReadConfigReply, ipc::KHandles), PciServerError> {
+        let value = self
+            .inner
+            .read_config(sender_id, query.handle, query.offset)
+            .map_err(Into::into)?;
+
+        Ok((messages::ReadConfigReply { value }, ipc::KHandles::new()))
+    }
+
+    fn write_config_handler(
+        &self,
+        query: messages::WriteConfigQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::WriteConfigReply, ipc::KHandles), PciServerError> {
+        self.inner
+            .write_config(sender_id, query.handle, query.offset, query.value)
+            .map_err(Into::into)?;
+
+        Ok((messages::WriteConfigReply {}, ipc::KHandles::new()))
     }
 }
 

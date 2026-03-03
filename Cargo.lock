@@ -729,6 +729,7 @@ checksum = "fa50141d081512ab30fd9e7e7692476866df5098b028536ad6680212e717fa8d"
 name = "pci-server"
 version = "0.1.0"
 dependencies = [
+ "bit_field",
  "hashbrown 0.15.2",
  "lazy_static",
  "libruntime",

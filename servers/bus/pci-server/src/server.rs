@@ -1,21 +1,22 @@
+use core::mem;
+
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::{
         iface::{self, PciServerError},
-        types::PciAddress,
+        types::{PciAddress, PciHeader},
     },
     ipc,
 };
 use log::{debug, error};
 
-use crate::{access::ConfigurationSpace, device::Device, state};
+use crate::{device::Device, pci::scan_bus, state};
 
 /// PCI Server
 #[derive(Debug)]
 pub struct Server {
-    configuration_space: ConfigurationSpace,
-    devices: HashMap<PciAddress, Arc<Device>>, // no need to index further, there are few devices on a system
+    devices: HashMap<PciAddress, Arc<Device>>,
     handles: ipc::HandleTable<'static, Device>,
 }
 
@@ -23,7 +24,6 @@ impl Server {
     /// Creates a new PCI server instance by opening the PCI configuration space access ports.
     pub fn new() -> Self {
         let mut server = Self {
-            configuration_space: ConfigurationSpace::open(),
             devices: HashMap::new(),
             handles: ipc::HandleTable::new(state::State::get().handle_generator()),
         };
@@ -36,13 +36,10 @@ impl Server {
     fn scan(&mut self) {
         // TODO: PCI-to-PCI bridges, which may require scanning multiple buses.
         // For now we just scan bus 0.
-        let addresses = self.configuration_space.scan_bus(0);
+        let addresses = scan_bus(0);
 
         for address in addresses {
-            let id = self.configuration_space.get_id(address);
-            let class = self.configuration_space.get_class(address);
-
-            let device = Arc::new(Device::new(address, id, class));
+            let device = Arc::new(Device::new(address));
 
             debug!(
                 "Found PCI device: address {}, id {}, class {} ({})",
@@ -54,6 +51,26 @@ impl Server {
 
             self.devices.insert(device.address(), device);
         }
+    }
+
+    fn check_offset(offset: usize) -> Result<(), PciServerError> {
+        if offset % mem::size_of::<u32>() != 0 {
+            error!(
+                "Invalid config space access: offset {} is not aligned to size of u32",
+                offset
+            );
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        if offset + mem::size_of::<u32>() > 256 {
+            error!(
+                "Invalid config space access: offset {} + size of u32 exceeds 256",
+                offset
+            );
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        Ok(())
     }
 }
 
@@ -139,6 +156,70 @@ impl iface::PciServer for Server {
         })?;
 
         device.closed();
+
+        Ok(())
+    }
+
+    fn get_header(&self, sender_id: u64, handle: ipc::Handle) -> Result<PciHeader, Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        Ok(device
+            .header()
+            .expect("Device header should be present for opened device"))
+    }
+
+    fn enable(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        memory: bool,
+        io: bool,
+        bus_master: bool,
+    ) -> Result<(), Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        device.enable(memory, io, bus_master);
+
+        Ok(())
+    }
+
+    fn read_config(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        offset: usize,
+    ) -> Result<u32, Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        Self::check_offset(offset)?;
+
+        Ok(device.read_config(offset))
+    }
+
+    fn write_config(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        offset: usize,
+        value: u32,
+    ) -> Result<(), Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        Self::check_offset(offset)?;
+
+        device.write_config(offset, value);
 
         Ok(())
     }

@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use super::{PciDeviceInfo, info_block::InfoBlock, messages};
 use crate::{
-    drivers::pci::types::PciAddress,
+    drivers::pci::types::{PciAddress, PciHeader},
     ipc::{self, Handle},
     kobject::KObject,
 };
@@ -125,6 +125,92 @@ impl Client {
             messages::CloseReply,
             messages::PciServerError,
         >(messages::Type::Close, query, ipc::KHandles::new())?;
+
+        Ok(())
+    }
+
+    /// Get the PCI header for a device.
+    pub fn get_header(&self, handle: Handle) -> Result<PciHeader, PciServerCallError> {
+        let query = messages::GetHeaderQueryParameters { handle };
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::GetHeaderQueryParameters,
+            messages::GetHeaderReply,
+            messages::PciServerError,
+        >(messages::Type::GetHeader, query, ipc::KHandles::new())?;
+
+        Ok(reply.header)
+    }
+
+    /// Enable or disable a device.
+    pub fn enable(
+        &self,
+        handle: Handle,
+        memory: bool,
+        io: bool,
+        bus_master: bool,
+    ) -> Result<(), PciServerCallError> {
+        let query = messages::EnableQueryParameters {
+            handle,
+            memory,
+            io,
+            bus_master,
+        };
+
+        self.ipc_client.call::<
+            messages::Type,
+            messages::EnableQueryParameters,
+            messages::EnableReply,
+            messages::PciServerError,
+        >(messages::Type::Enable, query, ipc::KHandles::new())?;
+
+        Ok(())
+    }
+
+    /// Read from the PCI config space for a device.
+    ///
+    /// # Safety
+    /// - The data access is not controlled in any way on the device config space.
+    pub unsafe fn read_config(
+        &self,
+        handle: Handle,
+        offset: usize,
+    ) -> Result<u32, PciServerCallError> {
+        let query = messages::ReadConfigQueryParameters { handle, offset };
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::ReadConfigQueryParameters,
+            messages::ReadConfigReply,
+            messages::PciServerError,
+        >(messages::Type::ReadConfig, query, ipc::KHandles::new())?;
+
+        Ok(reply.value)
+    }
+
+    /// Write to the PCI config space for a device.
+    ///
+    /// # Safety
+    /// - The data access is not controlled in any way on the device config space.
+    pub fn write_config(
+        &self,
+        handle: Handle,
+        offset: usize,
+        value: u32,
+    ) -> Result<(), PciServerCallError> {
+        let query = messages::WriteConfigQueryParameters {
+            handle,
+            offset,
+            value,
+        };
+
+        self.ipc_client.call::<
+            messages::Type,
+            messages::WriteConfigQueryParameters,
+            messages::WriteConfigReply,
+            messages::PciServerError,
+        >(messages::Type::WriteConfig, query, ipc::KHandles::new())?;
 
         Ok(())
     }

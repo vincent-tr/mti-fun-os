@@ -179,10 +179,7 @@ pub struct ReadConfigQueryParameters {
     pub handle: Handle,
 
     /// The offset to read from.
-    pub offset: u16,
-
-    /// The width of the read (1, 2, or 4 bytes).
-    pub width: ConfigWidth,
+    pub offset: usize,
 }
 
 /// Reply for the ReadConfig message.
@@ -201,10 +198,7 @@ pub struct WriteConfigQueryParameters {
     pub handle: Handle,
 
     /// The offset to write to.
-    pub offset: u16,
-
-    /// The width of the write (1, 2, or 4 bytes).
-    pub width: ConfigWidth,
+    pub offset: usize,
 
     /// The value to write to the config space.
     pub value: u32,
@@ -214,12 +208,3 @@ pub struct WriteConfigQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct WriteConfigReply {}
-
-/// Width of a PCI config space access.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ConfigWidth {
-    U8 = 1,
-    U16 = 2,
-    U32 = 4,
-}

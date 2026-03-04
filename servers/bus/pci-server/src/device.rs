@@ -107,6 +107,14 @@ impl Device {
                 }
             }
 
+            // Restore the original state of the device after reading the BARs.
+            let cmd_reg = header.common.command;
+            device.enable(
+                cmd_reg.memory_space_enabled(),
+                cmd_reg.io_space_enabled(),
+                cmd_reg.bus_master_enabled(),
+            );
+
             device.header = Some(PciHeader {
                 subsystem_vendor_id: header.subsystem_vendor_id,
                 subsystem_id: header.subsystem_id,

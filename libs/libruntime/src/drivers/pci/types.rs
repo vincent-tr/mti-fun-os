@@ -98,17 +98,34 @@ pub enum InterruptPin {
     PinD,
 }
 
+/// Base Address Register (BAR) of a PCI device, which specifies a memory or I/O address range used by the device.
 #[derive(Debug, Copy, Clone)]
 pub enum Bar {
-    Memory {
-        address: usize,
-        size: usize,
-        prefetchable: bool,
-    },
-    Io {
-        address: usize,
-        size: usize,
-    },
+    Memory(MemoryBar),
+    Io(IoBar),
+}
+
+/// Memory BAR of a PCI device, which specifies a memory address range used by the device.
+#[derive(Debug, Copy, Clone)]
+pub struct MemoryBar {
+    pub address: usize,
+    pub size: usize,
+    pub prefetchable: bool,
+    pub width: MemoryBarWidth,
+}
+
+/// Width of a memory BAR, which indicates whether the BAR is 32-bit or 64-bit.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum MemoryBarWidth {
+    Bits32,
+    Bits64,
+}
+
+/// I/O BAR of a PCI device, which specifies an I/O address range used by the device.
+#[derive(Debug, Copy, Clone)]
+pub struct IoBar {
+    pub address: usize,
+    pub size: usize,
 }
 
 /// PCI class kind (e.g., mass storage, network controller, etc.)

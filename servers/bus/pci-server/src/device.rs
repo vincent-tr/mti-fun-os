@@ -5,13 +5,16 @@ use core::{
 
 use libruntime::drivers::pci::{
     iface::PciDeviceInfo,
-    types::{Bar, InterruptPin, PciAddress, PciClass, PciDeviceId, PciHeader},
+    types::{
+        Bar, InterruptPin, IoBar, MemoryBar, MemoryBarWidth, PciAddress, PciClass, PciDeviceId,
+        PciHeader,
+    },
 };
 use log::warn;
 
 use crate::pci::{
-    CommandRegister, CommonHeader, ConfigurationSpace, GeneralDeviceHeader, Header,
-    PciToCardBusBridgeHeader, PciToPciBridgeHeader, StatusRegister,
+    self, CommandRegister, CommonHeader, ConfigurationSpace, GeneralDeviceHeader, Header,
+    MemorySpaceBar64, PciToCardBusBridgeHeader, PciToPciBridgeHeader, StatusRegister,
 };
 
 #[derive(Debug)]
@@ -55,8 +58,17 @@ impl Device {
             revision_id: common_header.revision_id,
         };
 
-        let header = header.general_device().map(|general_device_header| {
-            let interrupt_line = general_device_header.interrupt_line;
+        let mut device = Self {
+            address,
+            device_id,
+            class,
+            header: None,
+            in_use: AtomicBool::new(false),
+        };
+
+        if let Some(header) = header.general_device() {
+            // Only generic devices can be opened, so we only need to read the header for those.
+            let interrupt_line = header.interrupt_line;
             let interrupt_line = if interrupt_line == 0xFF {
                 // 0xFF means the device does not use interrupts, so we set it to None in that case.
                 None
@@ -64,37 +76,47 @@ impl Device {
                 Some(interrupt_line)
             };
 
-            let interrupt_pin = match general_device_header.interrupt_pin {
+            let interrupt_pin = match header.interrupt_pin {
                 0 => None, // 0 means the device does not use interrupts, so we set it to None in that case.
                 1 => Some(InterruptPin::PinA),
                 2 => Some(InterruptPin::PinB),
                 3 => Some(InterruptPin::PinC),
                 4 => Some(InterruptPin::PinD),
-                _ => panic!(
-                    "Invalid interrupt pin value: {:#02x}",
-                    general_device_header.interrupt_pin
-                ),
+                _ => panic!("Invalid interrupt pin value: {:#02x}", header.interrupt_pin),
             };
 
-            // TODO
-            let bars: [Option<Bar>; 6] = [None, None, None, None, None, None];
+            // Disable the device before reading the BARs, to avoid any potential issues with the device trying to access memory or I/O space while we're reading its configuration.
+            device.enable(false, false, false);
 
-            PciHeader {
-                subsystem_vendor_id: general_device_header.subsystem_vendor_id,
-                subsystem_id: general_device_header.subsystem_id,
+            let mut bars: [Option<Bar>; 6] = [None, None, None, None, None, None];
+
+            let mut bar_index = 0;
+            while bar_index < 6 {
+                let bar = device.read_bar(header, bar_index);
+
+                if let Some(bar) = &bar
+                    && let Bar::Memory(memory_bar) = bar
+                    && memory_bar.width == MemoryBarWidth::Bits64
+                {
+                    // 64-bit BARs occupy two BAR slots, so we need to skip the next slot after reading a 64-bit BAR.
+                    bar_index += 2;
+                } else {
+                    bar_index += 1;
+                }
+
+                bars[bar_index] = bar;
+            }
+
+            device.header = Some(PciHeader {
+                subsystem_vendor_id: header.subsystem_vendor_id,
+                subsystem_id: header.subsystem_id,
                 bars,
                 interrupt_line,
                 interrupt_pin,
-            }
-        });
-
-        Self {
-            address,
-            device_id,
-            class,
-            header,
-            in_use: AtomicBool::new(false),
+            });
         }
+
+        device
     }
 
     /// Gets the PCI header for the device at the specified address.
@@ -157,6 +179,111 @@ impl Device {
 
                 Header { common }
             }
+        }
+    }
+
+    fn read_bar(&self, header: &GeneralDeviceHeader, index: usize) -> Option<Bar> {
+        let bar_by_index = |index: usize| match index {
+            0 => (header.bar0, mem::offset_of!(GeneralDeviceHeader, bar0)),
+            1 => (header.bar1, mem::offset_of!(GeneralDeviceHeader, bar1)),
+            2 => (header.bar2, mem::offset_of!(GeneralDeviceHeader, bar2)),
+            3 => (header.bar3, mem::offset_of!(GeneralDeviceHeader, bar3)),
+            4 => (header.bar4, mem::offset_of!(GeneralDeviceHeader, bar4)),
+            5 => (header.bar5, mem::offset_of!(GeneralDeviceHeader, bar5)),
+            _ => panic!("Invalid BAR index: {}", index),
+        };
+
+        let (bar, offset) = bar_by_index(index);
+
+        if !bar.is_implemented() {
+            return None;
+        }
+
+        if bar.is_io() {
+            return Some(Bar::Io(self.read_io_bar(&bar, offset)));
+        }
+
+        if bar.is_memory() {
+            if unsafe { bar.memory_space }.is_64_bit() {
+                assert!(
+                    index < 5,
+                    "64-bit BAR cannot be the last BAR (index 5) because it occupies two BAR slots"
+                );
+
+                let (high_bar, _) = bar_by_index(index + 1);
+                let bar64 = unsafe { MemorySpaceBar64::from_bars(bar, high_bar) };
+
+                return Some(Bar::Memory(self.read_memory_bar64(&bar64, offset)));
+            } else {
+                return Some(Bar::Memory(self.read_memory_bar(&bar, offset)));
+            }
+        }
+
+        None
+    }
+
+    fn read_io_bar(&self, bar: &pci::Bar, offset: usize) -> IoBar {
+        // Write 1s to the BAR to find out the size of the I/O space it occupies
+        unsafe {
+            let mut size_checker_bar = *bar;
+            size_checker_bar.io_space.set_hightest_address();
+            self.write_config(offset, size_checker_bar.into());
+            size_checker_bar = self.read_config(offset).into();
+            let size = size_checker_bar.io_space.read_size();
+
+            // Restore the original BAR value
+            self.write_config(offset, (*bar).into());
+
+            IoBar {
+                address: bar.io_space.address() as usize,
+                size: size as usize,
+            }
+        }
+    }
+
+    fn read_memory_bar(&self, bar: &pci::Bar, offset: usize) -> MemoryBar {
+        // Write 1s to the BAR to find out the size of the memory space it occupies
+        unsafe {
+            let mut size_checker_bar = *bar;
+            size_checker_bar.memory_space.set_hightest_address();
+            self.write_config(offset, size_checker_bar.into());
+            size_checker_bar = self.read_config(offset).into();
+
+            // Restore the original BAR value
+            self.write_config(offset, (*bar).into());
+
+            MemoryBar {
+                address: bar.memory_space.address() as usize,
+                size: size_checker_bar.memory_space.read_size() as usize,
+                prefetchable: bar.memory_space.prefetchable(),
+                width: MemoryBarWidth::Bits32,
+            }
+        }
+    }
+
+    fn read_memory_bar64(&self, bar: &pci::MemorySpaceBar64, offset: usize) -> MemoryBar {
+        // Write 1s to the BAR to find out the size of the memory space it occupies
+        let mut size_checker_bar = *bar;
+        size_checker_bar.set_hightest_address();
+        let (low, high) = size_checker_bar.into();
+        self.write_config(offset, low);
+        self.write_config(offset + mem::size_of::<pci::Bar>(), high);
+        size_checker_bar = (
+            self.read_config(offset),
+            self.read_config(offset + mem::size_of::<pci::Bar>()),
+        )
+            .into();
+
+        // Restore the original BAR value
+        let (low, high) = (*bar).into();
+        self.write_config(offset, low);
+        self.write_config(offset + mem::size_of::<pci::Bar>(), high);
+
+        MemoryBar {
+            address: bar.address() as usize,
+            size: size_checker_bar.read_size() as usize,
+            prefetchable: bar.prefetchable(),
+            width: MemoryBarWidth::Bits64,
         }
     }
 

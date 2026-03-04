@@ -15,18 +15,17 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={bios_path}"));
     }
-    cmd.arg("-display")
-        .arg("none")
+    cmd.args(&["-display", "none"])
         .arg("-nographic")
-        .arg("-monitor")
-        .arg("stdio")
-        .arg("-qmp")
-        .arg("unix:/tmp/qmp-socket,server,nowait")
-        .arg("-serial")
-        .arg("file:serial.log")
-        .arg("-s")
-        .arg("-nic")
-        .arg("user,model=e1000,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80");
+        .args(&["-monitor", "stdio"])
+        .args(&["-qmp", "unix:/tmp/qmp-socket,server,nowait"])
+        .args(&["-serial", "file:serial.log"])
+        .args(&["-device", "edu"])
+        .args(&[
+            "-nic",
+            "user,model=e1000,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80",
+        ])
+        .arg("-s");
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }

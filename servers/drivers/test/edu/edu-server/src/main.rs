@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-
 // Device documentation:
 // https://www.qemu.org/docs/master/specs/edu.html
 //

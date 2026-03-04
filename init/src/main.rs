@@ -120,6 +120,11 @@ fn start_extended_servers(info: &InitInfo) {
     let process = process::Process::spawn(options).expect("Could not spawn pci server");
     let _ = process;
 
+    let options = process::ProcessOptions::from_path("/mnt/archive/servers/drivers/edu-server")
+        .expect("Failed to load edu-server");
+    let process = process::Process::spawn(options).expect("Could not spawn edu server");
+    let _ = process;
+
     let mut options =
         process::ProcessOptions::from_path("/mnt/archive/servers/core/display-server")
             .expect("Failed to load file");

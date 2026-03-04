@@ -25,6 +25,7 @@ members = [
   "servers/fs/memfs-server",
   "servers/fs/archivefs-server",
   "servers/drivers/bus/pci-server",
+  "servers/drivers/edu-server",
   "servers/drivers/net/e1000-server",
   "servers/net/net-server",
   "host-dynlinker",

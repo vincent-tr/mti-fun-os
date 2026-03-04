@@ -1,5 +1,3 @@
-use core::mem;
-
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{

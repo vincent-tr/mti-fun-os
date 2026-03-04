@@ -190,6 +190,7 @@ impl Device {
         }
     }
 
+    /// Read the specified BAR for the device.
     fn read_bar(&self, header: &GeneralDeviceHeader, index: usize) -> Option<Bar> {
         let bar_by_index = |index: usize| match index {
             0 => (header.bar0, mem::offset_of!(GeneralDeviceHeader, bar0)),
@@ -230,17 +231,18 @@ impl Device {
         None
     }
 
+    /// Read the specified BAR as an I/O BAR.
     fn read_io_bar(&self, bar: &pci::Bar, offset: usize) -> IoBar {
         // Write 1s to the BAR to find out the size of the I/O space it occupies
         unsafe {
             let mut size_checker_bar = *bar;
             size_checker_bar.io_space.set_hightest_address();
-            self.write_config(offset, size_checker_bar.into());
-            size_checker_bar = self.read_config(offset).into();
+            self.write(offset, size_checker_bar.into());
+            size_checker_bar = self.read(offset).into();
             let size = size_checker_bar.io_space.read_size();
 
             // Restore the original BAR value
-            self.write_config(offset, (*bar).into());
+            self.write(offset, (*bar).into());
 
             IoBar {
                 address: bar.io_space.address() as usize,
@@ -249,16 +251,17 @@ impl Device {
         }
     }
 
+    /// Read the specified BAR as a 32-bit memory BAR.
     fn read_memory_bar(&self, bar: &pci::Bar, offset: usize) -> MemoryBar {
         // Write 1s to the BAR to find out the size of the memory space it occupies
         unsafe {
             let mut size_checker_bar = *bar;
             size_checker_bar.memory_space.set_hightest_address();
-            self.write_config(offset, size_checker_bar.into());
-            size_checker_bar = self.read_config(offset).into();
+            self.write(offset, size_checker_bar.into());
+            size_checker_bar = self.read(offset).into();
 
             // Restore the original BAR value
-            self.write_config(offset, (*bar).into());
+            self.write(offset, (*bar).into());
 
             MemoryBar {
                 address: bar.memory_space.address() as usize,
@@ -269,23 +272,24 @@ impl Device {
         }
     }
 
+    /// Read the specified BAR as a 64-bit memory BAR.
     fn read_memory_bar64(&self, bar: &pci::MemorySpaceBar64, offset: usize) -> MemoryBar {
         // Write 1s to the BAR to find out the size of the memory space it occupies
         let mut size_checker_bar = *bar;
         size_checker_bar.set_hightest_address();
         let (low, high) = size_checker_bar.into();
-        self.write_config(offset, low);
-        self.write_config(offset + mem::size_of::<pci::Bar>(), high);
+        self.write(offset, low);
+        self.write(offset + mem::size_of::<pci::Bar>(), high);
         size_checker_bar = (
-            self.read_config(offset),
-            self.read_config(offset + mem::size_of::<pci::Bar>()),
+            self.read(offset),
+            self.read(offset + mem::size_of::<pci::Bar>()),
         )
             .into();
 
         // Restore the original BAR value
         let (low, high) = (*bar).into();
-        self.write_config(offset, low);
-        self.write_config(offset + mem::size_of::<pci::Bar>(), high);
+        self.write(offset, low);
+        self.write(offset + mem::size_of::<pci::Bar>(), high);
 
         MemoryBar {
             address: bar.address() as usize,
@@ -293,6 +297,16 @@ impl Device {
             prefetchable: bar.prefetchable(),
             width: MemoryBarWidth::Bits64,
         }
+    }
+
+    /// Read from the PCI config space for the device.
+    fn read(&self, offset: usize) -> u32 {
+        ConfigurationSpace::get().read_u32(self.address, offset)
+    }
+
+    /// Write to the PCI config space for the device.
+    fn write(&self, offset: usize, value: u32) {
+        ConfigurationSpace::get().write_u32(self.address, offset, value);
     }
 
     /// Returns the address of the PCI device.
@@ -355,20 +369,10 @@ impl Device {
             status: StatusRegister,
         }
 
-        let mut reg: Reg1 = unsafe { mem::transmute(self.read_config(0x04)) };
+        let mut reg: Reg1 = unsafe { mem::transmute(self.read(0x04)) };
         reg.command.enable_memory_space(memory);
         reg.command.enable_io_space(io);
         reg.command.enable_bus_master(bus_master);
-        self.write_config(0x04, unsafe { mem::transmute(reg) });
-    }
-
-    /// Read from the PCI config space for the device.
-    pub fn read_config(&self, offset: usize) -> u32 {
-        ConfigurationSpace::get().read_u32(self.address, offset)
-    }
-
-    /// Write to the PCI config space for the device.
-    pub fn write_config(&self, offset: usize, value: u32) {
-        ConfigurationSpace::get().write_u32(self.address, offset, value);
+        self.write(0x04, unsafe { mem::transmute(reg) });
     }
 }

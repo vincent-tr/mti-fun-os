@@ -29,7 +29,7 @@ boot.cpio: init-build process-server-build time-server-build vfs-server-build me
 	@TMPDIR=$$(mktemp -d); \
 	mkdir -p $$TMPDIR/servers/core; \
 	mkdir -p $$TMPDIR/servers/fs; \
-	mkdir -p $$TMPDIR/servers/bus; \
+	mkdir -p $$TMPDIR/servers/drivers/bus; \
 	mkdir -p $$TMPDIR/servers/drivers/net; \
 	mkdir -p $$TMPDIR/servers/net; \
 	mkdir -p target/$(MTI_FUN_OS_KERNEL_PROFILE); \
@@ -40,7 +40,7 @@ boot.cpio: init-build process-server-build time-server-build vfs-server-build me
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/display-server $$TMPDIR/servers/core/display-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/memfs-server $$TMPDIR/servers/fs/memfs-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/fs/archivefs-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/bus/pci-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/drivers/bus/pci-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/e1000-server $$TMPDIR/servers/drivers/net/e1000-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/net-server $$TMPDIR/servers/net/net-server; \
 	cd $$TMPDIR && find . -depth -print | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
@@ -69,7 +69,7 @@ archivefs-server-build:
 	cd servers/fs/archivefs-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 pci-server-build:
-	cd servers/bus/pci-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+	cd servers/drivers/bus/pci-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 e1000-server-build:
 	cd servers/drivers/net/e1000-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
@@ -86,7 +86,7 @@ clean:
 	cd servers/core/display-server && cargo clean
 	cd servers/fs/memfs-server && cargo clean
 	cd servers/fs/archivefs-server && cargo clean
-	cd servers/bus/pci-server && cargo clean
+	cd servers/drivers/bus/pci-server && cargo clean
 	cd servers/drivers/net/e1000-server && cargo clean
 	cd servers/net/net-server && cargo clean
 	rm -f target/*/boot.cpio

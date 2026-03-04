@@ -8,4 +8,4 @@ bit_field = { workspace = true }
 hashbrown = { workspace = true }
 lazy_static = { workspace = true }
 log = { workspace = true }
-libruntime = { path = "../../../libs/libruntime" }
+libruntime = { path = "../../../../libs/libruntime" }

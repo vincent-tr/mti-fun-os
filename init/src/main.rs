@@ -115,7 +115,7 @@ fn setup_initial_filesystem(info: &InitInfo) {
 }
 
 fn start_extended_servers(info: &InitInfo) {
-    let options = process::ProcessOptions::from_path("/mnt/archive/servers/bus/pci-server")
+    let options = process::ProcessOptions::from_path("/mnt/archive/servers/drivers/bus/pci-server")
         .expect("Failed to load pci-server");
     let process = process::Process::spawn(options).expect("Could not spawn pci server");
     let _ = process;

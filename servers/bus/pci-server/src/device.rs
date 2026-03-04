@@ -94,6 +94,8 @@ impl Device {
             while bar_index < 6 {
                 let bar = device.read_bar(header, bar_index);
 
+                bars[bar_index] = bar;
+
                 if let Some(bar) = &bar
                     && let Bar::Memory(memory_bar) = bar
                     && memory_bar.width == MemoryBarWidth::Bits64
@@ -103,8 +105,6 @@ impl Device {
                 } else {
                     bar_index += 1;
                 }
-
-                bars[bar_index] = bar;
             }
 
             device.header = Some(PciHeader {

@@ -26,8 +26,6 @@ pub enum Type {
     Close,
     GetHeader,
     Enable,
-    ReadConfig,
-    WriteConfig,
 }
 
 impl From<Type> for u16 {
@@ -170,41 +168,3 @@ pub struct EnableQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct EnableReply {}
-
-/// Parameters for the ReadConfig message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ReadConfigQueryParameters {
-    /// Handle to the device to read the config from.
-    pub handle: Handle,
-
-    /// The offset to read from.
-    pub offset: usize,
-}
-
-/// Reply for the ReadConfig message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct ReadConfigReply {
-    /// The value read from the config space.
-    pub value: u32,
-}
-
-/// Parameters for the WriteConfig message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct WriteConfigQueryParameters {
-    /// Handle to the device to write the config to.
-    pub handle: Handle,
-
-    /// The offset to write to.
-    pub offset: usize,
-
-    /// The value to write to the config space.
-    pub value: u32,
-}
-
-/// Reply for the WriteConfig message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct WriteConfigReply {}

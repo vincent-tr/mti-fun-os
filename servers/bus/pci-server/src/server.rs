@@ -52,26 +52,6 @@ impl Server {
             self.devices.insert(device.address(), device);
         }
     }
-
-    fn check_offset(offset: usize) -> Result<(), PciServerError> {
-        if offset % mem::size_of::<u32>() != 0 {
-            error!(
-                "Invalid config space access: offset {} is not aligned to size of u32",
-                offset
-            );
-            return Err(PciServerError::InvalidArgument);
-        }
-
-        if offset + mem::size_of::<u32>() > 256 {
-            error!(
-                "Invalid config space access: offset {} + size of u32 exceeds 256",
-                offset
-            );
-            return Err(PciServerError::InvalidArgument);
-        }
-
-        Ok(())
-    }
 }
 
 impl iface::PciServer for Server {
@@ -185,41 +165,6 @@ impl iface::PciServer for Server {
         })?;
 
         device.enable(memory, io, bus_master);
-
-        Ok(())
-    }
-
-    fn read_config(
-        &self,
-        sender_id: u64,
-        handle: ipc::Handle,
-        offset: usize,
-    ) -> Result<u32, Self::Error> {
-        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
-            error!("Invalid device handle: {:?}", handle);
-            PciServerError::InvalidArgument
-        })?;
-
-        Self::check_offset(offset)?;
-
-        Ok(device.read_config(offset))
-    }
-
-    fn write_config(
-        &self,
-        sender_id: u64,
-        handle: ipc::Handle,
-        offset: usize,
-        value: u32,
-    ) -> Result<(), Self::Error> {
-        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
-            error!("Invalid device handle: {:?}", handle);
-            PciServerError::InvalidArgument
-        })?;
-
-        Self::check_offset(offset)?;
-
-        device.write_config(offset, value);
 
         Ok(())
     }

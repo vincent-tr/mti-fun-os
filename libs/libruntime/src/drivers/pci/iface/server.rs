@@ -46,23 +46,6 @@ pub trait PciServer {
         io: bool,
         bus_master: bool,
     ) -> Result<(), Self::Error>;
-
-    /// Read from the PCI config space for a device.
-    fn read_config(
-        &self,
-        sender_id: u64,
-        handle: ipc::Handle,
-        offset: usize,
-    ) -> Result<u32, Self::Error>;
-
-    /// Write to the PCI config space for a device.
-    fn write_config(
-        &self,
-        sender_id: u64,
-        handle: ipc::Handle,
-        offset: usize,
-        value: u32,
-    ) -> Result<(), Self::Error>;
 }
 
 /// The main server structure
@@ -90,8 +73,6 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         let builder = builder.with_handler(messages::Type::Close, Self::close_handler);
         let builder = builder.with_handler(messages::Type::GetHeader, Self::get_header_handler);
         let builder = builder.with_handler(messages::Type::Enable, Self::enable_handler);
-        let builder = builder.with_handler(messages::Type::ReadConfig, Self::read_config_handler);
-        let builder = builder.with_handler(messages::Type::WriteConfig, Self::write_config_handler);
 
         builder.build()
     }
@@ -210,33 +191,6 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::EnableReply {}, ipc::KHandles::new()))
-    }
-
-    fn read_config_handler(
-        &self,
-        query: messages::ReadConfigQueryParameters,
-        _query_handles: ipc::KHandles,
-        sender_id: u64,
-    ) -> Result<(messages::ReadConfigReply, ipc::KHandles), PciServerError> {
-        let value = self
-            .inner
-            .read_config(sender_id, query.handle, query.offset)
-            .map_err(Into::into)?;
-
-        Ok((messages::ReadConfigReply { value }, ipc::KHandles::new()))
-    }
-
-    fn write_config_handler(
-        &self,
-        query: messages::WriteConfigQueryParameters,
-        _query_handles: ipc::KHandles,
-        sender_id: u64,
-    ) -> Result<(messages::WriteConfigReply, ipc::KHandles), PciServerError> {
-        self.inner
-            .write_config(sender_id, query.handle, query.offset, query.value)
-            .map_err(Into::into)?;
-
-        Ok((messages::WriteConfigReply {}, ipc::KHandles::new()))
     }
 }
 

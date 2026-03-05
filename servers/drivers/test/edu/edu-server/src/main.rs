@@ -9,8 +9,10 @@
 
 extern crate libruntime;
 
-use libruntime::drivers::pci::iface::Client as PciClient;
-use libruntime::drivers::pci::types::PciAddress;
+use core::{mem, ptr};
+
+use libruntime::{drivers::pci, kobject};
+use log::{error, info};
 
 /// QEMU EDU device vendor and device IDs
 const EDU_VENDOR_ID: u16 = 0x1234;
@@ -58,64 +60,100 @@ mod dma_cmd {
 }
 
 struct EduDevice {
-    pci_address: PciAddress,
-    _bar0_base: u64,
-    _bar0_size: u64,
+    _device: pci::PciDevice,
+    mapping: kobject::Mapping<'static>,
 }
 
 impl EduDevice {
-    fn new(pci_address: PciAddress) -> Self {
-        log::info!(
-            "Found EDU device at {}:{}:{}",
-            pci_address.bus,
-            pci_address.device,
-            pci_address.function
+    pub fn new(address: pci::PciAddress) -> Self {
+        info!("Opening EDU device at {}", address);
+
+        let device = pci::PciDevice::open(address).expect("Failed to open PCI device");
+        let header = device.header().expect("Failed to get PCI header");
+
+        let bar0 = header.bars[0].expect("BAR0 not found");
+        let pci::Bar::Memory(bar0) = bar0 else {
+            panic!("BAR0 is not a memory-mapped region");
+        };
+
+        info!(
+            "BAR0 MMIO region: address=0x{:x}, size=0x{:x}",
+            bar0.address, bar0.size
         );
 
-        // TODO: Get BAR0 information from PCI configuration space
-        // TODO: Map BAR0 MMIO region to virtual memory
+        let iomem =
+            unsafe { kobject::MemoryObject::open_iomem(bar0.address, bar0.size, false, true) }
+                .expect("Failed to map BAR0 MMIO region");
+
+        let mapping = kobject::Process::current()
+            .map_mem(
+                None,
+                bar0.size,
+                kobject::Permissions::READ | kobject::Permissions::WRITE,
+                &iomem,
+                0,
+            )
+            .expect("Failed to map BAR0 MMIO region to virtual memory");
 
         Self {
-            pci_address,
-            _bar0_base: 0,
-            _bar0_size: 0,
+            _device: device,
+            mapping,
         }
     }
 
-    // TODO: Implement MMIO read/write helpers
-    // fn read_reg(&self, offset: usize) -> u32 { ... }
-    // fn write_reg(&self, offset: usize, value: u32) { ... }
+    fn read_reg32(&self, offset: usize) -> u32 {
+        assert!(offset + mem::size_of::<u32>() <= self.mapping.len());
+        assert!(offset % mem::size_of::<u32>() == 0);
+
+        unsafe { ptr::read_volatile((self.mapping.address() + offset) as *const u32) }
+    }
+
+    fn write_reg32(&self, offset: usize, value: u32) {
+        assert!(offset + mem::size_of::<u32>() <= self.mapping.len());
+        assert!(offset % mem::size_of::<u32>() == 0);
+
+        unsafe { ptr::write_volatile((self.mapping.address() + offset) as *mut u32, value) }
+    }
+
+    fn read_reg64(&self, offset: usize) -> u64 {
+        assert!(offset + mem::size_of::<u64>() <= self.mapping.len());
+        assert!(offset % mem::size_of::<u64>() == 0);
+        // Only possible on offset >= 0x80, see spec
+        assert!(offset >= 0x80);
+
+        unsafe { ptr::read_volatile((self.mapping.address() + offset) as *const u64) }
+    }
+
+    fn write_reg64(&self, offset: usize, value: u64) {
+        assert!(offset + mem::size_of::<u64>() <= self.mapping.len());
+        assert!(offset % mem::size_of::<u64>() == 0);
+        // Only possible on offset >= 0x80, see spec
+        assert!(offset >= 0x80);
+
+        unsafe { ptr::write_volatile((self.mapping.address() + offset) as *mut u64, value) }
+    }
+
+    pub fn id(&self) -> u32 {
+        self.read_reg32(registers::ID)
+    }
+
+    pub fn check_liveness(&self) -> bool {
+        // It is a simple value inversion (~ C operator).
+        let value = 0x1234;
+        self.write_reg32(registers::LIVENESS, value);
+        self.read_reg32(registers::LIVENESS) == !value
+    }
+
+    pub fn compute_factorial(&self, n: u32) -> u32 {
+        self.write_reg32(registers::FACTORIAL, n);
+        while self.read_reg32(registers::STATUS) & status::COMPUTING != 0 {}
+        self.read_reg32(registers::FACTORIAL)
+    }
 
     // TODO: Implement EDU device functionality
-    // - Test identification register
-    // - Liveness check
     // - Factorial computation
     // - Interrupt handling
     // - DMA operations
-}
-
-fn find_edu_device() -> Option<PciAddress> {
-    let pci = PciClient::new();
-
-    match pci.list(Some(EDU_VENDOR_ID), Some(EDU_DEVICE_ID), None, None) {
-        Ok(devices) => {
-            if let Some(device) = devices.first() {
-                log::info!(
-                    "Found QEMU EDU device: vendor={:#x}, device={:#x}",
-                    device.device_id.vendor,
-                    device.device_id.device
-                );
-                Some(device.address)
-            } else {
-                log::warn!("No EDU device found on PCI bus");
-                None
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to enumerate PCI devices: {:?}", e);
-            None
-        }
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -126,18 +164,36 @@ pub fn main() -> i32 {
     let pci_address = match find_edu_device() {
         Some(addr) => addr,
         None => {
-            log::error!("EDU device not found, exiting");
+            error!("EDU device not found, exiting");
             return 1;
         }
     };
 
-    // Initialize the EDU device
-    let _edu = EduDevice::new(pci_address);
+    let edu = EduDevice::new(pci_address);
 
     log::info!("EDU device initialized successfully");
 
-    // TODO: Implement device operations and service loop
-    loop {
-        libruntime::time::sleep(libruntime::time::Duration::seconds(1));
-    }
+    log::info!("Edu device ID: 0x{:08x}", edu.id());
+    log::info!(
+        "Edu liveness check: {}",
+        if edu.check_liveness() {
+            "passed"
+        } else {
+            "failed"
+        }
+    );
+
+    let n = 5;
+    log::info!("Computing factorial of {} using EDU device...", n);
+    let result = edu.compute_factorial(n);
+    log::info!("Factorial of {} is {}", n, result);
+
+    0
+}
+
+fn find_edu_device() -> Option<pci::PciAddress> {
+    let options = pci::ListOptions::new();
+    let options = options.with_device_id(EDU_VENDOR_ID, EDU_DEVICE_ID);
+    let infos = pci::list(options).expect("Failed to list PCI devices");
+    infos.first().map(|info| info.address)
 }

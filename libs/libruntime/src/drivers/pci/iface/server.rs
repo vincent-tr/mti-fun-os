@@ -163,7 +163,7 @@ impl<Impl: PciServer + 'static> Server<Impl> {
     fn get_header_handler(
         &self,
         query: messages::GetHeaderQueryParameters,
-        _query_handles: ipc::KHandles,
+        mut query_handles: ipc::KHandles,
         sender_id: u64,
     ) -> Result<(messages::GetHeaderReply, ipc::KHandles), PciServerError> {
         let header = self
@@ -171,7 +171,31 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             .get_header(sender_id, query.handle)
             .map_err(Into::into)?;
 
-        Ok((messages::GetHeaderReply { header }, ipc::KHandles::new()))
+        // Get the buffer view from the query
+        let mut buffer_view = {
+            let handle =
+                query_handles.take(messages::GetHeaderQueryParameters::HANDLE_HEADER_BUFFER_MOBJ);
+            ipc::BufferView::new(
+                handle,
+                &query.header_buffer,
+                ipc::BufferViewAccess::ReadWrite,
+            )
+            .invalid_arg("Failed to create buffer view")?
+        };
+
+        let buffer = buffer_view.buffer_mut();
+
+        // Check buffer size
+        if buffer.len() < core::mem::size_of::<PciHeader>() {
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        // Write header to buffer
+        unsafe {
+            core::ptr::write(buffer.as_mut_ptr() as *mut PciHeader, header);
+        }
+
+        Ok((messages::GetHeaderReply {}, ipc::KHandles::new()))
     }
 
     fn enable_handler(

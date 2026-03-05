@@ -131,16 +131,37 @@ impl Client {
 
     /// Get the PCI header for a device.
     pub fn get_header(&self, handle: Handle) -> Result<PciHeader, PciServerCallError> {
-        let query = messages::GetHeaderQueryParameters { handle };
+        use core::mem::MaybeUninit;
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
+        // Create a buffer to receive the header
+        let mut header_storage: MaybeUninit<PciHeader> = MaybeUninit::uninit();
+        let header_bytes = unsafe {
+            core::slice::from_raw_parts_mut(
+                header_storage.as_mut_ptr() as *mut u8,
+                core::mem::size_of::<PciHeader>(),
+            )
+        };
+
+        let (buffer_mobj, buffer) = ipc::Buffer::new_local(header_bytes).into_shared();
+
+        let query = messages::GetHeaderQueryParameters {
+            handle,
+            header_buffer: buffer,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::GetHeaderQueryParameters::HANDLE_HEADER_BUFFER_MOBJ] =
+            buffer_mobj.into_handle();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<
             messages::Type,
             messages::GetHeaderQueryParameters,
             messages::GetHeaderReply,
             messages::PciServerError,
-        >(messages::Type::GetHeader, query, ipc::KHandles::new())?;
+        >(messages::Type::GetHeader, query, query_handles)?;
 
-        Ok(reply.header)
+        // Safety: The server has written a valid PciHeader into the buffer
+        Ok(unsafe { header_storage.assume_init() })
     }
 
     /// Enable or disable a device.

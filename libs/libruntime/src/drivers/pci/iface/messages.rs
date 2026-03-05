@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::{
-    drivers::pci::types::{PciAddress, PciHeader},
+    drivers::pci::types::PciAddress,
     ipc::{Handle, buffer_messages::Buffer},
 };
 
@@ -137,15 +137,19 @@ pub struct CloseReply {}
 pub struct GetHeaderQueryParameters {
     /// Handle to the device to get the header from.
     pub handle: Handle,
+
+    /// Buffer to write the header into.
+    pub header_buffer: Buffer,
+}
+
+impl GetHeaderQueryParameters {
+    pub const HANDLE_HEADER_BUFFER_MOBJ: usize = 1;
 }
 
 /// Reply for the GetHeader message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct GetHeaderReply {
-    /// The header of the device.
-    pub header: PciHeader,
-}
+pub struct GetHeaderReply {}
 
 /// Parameters for the Enable message.
 #[derive(Debug, Clone, Copy)]

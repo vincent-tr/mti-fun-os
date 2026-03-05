@@ -386,11 +386,13 @@ impl Message {
     }
 
     fn assert_layout<T>() {
-        assert!(size_of::<T>() <= Self::DATA_SIZE);
+        const {
+            assert!(size_of::<T>() <= Self::DATA_SIZE);
 
-        // Alignment is always a power of 2
-        // data is `align(8)`
-        assert!(mem::align_of::<T>() <= 8);
+            // Alignment is always a power of 2
+            // data is `align(8)`
+            assert!(mem::align_of::<T>() <= 8);
+        }
     }
 
     /// Get the handle at index (index must be < 8)

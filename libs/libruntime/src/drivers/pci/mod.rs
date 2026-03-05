@@ -15,10 +15,10 @@ lazy_static::lazy_static! {
 /// Options for listing PCI devices, allowing filtering by vendor ID, device ID, class, and subclass.
 #[derive(Debug)]
 pub struct ListOptions {
-    pub vendor_id: Option<u16>,
-    pub device_id: Option<u16>,
-    pub class: Option<u8>,
-    pub subclass: Option<u8>,
+    vendor_id: Option<u16>,
+    device_id: Option<u16>,
+    class: Option<u8>,
+    subclass: Option<u8>,
 }
 
 impl ListOptions {

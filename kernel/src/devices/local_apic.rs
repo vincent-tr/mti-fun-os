@@ -23,7 +23,7 @@ mod registers {
     use bit_field::BitField;
     use x86_64::registers::model_specific::Msr;
 
-    /// The ACPI base Register.
+    /// The APIC base Register.
     #[derive(Debug)]
     pub struct ApicBase;
 
@@ -31,7 +31,7 @@ mod registers {
         /// The underlying model specific register.
         pub const MSR: Msr = Msr::new(0x1B);
 
-        /// Read the current ACPI base address register.
+        /// Read the current APIC base address register.
         #[inline]
         pub fn read() -> ApicBaseValue {
             let raw = unsafe { Self::MSR.read() };
@@ -43,7 +43,7 @@ mod registers {
             }
         }
 
-        /// Write a given physical address to the ACPI base register.
+        /// Write a given physical address to the APIC base register.
         ///
         /// ### Note
         /// Only the address can be changed, the other fields are read-only (unless we want to disable the APIC)

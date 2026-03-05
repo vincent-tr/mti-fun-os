@@ -335,7 +335,7 @@ impl MemorySpaceBar {
 
     pub fn read_size(&self) -> u32 {
         // The size of the memory space is encoded in the bits that are set to 0 when we write all 1s to the BAR
-        (!self.0.get_bits(4..32)) << 4
+        ((!self.0.get_bits(4..32)) + 1) << 4
     }
 }
 
@@ -359,7 +359,7 @@ impl IoSpaceBar {
 
     pub fn read_size(&self) -> u32 {
         // The size of the I/O space is encoded in the bits that are set to 0 when we write all 1s to the BAR
-        (!self.0.get_bits(2..32)) << 2
+        ((!self.0.get_bits(2..32)) + 1) << 2
     }
 }
 
@@ -415,7 +415,10 @@ impl MemorySpaceBar64 {
 
     pub fn read_size(&self) -> u64 {
         // The size of the memory space is encoded in the bits that are set to 0 when we write all 1s to the BAR
-        (!self.low.0.get_bits(4..32) as u64) << 4 | (!self.high as u64) << 32
+        // Combine as 60-bit value: high bits shifted by 28 (32-4), low bits from get_bits (already at 0-27)
+        let bar_value = ((self.high as u64) << (32 - 4)) | (self.low.0.get_bits(4..32) as u64);
+        // Invert, add 1, shift back by 4 (same algorithm as 32-bit version)
+        ((!bar_value) + 1) << 4
     }
 }
 

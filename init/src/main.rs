@@ -16,7 +16,7 @@ use core::mem;
 
 use alloc::{boxed::Box, format};
 use info::InitInfo;
-use libruntime::{file, kobject, process, state, time};
+use libruntime::{drivers, file, kobject, process, state, time};
 use log::{debug, info};
 
 fn main(info: InitInfo) {
@@ -44,6 +44,8 @@ fn main(info: InitInfo) {
     // tests::file::test_vfs();
 
     start_extended_servers(&info);
+
+    tests::edu_driver::run_edu_driver();
 
     mem::drop(info);
 
@@ -118,13 +120,9 @@ fn start_extended_servers(info: &InitInfo) {
     let options = process::ProcessOptions::from_path("/mnt/archive/servers/drivers/bus/pci-server")
         .expect("Failed to load pci-server");
     let process = process::Process::spawn(options).expect("Could not spawn pci server");
-    let _ = process;
 
-    let options =
-        process::ProcessOptions::from_path("/mnt/archive/servers/drivers/test/edu/edu-server")
-            .expect("Failed to load edu-server");
-    let process = process::Process::spawn(options).expect("Could not spawn edu server");
     let _ = process;
+    wait_port(drivers::pci::iface::PORT_NAME);
 
     let mut options =
         process::ProcessOptions::from_path("/mnt/archive/servers/core/display-server")

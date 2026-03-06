@@ -104,7 +104,7 @@ tail -f serial.log
 ### kernel
 
 - multi-core
-- irq to userland
+- for now userland irq supports only MSI
 - dma
 
 ### runtime

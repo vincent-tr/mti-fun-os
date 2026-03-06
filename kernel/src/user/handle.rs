@@ -11,6 +11,7 @@ use super::{
     id_gen::IdGen,
     ioport::PortRange,
     ipc::{Port, PortReceiver, PortSender},
+    irq::Irq,
     listener::{ProcessListener, ThreadListener},
     process::Process,
     thread::Thread,
@@ -64,6 +65,7 @@ pub enum KernelHandle {
     ThreadListenerHandle(Pin<Arc<ThreadListener>>),
     TimerHandle(Pin<Arc<Timer>>),
     PortRangeHandle(Arc<PortRange>),
+    IrqHandle(Arc<Irq>),
 }
 
 impl KernelHandle {
@@ -78,6 +80,7 @@ impl KernelHandle {
             KernelHandle::ThreadListenerHandle(_) => HandleType::ThreadListener,
             KernelHandle::TimerHandle(_) => HandleType::Timer,
             KernelHandle::PortRangeHandle(_) => HandleType::PortRange,
+            KernelHandle::IrqHandle(_) => HandleType::Irq,
         }
     }
 
@@ -153,6 +156,13 @@ impl KernelHandle {
                     false
                 }
             }
+            KernelHandle::IrqHandle(self_obj) => {
+                if let KernelHandle::IrqHandle(other_obj) = other {
+                    Arc::ptr_eq(self_obj, other_obj)
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -222,6 +232,11 @@ impl Handles {
     /// Open the given port range in the process
     pub fn open_port_range(&self, port_range: Arc<PortRange>) -> Handle {
         self.open(KernelHandle::PortRangeHandle(port_range))
+    }
+
+    /// Open the given IRQ in the process
+    pub fn open_irq(&self, irq: Arc<Irq>) -> Handle {
+        self.open(KernelHandle::IrqHandle(irq))
     }
 
     /// Open raw kernel handle
@@ -387,6 +402,19 @@ impl Handles {
 
         if let KernelHandle::PortRangeHandle(port_range) = handle_impl {
             Ok(port_range.clone())
+        } else {
+            Err(invalid_argument())
+        }
+    }
+
+    /// Retrieve the IRQ from the handle
+    pub fn get_irq(&self, handle: Handle) -> Result<Arc<Irq>, Error> {
+        let handles = self.handles.read();
+
+        let handle_impl = check_arg_opt(handles.get(&handle))?;
+
+        if let KernelHandle::IrqHandle(irq) = handle_impl {
+            Ok(irq.clone())
         } else {
             Err(invalid_argument())
         }

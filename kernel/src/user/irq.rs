@@ -35,11 +35,11 @@ impl Irq {
     /// Create a new IRQ object associated with the given port.
     ///
     /// The IRQ number will be automatically assigned from the available range.
-    pub fn new(port: Arc<PortSender>) -> Result<Self, Error> {
+    pub fn new(port: Arc<PortSender>) -> Result<Arc<Self>, Error> {
         let mut table = IRQ_TABLE.write();
 
-        let irq = IRQ_TABLE.write().next_free().ok_or(Error::OutOfMemory)?;
-        let obj = Self { irq, port };
+        let irq = table.next_free().ok_or(Error::OutOfMemory)?;
+        let obj = Arc::new(Self { irq, port });
         table.add(irq, &obj);
 
         Ok(obj)
@@ -88,9 +88,9 @@ impl IrqPtr {
     }
 }
 
-impl From<&Irq> for IrqPtr {
-    fn from(value: &Irq) -> Self {
-        Self(value as *const Irq)
+impl From<&Arc<Irq>> for IrqPtr {
+    fn from(value: &Arc<Irq>) -> Self {
+        Self(value.as_ref() as *const Irq)
     }
 }
 
@@ -119,7 +119,7 @@ impl Table {
     }
 
     /// Add an IRQ object to the table, associating it with the specified IRQ number.
-    pub fn add(&mut self, irq: usize, obj: &Irq) {
+    pub fn add(&mut self, irq: usize, obj: &Arc<Irq>) {
         assert!(irq >= IRQ_START && irq <= IRQ_END);
 
         let index = irq - (IRQ_START as usize);

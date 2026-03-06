@@ -96,4 +96,6 @@ pub enum SyscallNumber {
     IoPortOpen,
     IoPortWrite,
     IoPortRead,
+
+    IrqOpen,
 }

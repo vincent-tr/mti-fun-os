@@ -12,4 +12,5 @@ pub enum HandleType {
     ProcessListener,
     ThreadListener,
     Timer,
+    Irq,
 }

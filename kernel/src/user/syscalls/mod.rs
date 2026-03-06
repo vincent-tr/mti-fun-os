@@ -6,6 +6,7 @@ mod helpers;
 mod init;
 mod ioport;
 mod ipc;
+mod irq;
 mod listener;
 mod logging;
 mod memory;
@@ -90,6 +91,8 @@ pub fn init() {
     register_syscall(SyscallNumber::IoPortOpen, ioport::open);
     register_syscall(SyscallNumber::IoPortWrite, ioport::write);
     register_syscall(SyscallNumber::IoPortRead, ioport::read);
+
+    register_syscall(SyscallNumber::IrqOpen, irq::open);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);
 }

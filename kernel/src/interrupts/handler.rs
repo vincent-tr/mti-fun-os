@@ -207,7 +207,7 @@ macro_rules! native_handler {
 }
 #[macro_export]
 macro_rules! native_device_irq_handler {
-    ($handler:expr, $irq:expr) => {
+    ($handler:expr, $vector:expr) => {
         {
             #[unsafe(naked)]
             unsafe fn handler() {
@@ -238,7 +238,7 @@ macro_rules! native_device_irq_handler {
 
                     let stack = InterruptStack::current();
 
-                    $handler(stack, $irq);
+                    $handler(stack, $vector);
                 }
             }
 

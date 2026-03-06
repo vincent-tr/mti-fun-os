@@ -39,8 +39,8 @@ pub fn lapic_error_interrupt_handler(_stack: &mut InterruptStack) {
     devices::local_apic::end_of_interrupt();
 }
 
-pub fn device_interrupt_handler(_stack: &mut InterruptStack, irq: u8) {
-    irq::handle_irq(irq);
+pub fn device_interrupt_handler(_stack: &mut InterruptStack, vector: u8) {
+    irq::handle_irq(vector);
 
     devices::local_apic::end_of_interrupt();
 }

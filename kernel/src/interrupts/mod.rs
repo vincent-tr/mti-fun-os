@@ -159,9 +159,9 @@ lazy_static! {
 
             // irqs::EXTERNAL_IRQ_START => 34
             // irqs::EXTERNAL_IRQ_END => 255
-            seq!(IRQ in 34..=255 {
-                idt[IRQ]
-                    .set_handler_addr(native_device_irq_handler!(irqs::device_interrupt_handler, IRQ))
+            seq!(VECTOR in 34..=255 {
+                idt[VECTOR]
+                    .set_handler_addr(native_device_irq_handler!(irqs::device_interrupt_handler, VECTOR))
                     .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                     .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
             });

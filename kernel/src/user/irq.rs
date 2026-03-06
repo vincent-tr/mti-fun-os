@@ -19,7 +19,7 @@ const IRQ_END: usize = interrupts::EXTERNAL_IRQ_END as usize;
 /// IRQ (Interrupt Request) handling for user space.
 #[derive(Debug)]
 pub struct Irq {
-    irq: usize,
+    vector: usize,
     port: Arc<PortSender>,
 }
 
@@ -27,7 +27,7 @@ impl Drop for Irq {
     fn drop(&mut self) {
         let mut table = IRQ_TABLE.write();
 
-        table.remove(self.irq);
+        table.remove(self.vector);
     }
 }
 
@@ -38,16 +38,16 @@ impl Irq {
     pub fn new(port: Arc<PortSender>) -> Result<Arc<Self>, Error> {
         let mut table = IRQ_TABLE.write();
 
-        let irq = table.next_free().ok_or(Error::OutOfMemory)?;
-        let obj = Arc::new(Self { irq, port });
-        table.add(irq, &obj);
+        let vector = table.next_free().ok_or(Error::OutOfMemory)?;
+        let irq = Arc::new(Self { vector, port });
+        table.add(vector, &irq);
 
-        Ok(obj)
+        Ok(irq)
     }
 
-    /// Get the IRQ number associated with this IRQ object.
-    pub fn irq_number(&self) -> usize {
-        self.irq
+    /// Get the vector associated with this IRQ object.
+    pub fn vector(&self) -> usize {
+        self.vector
     }
 
     /// Send an IrqEvent message to the associated port to notify that the IRQ has been triggered.
@@ -55,7 +55,7 @@ impl Irq {
         let mut builder = MessageBuilder::new();
 
         let event = builder.data_mut::<IrqEvent>();
-        event.irq = self.irq as u64;
+        event.vector = self.vector as u64;
 
         match self.port.kernel_send(builder.message()) {
             Ok(()) => {}
@@ -119,30 +119,34 @@ impl Table {
     }
 
     /// Add an IRQ object to the table, associating it with the specified IRQ number.
-    pub fn add(&mut self, irq: usize, obj: &Arc<Irq>) {
-        assert!(irq >= IRQ_START && irq <= IRQ_END);
+    pub fn add(&mut self, vector: usize, irq: &Arc<Irq>) {
+        assert!(vector >= IRQ_START && vector <= IRQ_END);
 
-        let index = irq - (IRQ_START as usize);
+        let index = vector - (IRQ_START as usize);
 
-        assert!(self.0[index].is_null(), "IRQ {} is already registered", irq);
-        self.0[index] = IrqPtr::from(obj);
+        assert!(
+            self.0[index].is_null(),
+            "IRQ {} is already registered",
+            vector
+        );
+        self.0[index] = IrqPtr::from(irq);
     }
 
     /// Remove the IRQ object associated with the specified IRQ number from the table.
-    pub fn remove(&mut self, irq: usize) {
-        assert!(irq >= IRQ_START && irq <= IRQ_END);
+    pub fn remove(&mut self, vector: usize) {
+        assert!(vector >= IRQ_START && vector <= IRQ_END);
 
-        let index = (irq - IRQ_START) as usize;
+        let index = (vector - IRQ_START) as usize;
 
-        assert!(!self.0[index].is_null(), "IRQ {} is not registered", irq);
+        assert!(!self.0[index].is_null(), "IRQ {} is not registered", vector);
         self.0[index] = IrqPtr::null();
     }
 
     /// Get the IRQ object associated with the specified IRQ number, or None if no object is registered for that IRQ.
-    pub fn get(&self, irq: usize) -> Option<&Irq> {
-        assert!(irq >= IRQ_START && irq <= IRQ_END);
+    pub fn get(&self, vector: usize) -> Option<&Irq> {
+        assert!(vector >= IRQ_START && vector <= IRQ_END);
 
-        let entry = self.0[(irq - IRQ_START) as usize];
+        let entry = self.0[(vector - IRQ_START) as usize];
         if entry.is_null() {
             None
         } else {
@@ -156,12 +160,15 @@ lazy_static::lazy_static! {
 }
 
 /// Called by the ISR management code when a device IRQ is triggered.
-pub fn handle_irq(irq: u8) {
+pub fn handle_irq(vector: u8) {
     let table = IRQ_TABLE.read();
 
-    if let Some(obj) = table.get(irq as usize) {
-        obj.fire()
+    if let Some(irq) = table.get(vector as usize) {
+        irq.fire()
     } else {
-        warn!("Unhandled IRQ {} triggered with no registered handler", irq);
+        warn!(
+            "Unhandled IRQ {} triggered with no registered handler",
+            vector
+        );
     }
 }

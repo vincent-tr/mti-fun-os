@@ -8,7 +8,7 @@ use crate::{
 
 use super::{context::Context, helpers::HandleOutputWriter};
 
-pub async fn open(context: Context) -> Result<(), Error> {
+pub async fn create(context: Context) -> Result<(), Error> {
     let port_handle = context.arg1();
     let handle_out_ptr = context.arg2();
 

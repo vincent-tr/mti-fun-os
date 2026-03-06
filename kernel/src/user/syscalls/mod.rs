@@ -92,7 +92,7 @@ pub fn init() {
     register_syscall(SyscallNumber::IoPortWrite, ioport::write);
     register_syscall(SyscallNumber::IoPortRead, ioport::read);
 
-    register_syscall(SyscallNumber::IrqOpen, irq::open);
+    register_syscall(SyscallNumber::IrqCreate, irq::create);
     register_syscall(SyscallNumber::IrqInfo, irq::info);
 
     register_syscall_raw(SyscallNumber::InitSetup, init::setup);

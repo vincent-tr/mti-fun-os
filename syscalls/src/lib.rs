@@ -98,4 +98,5 @@ pub enum SyscallNumber {
     IoPortRead,
 
     IrqOpen,
+    IrqInfo,
 }

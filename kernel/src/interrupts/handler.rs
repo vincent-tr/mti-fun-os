@@ -193,11 +193,52 @@ macro_rules! native_handler {
 
             unsafe extern "C" fn wrapper() {
                 unsafe {
-                let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
 
-                let stack = InterruptStack::current();
+                    let stack = InterruptStack::current();
 
-                $handler(stack);
+                    $handler(stack);
+                }
+            }
+
+            VirtAddr::new(handler as *const () as u64)
+        }
+    }
+}
+#[macro_export]
+macro_rules! native_device_irq_handler {
+    ($handler:expr, $irq:expr) => {
+        {
+            #[unsafe(naked)]
+            unsafe fn handler() {
+                core::arch::naked_asm!(concat!(
+                    "push 0;",                    // Fake error code
+
+                    "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
+
+                    push_scratch!(),
+                    push_preserved!(),
+
+                    // Call inner funtion
+                    "call {interrupt_handler};",
+
+                    pop_preserved!(),
+                    pop_scratch!(),
+
+                    "add rsp,8;",               // Error code
+                    "iretq;",                   // Back to userland
+                ),
+
+                interrupt_handler = sym wrapper);
+            }
+
+            unsafe extern "C" fn wrapper() {
+                unsafe {
+                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+
+                    let stack = InterruptStack::current();
+
+                    $handler(stack, $irq);
                 }
             }
 
@@ -234,11 +275,11 @@ macro_rules! native_error_handler {
 
             unsafe extern "C" fn wrapper() {
                 unsafe {
-                let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
 
-                let stack = InterruptStack::current();
+                    let stack = InterruptStack::current();
 
-                $handler(stack);
+                    $handler(stack);
                 }
             }
 

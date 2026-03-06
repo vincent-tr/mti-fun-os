@@ -5,6 +5,7 @@ mod irqs;
 mod syscalls;
 
 use core::arch::asm;
+use seq_macro::seq;
 
 use crate::gdt;
 use crate::memory::VirtAddr;
@@ -146,7 +147,6 @@ lazy_static! {
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
 
-
             idt[Irq::LocalApicTimer as u8]
                 .set_handler_addr(native_handler!(irqs::lapic_timer_interrupt_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
@@ -156,7 +156,16 @@ lazy_static! {
                 .set_handler_addr(native_handler!(irqs::lapic_error_interrupt_handler))
                 .set_stack_index(gdt::INTERRUPT_IST_INDEX)
                 .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
-            }
+
+            // irqs::EXTERNAL_IRQ_START => 34
+            // irqs::EXTERNAL_IRQ_END => 255
+            seq!(IRQ in 34..=255 {
+                idt[IRQ]
+                    .set_handler_addr(native_device_irq_handler!(irqs::device_interrupt_handler, IRQ))
+                    .set_stack_index(gdt::INTERRUPT_IST_INDEX)
+                    .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+            });
+        }
 
         idt
     };

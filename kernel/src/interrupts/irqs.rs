@@ -3,11 +3,15 @@ use log::error;
 use crate::{
     devices,
     interrupts::InterruptStack,
-    user::{thread, timer},
+    user::{irq, thread, timer},
 };
 
 pub const IRQ0: u8 = 32;
 
+pub const EXTERNAL_IRQ_START: u8 = IRQ0 + 2;
+pub const EXTERNAL_IRQ_END: u8 = u8::MAX;
+
+/// IRQ numbers for the system, including both local APIC and device IRQs.
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum Irq {
@@ -31,6 +35,12 @@ pub fn lapic_error_interrupt_handler(_stack: &mut InterruptStack) {
         "Local APIC internal error: {:?}",
         devices::local_apic::current_errors()
     );
+
+    devices::local_apic::end_of_interrupt();
+}
+
+pub fn device_interrupt_handler(_stack: &mut InterruptStack, irq: u8) {
+    irq::handle_irq(irq);
 
     devices::local_apic::end_of_interrupt();
 }

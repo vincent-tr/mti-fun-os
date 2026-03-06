@@ -4,6 +4,7 @@ mod handle;
 mod id_gen;
 mod ioport;
 pub mod ipc;
+pub mod irq;
 mod listener;
 mod memory_object;
 pub mod process;

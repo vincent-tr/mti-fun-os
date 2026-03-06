@@ -13,6 +13,7 @@ lazy_static = { workspace = true }
 log = { workspace = true }
 memoffset = { workspace = true }
 raw-cpuid = { workspace = true }
+seq-macro = { workspace = true }
 spin = { workspace = true }
 uart_16550 = { workspace = true }
 x86_64 = { workspace = true }

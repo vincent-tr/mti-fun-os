@@ -15,6 +15,7 @@ use super::pit;
 use bit_field::BitField;
 use log::{debug, info};
 use spin::Mutex;
+use x86_64::PhysAddr;
 
 const FS_IN_SEC: usize = 1_000_000_000_000_000;
 
@@ -133,6 +134,7 @@ mod registers {
 /// Local APIC
 #[derive(Debug)]
 struct LocalApic {
+    phys_addr: PhysAddr,
     base_addr: VirtAddr,
     timer_period_fs: Mutex<usize>,
 }
@@ -140,6 +142,7 @@ struct LocalApic {
 impl LocalApic {
     pub const fn new() -> Self {
         Self {
+            phys_addr: PhysAddr::zero(),
             base_addr: VirtAddr::zero(),
             timer_period_fs: Mutex::new(0),
         }
@@ -152,6 +155,7 @@ impl LocalApic {
         let reg_value = registers::ApicBase::read();
         assert!(reg_value.enabled);
 
+        self.phys_addr = reg_value.address;
         self.base_addr = unsafe {
             map_iomem(
                 reg_value.address..reg_value.address + PAGE_SIZE as u64,
@@ -182,6 +186,11 @@ impl LocalApic {
     /// Signal the end of interrupt
     pub fn end_of_interrupt(&self) {
         unsafe { self.write(registers::EOI, 0) }
+    }
+
+    /// Get the address to send MSI messages to
+    pub fn msi_address(&self) -> PhysAddr {
+        PhysAddr::new(self.phys_addr.as_u64() | ((self.id().value() as u64) << 12))
     }
 
     pub fn current_errors(&self) -> LocalApicErrors {
@@ -763,4 +772,11 @@ pub fn current_errors() -> LocalApicErrors {
     let apic = LOCAL_APIC.lock();
 
     apic.current_errors()
+}
+
+/// Get the address to send MSI messages to Local APIC
+pub fn get_msi_address() -> PhysAddr {
+    let apic = LOCAL_APIC.lock();
+
+    apic.msi_address()
 }

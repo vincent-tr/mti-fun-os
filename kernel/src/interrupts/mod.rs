@@ -18,7 +18,7 @@ use self::handler::init_process_control_region;
 pub const USERLAND_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG;
 pub use self::exceptions::Exception;
 pub use self::handler::InterruptStack;
-pub use self::irqs::Irq;
+pub use self::irqs::{EXTERNAL_IRQ_END, EXTERNAL_IRQ_START, Irq};
 pub use self::syscalls::SyscallArgs;
 
 // Note:

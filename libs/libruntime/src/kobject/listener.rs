@@ -52,7 +52,7 @@ impl ThreadListenerFilterOwner {
 
 /// Thread listener
 ///
-/// Note: since thread listener is a complex object, it does not implement KObject directly
+/// Note: since thread listener is a complex object, it partially implements KObject
 #[derive(Debug)]
 pub struct ThreadListener {
     filter: ThreadListenerFilterOwner,
@@ -166,7 +166,7 @@ impl ProcessListenerFilterOwner {
 
 /// Process listener
 ///
-/// Note: since thread listener is a complex object, it does not implement KObject directly
+/// Note: since process listener is a complex object, it partially implements KObject
 #[derive(Debug)]
 pub struct ProcessListener {
     filter: ProcessListenerFilterOwner,

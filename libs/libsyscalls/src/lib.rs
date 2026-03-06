@@ -4,6 +4,7 @@ pub mod futex;
 mod handle;
 pub mod ioport;
 pub mod ipc;
+pub mod irq;
 pub mod listener;
 mod logging;
 pub mod memory;
@@ -23,10 +24,10 @@ pub use logging::*;
 
 use ::syscalls::SUCCESS;
 pub use ::syscalls::{
-    Error, Exception, HandleType, IoMemFlags, KallocStats, KvmStats, MemoryStats, Message,
-    Permissions, PhysStats, PortAccess, PortInfo, ProcessEvent, ProcessEventType, ProcessInfo,
-    ThreadContext, ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority,
-    ThreadState, TimerEvent,
+    Error, Exception, HandleType, IoMemFlags, IrqEvent, IrqInfo, KallocStats, KvmStats,
+    MemoryStats, Message, Permissions, PhysStats, PortAccess, PortInfo, ProcessEvent,
+    ProcessEventType, ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent,
+    ThreadEventType, ThreadInfo, ThreadPriority, ThreadState, TimerEvent,
 };
 
 pub type SyscallResult<T> = Result<T, Error>;

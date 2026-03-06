@@ -10,6 +10,7 @@ pub use libsyscalls::{
 mod error;
 mod ioport;
 mod ipc;
+mod irq;
 mod listener;
 mod memory;
 mod memory_object;
@@ -38,6 +39,7 @@ pub trait KObject: Debug {
 pub use error::Error;
 pub use ioport::PortRange;
 pub use ipc::{KWaitable, Message, Port, PortReceiver, PortSender, Waiter};
+pub use irq::Irq;
 pub use listener::{ProcessListener, ProcessListenerFilter, ThreadListener, ThreadListenerFilter};
 pub use memory::Memory;
 pub use memory_object::MemoryObject;

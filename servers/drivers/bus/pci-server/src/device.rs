@@ -129,7 +129,7 @@ impl Device {
                 interrupt_pin,
             });
 
-            if common_header.status.capabilities_list() {
+            if header.common.status.capabilities_list() {
                 // The capabilities pointer is aligned to 4 bytes, so the lower 2 bits are reserved and can be masked out.
                 device.capabilities =
                     device.read_capabilities((header.capabilities_ptr & 0xFC) as usize);

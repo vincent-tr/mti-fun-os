@@ -3,6 +3,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use alloc::vec::Vec;
 use libruntime::drivers::pci::{
     iface::PciDeviceInfo,
     types::{
@@ -13,8 +14,9 @@ use libruntime::drivers::pci::{
 use log::warn;
 
 use crate::pci::{
-    self, CommandRegister, CommonHeader, ConfigurationSpace, GeneralDeviceHeader, Header,
-    MemorySpaceBar64, PciToCardBusBridgeHeader, PciToPciBridgeHeader, StatusRegister,
+    self, Capability, CommandRegister, CommonHeader, ConfigurationSpace, GeneralDeviceHeader,
+    Header, MemorySpaceBar64, PCI_CONFIG_SPACE_SIZE, PciToCardBusBridgeHeader,
+    PciToPciBridgeHeader, StatusRegister,
 };
 
 #[derive(Debug)]
@@ -33,6 +35,9 @@ pub struct Device {
     /// This is only filled for generic devices, not for bridge devices
     /// Only generic devices can be opened, so we only need the header for those.
     header: Option<PciHeader>,
+
+    /// The capabilities of the PCI device, which can include things like power management, MSI, and more.
+    capabilities: Vec<CapabilityInfo>,
 
     /// Indicate whether the device is currently in use or not.
     ///
@@ -63,6 +68,7 @@ impl Device {
             device_id,
             class,
             header: None,
+            capabilities: Vec::new(),
             in_use: AtomicBool::new(false),
         };
 
@@ -122,6 +128,12 @@ impl Device {
                 interrupt_line,
                 interrupt_pin,
             });
+
+            if common_header.status.capabilities_list() {
+                // The capabilities pointer is aligned to 4 bytes, so the lower 2 bits are reserved and can be masked out.
+                device.capabilities =
+                    device.read_capabilities((header.capabilities_ptr & 0xFC) as usize);
+            }
         }
 
         device
@@ -130,7 +142,7 @@ impl Device {
     /// Gets the PCI header for the device at the specified address.
     fn get_header(address: PciAddress) -> Header {
         let mut common = CommonHeader::default();
-        ConfigurationSpace::get().read_data::<CommonHeader>(address, 0x00, &mut common, None);
+        ConfigurationSpace::get().read_data(address, 0x00, &mut common, None);
         let header_type = common.header_type.r#type();
 
         // Read the rest of the header based on the header type
@@ -141,7 +153,7 @@ impl Device {
                     ..Default::default()
                 };
 
-                ConfigurationSpace::get().read_data::<GeneralDeviceHeader>(
+                ConfigurationSpace::get().read_data(
                     address,
                     0x00,
                     &mut general_device,
@@ -155,7 +167,7 @@ impl Device {
                     ..Default::default()
                 };
 
-                ConfigurationSpace::get().read_data::<PciToPciBridgeHeader>(
+                ConfigurationSpace::get().read_data(
                     address,
                     0x00,
                     &mut pci_bridge,
@@ -169,7 +181,7 @@ impl Device {
                     ..Default::default()
                 };
 
-                ConfigurationSpace::get().read_data::<PciToCardBusBridgeHeader>(
+                ConfigurationSpace::get().read_data(
                     address,
                     0x00,
                     &mut cardbus_bridge,
@@ -299,6 +311,39 @@ impl Device {
         }
     }
 
+    fn read_capabilities(&self, capabilities_pointer: usize) -> Vec<CapabilityInfo> {
+        let mut capabilities = Vec::new();
+        let mut current_pointer = capabilities_pointer;
+
+        while current_pointer != 0 {
+            let mut capability = Capability::default();
+            ConfigurationSpace::get().read_data(
+                self.address,
+                current_pointer,
+                &mut capability,
+                None,
+            );
+
+            let max_size = if capability.next != 0 {
+                // The maximum size of the capability is the offset to the next capability, since capabilities are stored contiguously in the config space.
+                capability.next as usize - current_pointer
+            } else {
+                // If this is the last capability (next pointer is 0), then the maximum size is the remaining space in the config space after this capability.
+                PCI_CONFIG_SPACE_SIZE - current_pointer
+            };
+
+            capabilities.push(CapabilityInfo {
+                id: capability.id,
+                max_size,
+                offset: current_pointer,
+            });
+
+            current_pointer = capability.next as usize;
+        }
+
+        capabilities
+    }
+
     /// Read from the PCI config space for the device.
     fn read(&self, offset: usize) -> u32 {
         ConfigurationSpace::get().read_u32(self.address, offset)
@@ -375,4 +420,11 @@ impl Device {
         reg.command.enable_bus_master(bus_master);
         self.write(0x04, unsafe { mem::transmute(reg) });
     }
+}
+
+#[derive(Debug)]
+struct CapabilityInfo {
+    id: u8,
+    max_size: usize,
+    offset: usize,
 }

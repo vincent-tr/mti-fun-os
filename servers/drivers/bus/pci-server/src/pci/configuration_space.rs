@@ -1,6 +1,8 @@
 use core::{mem, ops::Range};
 use libruntime::{drivers::pci::types::PciAddress, kobject, sync::spin::OnceLock};
 
+use crate::pci::PCI_CONFIG_SPACE_SIZE;
+
 /// PCI configuration space access
 #[derive(Debug)]
 pub struct ConfigurationSpace {
@@ -70,7 +72,7 @@ impl ConfigurationSpace {
         }
 
         assert!(
-            offset as usize + mem::size_of::<T>() <= 256,
+            offset as usize + mem::size_of::<T>() <= PCI_CONFIG_SPACE_SIZE,
             "Offset + size of type must be within 256 bytes"
         );
 
@@ -121,7 +123,7 @@ impl ConfigurationSpace {
         );
 
         assert!(
-            offset as usize + mem::size_of::<u32>() <= 256,
+            offset as usize + mem::size_of::<u32>() <= PCI_CONFIG_SPACE_SIZE,
             "Offset + size of type must be within 256 bytes"
         );
 
@@ -148,7 +150,7 @@ impl ConfigurationSpace {
         );
 
         assert!(
-            offset as usize + mem::size_of::<u32>() <= 256,
+            offset as usize + mem::size_of::<u32>() <= PCI_CONFIG_SPACE_SIZE,
             "Offset + size of type must be within 256 bytes"
         );
 

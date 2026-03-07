@@ -2,6 +2,8 @@ use super::Bar;
 use bit_field::BitField;
 use core::{fmt, mem};
 
+pub const PCI_CONFIG_SPACE_SIZE: usize = 256;
+
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(C, align(4))]
 pub struct CommonHeader {

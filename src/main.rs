@@ -23,7 +23,7 @@ fn main() {
         .args(&["-device", "edu"])
         .args(&[
             "-nic",
-            "user,model=e1000,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80",
+            "user,model=e1000e,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80",
         ])
         .arg("-s");
     let mut child = cmd.spawn().unwrap();

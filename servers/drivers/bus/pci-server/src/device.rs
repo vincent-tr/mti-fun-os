@@ -391,6 +391,8 @@ impl Device {
 
     /// Marks the device as closed.
     pub fn closed(&self) {
+        self.enable(false, false, false);
+
         self.in_use.store(false, Ordering::SeqCst);
     }
 

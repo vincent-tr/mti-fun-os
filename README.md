@@ -124,7 +124,7 @@ tail -f serial.log
     - ( [downloaded](docs/ELF_Format.pdf) ) http://www.skyfree.org/linux/references/ELF_Format.pdf
     - https://gitlab.redox-os.org/redox-os/relibc/-/tree/master/src/ld_so
     -> build PE + dllimport/dllexport ?
-    -> rajouter de la metadata static + faire un post-build pour avoir un format de binaire mti-os ?
+    -> add static metadata + have post-build step to get mti-fun-os binary format?
     - -C prefer dynamic
 - screen/graphics
 - net

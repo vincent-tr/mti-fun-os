@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::{mem, ptr};
+use core::{mem, ptr, fmt, error};
 
 use crate::drivers::pci::types::{PciAddress, PciClass, PciDeviceId};
 
@@ -95,15 +95,15 @@ pub enum InfoBlockReadError {
     InvalidVersion,
 }
 
-impl core::fmt::Display for InfoBlockReadError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for InfoBlockReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidVersion => write!(f, "Invalid InfoBlock version"),
         }
     }
 }
 
-impl core::error::Error for InfoBlockReadError {}
+impl error::Error for InfoBlockReadError {}
 
 #[derive(Debug)]
 #[repr(C)]

@@ -26,6 +26,9 @@ pub enum Type {
     Close,
     GetHeader,
     Enable,
+    ListCapabilities,
+    ReadCapability,
+    WriteCapability,
 }
 
 impl From<Type> for u16 {
@@ -172,3 +175,84 @@ pub struct EnableQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct EnableReply {}
+
+/// Parameters for the ListCapabilities message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListCapabilitiesQueryParameters {
+    /// Handle to the device to list capabilities for.
+    pub handle: Handle,
+
+    /// Buffer to write the capabilities list into.
+    pub buffer: Buffer,
+}
+
+impl ListCapabilitiesQueryParameters {
+    pub const HANDLE_CAPABILITIES_BUFFER_MOBJ: usize = 1;
+}
+
+/// Reply for the ListCapabilities message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListCapabilitiesReply {
+    /// Number of bytes used in the buffer to write the capabilities list (if the call succeeds)
+    pub buffer_used_len: usize,
+}
+
+/// Parameters for the ReadCapability message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadCapabilityQueryParameters {
+    /// Handle to the device to read the capability from.
+    pub handle: Handle,
+
+    /// Index of the capability to read.
+    pub capability_index: usize,
+
+    /// Offset within the capability data to read from.
+    pub offset: usize,
+
+    /// Size of the capability data to read.
+    pub size: usize,
+
+    /// Buffer to write the capability data into.
+    pub buffer: Buffer,
+}
+
+impl ReadCapabilityQueryParameters {
+    pub const HANDLE_CAPABILITY_BUFFER_MOBJ: usize = 1;
+}
+
+/// Reply for the ReadCapability message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ReadCapabilityReply {}
+
+/// Parameters for the WriteCapability message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteCapabilityQueryParameters {
+    /// Handle to the device to write the capability to.
+    pub handle: Handle,
+
+    /// Index of the capability to write.
+    pub capability_index: usize,
+
+    /// Offset within the capability data to write to.
+    pub offset: usize,
+
+    /// Size of the capability data to write.
+    pub size: usize,
+
+    /// Buffer containing the capability data to write.
+    pub buffer: Buffer,
+}
+
+impl WriteCapabilityQueryParameters {
+    pub const HANDLE_CAPABILITY_BUFFER_MOBJ: usize = 1;
+}
+
+/// Reply for the WriteCapability message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct WriteCapabilityReply {}

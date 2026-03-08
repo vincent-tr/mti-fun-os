@@ -1,8 +1,10 @@
+mod capability_block;
 mod client;
 mod info_block;
 mod messages;
 mod server;
 
+pub use capability_block::CapabilityInfo;
 pub use client::{Client, PciServerCallError};
 pub use info_block::PciDeviceInfo;
 use server::Server;

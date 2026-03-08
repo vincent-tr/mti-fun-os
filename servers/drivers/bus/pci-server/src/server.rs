@@ -1,4 +1,5 @@
 use alloc::{sync::Arc, vec::Vec};
+use core::mem;
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::{
@@ -193,6 +194,18 @@ impl iface::PciServer for Server {
             PciServerError::InvalidArgument
         })?;
 
+        if offset % mem::size_of::<u32>() != 0 || data.len() % mem::size_of::<u32>() != 0 {
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        let capability = device
+            .capability(capability_index)
+            .ok_or(PciServerError::InvalidArgument)?;
+
+        if offset + data.len() > capability.max_size {
+            return Err(PciServerError::InvalidArgument);
+        }
+
         todo!()
     }
 
@@ -208,6 +221,18 @@ impl iface::PciServer for Server {
             error!("Invalid device handle: {:?}", handle);
             PciServerError::InvalidArgument
         })?;
+
+        if offset % mem::size_of::<u32>() != 0 || data.len() % mem::size_of::<u32>() != 0 {
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        let capability = device
+            .capability(capability_index)
+            .ok_or(PciServerError::InvalidArgument)?;
+
+        if offset + data.len() > capability.max_size {
+            return Err(PciServerError::InvalidArgument);
+        }
 
         todo!()
     }

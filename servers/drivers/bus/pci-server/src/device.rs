@@ -430,6 +430,62 @@ impl Device {
             })
             .collect()
     }
+
+    /// Get a capability of the device by its index in the capabilities list.
+    pub fn capability(&self, index: usize) -> Option<CapabilityInfo> {
+        self.capabilities.get(index).map(|cap| CapabilityInfo {
+            index,
+            id: cap.id,
+            max_size: cap.max_size,
+        })
+    }
+
+    /// Read data from a capability of the device.
+    pub fn read_capability_data(&self, capability_index: usize, offset: usize) -> u32 {
+        let capability = self
+            .capabilities
+            .get(capability_index)
+            .expect("Invalid capability index");
+
+        assert!(offset + mem::size_of::<u32>() <= capability.max_size);
+        assert!(offset % mem::size_of::<u32>() == 0);
+
+        self.read(capability.offset + offset)
+    }
+
+    /// Write data to a capability of the device.
+    pub fn write_capability_data(&self, capability_index: usize, offset: usize, mut value: u32) {
+        let capability = self
+            .capabilities
+            .get(capability_index)
+            .expect("Invalid capability index");
+
+        assert!(offset + mem::size_of::<u32>() <= capability.max_size);
+        assert!(offset % mem::size_of::<u32>() == 0);
+
+        // If the offset is 0, preserve id and next fields of the capability,
+        // since they are part of the capability header and should not be overwritten by writes to the capability data.
+        if offset == 0 {
+            let next = if let Some(next_capability) = self.capabilities.get(capability_index + 1) {
+                next_capability.offset
+            } else {
+                0
+            };
+
+            union CapabilityUnion {
+                raw: u32,
+                cap: Capability,
+            }
+
+            let mut current_capability = CapabilityUnion { raw: value };
+            current_capability.cap.id = capability.id;
+            current_capability.cap.next = next as u8;
+
+            value = unsafe { current_capability.raw };
+        }
+
+        self.write(capability.offset + offset, value);
+    }
 }
 
 #[derive(Debug)]

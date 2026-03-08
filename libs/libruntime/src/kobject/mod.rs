@@ -2,9 +2,9 @@ pub const PAGE_SIZE: usize = 4096;
 
 use core::fmt::Debug;
 pub use libsyscalls::{
-    Exception, Handle, KallocStats, KvmStats, MemoryStats, Permissions, PhysStats, PortAccess,
-    ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext, ThreadContextRegister, ThreadEvent,
-    ThreadEventType, ThreadInfo, ThreadPriority, TimerEvent,
+    Exception, Handle, IrqEvent, IrqInfo, KallocStats, KvmStats, MemoryStats, Permissions,
+    PhysStats, PortAccess, ProcessEvent, ProcessEventType, ProcessInfo, ThreadContext,
+    ThreadContextRegister, ThreadEvent, ThreadEventType, ThreadInfo, ThreadPriority, TimerEvent,
 };
 
 mod error;

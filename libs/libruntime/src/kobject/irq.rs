@@ -1,4 +1,4 @@
-use libsyscalls::{IrqEvent, irq};
+use libsyscalls::irq;
 
 use super::*;
 
@@ -46,6 +46,13 @@ impl Irq {
         let irq = irq::create(unsafe { sender.handle() })?;
 
         Ok(Self { irq, reader })
+    }
+
+    /// Get information about the IRQ
+    pub fn info(&self) -> Result<IrqInfo, Error> {
+        let info = irq::info(&self.irq)?;
+
+        Ok(info)
     }
 
     /// Receive an IRQ event

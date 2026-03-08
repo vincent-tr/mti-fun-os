@@ -3,10 +3,10 @@ pub mod types;
 
 use alloc::vec::Vec;
 
-pub use iface::{CapabilityInfo, PciDeviceInfo, PciServerCallError};
+pub use iface::{CapabilityInfo, EnableMsiData, PciDeviceInfo, PciServerCallError};
 pub use types::*;
 
-use crate::ipc;
+use crate::{ipc, kobject};
 
 lazy_static::lazy_static! {
     static ref CLIENT: iface::Client = iface::Client::new();
@@ -113,5 +113,21 @@ impl PciDevice {
     /// List the capabilities of this device.
     pub fn capabilities(&self) -> Result<Vec<CapabilityInfo>, PciServerCallError> {
         CLIENT.list_capabilities(self.device.handle)
+    }
+
+    /// Enable MSI for this device, returning an `Irq` object that can be used to wait for MSI events.
+    pub fn enable_msi(&self, irq_info: &kobject::IrqInfo) -> Result<(), PciServerCallError> {
+        CLIENT.enable_msi(
+            self.device.handle,
+            EnableMsiData::Enable {
+                address: irq_info.msi_address as usize,
+                vector: irq_info.vector,
+            },
+        )
+    }
+
+    /// Disable MSI for this device.
+    pub fn disable_msi(&self) -> Result<(), PciServerCallError> {
+        CLIENT.enable_msi(self.device.handle, EnableMsiData::Disable)
     }
 }

@@ -145,6 +145,9 @@ tail -f serial.log
     -> build PE + dllimport/dllexport ?
     -> add static metadata + have post-build step to get mti-fun-os binary format?
     - -C prefer dynamic
+- pci-server:
+  - PCIe
+  - MSI-X
 - screen/graphics
 - net
 

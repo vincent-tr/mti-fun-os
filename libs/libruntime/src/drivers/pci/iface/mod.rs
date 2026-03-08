@@ -10,7 +10,7 @@ pub use info_block::PciDeviceInfo;
 use server::Server;
 pub use server::{PciServer, PciServerError};
 
-pub use messages::PORT_NAME;
+pub use messages::{EnableMsiData, PORT_NAME};
 
 use crate::{ipc, kobject};
 

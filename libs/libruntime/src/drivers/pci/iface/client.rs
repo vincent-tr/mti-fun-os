@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 
 use super::{
-    CapabilityInfo, PciDeviceInfo, capability_block::CapabilityBlock, info_block::InfoBlock,
-    messages,
+    CapabilityInfo, EnableMsiData, PciDeviceInfo, capability_block::CapabilityBlock,
+    info_block::InfoBlock, messages,
 };
 use crate::{
     drivers::pci::types::{PciAddress, PciHeader},
@@ -302,6 +302,24 @@ impl Client {
             messages::WriteCapabilityReply,
             messages::PciServerError,
         >(messages::Type::WriteCapability, query, query_handles)?;
+
+        Ok(())
+    }
+
+    /// Enable or disable MSI for a device.
+    pub fn enable_msi(
+        &self,
+        handle: Handle,
+        enable: EnableMsiData,
+    ) -> Result<(), PciServerCallError> {
+        let query = messages::EnableMsiQueryParameters { handle, enable };
+
+        self.ipc_client.call::<
+            messages::Type,
+            messages::EnableMsiQueryParameters,
+            messages::EnableMsiReply,
+            messages::PciServerError,
+        >(messages::Type::EnableMsi, query, ipc::KHandles::new())?;
 
         Ok(())
     }

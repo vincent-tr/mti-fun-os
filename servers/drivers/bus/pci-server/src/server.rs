@@ -236,4 +236,18 @@ impl iface::PciServer for Server {
 
         todo!()
     }
+
+    fn enable_msi(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        enable: iface::EnableMsiData,
+    ) -> Result<(), Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        todo!()
+    }
 }

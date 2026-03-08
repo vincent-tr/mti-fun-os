@@ -3,8 +3,8 @@ use alloc::{sync::Arc, vec::Vec};
 use crate::{ipc, kobject};
 
 use super::{
-    CapabilityInfo, PciDeviceInfo, capability_block::CapabilityBlock, info_block::InfoBlock,
-    messages,
+    CapabilityInfo, EnableMsiData, PciDeviceInfo, capability_block::CapabilityBlock,
+    info_block::InfoBlock, messages,
 };
 use crate::drivers::pci::types::{PciAddress, PciHeader};
 
@@ -76,6 +76,14 @@ pub trait PciServer {
         offset: usize,
         data: &[u8],
     ) -> Result<(), Self::Error>;
+
+    /// Enable or disable MSI for a device.
+    fn enable_msi(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        enable: EnableMsiData,
+    ) -> Result<(), Self::Error>;
 }
 
 /// The main server structure
@@ -115,6 +123,7 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             messages::Type::WriteCapability,
             Self::write_capability_handler,
         );
+        let builder = builder.with_handler(messages::Type::EnableMsi, Self::enable_msi_handler);
 
         builder.build()
     }
@@ -357,6 +366,19 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::WriteCapabilityReply {}, ipc::KHandles::new()))
+    }
+
+    fn enable_msi_handler(
+        &self,
+        query: messages::EnableMsiQueryParameters,
+        _query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::EnableMsiReply, ipc::KHandles), PciServerError> {
+        self.inner
+            .enable_msi(sender_id, query.handle, query.enable)
+            .map_err(Into::into)?;
+
+        Ok((messages::EnableMsiReply {}, ipc::KHandles::new()))
     }
 }
 

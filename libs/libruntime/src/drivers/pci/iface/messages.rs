@@ -29,6 +29,7 @@ pub enum Type {
     ListCapabilities,
     ReadCapability,
     WriteCapability,
+    EnableMsi,
 }
 
 impl From<Type> for u16 {
@@ -256,3 +257,27 @@ impl WriteCapabilityQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct WriteCapabilityReply {}
+
+/// Parameters for the EnableMsi message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EnableMsiQueryParameters {
+    /// Handle to the device to enable MSI for.
+    pub handle: Handle,
+
+    /// Whether to enable or disable MSI, and if enabling, the address and vector to use.
+    pub enable: EnableMsiData,
+}
+
+/// Reply for the EnableMsi message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EnableMsiReply {}
+
+/// Supports enabling or disabling MSI for a PCI device.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub enum EnableMsiData {
+    Enable { address: usize, vector: u8 },
+    Disable,
+}

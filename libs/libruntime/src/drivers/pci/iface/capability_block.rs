@@ -21,7 +21,7 @@ pub struct CapabilityInfo {
 impl CapabilityInfo {
     /// Power management capability ID
     pub const POWER_MANAGEMENT_CAPABILITY_ID: u8 = 0x01;
-    
+
     /// MSI capability ID
     pub const MSI_CAPABILITY_ID: u8 = 0x05;
 }

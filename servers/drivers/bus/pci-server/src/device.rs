@@ -5,11 +5,8 @@ use core::{
 
 use alloc::vec::Vec;
 use libruntime::drivers::pci::{
-    iface::PciDeviceInfo,
-    types::{
-        Bar, InterruptPin, IoBar, MemoryBar, MemoryBarWidth, PciAddress, PciClass, PciDeviceId,
-        PciHeader,
-    },
+    Bar, CapabilityInfo, InterruptPin, IoBar, MemoryBar, MemoryBarWidth, PciAddress, PciClass,
+    PciDeviceId, PciHeader, iface::PciDeviceInfo,
 };
 use log::warn;
 
@@ -37,7 +34,7 @@ pub struct Device {
     header: Option<PciHeader>,
 
     /// The capabilities of the PCI device, which can include things like power management, MSI, and more.
-    capabilities: Vec<CapabilityInfo>,
+    capabilities: Vec<CapabilityData>,
 
     /// Indicate whether the device is currently in use or not.
     ///
@@ -311,7 +308,7 @@ impl Device {
         }
     }
 
-    fn read_capabilities(&self, capabilities_pointer: usize) -> Vec<CapabilityInfo> {
+    fn read_capabilities(&self, capabilities_pointer: usize) -> Vec<CapabilityData> {
         let mut capabilities = Vec::new();
         let mut current_pointer = capabilities_pointer;
 
@@ -332,7 +329,7 @@ impl Device {
                 PCI_CONFIG_SPACE_SIZE - current_pointer
             };
 
-            capabilities.push(CapabilityInfo {
+            capabilities.push(CapabilityData {
                 id: capability.id,
                 max_size,
                 offset: current_pointer,
@@ -420,10 +417,23 @@ impl Device {
         reg.command.enable_bus_master(bus_master);
         self.write(0x04, unsafe { mem::transmute(reg) });
     }
+
+    /// List the capabilities of the device.
+    pub fn capabilities(&self) -> Vec<CapabilityInfo> {
+        self.capabilities
+            .iter()
+            .enumerate()
+            .map(|(index, cap)| CapabilityInfo {
+                index,
+                id: cap.id,
+                max_size: cap.max_size,
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
-struct CapabilityInfo {
+struct CapabilityData {
     id: u8,
     max_size: usize,
     offset: usize,

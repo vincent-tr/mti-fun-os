@@ -2,8 +2,8 @@ use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::{
+        CapabilityInfo, PciAddress, PciHeader,
         iface::{self, PciServerError},
-        types::{PciAddress, PciHeader},
     },
     ipc,
 };
@@ -62,7 +62,7 @@ impl iface::PciServer for Server {
         device_id: Option<u16>,
         class: Option<u8>,
         subclass: Option<u8>,
-    ) -> Result<Vec<iface::PciDeviceInfo>, PciServerError> {
+    ) -> Result<Vec<iface::PciDeviceInfo>, Self::Error> {
         let mut list = Vec::new();
 
         for device in self.devices.values() {
@@ -100,7 +100,7 @@ impl iface::PciServer for Server {
         &self,
         _sender_id: u64,
         address: PciAddress,
-    ) -> Result<iface::PciDeviceInfo, PciServerError> {
+    ) -> Result<iface::PciDeviceInfo, Self::Error> {
         if let Some(device) = self.devices.get(&address) {
             Ok(device.info())
         } else {
@@ -112,7 +112,7 @@ impl iface::PciServer for Server {
         &self,
         sender_id: u64,
         address: PciAddress,
-    ) -> Result<libruntime::ipc::Handle, PciServerError> {
+    ) -> Result<libruntime::ipc::Handle, Self::Error> {
         let device = self
             .devices
             .get(&address)
@@ -127,7 +127,7 @@ impl iface::PciServer for Server {
         Ok(handle)
     }
 
-    fn close(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), PciServerError> {
+    fn close(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error> {
         let device = self.handles.close(sender_id, handle).ok_or_else(|| {
             error!("Invalid device handle: {:?}", handle);
             PciServerError::InvalidArgument
@@ -171,13 +171,13 @@ impl iface::PciServer for Server {
         &self,
         sender_id: u64,
         handle: ipc::Handle,
-    ) -> Result<Vec<iface::CapabilityInfo>, Self::Error> {
+    ) -> Result<Vec<CapabilityInfo>, Self::Error> {
         let device = self.handles.read(sender_id, handle).ok_or_else(|| {
             error!("Invalid device handle: {:?}", handle);
             PciServerError::InvalidArgument
         })?;
 
-        todo!()
+        Ok(device.capabilities())
     }
 
     fn read_capability(

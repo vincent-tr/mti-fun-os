@@ -3,7 +3,7 @@ pub mod types;
 
 use alloc::vec::Vec;
 
-pub use iface::{PciDeviceInfo, PciServerCallError};
+pub use iface::{CapabilityInfo, PciDeviceInfo, PciServerCallError};
 pub use types::*;
 
 use crate::ipc;
@@ -108,5 +108,10 @@ impl PciDevice {
     /// Get the PCI header for this device.
     pub fn header(&self) -> Result<PciHeader, PciServerCallError> {
         CLIENT.get_header(self.device.handle)
+    }
+
+    /// List the capabilities of this device.
+    pub fn capabilities(&self) -> Result<Vec<CapabilityInfo>, PciServerCallError> {
+        CLIENT.list_capabilities(self.device.handle)
     }
 }

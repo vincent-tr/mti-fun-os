@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::{mem, ptr, fmt, error};
+use core::{error, fmt, mem, ptr};
 
 use crate::drivers::pci::types::{PciAddress, PciClass, PciDeviceId};
 

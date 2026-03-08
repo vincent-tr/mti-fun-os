@@ -2,7 +2,10 @@ use alloc::{sync::Arc, vec::Vec};
 
 use crate::{ipc, kobject};
 
-use super::{PciDeviceInfo, info_block::InfoBlock, messages};
+use super::{
+    CapabilityInfo, PciDeviceInfo, capability_block::CapabilityBlock, info_block::InfoBlock,
+    messages,
+};
 use crate::drivers::pci::types::{PciAddress, PciHeader};
 
 pub use messages::PciServerError;
@@ -46,6 +49,33 @@ pub trait PciServer {
         io: bool,
         bus_master: bool,
     ) -> Result<(), Self::Error>;
+
+    /// List all capabilities for a device.
+    fn list_capabilities(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+    ) -> Result<Vec<CapabilityInfo>, Self::Error>;
+
+    /// Read capability data from a device.
+    fn read_capability(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        capability_index: usize,
+        offset: usize,
+        data: &mut [u8],
+    ) -> Result<(), Self::Error>;
+
+    /// Write capability data to a device.
+    fn write_capability(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        capability_index: usize,
+        offset: usize,
+        data: &[u8],
+    ) -> Result<(), Self::Error>;
 }
 
 /// The main server structure
@@ -73,6 +103,18 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         let builder = builder.with_handler(messages::Type::Close, Self::close_handler);
         let builder = builder.with_handler(messages::Type::GetHeader, Self::get_header_handler);
         let builder = builder.with_handler(messages::Type::Enable, Self::enable_handler);
+        let builder = builder.with_handler(
+            messages::Type::ListCapabilities,
+            Self::list_capabilities_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::ReadCapability,
+            Self::read_capability_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::WriteCapability,
+            Self::write_capability_handler,
+        );
 
         builder.build()
     }
@@ -215,6 +257,106 @@ impl<Impl: PciServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::EnableReply {}, ipc::KHandles::new()))
+    }
+
+    fn list_capabilities_handler(
+        &self,
+        query: messages::ListCapabilitiesQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::ListCapabilitiesReply, ipc::KHandles), PciServerError> {
+        let capabilities = self
+            .inner
+            .list_capabilities(sender_id, query.handle)
+            .map_err(Into::into)?;
+
+        let mut buffer_view = {
+            let handle = query_handles
+                .take(messages::ListCapabilitiesQueryParameters::HANDLE_CAPABILITIES_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create buffer view")?
+        };
+
+        let buffer = buffer_view.buffer_mut();
+        let result = CapabilityBlock::build(&capabilities, buffer);
+
+        let buffer_used_len = match result {
+            Ok(size) => size,
+            Err(_required_size) => {
+                return Err(PciServerError::InvalidArgument);
+            }
+        };
+
+        Ok((
+            messages::ListCapabilitiesReply { buffer_used_len },
+            ipc::KHandles::new(),
+        ))
+    }
+
+    fn read_capability_handler(
+        &self,
+        query: messages::ReadCapabilityQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::ReadCapabilityReply, ipc::KHandles), PciServerError> {
+        let mut buffer_view = {
+            let handle = query_handles
+                .take(messages::ReadCapabilityQueryParameters::HANDLE_CAPABILITY_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create buffer view")?
+        };
+
+        let buffer = buffer_view.buffer_mut();
+
+        // Check buffer size matches query size
+        if buffer.len() != query.size {
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        self.inner
+            .read_capability(
+                sender_id,
+                query.handle,
+                query.capability_index,
+                query.offset,
+                buffer,
+            )
+            .map_err(Into::into)?;
+
+        Ok((messages::ReadCapabilityReply {}, ipc::KHandles::new()))
+    }
+
+    fn write_capability_handler(
+        &self,
+        query: messages::WriteCapabilityQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::WriteCapabilityReply, ipc::KHandles), PciServerError> {
+        let buffer_view = {
+            let handle = query_handles
+                .take(messages::WriteCapabilityQueryParameters::HANDLE_CAPABILITY_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create buffer view")?
+        };
+
+        let buffer = buffer_view.buffer();
+
+        // Check buffer size matches query size
+        if buffer.len() != query.size {
+            return Err(PciServerError::InvalidArgument);
+        }
+
+        self.inner
+            .write_capability(
+                sender_id,
+                query.handle,
+                query.capability_index,
+                query.offset,
+                buffer,
+            )
+            .map_err(Into::into)?;
+
+        Ok((messages::WriteCapabilityReply {}, ipc::KHandles::new()))
     }
 }
 

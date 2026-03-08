@@ -166,4 +166,34 @@ impl iface::PciServer for Server {
 
         Ok(())
     }
+
+    fn read_capability(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        capability_index: usize,
+        offset: usize,
+        data: &mut [u8],
+    ) -> Result<(), Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        todo!()
+    }
+
+    fn write_capability(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        data: &[u8],
+    ) -> Result<(), Self::Error> {
+        let device = self.handles.read(sender_id, handle).ok_or_else(|| {
+            error!("Invalid device handle: {:?}", handle);
+            PciServerError::InvalidArgument
+        })?;
+
+        todo!()
+    }
 }

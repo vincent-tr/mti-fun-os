@@ -1,6 +1,9 @@
 use alloc::vec::Vec;
 
-use super::{PciDeviceInfo, info_block::InfoBlock, messages};
+use super::{
+    CapabilityInfo, PciDeviceInfo, capability_block::CapabilityBlock, info_block::InfoBlock,
+    messages,
+};
 use crate::{
     drivers::pci::types::{PciAddress, PciHeader},
     ipc::{self, Handle},
@@ -185,6 +188,120 @@ impl Client {
             messages::EnableReply,
             messages::PciServerError,
         >(messages::Type::Enable, query, ipc::KHandles::new())?;
+
+        Ok(())
+    }
+
+    /// List all capabilities for a device.
+    pub fn list_capabilities(
+        &self,
+        handle: Handle,
+    ) -> Result<Vec<CapabilityInfo>, PciServerCallError> {
+        // We don't know how many capabilities there are, so we start with a small buffer and grow it until it's big enough.
+        let mut size = 256;
+
+        let allocated_buffer = loop {
+            let mut allocated_buffer = {
+                let mut vec = Vec::with_capacity(size);
+                unsafe { vec.set_len(size) };
+                vec
+            };
+
+            let (buffer_mobj, buffer) = ipc::Buffer::new_local(&allocated_buffer).into_shared();
+
+            let query = messages::ListCapabilitiesQueryParameters { handle, buffer };
+
+            let mut query_handles = ipc::KHandles::new();
+            query_handles
+                [messages::ListCapabilitiesQueryParameters::HANDLE_CAPABILITIES_BUFFER_MOBJ] =
+                buffer_mobj.into_handle();
+
+            let res = self.ipc_client.call::<
+                messages::Type,
+                messages::ListCapabilitiesQueryParameters,
+                messages::ListCapabilitiesReply,
+                messages::PciServerError,
+            >(messages::Type::ListCapabilities, query, query_handles);
+
+            if let Err(ipc::CallError::ReplyError(messages::PciServerError::InvalidArgument)) = res
+            {
+                // Buffer too small, try again with a larger buffer
+                size *= 2;
+                continue;
+            }
+
+            let (reply, _reply_handles) = res?;
+
+            unsafe { allocated_buffer.set_len(reply.buffer_used_len) };
+            break allocated_buffer;
+        };
+
+        let capabilities = CapabilityBlock::read(&allocated_buffer)
+            .expect("Failed to read capabilities block from buffer");
+
+        Ok(capabilities)
+    }
+
+    /// Read capability data from a device.
+    pub fn read_capability(
+        &self,
+        handle: Handle,
+        capability_index: usize,
+        offset: usize,
+        data: &mut [u8],
+    ) -> Result<(), PciServerCallError> {
+        let (buffer_mobj, buffer) = ipc::Buffer::new_local(data).into_shared();
+
+        let query = messages::ReadCapabilityQueryParameters {
+            handle,
+            capability_index,
+            offset,
+            size: data.len(),
+            buffer,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::ReadCapabilityQueryParameters::HANDLE_CAPABILITY_BUFFER_MOBJ] =
+            buffer_mobj.into_handle();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::ReadCapabilityQueryParameters,
+            messages::ReadCapabilityReply,
+            messages::PciServerError,
+        >(messages::Type::ReadCapability, query, query_handles)?;
+
+        Ok(())
+    }
+
+    /// Write capability data to a device.
+    pub fn write_capability(
+        &self,
+        handle: Handle,
+        capability_index: usize,
+        offset: usize,
+        data: &[u8],
+    ) -> Result<(), PciServerCallError> {
+        let (buffer_mobj, buffer) = ipc::Buffer::new_local(data).into_shared();
+
+        let query = messages::WriteCapabilityQueryParameters {
+            handle,
+            capability_index,
+            offset,
+            size: data.len(),
+            buffer,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::WriteCapabilityQueryParameters::HANDLE_CAPABILITY_BUFFER_MOBJ] =
+            buffer_mobj.into_handle();
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::WriteCapabilityQueryParameters,
+            messages::WriteCapabilityReply,
+            messages::PciServerError,
+        >(messages::Type::WriteCapability, query, query_handles)?;
 
         Ok(())
     }

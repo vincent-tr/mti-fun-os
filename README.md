@@ -146,6 +146,7 @@ tail -f serial.log
     -> add static metadata + have post-build step to get mti-fun-os binary format?
     - -C prefer dynamic
 - pci-server:
+  - PCI bridge suport
   - PCIe
   - MSI-X
 - screen/graphics

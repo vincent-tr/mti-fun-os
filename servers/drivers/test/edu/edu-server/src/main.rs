@@ -95,6 +95,11 @@ impl EduDevice {
             )
             .expect("Failed to map BAR0 MMIO region to virtual memory");
 
+        let irq = kobject::Irq::create().expect("Failed to create IRQ object");
+        device
+            .enable_msi(&irq.info().expect("Failed to get IRQ info"))
+            .expect("Failed to enable MSI");
+
         Self {
             _device: device,
             mapping,

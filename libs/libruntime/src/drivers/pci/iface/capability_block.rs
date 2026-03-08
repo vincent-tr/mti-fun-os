@@ -18,6 +18,14 @@ pub struct CapabilityInfo {
     pub max_size: usize,
 }
 
+impl CapabilityInfo {
+    /// Power management capability ID
+    pub const POWER_MANAGEMENT_CAPABILITY_ID: u8 = 0x01;
+    
+    /// MSI capability ID
+    pub const MSI_CAPABILITY_ID: u8 = 0x05;
+}
+
 /// PCI capabilities info block format for IPC communication.
 pub struct CapabilityBlock;
 

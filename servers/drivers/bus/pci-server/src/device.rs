@@ -4,9 +4,11 @@ use core::{
 };
 
 use alloc::vec::Vec;
+use bit_field::BitField;
 use libruntime::drivers::pci::{
     Bar, CapabilityInfo, InterruptPin, IoBar, MemoryBar, MemoryBarWidth, PciAddress, PciClass,
-    PciDeviceId, PciHeader, iface::PciDeviceInfo,
+    PciDeviceId, PciHeader,
+    iface::{EnableMsiData, PciDeviceInfo},
 };
 use log::warn;
 
@@ -472,19 +474,148 @@ impl Device {
                 0
             };
 
-            union CapabilityUnion {
-                raw: u32,
-                cap: Capability,
-            }
-
-            let mut current_capability = CapabilityUnion { raw: value };
-            current_capability.cap.id = capability.id;
-            current_capability.cap.next = next as u8;
-
-            value = unsafe { current_capability.raw };
+            let mut cap: Capability = unsafe { mem::transmute(value) };
+            cap.id = capability.id;
+            cap.next = next as u8;
+            value = unsafe { mem::transmute(cap) };
         }
 
         self.write(capability.offset + offset, value);
+    }
+
+    /// Enable MSI for the device using the specified MSI capability and data.
+    pub fn enable_msi(&self, capability_index: usize, data: EnableMsiData) {
+        let capability = self
+            .capabilities
+            .get(capability_index)
+            .expect("Invalid capability index");
+
+        assert!(capability.id == CapabilityInfo::MSI_CAPABILITY_ID);
+
+        // Enable MSI in the device's capabilities
+        #[repr(C, align(4))]
+        struct MsiReg0 {
+            id: u8,
+            next: u8,
+            control: MsiControl,
+        }
+
+        #[repr(transparent)]
+        struct MsiControl(u16);
+
+        #[allow(dead_code)]
+        impl MsiControl {
+            pub fn enabled(&self) -> bool {
+                self.0.get_bit(0)
+            }
+
+            pub fn enable(&mut self, value: bool) {
+                self.0.set_bit(0, value);
+            }
+
+            pub fn multiple_message_capable(&self) -> u8 {
+                self.0.get_bits(1..4) as u8
+            }
+
+            pub fn multiple_message_enabled(&self) -> u8 {
+                self.0.get_bits(4..7) as u8
+            }
+
+            pub fn multiple_message_enable(&mut self, value: u8) {
+                self.0.set_bits(4..7, value as u16);
+            }
+
+            pub fn is_64bits(&self) -> bool {
+                self.0.get_bit(7)
+            }
+
+            pub fn per_vector_masking(&self) -> bool {
+                self.0.get_bit(8)
+            }
+        }
+
+        #[repr(C, align(4))]
+        struct MessageDataReg {
+            vector: u8,
+            config: MessageConfig,
+            _reserved: u16,
+        }
+
+        #[repr(transparent)]
+        struct MessageConfig(u8);
+
+        #[allow(dead_code)]
+        impl MessageConfig {
+            pub fn delivery_mode(&self) -> u8 {
+                self.0.get_bits(0..3)
+            }
+
+            pub fn set_delivery_mode(&mut self, value: u8) {
+                self.0.set_bits(0..3, value as u8);
+            }
+
+            pub fn level_asserted(&self) -> bool {
+                self.0.get_bit(4)
+            }
+
+            pub fn set_level_asserted(&mut self, value: bool) {
+                self.0.set_bit(4, value);
+            }
+
+            pub fn trigger_mode(&self) -> bool {
+                self.0.get_bit(5)
+            }
+
+            pub fn set_trigger_mode(&mut self, value: bool) {
+                self.0.set_bit(5, value);
+            }
+        }
+
+        let mut reg0: MsiReg0 =
+            unsafe { mem::transmute(self.read_capability_data(capability_index, 0x00)) };
+
+        let EnableMsiData::Enable { address, vector } = data else {
+            reg0.control.enable(false);
+            self.write_capability_data(capability_index, 0x00, unsafe { mem::transmute(reg0) });
+            return;
+        };
+
+        reg0.control.enable(true);
+        // No multiple message support for now.
+        reg0.control.multiple_message_enable(0);
+
+        if reg0.control.is_64bits() {
+            let address_low = (address & 0xFFFF_FFFF) as u32;
+            let address_high = (address >> 32) as u32;
+            self.write_capability_data(capability_index, 0x04, address_low);
+            self.write_capability_data(capability_index, 0x08, address_high);
+        } else {
+            assert!(
+                address <= u32::MAX as usize,
+                "Address for 32-bit MSI must fit in 32 bits"
+            );
+
+            self.write_capability_data(capability_index, 0x04, address as u32);
+        }
+
+        let msg_data_offset = if reg0.control.is_64bits() { 0x0C } else { 0x08 };
+
+        // Need to keep reserved bits, so read it and write it back
+        let mut msg_data: MessageDataReg =
+            unsafe { mem::transmute(self.read_capability_data(capability_index, msg_data_offset)) };
+
+        msg_data.vector = vector;
+
+        msg_data.config.set_delivery_mode(0); // Fixed delivery mode
+        msg_data.config.set_level_asserted(true); // Assert the interrupt when the message is sent
+        msg_data.config.set_trigger_mode(false); // Use edge-triggered interrupts
+
+        self.write_capability_data(capability_index, msg_data_offset, unsafe {
+            mem::transmute(msg_data)
+        });
+
+        // enable
+        self.write_capability_data(capability_index, 0x00, unsafe { mem::transmute(reg0) });
     }
 }
 

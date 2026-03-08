@@ -206,7 +206,14 @@ impl iface::PciServer for Server {
             return Err(PciServerError::InvalidArgument);
         }
 
-        todo!()
+        const CHUNK_SIZE: usize = mem::size_of::<u32>();
+        for (i, chunk) in data.chunks_mut(CHUNK_SIZE).enumerate() {
+            let chunk_offset = offset + i * CHUNK_SIZE;
+            let value = device.read_capability_data(capability_index, chunk_offset);
+            chunk.copy_from_slice(&value.to_ne_bytes());
+        }
+
+        Ok(())
     }
 
     fn write_capability(
@@ -234,7 +241,18 @@ impl iface::PciServer for Server {
             return Err(PciServerError::InvalidArgument);
         }
 
-        todo!()
+        const CHUNK_SIZE: usize = mem::size_of::<u32>();
+        for (i, chunk) in data.chunks(CHUNK_SIZE).enumerate() {
+            let chunk_offset = offset + i * CHUNK_SIZE;
+            let value = u32::from_ne_bytes(
+                *chunk
+                    .as_array::<CHUNK_SIZE>()
+                    .expect("Chunk should be 4 bytes"),
+            );
+            device.write_capability_data(capability_index, chunk_offset, value);
+        }
+
+        Ok(())
     }
 
     fn enable_msi(
@@ -248,6 +266,18 @@ impl iface::PciServer for Server {
             PciServerError::InvalidArgument
         })?;
 
-        todo!()
+        let capability = device
+            .capabilities()
+            .iter()
+            .find(|cap| cap.id == CapabilityInfo::MSI_CAPABILITY_ID)
+            .copied()
+            .ok_or_else(|| {
+                error!("MSI capability not found for device handle: {:?}", handle);
+                PciServerError::InvalidArgument
+            })?;
+
+        device.enable_msi(capability.index, enable);
+
+        Ok(())
     }
 }

@@ -1,5 +1,24 @@
 # mti-fun-os
 
+## Overview
+
+**mti-fun-os** is a microkernel-based operating system written in Rust, designed for x86_64 architecture. The project explores modern OS design principles by implementing a minimal kernel that provides only essential services (memory management, scheduling, IPC), while drivers and services run in isolated userspace processes.
+
+Built from scratch as an educational and experimental platform, mti-fun-os demonstrates how Rust's safety guarantees can be leveraged for systems programming without sacrificing performance. The kernel uses QEMU for development and testing, featuring a bootloader-based boot process and a custom runtime library (libruntime) that provides userspace functionality for building applications and services.
+
+The architecture emphasizes capability-based security, with kernel objects accessed through handles and a message-passing IPC system inspired by microkernel designs like Fuchsia and seL4. Device drivers communicate with hardware through a structured PCI interface, supporting device enumeration, configuration space access, and capability-based feature discovery.
+
+### Key Features
+
+- **Microkernel Architecture**: Minimal kernel with services running in userspace
+- **Rust Implementation**: Memory-safe systems programming with modern tooling
+- **IPC System**: Inter-process communication with handles and message passing
+- **PCI Driver Framework**: Device discovery and management with capability support
+- **Advanced Memory Management**: Paging, virtual memory, and memory object handling
+- **Syscall Interface**: Ring 0/3 transitions with SYSENTER/SYSEXIT support
+- **Task Scheduling**: Preemptive multitasking with context switching
+- **APIC/Timer Support**: Local APIC timer-based scheduling
+
 ## Setup
 
 ```shell

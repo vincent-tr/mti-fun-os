@@ -161,6 +161,8 @@ lazy_static::lazy_static! {
 
 /// Called by the ISR management code when a device IRQ is triggered.
 pub fn handle_irq(vector: u8) {
+    debug!("Handling IRQ {}", vector);
+
     let table = IRQ_TABLE.read();
 
     if let Some(irq) = table.get(vector as usize) {

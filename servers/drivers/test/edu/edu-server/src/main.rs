@@ -61,6 +61,7 @@ mod dma_cmd {
 
 struct EduDevice {
     _device: pci::PciDevice,
+    irq: kobject::Irq,
     mapping: kobject::Mapping<'static>,
 }
 
@@ -102,6 +103,7 @@ impl EduDevice {
 
         Self {
             _device: device,
+            irq,
             mapping,
         }
     }
@@ -155,6 +157,20 @@ impl EduDevice {
         self.read_reg32(registers::FACTORIAL)
     }
 
+    pub fn trigger_irq(&self) {
+        self.write_reg32(registers::IRQ_RAISE, 1);
+    }
+
+    pub fn wait_for_irq(&self) {
+        self.irq
+            .blocking_receive()
+            .expect("Failed to receive IRQ event");
+    }
+
+    pub fn acknowledge_irq(&self) {
+        self.write_reg32(registers::IRQ_ACK, 1);
+    }
+
     // TODO: Implement EDU device functionality
     // - Factorial computation
     // - Interrupt handling
@@ -192,6 +208,14 @@ pub fn main() -> i32 {
     log::info!("Computing factorial of {} using EDU device...", n);
     let result = edu.compute_factorial(n);
     log::info!("Factorial of {} is {}", n, result);
+
+    log::info!("Triggering an interrupt from the EDU device...");
+    edu.trigger_irq();
+    log::info!("Waiting for interrupt...");
+    edu.wait_for_irq();
+    log::info!("Interrupt received, acknowledging...");
+    edu.acknowledge_irq();
+    log::info!("Interrupt acknowledged");
 
     0
 }

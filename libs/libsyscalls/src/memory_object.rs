@@ -61,3 +61,19 @@ pub fn size(memory_object: &Handle) -> SyscallResult<usize> {
 
     Ok(size.take())
 }
+
+pub fn phys_addr(memory_object: &Handle, offset: usize) -> SyscallResult<usize> {
+    let phys_addr = SyscallInOutPtr::default();
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::MemoryObjectPhysAddr,
+            memory_object.as_syscall_value(),
+            offset,
+            phys_addr.ptr_arg(),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(phys_addr.take())
+}

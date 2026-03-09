@@ -69,6 +69,7 @@ pub enum SyscallNumber {
     MemoryObjectCreate,
     MemoryObjectOpenIoMem,
     MemoryObjectSize,
+    MemoryObjectPhysAddr,
 
     PortCreate,
     PortOpen,

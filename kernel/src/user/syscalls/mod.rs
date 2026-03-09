@@ -63,6 +63,10 @@ pub fn init() {
         memory_object::open_iomem,
     );
     register_syscall(SyscallNumber::MemoryObjectSize, memory_object::size);
+    register_syscall(
+        SyscallNumber::MemoryObjectPhysAddr,
+        memory_object::phys_addr,
+    );
 
     register_syscall(SyscallNumber::PortOpen, ipc::open);
     register_syscall(SyscallNumber::PortCreate, ipc::create);

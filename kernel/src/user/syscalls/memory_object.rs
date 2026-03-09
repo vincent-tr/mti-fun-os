@@ -1,5 +1,5 @@
 use crate::{
-    memory::VirtAddr,
+    memory::{VirtAddr, page_aligned_down},
     user::{Error, MemoryObject},
 };
 
@@ -66,6 +66,34 @@ pub async fn size(context: Context) -> Result<(), Error> {
     )?;
 
     *user_access.get_mut() = memory_object.size();
+
+    Ok(())
+}
+
+pub async fn phys_addr(context: Context) -> Result<(), Error> {
+    let handle = context.arg1();
+    let offset = context.arg2();
+    let phys_addr_out_ptr = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let memory_object = process.handles().get_memory_object(handle.into())?;
+
+    let mut user_access = process.vm_access_typed::<usize>(
+        VirtAddr::new(phys_addr_out_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    if offset >= memory_object.size() {
+        return Err(Error::InvalidArgument);
+    }
+
+    let page_offset = offset - page_aligned_down(offset);
+    let frame = memory_object.frame(page_aligned_down(offset));
+    let phys_addr = frame.as_u64() as usize + page_offset;
+
+    *user_access.get_mut() = phys_addr;
 
     Ok(())
 }

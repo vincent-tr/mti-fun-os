@@ -77,6 +77,7 @@ impl MemoryObject {
         })
     }
 
+    /// Get the size of the memory object
     pub fn size(&self) -> Result<usize, Error> {
         let mut value = self.cached_size.lock();
         if let Some(size) = *value {
@@ -86,5 +87,12 @@ impl MemoryObject {
         let size = memory_object::size(&self.handle)?;
         *value = Some(size);
         Ok(size)
+    }
+
+    /// Get the physical address corresponding to the given offset within the memory object
+    pub fn phys_addr(&self, offset: usize) -> Result<usize, Error> {
+        let addr = memory_object::phys_addr(&self.handle, offset)?;
+
+        Ok(addr)
     }
 }

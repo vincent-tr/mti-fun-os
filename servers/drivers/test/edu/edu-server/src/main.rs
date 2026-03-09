@@ -7,10 +7,11 @@
 // Device source code:
 // https://gitlab.com/qemu-project/qemu/-/blob/master/hw/misc/edu.c
 
+extern crate alloc;
 extern crate libruntime;
 
+use alloc::vec::Vec;
 use core::{mem, ptr};
-
 use libruntime::{drivers::pci, kobject};
 use log::{error, info};
 
@@ -122,6 +123,7 @@ impl EduDevice {
         unsafe { ptr::write_volatile((self.mapping.address() + offset) as *mut u32, value) }
     }
 
+    #[allow(dead_code)]
     fn read_reg64(&self, offset: usize) -> u64 {
         assert!(offset + mem::size_of::<u64>() <= self.mapping.len());
         assert!(offset % mem::size_of::<u64>() == 0);
@@ -171,10 +173,72 @@ impl EduDevice {
         self.write_reg32(registers::IRQ_ACK, 1);
     }
 
-    // TODO: Implement EDU device functionality
-    // - Factorial computation
-    // - Interrupt handling
-    // - DMA operations
+    const DMA_DEVICE_BUFFER_ADDR: usize = 0x40000;
+    const DMA_DEVICE_BUFFER_SIZE: usize = 4096;
+
+    pub fn dma_host_to_device(&self, buf: &[u8], device_offset: usize) {
+        // the device has a 4096-byte buffer at 0x40000
+        assert!(device_offset + buf.len() <= Self::DMA_DEVICE_BUFFER_SIZE);
+
+        let addr_info = kobject::Process::current()
+            .map_info(buf.as_ptr() as usize)
+            .expect("Failed to get buffer memory info");
+        let mobj = addr_info.mobj.expect("No memory object");
+        let phys_addr = mobj
+            .phys_addr(addr_info.offset)
+            .expect("Failed to get physical address of buffer");
+
+        self.write_reg64(registers::DMA_SRC, phys_addr as u64);
+        self.write_reg64(
+            registers::DMA_DST,
+            (Self::DMA_DEVICE_BUFFER_ADDR + device_offset) as u64,
+        );
+        self.write_reg64(registers::DMA_COUNT, buf.len() as u64);
+
+        let cmd = 0x01; // Start DMA
+
+        self.write_reg32(registers::DMA_CMD, cmd);
+
+        // wait for DMA end
+        loop {
+            let cmd = self.read_reg32(registers::DMA_CMD);
+            if cmd & 0x01 == 0 {
+                break;
+            }
+        }
+    }
+
+    pub fn dma_device_to_host(&self, device_offset: usize, buf: &mut [u8]) {
+        // the device has a 4096-byte buffer at 0x40000
+        assert!(device_offset + buf.len() <= Self::DMA_DEVICE_BUFFER_SIZE);
+
+        let addr_info = kobject::Process::current()
+            .map_info(buf.as_ptr() as usize)
+            .expect("Failed to get buffer memory info");
+        let mobj = addr_info.mobj.expect("No memory object");
+        let phys_addr = mobj
+            .phys_addr(addr_info.offset)
+            .expect("Failed to get physical address of buffer");
+
+        self.write_reg64(
+            registers::DMA_SRC,
+            (Self::DMA_DEVICE_BUFFER_ADDR + device_offset) as u64,
+        );
+        self.write_reg64(registers::DMA_DST, phys_addr as u64);
+        self.write_reg64(registers::DMA_COUNT, buf.len() as u64);
+
+        let cmd = 0x01 | 0x02; // Start DMA + device to host
+
+        self.write_reg32(registers::DMA_CMD, cmd);
+
+        // wait for DMA end
+        loop {
+            let cmd = self.read_reg32(registers::DMA_CMD);
+            if cmd & 0x01 == 0 {
+                break;
+            }
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -216,6 +280,23 @@ pub fn main() -> i32 {
     log::info!("Interrupt received, acknowledging...");
     edu.acknowledge_irq();
     log::info!("Interrupt acknowledged");
+
+    let source_buffer = "Hello, EDU DMA!".as_bytes();
+    log::info!(
+        "Testing host-to-device DMA with buffer: {:?}",
+        source_buffer
+    );
+    edu.dma_host_to_device(source_buffer, 0);
+    log::info!("Host-to-device DMA completed");
+    let mut dest_buffer = Vec::with_capacity(source_buffer.len());
+    dest_buffer.resize(source_buffer.len(), 0);
+    log::info!("Testing device-to-host DMA to read back the buffer...");
+    edu.dma_device_to_host(0, &mut dest_buffer);
+    log::info!(
+        "Device-to-host DMA completed, buffer read back: {:?}",
+        dest_buffer
+    );
+    assert!(source_buffer == dest_buffer.as_slice());
 
     0
 }

@@ -1,5 +1,5 @@
 [package]
-name = "e1000-server"
+name = "e1000e-server"
 version = "0.1.0"
 edition = "2024"
 

@@ -8,7 +8,7 @@ export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
 export BUILD_ARGS := -Zjson-target-spec
 
-.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000-server-build net-server-build boot.cpio clean screenshot
+.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build boot.cpio clean screenshot
 
 all: run
 
@@ -24,7 +24,7 @@ build: format image-build
 image-build: boot.cpio
 	cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)
 
-boot.cpio: init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000-server-build net-server-build
+boot.cpio: init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build
 	@echo "Creating boot.cpio archive..."
 	@TMPDIR=$$(mktemp -d); \
 	mkdir -p $$TMPDIR/servers/core; \
@@ -43,7 +43,7 @@ boot.cpio: init-build process-server-build time-server-build vfs-server-build me
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/archivefs-server $$TMPDIR/servers/fs/archivefs-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/pci-server $$TMPDIR/servers/drivers/bus/pci-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/edu-server $$TMPDIR/servers/drivers/test/edu/edu-server; \
-	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/e1000-server $$TMPDIR/servers/drivers/net/e1000-server; \
+	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/e1000e-server $$TMPDIR/servers/drivers/net/e1000e-server; \
 	cp target/$(MTI_FUN_OS_SERVERS_TARGET)/$(MTI_FUN_OS_SERVERS_PROFILE)/net-server $$TMPDIR/servers/net/net-server; \
 	cd $$TMPDIR && find . -depth -print | cpio -o -H newc > $(CURDIR)/target/$(MTI_FUN_OS_KERNEL_PROFILE)/boot.cpio; \
 	rm -rf $$TMPDIR
@@ -76,8 +76,8 @@ pci-server-build:
 edu-server-build:
 	cd servers/drivers/test/edu/edu-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
-e1000-server-build:
-	cd servers/drivers/net/e1000-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
+e1000e-server-build:
+	cd servers/drivers/net/e1000e-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
 
 net-server-build:
 	cd servers/net/net-server && cargo build $(BUILD_ARGS) --profile $(MTI_FUN_OS_SERVERS_PROFILE)
@@ -93,7 +93,7 @@ clean:
 	cd servers/fs/archivefs-server && cargo clean
 	cd servers/drivers/bus/pci-server && cargo clean
 	cd servers/drivers/test/edu/edu-server && cargo clean
-	cd servers/drivers/net/e1000-server && cargo clean
+	cd servers/drivers/net/e1000e-server && cargo clean
 	cd servers/net/net-server && cargo clean
 	rm -f target/*/boot.cpio
 

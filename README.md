@@ -123,8 +123,8 @@ tail -f serial.log
 ### kernel
 
 - multi-core
-- for now userland irq supports only MSI
-- dma
+- IRQ: userland IRQ supports only MSI
+- DMA: no support for low-address memory
 
 ### runtime
 

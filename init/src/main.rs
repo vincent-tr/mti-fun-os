@@ -45,7 +45,7 @@ fn main(info: InitInfo) {
 
     start_extended_servers(&info);
 
-    tests::edu_driver::run_edu_driver();
+    // tests::edu_driver::run_edu_driver();
 
     mem::drop(info);
 

@@ -41,19 +41,6 @@ impl From<Type> for u16 {
     }
 }
 
-/// Types of notifications sent by the process server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
-pub enum NotificationType {
-    ProcessTerminated = 1,
-}
-
-impl From<NotificationType> for u16 {
-    fn from(value: NotificationType) -> Self {
-        value as u16
-    }
-}
-
 /// Errors used by the process server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]

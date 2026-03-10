@@ -23,18 +23,6 @@ impl From<Type> for u16 {
     }
 }
 
-/// Types of notifications sent by a net device management server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
-pub enum NotificationType {
-    LinkStatusChanged = 1,
-}
-
-impl From<NotificationType> for u16 {
-    fn from(value: NotificationType) -> Self {
-        value as u16
-    }
-}
 /// Errors used by net device management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]

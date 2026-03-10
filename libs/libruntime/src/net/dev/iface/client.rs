@@ -34,6 +34,11 @@ impl Client<'_> {
         }
     }
 
+    /// Get the name of the server port this client is connected to.
+    pub fn port_name(&self) -> &str {
+        &self.port_name
+    }
+
     /// Create a new network device.
     pub fn create(
         &self,

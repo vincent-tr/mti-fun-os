@@ -1,6 +1,10 @@
 use core::fmt;
 
-use crate::{drivers::pci::PciAddress, ipc::{self, buffer_messages::Buffer}, net::types::MacAddress};
+use crate::{
+    drivers::pci::PciAddress,
+    ipc::{self, buffer_messages::Buffer},
+    net::types::MacAddress,
+};
 
 /// Version of the net device management messages.
 pub const VERSION: u16 = 1;

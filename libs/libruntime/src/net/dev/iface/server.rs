@@ -20,20 +20,14 @@ pub trait NetDeviceServer {
     /// Get the link status of a network device.
     fn get_link_status(&self, sender_id: u64, handle: ipc::Handle) -> Result<bool, Self::Error>;
 
-    /// Register for link status change notifications.
-    fn register_link_status_change(
+    /// Set the port for link status change notifications.
+    /// Pass Some(port) to register for notifications, or None to unregister.
+    fn set_link_status_change_port(
         &self,
         sender_id: u64,
         handle: ipc::Handle,
-        port: kobject::PortSender,
+        port: Option<kobject::PortSender>,
         correlation: u64,
-    ) -> Result<ipc::Handle, Self::Error>;
-
-    /// Unregister from link status change notifications.
-    fn unregister_link_status_change(
-        &self,
-        sender_id: u64,
-        registration_handle: ipc::Handle,
     ) -> Result<(), Self::Error>;
 
     /// Get the MAC address of a network device.
@@ -70,12 +64,8 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::GetLinkStatus, Self::get_link_status_handler);
         let builder = builder.with_handler(
-            messages::Type::RegisterLinkStatusChange,
-            Self::register_link_status_change_handler,
-        );
-        let builder = builder.with_handler(
-            messages::Type::UnregisterLinkStatusChange,
-            Self::unregister_link_status_change_handler,
+            messages::Type::SetLinkStatusChangePort,
+            Self::set_link_status_change_port_handler,
         );
         let builder =
             builder.with_handler(messages::Type::GetMacAddress, Self::get_mac_address_handler);
@@ -127,44 +117,33 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         ))
     }
 
-    fn register_link_status_change_handler(
+    fn set_link_status_change_port_handler(
         &self,
-        query: messages::RegisterLinkStatusChangeQueryParameters,
+        query: messages::SetLinkStatusChangePortQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::RegisterLinkStatusChangeReply, ipc::KHandles), messages::NetDeviceError>
+    ) -> Result<(messages::SetLinkStatusChangePortReply, ipc::KHandles), messages::NetDeviceError>
     {
         let handle =
-            query_handles.take(messages::RegisterLinkStatusChangeQueryParameters::HANDLE_PORT);
-        let port = kobject::PortSender::from_handle(handle)
-            .map_err(|_| messages::NetDeviceError::InvalidArgument)?;
+            query_handles.take(messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT);
 
-        let registration_handle = self
-            .inner
-            .register_link_status_change(sender_id, query.handle, port, query.correlation)
-            .map_err(Into::into)?;
+        let port = if handle.valid() {
+            Some(
+                kobject::PortSender::from_handle(handle)
+                    .map_err(|_| messages::NetDeviceError::InvalidArgument)?,
+            )
+        } else {
+            None
+        };
 
-        Ok((
-            messages::RegisterLinkStatusChangeReply {
-                registration_handle,
-            },
-            ipc::KHandles::new(),
-        ))
-    }
-
-    fn unregister_link_status_change_handler(
-        &self,
-        query: messages::UnregisterLinkStatusChangeQueryParameters,
-        _query_handles: ipc::KHandles,
-        sender_id: u64,
-    ) -> Result<(messages::UnregisterLinkStatusChangeReply, ipc::KHandles), messages::NetDeviceError>
-    {
         self.inner
-            .unregister_link_status_change(sender_id, query.registration_handle)
+            .set_link_status_change_port(sender_id, query.handle, port, query.correlation)
             .map_err(Into::into)?;
 
         Ok((
-            messages::UnregisterLinkStatusChangeReply {},
+            messages::SetLinkStatusChangePortReply {
+                registration_handle: ipc::Handle::INVALID,
+            },
             ipc::KHandles::new(),
         ))
     }

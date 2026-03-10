@@ -79,53 +79,36 @@ impl Client<'_> {
         Ok(reply.link_up)
     }
 
-    /// Register for link status change notifications.
-    pub fn register_link_status_change(
+    /// Set the port for link status change notifications.
+    /// Pass Some(port) to register for notifications, or None to unregister.
+    pub fn set_link_status_change_port(
         &self,
         handle: ipc::Handle,
-        port: kobject::PortSender,
+        port: Option<kobject::PortSender>,
         correlation: u64,
-    ) -> Result<ipc::Handle, NetDeviceServerCallError> {
-        let query = messages::RegisterLinkStatusChangeQueryParameters {
+    ) -> Result<(), NetDeviceServerCallError> {
+        let query = messages::SetLinkStatusChangePortQueryParameters {
             handle,
             correlation,
         };
 
         let mut query_handles = ipc::KHandles::new();
-        query_handles[messages::RegisterLinkStatusChangeQueryParameters::HANDLE_PORT] =
-            port.into_handle();
-
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::RegisterLinkStatusChangeQueryParameters,
-            messages::RegisterLinkStatusChangeReply,
-            messages::NetDeviceError,
-        >(
-            messages::Type::RegisterLinkStatusChange,
-            query,
-            query_handles,
-        )?;
-
-        Ok(reply.registration_handle)
-    }
-
-    /// Unregister from link status change notifications.
-    pub fn unregister_link_status_change(
-        &self,
-        registration_handle: ipc::Handle,
-    ) -> Result<(), NetDeviceServerCallError> {
-        let query = messages::UnregisterLinkStatusChangeQueryParameters {
-            registration_handle,
-        };
-        let query_handles = ipc::KHandles::new();
+        if let Some(port) = port {
+            query_handles[messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT] =
+                port.into_handle();
+        } else {
+            // Use invalid handle to unset the port
+            query_handles[messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT] =
+                kobject::Handle::invalid();
+        }
 
         let (_reply, _reply_handles) = self.ipc_client.call::<
             messages::Type,
-            messages::UnregisterLinkStatusChangeQueryParameters,
-            messages::UnregisterLinkStatusChangeReply,
+            messages::SetLinkStatusChangePortQueryParameters,
+            messages::SetLinkStatusChangePortReply,
             messages::NetDeviceError,
         >(
-            messages::Type::UnregisterLinkStatusChange,
+            messages::Type::SetLinkStatusChangePort,
             query,
             query_handles,
         )?;

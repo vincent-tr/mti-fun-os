@@ -13,8 +13,7 @@ pub enum Type {
     Destroy,
 
     GetLinkStatus,
-    RegisterLinkStatusChange,
-    UnregisterLinkStatusChange,
+    SetLinkStatusChangePort,
     GetMacAddress,
 }
 
@@ -98,10 +97,10 @@ pub struct GetLinkStatusReply {
     pub link_up: bool,
 }
 
-/// Parameters for the RegisterLinkStatusChange message.
+/// Parameters for the SetLinkStatusChangePort message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct RegisterLinkStatusChangeQueryParameters {
+pub struct SetLinkStatusChangePortQueryParameters {
     /// Handle to the network device to register for link status change notifications.
     pub handle: ipc::Handle,
 
@@ -111,30 +110,18 @@ pub struct RegisterLinkStatusChangeQueryParameters {
     pub correlation: u64,
 }
 
-impl RegisterLinkStatusChangeQueryParameters {
+impl SetLinkStatusChangePortQueryParameters {
+    /// Note: setting a invalid handle here unsets the port, effectively unregistering from link status change notifications.
     pub const HANDLE_PORT: usize = 1;
 }
 
-/// Reply for the RegisterLinkStatusChange message.
+/// Reply for the SetLinkStatusChangePort message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct RegisterLinkStatusChangeReply {
+pub struct SetLinkStatusChangePortReply {
     /// Handle to the registration, used for later unregistration.
     pub registration_handle: ipc::Handle,
 }
-
-/// Parameters for the UnregisterLinkStatusChange message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct UnregisterLinkStatusChangeQueryParameters {
-    /// Handle to the registration to unregister.
-    pub registration_handle: ipc::Handle,
-}
-
-/// Reply for the UnregisterLinkStatusChange message.
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct UnregisterLinkStatusChangeReply {}
 
 /// Parameters for the GetMacAddress message.
 #[derive(Debug, Clone, Copy)]

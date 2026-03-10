@@ -22,6 +22,7 @@ pub mod ipc;
 pub mod kobject;
 mod logging;
 pub mod memory;
+pub mod net;
 pub mod process;
 pub mod state;
 pub mod sync;

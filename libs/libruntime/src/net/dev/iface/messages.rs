@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::{drivers::pci::PciAddress, ipc, net::types::MacAddress};
+use crate::{drivers::pci::PciAddress, ipc::{self, buffer_messages::Buffer}, net::types::MacAddress};
 
 /// Version of the net device management messages.
 pub const VERSION: u16 = 1;
@@ -56,8 +56,15 @@ impl fmt::Display for NetDeviceError {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateQueryParameters {
+    /// Name of the NIC to create. This is used for logging and debugging purposes.
+    pub name: Buffer,
+
     /// The PCI address of the network device to create.
     pub pci_address: PciAddress,
+}
+
+impl CreateQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply for the Create message.

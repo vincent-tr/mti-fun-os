@@ -35,9 +35,21 @@ impl Client<'_> {
     }
 
     /// Create a new network device.
-    pub fn create(&self, pci_address: PciAddress) -> Result<ipc::Handle, NetDeviceServerCallError> {
-        let query = messages::CreateQueryParameters { pci_address };
-        let query_handles = ipc::KHandles::new();
+    pub fn create(
+        &self,
+        name: &str,
+        pci_address: PciAddress,
+    ) -> Result<ipc::Handle, NetDeviceServerCallError> {
+        let (name_memobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
+
+        let query = messages::CreateQueryParameters {
+            name: name_buffer,
+            pci_address,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::CreateQueryParameters::HANDLE_NAME_MOBJ] =
+            name_memobj.into_handle();
 
         let (reply, _reply_handles) = self.ipc_client.call::<
             messages::Type,

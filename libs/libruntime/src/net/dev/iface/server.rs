@@ -12,7 +12,12 @@ pub trait NetDeviceServer {
     type Error: Into<messages::NetDeviceError>;
 
     /// Create a new network device from a PCI address.
-    fn create(&self, sender_id: u64, pci_address: PciAddress) -> Result<ipc::Handle, Self::Error>;
+    fn create(
+        &self,
+        sender_id: u64,
+        name: &str,
+        pci_address: PciAddress,
+    ) -> Result<ipc::Handle, Self::Error>;
 
     /// Destroy a network device.
     fn destroy(&self, sender_id: u64, handle: ipc::Handle) -> Result<(), Self::Error>;
@@ -76,12 +81,20 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
     fn create_handler(
         &self,
         query: messages::CreateQueryParameters,
-        _query_handles: ipc::KHandles,
+        mut query_handles: ipc::KHandles,
         sender_id: u64,
     ) -> Result<(messages::CreateReply, ipc::KHandles), messages::NetDeviceError> {
+        let name_view = {
+            let handle = query_handles.take(messages::CreateQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
+                .map_err(|_| messages::NetDeviceError::InvalidArgument)?
+        };
+
+        let name = unsafe { name_view.str() };
+
         let handle = self
             .inner
-            .create(sender_id, query.pci_address)
+            .create(sender_id, name, query.pci_address)
             .map_err(Into::into)?;
 
         Ok((messages::CreateReply { handle }, ipc::KHandles::new()))

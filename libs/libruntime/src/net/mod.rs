@@ -1,2 +1,4 @@
 pub mod dev;
-mod types;
+pub mod types;
+
+pub use types::MacAddress;

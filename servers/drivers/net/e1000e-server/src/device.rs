@@ -1,6 +1,9 @@
+use core::panic;
+
 use alloc::{boxed::Box, string::String};
 use libruntime::{
-    drivers::pci,
+    drivers::{MmioRegion, pci},
+    kobject,
     net::{
         MacAddress,
         dev::{NetDevice, iface::NetDeviceError},
@@ -25,6 +28,21 @@ impl NetDevice for E1000eDevice {
     ) -> Result<Box<Self>, Self::Error> {
         let pci_device = pci::PciDevice::open(pci_address).into_netdev_err()?;
 
+        let header = pci_device.header().into_netdev_err()?;
+
+        let Some(pci::Bar::Memory(bar0)) = header.bars[0] else {
+            error!(
+                "Unexpected BAR type for E1000e device: {:?}",
+                header.bars[0]
+            );
+            return Err(NetDeviceError::DeviceError);
+        };
+
+        log::debug!("Opening BAR0: {:?}", bar0);
+        let region = MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?;
+
+        panic!("E1000e device creation not implemented yet");
+
         Ok(Box::new(Self {
             name: String::from(name),
             pci_device,
@@ -32,9 +50,7 @@ impl NetDevice for E1000eDevice {
         }))
     }
 
-    fn destroy(self) {
-        todo!()
-    }
+    fn destroy(self) {}
 
     fn get_link_status(&self) -> Result<bool, Self::Error> {
         todo!()
@@ -64,6 +80,15 @@ impl<T> ResultExt<T> for Result<T, pci::PciServerCallError> {
                 }
                 pci::PciServerCallError::ReplyError(_) => NetDeviceError::DeviceError,
             }
+        })
+    }
+}
+
+impl<T> ResultExt<T> for Result<T, kobject::Error> {
+    fn into_netdev_err(self) -> Result<T, NetDeviceError> {
+        self.map_err(|e| {
+            error!("Kernel operation failed: {:?}", e);
+            NetDeviceError::RuntimeError
         })
     }
 }

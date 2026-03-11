@@ -99,13 +99,14 @@ impl FrameBuffer {
             unsafe { self.front_buffer.as_buffer_mut() }.expect("Failed to get front buffer slice");
         let back_buffer = self.back_buffer();
 
-        unsafe {
-            volatile_copy_nonoverlapping_memory(
-                front_buffer.as_mut_ptr(),
-                back_buffer.as_ptr(),
-                back_buffer.len(),
-            );
-        }
+        front_buffer.copy_from_slice(back_buffer);
+        // unsafe {
+        //     volatile_copy_nonoverlapping_memory(
+        //         front_buffer.as_mut_ptr(),
+        //         back_buffer.as_ptr(),
+        //         back_buffer.len(),
+        //     );
+        // }
     }
 
     fn back_buffer(&mut self) -> &mut [u8] {

@@ -1,5 +1,3 @@
-use core::intrinsics::volatile_copy_nonoverlapping_memory;
-
 use alloc::{boxed::Box, vec::Vec};
 use embedded_graphics::{pixelcolor::Rgb888, prelude::DrawTarget, prelude::*};
 use libruntime::kobject;
@@ -101,7 +99,7 @@ impl FrameBuffer {
 
         front_buffer.copy_from_slice(back_buffer);
         // unsafe {
-        //     volatile_copy_nonoverlapping_memory(
+        //     core::intrinsics::volatile_copy_nonoverlapping_memory(
         //         front_buffer.as_mut_ptr(),
         //         back_buffer.as_ptr(),
         //         back_buffer.len(),

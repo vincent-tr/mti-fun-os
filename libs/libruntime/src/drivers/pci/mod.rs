@@ -3,7 +3,7 @@ pub mod types;
 
 use alloc::vec::Vec;
 
-pub use iface::{CapabilityInfo, EnableMsiData, PciDeviceInfo, PciServerCallError};
+pub use iface::{CapabilityInfo, EnableMsiData, PciDeviceInfo, PciServerCallError, PciServerError};
 pub use types::*;
 
 use crate::{ipc, kobject};

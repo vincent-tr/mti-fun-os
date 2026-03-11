@@ -1,35 +1,40 @@
-use alloc::{string::String, sync::Arc};
+mod notifier;
+mod state;
+
+use core::ops::Deref;
+
+use alloc::{boxed::Box, string::String, sync::Arc};
 use hashbrown::HashMap;
-use log::{debug, error};
+use log::error;
 
 use crate::{
     drivers::pci::PciAddress,
     ipc::{self, Handle},
     kobject,
     net::types::MacAddress,
-    sync::RwLock,
+    sync::{RwLock, RwLockReadGuard},
 };
 
-use super::{iface, state::State};
+use super::iface;
+use notifier::Notifier;
+use state::State;
 
 /// Trait representing a network device
 pub trait NetDevice: Sync + Send + 'static {
     type Error: Into<iface::NetDeviceError>;
 
     /// Create a new network device from a PCI address.
-    fn create(name: &str, pci_address: PciAddress) -> Result<Arc<Self>, Self::Error>;
+    fn create(
+        name: &str,
+        pci_address: PciAddress,
+        link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
+    ) -> Result<Box<Self>, Self::Error>;
 
     /// Destroy the network device and free any associated resources.
-    fn destroy(&self) -> Result<(), Self::Error>;
+    fn destroy(self);
 
     /// Get the current link status of the network device
     fn get_link_status(&self) -> Result<bool, Self::Error>;
-
-    /// Set a callback function to be called when the link status changes
-    fn set_link_status_change_callback(
-        &self,
-        callback: impl Fn(bool) + Send + 'static,
-    ) -> Result<MacAddress, Self::Error>;
 
     /// Get the MAC address of the network device
     fn get_mac_address(&self) -> Result<MacAddress, Self::Error>;
@@ -66,10 +71,7 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
     ) -> Result<Handle, Self::Error> {
         let mut devices = self.devices.write();
 
-        let entry = DeviceEntry::new(
-            String::from(name),
-            NetDev::create(name, pci_address).map_err(Into::into)?,
-        )?;
+        let entry = DeviceEntry::new(name, pci_address)?;
 
         let handle = Self::new_handle();
         devices.insert(handle, entry);
@@ -85,7 +87,7 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
             iface::NetDeviceError::InvalidArgument
         })?;
 
-        entry.device.destroy().map_err(Into::into)?;
+        entry.destroy().map_err(Into::into)?;
 
         devices.remove(&handle);
 
@@ -103,7 +105,7 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
             })?
             .clone();
 
-        Ok(entry.device.get_link_status().map_err(Into::into)?)
+        Ok(entry.device()?.get_link_status().map_err(Into::into)?)
     }
 
     fn set_link_status_change_port(
@@ -139,38 +141,67 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
             })?
             .clone();
 
-        Ok(entry.device.get_mac_address().map_err(Into::into)?)
+        Ok(entry.device()?.get_mac_address().map_err(Into::into)?)
     }
 }
 
 #[derive(Debug)]
 struct DeviceEntry<NetDev: NetDevice> {
     name: String,
-    device: Arc<NetDev>,
-    link_status_notifier: RwLock<Option<Notifier>>,
+    device: RwLock<Option<Box<NetDev>>>, // option set to None when device is destroyed, to prevent further access
+    link_status_notifier: Notifier,
 }
 
 impl<NetDev: NetDevice> DeviceEntry<NetDev> {
-    pub fn new(name: String, device: Arc<NetDev>) -> Result<Arc<Self>, iface::NetDeviceError> {
+    /// Creates a new device entry with the given name and device.
+    pub fn new(name: &str, pci_address: PciAddress) -> Result<Arc<Self>, iface::NetDeviceError> {
+        // Create the entry first so that we can pass a reference to the link status change callback to the device
         let entry = Arc::new(Self {
-            name,
-            device,
-            link_status_notifier: RwLock::new(None),
+            name: String::from(name),
+            device: RwLock::new(None),
+            link_status_notifier: Notifier::new(),
         });
 
-        entry
-            .device
-            .set_link_status_change_callback({
-                let entry = entry.clone();
-                move |link_up| {
-                    entry.link_status_change_callback(link_up);
-                }
-            })
-            .map_err(Into::into)?;
+        let link_status_change_callback = {
+            let entry = entry.clone();
+            move |link_up| {
+                entry.link_status_change_callback(link_up);
+            }
+        };
+
+        let device =
+            NetDev::create(name, pci_address, link_status_change_callback).map_err(Into::into)?;
+
+        *entry.device.write() = Some(device);
 
         Ok(entry)
     }
 
+    /// Destroys the device associated with this entry and prevents further access to it.
+    pub fn destroy(&self) -> Result<(), iface::NetDeviceError> {
+        let device = self.device.write().take().ok_or_else(|| {
+            error!("Device already destroyed for entry {}", self.name);
+            iface::NetDeviceError::InvalidArgument
+        })?;
+
+        device.destroy();
+
+        Ok(())
+    }
+
+    /// Get access to the device, ensuring it is not accessed after being destroyed.
+    pub fn device(&self) -> Result<DeviceAccess<'_, NetDev>, iface::NetDeviceError> {
+        let access = self.device.read();
+
+        if access.is_none() {
+            error!("Device already destroyed {}", self.name);
+            return Err(iface::NetDeviceError::InvalidArgument);
+        }
+
+        Ok(DeviceAccess { access })
+    }
+
+    /// Sets the port for link status change notifications.
     pub fn set_link_status_change_port(
         &self,
         correlation: u64,
@@ -181,7 +212,7 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
         Ok(())
     }
 
-    pub fn link_status_change_callback(&self, link_up: bool) {
+    fn link_status_change_callback(&self, link_up: bool) {
         Notifier::notify(&self.link_status_notifier, &self.name, |correlation| {
             (
                 iface::LinkStatusChangedNotification {
@@ -194,56 +225,15 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
     }
 }
 
-#[derive(Debug)]
-struct Notifier {
-    correlation: u64,
-    port: kobject::PortSender,
+/// Helper struct to provide access to the device while ensuring it is not accessed after being destroyed.
+struct DeviceAccess<'a, NetDev: NetDevice> {
+    access: RwLockReadGuard<'a, Option<Box<NetDev>>>,
 }
 
-impl Notifier {
-    pub fn set(
-        notifier: &RwLock<Option<Notifier>>,
-        dev_name: &str,
-        correlation: u64,
-        port: Option<kobject::PortSender>,
-    ) -> Result<(), iface::NetDeviceError> {
-        let mut notifier = notifier.write();
+impl<NetDev: NetDevice> Deref for DeviceAccess<'_, NetDev> {
+    type Target = NetDev;
 
-        // forbid to overwrite existing value
-        if notifier.is_some() && port.is_some() {
-            error!("Notifier already set for device {}", dev_name);
-            return Err(iface::NetDeviceError::InvalidArgument);
-        }
-
-        if let Some(port) = port {
-            debug!("Registering change notifier for device {}", dev_name);
-            *notifier = Some(Notifier { correlation, port });
-        } else {
-            debug!("Unregistering change notifier for device {}", dev_name);
-            *notifier = None;
-        }
-
-        Ok(())
-    }
-
-    pub fn notify<T: Copy>(
-        notifier: &RwLock<Option<Notifier>>,
-        dev_name: &str,
-        creator: impl Fn(u64) -> (T, ipc::KHandles),
-    ) {
-        let notifier_access = notifier.read();
-        let Some(notifier) = &*notifier_access else {
-            return;
-        };
-
-        let (data, handles) = creator(notifier.correlation);
-        let mut message = unsafe { kobject::Message::new(&data, handles.into()) };
-
-        if let Err(err) = notifier.port.send(&mut message) {
-            error!(
-                "Failed to send notification for device {}: {:?}",
-                dev_name, err
-            );
-        }
+    fn deref(&self) -> &NetDev {
+        self.access.as_ref().expect("device should be set")
     }
 }

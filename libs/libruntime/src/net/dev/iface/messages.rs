@@ -33,6 +33,7 @@ impl From<Type> for u16 {
 pub enum NetDeviceError {
     InvalidArgument = 1,
     RuntimeError,
+    DeviceError,
 }
 
 impl fmt::Display for NetDeviceError {
@@ -40,6 +41,7 @@ impl fmt::Display for NetDeviceError {
         match self {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
+            Self::DeviceError => write!(f, "DeviceError"),
         }
     }
 }

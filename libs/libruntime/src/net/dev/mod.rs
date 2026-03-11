@@ -1,6 +1,5 @@
 pub mod iface;
 mod server;
-mod state;
 
 pub use server::NetDevice;
 use server::NetDeviceServer;

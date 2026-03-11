@@ -41,6 +41,8 @@ impl fmt::Debug for Control {
 }
 
 impl Control {
+    pub const OFFSET: usize = 0x00000;
+
     pub fn full_duplex(&self) -> bool {
         self.0.get_bit(0)
     }
@@ -218,6 +220,8 @@ impl fmt::Debug for Status {
 }
 
 impl Status {
+    pub const OFFSET: usize = 0x00008;
+
     pub fn full_duplex(&self) -> bool {
         self.0.get_bit(0)
     }
@@ -300,104 +304,6 @@ impl From<u8> for PcixSpeed {
     }
 }
 
-/// Transmit Control register for the e1000e network device.
-#[repr(transparent)]
-pub struct TxControl(u32);
-
-impl From<u32> for TxControl {
-    fn from(value: u32) -> Self {
-        TxControl(value)
-    }
-}
-
-impl From<TxControl> for u32 {
-    fn from(control: TxControl) -> Self {
-        control.0
-    }
-}
-
-impl fmt::Debug for TxControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TxControl")
-            .field("raw", &format_args!("{:#010x}", self.0))
-            .field("enabled", &self.enabled())
-            .field("pad_short_packets", &self.pad_short_packets())
-            .field("collision_threshold", &self.collision_threshold())
-            .field("collision_distance", &self.collision_distance())
-            .field(
-                "software_xoff_transmission",
-                &self.software_xoff_transmission(),
-            )
-            .field(
-                "retransmit_on_late_collision",
-                &self.retransmit_on_late_collision(),
-            )
-            .field(
-                "no_retransmit_on_underrun",
-                &self.no_retransmit_on_underrun(),
-            )
-            .finish()
-    }
-}
-
-impl TxControl {
-    pub fn enabled(&self) -> bool {
-        self.0.get_bit(1)
-    }
-
-    pub fn enable(&mut self, value: bool) {
-        self.0.set_bit(1, value);
-    }
-
-    pub fn pad_short_packets(&self) -> bool {
-        self.0.get_bit(3)
-    }
-
-    pub fn set_pad_short_packets(&mut self, value: bool) {
-        self.0.set_bit(3, value);
-    }
-
-    pub fn collision_threshold(&self) -> u8 {
-        self.0.get_bits(4..12) as u8
-    }
-
-    pub fn set_collision_threshold(&mut self, value: u8) {
-        self.0.set_bits(4..12, value as u32);
-    }
-
-    pub fn collision_distance(&self) -> u8 {
-        self.0.get_bits(12..22) as u8
-    }
-
-    pub fn set_collision_distance(&mut self, value: u8) {
-        self.0.set_bits(12..22, value as u32);
-    }
-
-    pub fn software_xoff_transmission(&self) -> bool {
-        self.0.get_bit(22)
-    }
-
-    pub fn set_software_xoff_transmission(&mut self, value: bool) {
-        self.0.set_bit(22, value);
-    }
-
-    pub fn retransmit_on_late_collision(&self) -> bool {
-        self.0.get_bit(24)
-    }
-
-    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
-        self.0.set_bit(24, value);
-    }
-
-    pub fn no_retransmit_on_underrun(&self) -> bool {
-        self.0.get_bit(25)
-    }
-
-    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
-        self.0.set_bit(25, value);
-    }
-}
-
 #[repr(transparent)]
 pub struct RxControl(u32);
 
@@ -457,6 +363,8 @@ impl fmt::Debug for RxControl {
 }
 
 impl RxControl {
+    pub const OFFSET: usize = 0x00100;
+
     pub fn enabled(&self) -> bool {
         self.0.get_bit(1)
     }
@@ -608,5 +516,105 @@ impl From<u8> for LoopbackMode {
             3 => LoopbackMode::PhyOrExternal,
             _ => panic!("Invalid loopback mode value: {}", value),
         }
+    }
+}
+
+/// Transmit Control register for the e1000e network device.
+#[repr(transparent)]
+pub struct TxControl(u32);
+
+impl From<u32> for TxControl {
+    fn from(value: u32) -> Self {
+        TxControl(value)
+    }
+}
+
+impl From<TxControl> for u32 {
+    fn from(control: TxControl) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxControl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxControl")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("enabled", &self.enabled())
+            .field("pad_short_packets", &self.pad_short_packets())
+            .field("collision_threshold", &self.collision_threshold())
+            .field("collision_distance", &self.collision_distance())
+            .field(
+                "software_xoff_transmission",
+                &self.software_xoff_transmission(),
+            )
+            .field(
+                "retransmit_on_late_collision",
+                &self.retransmit_on_late_collision(),
+            )
+            .field(
+                "no_retransmit_on_underrun",
+                &self.no_retransmit_on_underrun(),
+            )
+            .finish()
+    }
+}
+
+impl TxControl {
+    pub const OFFSET: usize = 0x00400;
+
+    pub fn enabled(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn enable(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn pad_short_packets(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn set_pad_short_packets(&mut self, value: bool) {
+        self.0.set_bit(3, value);
+    }
+
+    pub fn collision_threshold(&self) -> u8 {
+        self.0.get_bits(4..12) as u8
+    }
+
+    pub fn set_collision_threshold(&mut self, value: u8) {
+        self.0.set_bits(4..12, value as u32);
+    }
+
+    pub fn collision_distance(&self) -> u8 {
+        self.0.get_bits(12..22) as u8
+    }
+
+    pub fn set_collision_distance(&mut self, value: u8) {
+        self.0.set_bits(12..22, value as u32);
+    }
+
+    pub fn software_xoff_transmission(&self) -> bool {
+        self.0.get_bit(22)
+    }
+
+    pub fn set_software_xoff_transmission(&mut self, value: bool) {
+        self.0.set_bit(22, value);
+    }
+
+    pub fn retransmit_on_late_collision(&self) -> bool {
+        self.0.get_bit(24)
+    }
+
+    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
+        self.0.set_bit(24, value);
+    }
+
+    pub fn no_retransmit_on_underrun(&self) -> bool {
+        self.0.get_bit(25)
+    }
+
+    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
+        self.0.set_bit(25, value);
     }
 }

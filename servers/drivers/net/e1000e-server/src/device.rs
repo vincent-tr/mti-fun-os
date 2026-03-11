@@ -1,5 +1,6 @@
 use core::panic;
 
+use crate::registers;
 use alloc::{boxed::Box, string::String};
 use libruntime::{
     drivers::{MmioRegion, pci},
@@ -40,6 +41,16 @@ impl NetDevice for E1000eDevice {
 
         log::debug!("Opening BAR0: {:?}", bar0);
         let region = MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?;
+
+        let control = registers::Control::from(region.read(registers::Control::OFFSET));
+        let status = registers::Status::from(region.read(registers::Status::OFFSET));
+        let rx_control = registers::RxControl::from(region.read(registers::RxControl::OFFSET));
+        let tx_control = registers::TxControl::from(region.read(registers::TxControl::OFFSET));
+
+        log::debug!("Control: {:?}", control);
+        log::debug!("Status: {:?}", status);
+        log::debug!("RxControl: {:?}", rx_control);
+        log::debug!("TxControl: {:?}", tx_control);
 
         panic!("E1000e device creation not implemented yet");
 

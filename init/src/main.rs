@@ -49,6 +49,8 @@ fn main(info: InitInfo) {
 
     mem::drop(info);
 
+    setup_net();
+
     // init cannot exit, it runs the state server
     sleep_forever();
     // libruntime::exit();
@@ -127,44 +129,32 @@ fn start_extended_servers(info: &InitInfo) {
     let mut options =
         process::ProcessOptions::from_path("/mnt/archive/servers/core/display-server")
             .expect("Failed to load file");
-    options.set_arg(
-        "framebuffer.address",
-        format!("{}", info.framebuffer().address),
-    );
-    options.set_arg(
-        "framebuffer.byte_len",
-        format!("{}", info.framebuffer().byte_len),
-    );
-    options.set_arg("framebuffer.width", format!("{}", info.framebuffer().width));
-    options.set_arg(
-        "framebuffer.height",
-        format!("{}", info.framebuffer().height),
-    );
-    options.set_arg(
-        "framebuffer.pixel_format.red_mask",
-        format!("{}", info.framebuffer().pixel_format.red_mask),
-    );
-    options.set_arg(
-        "framebuffer.pixel_format.green_mask",
-        format!("{}", info.framebuffer().pixel_format.green_mask),
-    );
-    options.set_arg(
-        "framebuffer.pixel_format.blue_mask",
-        format!("{}", info.framebuffer().pixel_format.blue_mask),
-    );
-    options.set_arg(
-        "framebuffer.bytes_per_pixel",
-        format!("{}", info.framebuffer().bytes_per_pixel),
-    );
-    options.set_arg(
-        "framebuffer.stride",
-        format!("{}", info.framebuffer().stride),
-    );
-
+    fill_framebuffer_process_options(info, &mut options);
     let process = process::Process::spawn(options).expect("Could not spawn display server");
 
     let _ = process;
     //wait_port(display::iface::PORT_NAME);
+
+    let options =
+        process::ProcessOptions::from_path("/mnt/archive/servers/drivers/net/e1000e-server")
+            .expect("Failed to load e1000e-server");
+    let process = process::Process::spawn(options).expect("Could not spawn e1000e server");
+
+    let _ = process;
+    wait_port("net.dev.e1000e");
+}
+
+fn setup_net() {
+    let options = drivers::pci::ListOptions::new();
+    let options = options.with_device_id(0x8086, 0x10d3); // e1000e
+    let devices = drivers::pci::list(options).expect("Failed to get devices");
+    let device = devices.first().expect("No matching PCI devices found");
+
+    // This is a test, to be moved through net server
+    let client = libruntime::net::dev::iface::Client::new("net.dev.e1000e");
+    client
+        .create("netdev0", device.address)
+        .expect("Failed to create net device");
 }
 
 /// Wait for a server port to be available
@@ -222,6 +212,32 @@ impl<'a> CoreServersSetupHelper<'a> {
 
         panic!("Could not find '{}' in archive", path);
     }
+}
+
+fn fill_framebuffer_process_options(info: &InitInfo, options: &mut process::ProcessOptions) {
+    let fbinfo = info.framebuffer();
+
+    options.set_arg("framebuffer.address", format!("{}", fbinfo.address));
+    options.set_arg("framebuffer.byte_len", format!("{}", fbinfo.byte_len));
+    options.set_arg("framebuffer.width", format!("{}", fbinfo.width));
+    options.set_arg("framebuffer.height", format!("{}", fbinfo.height));
+    options.set_arg(
+        "framebuffer.pixel_format.red_mask",
+        format!("{}", fbinfo.pixel_format.red_mask),
+    );
+    options.set_arg(
+        "framebuffer.pixel_format.green_mask",
+        format!("{}", fbinfo.pixel_format.green_mask),
+    );
+    options.set_arg(
+        "framebuffer.pixel_format.blue_mask",
+        format!("{}", fbinfo.pixel_format.blue_mask),
+    );
+    options.set_arg(
+        "framebuffer.bytes_per_pixel",
+        format!("{}", fbinfo.bytes_per_pixel),
+    );
+    options.set_arg("framebuffer.stride", format!("{}", fbinfo.stride));
 }
 
 fn sleep_forever() -> ! {

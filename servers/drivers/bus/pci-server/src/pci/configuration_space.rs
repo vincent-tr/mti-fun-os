@@ -1,13 +1,15 @@
 use core::{mem, ops::Range};
-use libruntime::{drivers::pci::types::PciAddress, kobject, sync::spin::OnceLock};
+use libruntime::{
+    drivers::{IoPortIndirectRegion, pci::types::PciAddress},
+    sync::spin::OnceLock,
+};
 
 use crate::pci::PCI_CONFIG_SPACE_SIZE;
 
 /// PCI configuration space access
 #[derive(Debug)]
 pub struct ConfigurationSpace {
-    address: kobject::PortRange,
-    data: kobject::PortRange,
+    region: IoPortIndirectRegion<u32>,
 }
 
 impl ConfigurationSpace {
@@ -33,21 +35,11 @@ impl ConfigurationSpace {
         const CONFIG_ADDRESS: u16 = 0xCF8;
         const CONFIG_DATA: u16 = 0xCFC;
 
-        let address = kobject::PortRange::open(
-            CONFIG_ADDRESS,
-            1,
-            kobject::PortAccess::READ | kobject::PortAccess::WRITE,
-        )
-        .expect("Failed to open CONFIG_ADDRESS port range");
-        let data = kobject::PortRange::open(
-            CONFIG_DATA,
-            4,
-            kobject::PortAccess::READ | kobject::PortAccess::WRITE,
-        )
-        .expect("Failed to open CONFIG_DATA port range");
+        let region = IoPortIndirectRegion::open(CONFIG_ADDRESS, CONFIG_DATA)
+            .expect("Failed to open PCI configuration space access ports");
 
         Self::cell()
-            .set(Self { address, data })
+            .set(Self { region })
             .expect("Failed to initialize configuration space");
     }
 
@@ -134,12 +126,7 @@ impl ConfigurationSpace {
             | ((address.function as u32) << 8)
             | (offset as u32);
 
-        self.address
-            .write32(0, address)
-            .expect("Failed to write to PCI configuration address port");
-        self.data
-            .read32(0)
-            .expect("Failed to read from PCI configuration space")
+        self.region.read(address as usize)
     }
 
     /// Writes a 32-bit value to the PCI configuration space of the specified address and offset.
@@ -160,11 +147,6 @@ impl ConfigurationSpace {
             | ((address.function as u32) << 8)
             | (offset as u32); // & 0xFC => unnecessary since we assert that offset is aligned to 4 bytes
 
-        self.address
-            .write32(0, address)
-            .expect("Failed to write to PCI configuration address port");
-        self.data
-            .write32(0, value)
-            .expect("Failed to write to PCI configuration space");
+        self.region.write(address as usize, value);
     }
 }

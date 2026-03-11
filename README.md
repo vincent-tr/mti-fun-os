@@ -118,6 +118,12 @@ tail -f serial.log
 - https://github.com/eliben/code-for-blog/blob/master/2018/futex-basics/mutex-using-futex.cpp
 - https://man7.org/linux/man-pages/man2/futex.2.html
 
+### Net - e100e driver
+
+- https://wiki.osdev.org/Intel_Ethernet_i217
+- https://wiki.osdev.org/Intel_8254x
+- https://www.intel.com/content/dam/doc/manual/pci-pci-x-family-gbe-controllers-software-dev-manual.pdf
+
 ## Next tasks / Notes
 
 ### kernel

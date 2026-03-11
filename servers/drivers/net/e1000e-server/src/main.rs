@@ -5,6 +5,7 @@ extern crate alloc;
 extern crate libruntime;
 
 mod device;
+mod registers;
 
 use libruntime::net::dev::build_net_device_server;
 

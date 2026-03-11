@@ -242,6 +242,7 @@ dependencies = [
 name = "e1000e-server"
 version = "0.1.0"
 dependencies = [
+ "bit_field",
  "hashbrown 0.15.2",
  "lazy_static",
  "libruntime",

@@ -8,7 +8,7 @@ use crate::{
 use super::PciDeviceInfo;
 
 /// Name of the IPC port for the PCI server.
-pub const PORT_NAME: &str = "pci-server";
+pub const PORT_NAME: &str = "drivers.bus.pci";
 
 /// Version of the PCI interface management messages.
 pub const VERSION: u16 = 1;

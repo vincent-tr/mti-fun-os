@@ -3,7 +3,7 @@ use core::fmt;
 use crate::{ipc::buffer_messages::Buffer, kobject};
 
 /// Name of the IPC port for the state server.
-pub const PORT_NAME: &str = "state-server";
+pub const PORT_NAME: &str = "state";
 
 /// Version of the state management messages.
 pub const VERSION: u16 = 1;

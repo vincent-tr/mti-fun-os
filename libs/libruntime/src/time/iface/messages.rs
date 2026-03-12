@@ -4,7 +4,7 @@ use core::{mem, ptr};
 use alloc::fmt;
 
 /// Name of the IPC port for the time server.
-pub const PORT_NAME: &str = "time-server";
+pub const PORT_NAME: &str = "time";
 
 /// Version of the time management messages.
 pub const VERSION: u16 = 1;

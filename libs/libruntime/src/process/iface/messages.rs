@@ -3,7 +3,7 @@ use alloc::fmt;
 use crate::ipc::{Handle, buffer_messages::Buffer};
 
 /// Name of the IPC port for the process server.
-pub const PORT_NAME: &str = "process-server";
+pub const PORT_NAME: &str = "process";
 
 /// Version of the process management messages.
 pub const VERSION: u16 = 1;

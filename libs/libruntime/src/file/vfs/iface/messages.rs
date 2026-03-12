@@ -3,7 +3,7 @@ use core::fmt;
 use crate::ipc::{Handle, buffer_messages::Buffer};
 
 /// Name of the IPC port for the VFS server.
-pub const PORT_NAME: &str = "vfs-server";
+pub const PORT_NAME: &str = "file.vfs";
 
 /// Version of the VFS management messages.
 pub const VERSION: u16 = 1;

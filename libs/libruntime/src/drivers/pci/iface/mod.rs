@@ -14,9 +14,9 @@ pub use messages::{EnableMsiData, PORT_NAME};
 
 use crate::{ipc, kobject};
 
-pub fn build_ipc_server<Impl: PciServer + 'static>(
+pub fn build_ipc_runner<Impl: PciServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Server, kobject::Error> {
+) -> Result<ipc::Runner, kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server()
+    server.build_ipc_runner()
 }

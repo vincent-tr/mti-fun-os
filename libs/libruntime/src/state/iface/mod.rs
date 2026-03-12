@@ -12,9 +12,9 @@ pub use server::StateServer;
 
 pub use client::{Client, StateServerCallError};
 
-pub fn build_ipc_server<Impl: StateServer + 'static>(
+pub fn build_ipc_runner<Impl: StateServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Server, kobject::Error> {
+) -> Result<ipc::Runner, kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server()
+    server.build_ipc_runner()
 }

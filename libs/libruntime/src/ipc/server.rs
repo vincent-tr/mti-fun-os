@@ -1,5 +1,8 @@
-use super::messages::{
-    KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
+use super::{
+    RunnableComponent,
+    messages::{
+        KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
+    },
 };
 use crate::kobject::{self, KObject};
 use alloc::{boxed::Box, sync::Arc};
@@ -12,7 +15,6 @@ pub struct ServerBuilder {
     name: &'static str,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
-    process_exit_handler: Option<Box<dyn Fn(u64) + 'static>>,
 }
 
 impl ServerBuilder {
@@ -22,17 +24,7 @@ impl ServerBuilder {
             name,
             version,
             handlers: HashMap::new(),
-            process_exit_handler: None,
         }
-    }
-
-    /// Sets a handler for process exit notifications.
-    pub fn with_process_exit_handler<F>(mut self, handler: F) -> Self
-    where
-        F: Fn(u64) + 'static,
-    {
-        self.process_exit_handler = Some(Box::new(handler));
-        self
     }
 
     /// Adds a message handler without reply for the given message type.
@@ -78,12 +70,7 @@ impl ServerBuilder {
 
     /// Builds the server.
     pub fn build(self) -> Result<Server, kobject::Error> {
-        Server::new(
-            self.name,
-            self.version,
-            self.handlers,
-            self.process_exit_handler,
-        )
+        Server::new(self.name, self.version, self.handlers)
     }
 }
 
@@ -93,10 +80,6 @@ impl fmt::Debug for ServerBuilder {
             .field("name", &self.name)
             .field("version", &self.version)
             .field("handlers", &self.handlers.len())
-            .field(
-                "process_exit_handler",
-                &self.process_exit_handler.as_ref().map(|_| "Fn"),
-            )
             .finish()
     }
 }
@@ -126,21 +109,6 @@ where
             manager: manager.clone(),
             _phantom: PhantomData,
         }
-    }
-
-    /// Sets a handler for process exit notifications, as a server method.
-    pub fn with_process_exit_handler<F>(mut self, method: F) -> Self
-    where
-        F: Fn(&Manager, u64) + 'static,
-    {
-        let manager = self.manager.clone();
-        let handler = move |pid| {
-            let instance = manager.clone();
-            method(&instance, pid);
-        };
-
-        self.builder = self.builder.with_process_exit_handler(handler);
-        self
     }
 
     /// Adds a message handler without reply for the given message type, as a server method.
@@ -218,68 +186,22 @@ where
 pub struct Server {
     receiver: kobject::PortReceiver,
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
-    process_listener: Option<ProcessTerminationListener>,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
 }
 
-impl Server {
-    fn new(
-        name: &str,
-        version: u16,
-        handlers: HashMap<u16, Box<dyn MessageHandler>>,
-        process_exit_handler: Option<Box<dyn Fn(u64) + 'static>>,
-    ) -> Result<Self, kobject::Error> {
-        let (receiver, sender) = kobject::Port::create(Some(name))?;
-
-        let process_listener = if let Some(handler) = process_exit_handler {
-            Some(ProcessTerminationListener::create(handler)?)
-        } else {
-            None
-        };
-
-        Ok(Self {
-            receiver,
-            sender: Some(sender),
-            process_listener,
-            version,
-            handlers,
-        })
+impl kobject::KWaitable for Server {
+    unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
+        unsafe { self.receiver.waitable_handle() }
     }
 
-    /// Releases the name of the server port.
-    ///
-    /// The server will still respond to already "connected" clients, but will be unreachable for new lookups.
-    pub fn release_name(&mut self) {
-        self.sender = None;
+    fn wait(&self) -> Result<(), kobject::Error> {
+        self.receiver.wait()
     }
+}
 
-    /// Runs the server.
-    pub fn run(self) -> ! {
-        const RECEIVER_INDEX: usize = 0;
-        const PROCESS_LISTENER_INDEX: usize = 1;
-
-        let mut waiter = kobject::Waiter::new(&[&self.receiver]);
-        if let Some(process_listener) = &self.process_listener {
-            waiter.add(process_listener);
-        }
-
-        loop {
-            waiter.wait().expect("wait failed");
-
-            if waiter.is_ready(RECEIVER_INDEX) {
-                self.process_message();
-            }
-
-            if let Some(process_listener) = &self.process_listener {
-                if waiter.is_ready(PROCESS_LISTENER_INDEX) {
-                    process_listener.process_message();
-                }
-            }
-        }
-    }
-
-    fn process_message(&self) {
+impl RunnableComponent for Server {
+    fn process(&self) {
         let message = self
             .receiver
             .receive()
@@ -300,44 +222,27 @@ impl Server {
     }
 }
 
-struct ProcessTerminationListener {
-    listener: kobject::ProcessListener,
-    handler: Box<dyn Fn(u64) + 'static>,
-}
+impl Server {
+    fn new(
+        name: &str,
+        version: u16,
+        handlers: HashMap<u16, Box<dyn MessageHandler>>,
+    ) -> Result<Self, kobject::Error> {
+        let (receiver, sender) = kobject::Port::create(Some(name))?;
 
-impl kobject::KWaitable for ProcessTerminationListener {
-    unsafe fn waitable_handle(&self) -> &libsyscalls::Handle {
-        unsafe { self.listener.waitable_handle() }
-    }
-
-    fn wait(&self) -> Result<(), kobject::Error> {
-        self.listener.wait()
-    }
-}
-
-impl fmt::Debug for ProcessTerminationListener {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProcessTerminationListener").finish()
-    }
-}
-
-impl ProcessTerminationListener {
-    pub fn create(handler: Box<dyn Fn(u64) + 'static>) -> Result<Self, kobject::Error> {
         Ok(Self {
-            listener: kobject::ProcessListener::create(kobject::ProcessListenerFilter::All)?,
-            handler,
+            receiver,
+            sender: Some(sender),
+            version,
+            handlers,
         })
     }
 
-    pub fn process_message(&self) {
-        let event = self
-            .listener
-            .receive()
-            .expect("failed to receive process event");
-
-        if let kobject::ProcessEventType::Terminated = event.r#type {
-            (self.handler)(event.pid);
-        }
+    /// Releases the name of the server port.
+    ///
+    /// The server will still respond to already "connected" clients, but will be unreachable for new lookups.
+    pub fn release_name(&mut self) {
+        self.sender = None;
     }
 }
 

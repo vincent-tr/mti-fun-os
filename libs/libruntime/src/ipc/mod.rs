@@ -3,6 +3,8 @@ mod buffer;
 mod client;
 mod handle;
 mod messages;
+mod process_termination_listener;
+mod runner;
 mod server;
 
 pub use async_server::{AsyncServer, AsyncServerBuilder, ManagedAsyncServerBuilder};
@@ -11,4 +13,6 @@ pub use buffer::{Buffer, BufferView, BufferViewAccess};
 pub use client::{CallError, Client};
 pub use handle::{Handle, HandleGenerator, HandleTable};
 pub use messages::KHandles;
+pub use process_termination_listener::ProcessTerminationListener;
+pub use runner::{ComponentId, RunnableComponent, Runner};
 pub use server::{ManagedServerBuilder, Server, ServerBuilder};

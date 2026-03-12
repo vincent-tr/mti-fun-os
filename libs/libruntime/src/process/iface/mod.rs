@@ -38,9 +38,9 @@ pub struct StartupInfo {
     pub symbols: SymBlock,
 }
 
-pub fn build_ipc_server<Impl: ProcessServer + 'static>(
+pub fn build_ipc_runner<Impl: ProcessServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Server, kobject::Error> {
+) -> Result<ipc::Runner, kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server()
+    server.build_ipc_runner()
 }

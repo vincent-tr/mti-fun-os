@@ -54,10 +54,10 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_server(
+    pub fn build_ipc_runner(
         self: &Arc<Self>,
         port_name: &'static str,
-    ) -> Result<ipc::Server, kobject::Error> {
+    ) -> Result<ipc::Runner, kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<
             _,
             messages::NetDeviceError,
@@ -75,7 +75,10 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::GetMacAddress, Self::get_mac_address_handler);
 
-        builder.build()
+        let runner = ipc::Runner::new();
+        runner.add_component(Arc::new(builder.build()?));
+
+        Ok(runner)
     }
 
     fn create_handler(

@@ -29,17 +29,24 @@ impl<Impl: StateServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
+    pub fn build_ipc_runner(self: &Arc<Self>) -> Result<ipc::Runner, kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<_, StateServerError, StateServerError>::new(
             &self,
             messages::PORT_NAME,
             messages::VERSION,
         );
-        let builder = builder.with_process_exit_handler(Self::process_terminated_handler);
-
         let builder = builder.with_handler(messages::Type::GetState, Self::get_state_handler);
 
-        builder.build()
+        let runner = ipc::Runner::new();
+        runner.add_component(Arc::new(builder.build()?));
+        runner.add_component(Arc::new(
+            ipc::ProcessTerminationListener::from_handler_method(
+                &self,
+                Self::process_terminated_handler,
+            )?,
+        ));
+
+        Ok(runner)
     }
 
     fn process_terminated_handler(&self, pid: u64) {

@@ -9,10 +9,10 @@ pub use server::{NetDeviceServer, Server};
 use crate::{ipc, kobject};
 
 /// Build an IPC server from a NetDeviceServer implementation.
-pub fn build_ipc_server<Impl: NetDeviceServer + 'static>(
+pub fn build_ipc_runner<Impl: NetDeviceServer + 'static>(
     inner: Impl,
     port_name: &'static str,
-) -> Result<ipc::Server, kobject::Error> {
+) -> Result<ipc::Runner, kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server(port_name)
+    server.build_ipc_runner(port_name)
 }

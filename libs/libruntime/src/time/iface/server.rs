@@ -21,7 +21,7 @@ impl<Impl: TimeServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
+    pub fn build_ipc_runner(self: &Arc<Self>) -> Result<ipc::Runner, kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<_, TimeServerError, TimeServerError>::new(
             &self,
             messages::PORT_NAME,
@@ -31,7 +31,10 @@ impl<Impl: TimeServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::GetWallTime, Self::get_wall_time_handler);
 
-        builder.build()
+        let runner = ipc::Runner::new();
+        runner.add_component(Arc::new(builder.build()?));
+
+        Ok(runner)
     }
 
     fn get_wall_time_handler(

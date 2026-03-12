@@ -56,6 +56,8 @@ impl Server {
 impl iface::PciServer for Server {
     type Error = iface::PciServerError;
 
+    fn process_terminated(&self, _pid: u64) {}
+
     fn list(
         &self,
         _sender_id: u64,

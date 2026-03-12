@@ -14,6 +14,9 @@ pub use messages::PciServerError;
 pub trait PciServer {
     type Error: Into<PciServerError>;
 
+    /// Called when a process terminates, allowing the server to clean up any resources associated with that process.
+    fn process_terminated(&self, _pid: u64) {}
+
     /// List all PCI devices that match the criteria.
     fn list(
         &self,
@@ -97,7 +100,7 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::Server, kobject::Error> {
+    pub fn build_ipc_runner(self: &Arc<Self>) -> Result<ipc::Runner, kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<_, PciServerError, PciServerError>::new(
             &self,
             messages::PORT_NAME,
@@ -125,7 +128,20 @@ impl<Impl: PciServer + 'static> Server<Impl> {
         );
         let builder = builder.with_handler(messages::Type::EnableMsi, Self::enable_msi_handler);
 
-        builder.build()
+        let runner = ipc::Runner::new();
+        runner.add_component(Arc::new(builder.build()?));
+        runner.add_component(Arc::new(
+            ipc::ProcessTerminationListener::from_handler_method(
+                &self,
+                Self::process_terminated_handler,
+            )?,
+        ));
+
+        Ok(runner)
+    }
+
+    fn process_terminated_handler(&self, pid: u64) {
+        self.inner.process_terminated(pid);
     }
 
     fn list_handler(

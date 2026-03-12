@@ -10,9 +10,9 @@ pub use messages::{PORT_NAME, TimeServerError, Timestamp};
 
 use crate::{ipc, kobject};
 
-pub fn build_ipc_server<Impl: TimeServer + 'static>(
+pub fn build_ipc_runner<Impl: TimeServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Server, kobject::Error> {
+) -> Result<ipc::Runner, kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server()
+    server.build_ipc_runner()
 }

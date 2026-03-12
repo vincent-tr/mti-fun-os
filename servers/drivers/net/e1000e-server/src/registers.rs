@@ -618,3 +618,156 @@ impl TxControl {
         self.0.set_bit(25, value);
     }
 }
+
+/// Interrupt Mask register for the e1000e network device.
+#[repr(transparent)]
+pub struct InterruptMask(u32);
+
+impl From<u32> for InterruptMask {
+    fn from(value: u32) -> Self {
+        InterruptMask(value)
+    }
+}
+
+impl From<InterruptMask> for u32 {
+    fn from(mask: InterruptMask) -> Self {
+        mask.0
+    }
+}
+
+impl fmt::Debug for InterruptMask {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InterruptMask")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field(
+                "transmit_descriptor_written_back",
+                &self.transmit_descriptor_written_back(),
+            )
+            .field("transmit_queue_empty", &self.transmit_queue_empty())
+            .field("link_status_change", &self.link_status_change())
+            .field("receive_sequence_error", &self.receive_sequence_error())
+            .field(
+                "receive_descriptor_minimum_threshold",
+                &self.receive_descriptor_minimum_threshold(),
+            )
+            .field("receive_fifo_overrun", &self.receive_fifo_overrun())
+            .field("receive_timer_interrupt", &self.receive_timer_interrupt())
+            .field(
+                "mdio_access_complete_interrupt",
+                &self.mdio_access_complete_interrupt(),
+            )
+            .field("receiving_config", &self.receiving_config())
+            .field("phy_interrupt", &self.phy_interrupt())
+            .field(
+                "transmit_descriptor_low_threshold",
+                &self.transmit_descriptor_low_threshold(),
+            )
+            .field(
+                "small_receive_packet_detection",
+                &self.small_receive_packet_detection(),
+            )
+            .finish()
+    }
+}
+
+impl InterruptMask {
+    pub const OFFSET: usize = 0x00D0;
+
+    pub fn transmit_descriptor_written_back(&self) -> bool {
+        self.0.get_bit(0)
+    }
+
+    pub fn set_transmit_descriptor_written_back(&mut self, value: bool) {
+        self.0.set_bit(0, value);
+    }
+
+    pub fn transmit_queue_empty(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn set_transmit_queue_empty(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn link_status_change(&self) -> bool {
+        self.0.get_bit(2)
+    }
+
+    pub fn set_link_status_change(&mut self, value: bool) {
+        self.0.set_bit(2, value);
+    }
+
+    pub fn receive_sequence_error(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn set_receive_sequence_error(&mut self, value: bool) {
+        self.0.set_bit(3, value);
+    }
+
+    pub fn receive_descriptor_minimum_threshold(&self) -> bool {
+        self.0.get_bit(4)
+    }
+
+    pub fn set_receive_descriptor_minimum_threshold(&mut self, value: bool) {
+        self.0.set_bit(4, value);
+    }
+
+    pub fn receive_fifo_overrun(&self) -> bool {
+        self.0.get_bit(6)
+    }
+
+    pub fn set_receive_fifo_overrun(&mut self, value: bool) {
+        self.0.set_bit(6, value);
+    }
+
+    pub fn receive_timer_interrupt(&self) -> bool {
+        self.0.get_bit(7)
+    }
+
+    pub fn set_receive_timer_interrupt(&mut self, value: bool) {
+        self.0.set_bit(7, value);
+    }
+
+    pub fn mdio_access_complete_interrupt(&self) -> bool {
+        self.0.get_bit(9)
+    }
+
+    pub fn set_mdio_access_complete_interrupt(&mut self, value: bool) {
+        self.0.set_bit(9, value);
+    }
+
+    pub fn receiving_config(&self) -> bool {
+        self.0.get_bit(10)
+    }
+
+    pub fn set_receiving_config(&mut self, value: bool) {
+        self.0.set_bit(10, value);
+    }
+
+    pub fn phy_interrupt(&self) -> bool {
+        self.0.get_bit(12)
+    }
+
+    pub fn set_phy_interrupt(&mut self, value: bool) {
+        self.0.set_bit(12, value);
+    }
+
+    // GPI - General Purpose Interrupts
+
+    pub fn transmit_descriptor_low_threshold(&self) -> bool {
+        self.0.get_bit(15)
+    }
+
+    pub fn set_transmit_descriptor_low_threshold(&mut self, value: bool) {
+        self.0.set_bit(15, value);
+    }
+
+    pub fn small_receive_packet_detection(&self) -> bool {
+        self.0.get_bit(16)
+    }
+
+    pub fn set_small_receive_packet_detection(&mut self, value: bool) {
+        self.0.set_bit(16, value);
+    }
+}

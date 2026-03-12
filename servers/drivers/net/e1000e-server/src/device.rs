@@ -1,4 +1,4 @@
-use core::panic;
+use core::{fmt, panic};
 
 use crate::registers;
 use alloc::{boxed::Box, string::String};
@@ -13,10 +13,11 @@ use libruntime::{
 use log::error;
 
 /// Represents an E1000e network device.
+#[derive(Debug)]
 pub struct E1000eDevice {
     name: String,
     pci_device: pci::PciDevice,
-    link_status_change: Box<dyn Fn(bool) + Send + Sync + 'static>,
+    link_status: LinkStatus,
 }
 
 impl NetDevice for E1000eDevice {
@@ -57,18 +58,51 @@ impl NetDevice for E1000eDevice {
         Ok(Box::new(Self {
             name: String::from(name),
             pci_device,
-            link_status_change: Box::new(link_status_change_callback),
+            link_status: LinkStatus::new(link_status_change_callback),
         }))
     }
 
     fn destroy(self) {}
 
     fn get_link_status(&self) -> Result<bool, Self::Error> {
-        todo!()
+        Ok(self.link_status.is_up())
     }
 
     fn get_mac_address(&self) -> Result<MacAddress, Self::Error> {
         todo!()
+    }
+}
+
+struct LinkStatus {
+    is_up: bool,
+    change: Box<dyn Fn(bool) + Send + Sync + 'static>,
+}
+
+impl fmt::Debug for LinkStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LinkStatus")
+            .field("is_up", &self.is_up)
+            .finish()
+    }
+}
+
+impl LinkStatus {
+    pub fn new(change_callback: impl Fn(bool) + Send + Sync + 'static) -> Self {
+        Self {
+            is_up: false,
+            change: Box::new(change_callback),
+        }
+    }
+
+    pub fn update(&mut self, new_status: bool) {
+        if self.is_up != new_status {
+            self.is_up = new_status;
+            (self.change)(new_status);
+        }
+    }
+
+    pub fn is_up(&self) -> bool {
+        self.is_up
     }
 }
 

@@ -10,7 +10,7 @@ mod process;
 mod server;
 mod state;
 
-use libruntime::process::iface::build_ipc_runner;
+use libruntime::{process::iface::setup_ipc_server, service};
 use server::Server;
 
 // Note: process server should not use libruntime Process API:
@@ -20,7 +20,8 @@ use server::Server;
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new().expect("failed to create process-server");
-    let ipc_runner = build_ipc_runner(server).expect("failed to build process-server IPC server");
+    let runner = service::Runner::new();
+    setup_ipc_server(server, &runner).expect("failed to build process-server IPC server");
 
-    ipc_runner.run()
+    runner.run()
 }

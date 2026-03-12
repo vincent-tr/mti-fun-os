@@ -4,6 +4,7 @@ use crate::{
     ipc,
     kobject::{self, KObject},
     net::types::MacAddress,
+    service,
 };
 use alloc::sync::Arc;
 
@@ -54,10 +55,11 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_runner(
+    pub fn setup_ipc_server(
         self: &Arc<Self>,
         port_name: &'static str,
-    ) -> Result<ipc::Runner, kobject::Error> {
+        runner: &service::Runner,
+    ) -> Result<(), kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<
             _,
             messages::NetDeviceError,
@@ -75,10 +77,9 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::GetMacAddress, Self::get_mac_address_handler);
 
-        let runner = ipc::Runner::new();
         runner.add_component(Arc::new(builder.build()?));
 
-        Ok(runner)
+        Ok(())
     }
 
     fn create_handler(

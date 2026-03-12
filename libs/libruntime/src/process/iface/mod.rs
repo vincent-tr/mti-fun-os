@@ -20,7 +20,7 @@ pub use messages::{
     ProcessStatus, ProcessTerminatedNotification,
 };
 
-use crate::{ipc, kobject};
+use crate::{kobject, service};
 
 /// Process startup information.
 #[derive(Debug)]
@@ -38,9 +38,10 @@ pub struct StartupInfo {
     pub symbols: SymBlock,
 }
 
-pub fn build_ipc_runner<Impl: ProcessServer + 'static>(
+pub fn setup_ipc_server<Impl: ProcessServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Runner, kobject::Error> {
+    runner: &service::Runner,
+) -> Result<(), kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_runner()
+    server.setup_ipc_server(runner)
 }

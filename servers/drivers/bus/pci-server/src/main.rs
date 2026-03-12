@@ -9,7 +9,7 @@ mod pci;
 mod server;
 mod state;
 
-use libruntime::drivers::pci::iface::build_ipc_runner;
+use libruntime::{drivers::pci::iface::setup_ipc_server, service};
 
 use crate::{pci::ConfigurationSpace, server::Server};
 
@@ -20,7 +20,8 @@ pub fn main() -> i32 {
     unsafe { ConfigurationSpace::init() };
 
     let server = Server::new();
-    let ipc_runner = build_ipc_runner(server).expect("failed to build PCI server IPC runner");
+    let runner = service::Runner::new();
+    setup_ipc_server(server, &runner).expect("failed to build PCI IPC server");
 
-    ipc_runner.run()
+    runner.run()
 }

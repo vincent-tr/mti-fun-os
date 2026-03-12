@@ -1,10 +1,10 @@
-use super::{
-    RunnableComponent,
-    messages::{
-        KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
-    },
+use super::messages::{
+    KHandles, QueryHeader, QueryMessage, ReplyErrorMessage, ReplyHeader, ReplySuccessMessage,
 };
-use crate::kobject::{self, KObject};
+use crate::{
+    kobject::{self, KObject},
+    service,
+};
 use alloc::{boxed::Box, sync::Arc};
 use core::{fmt, marker::PhantomData};
 use hashbrown::HashMap;
@@ -200,7 +200,7 @@ impl kobject::KWaitable for Server {
     }
 }
 
-impl RunnableComponent for Server {
+impl service::RunnableComponent for Server {
     fn process(&self) {
         let message = self
             .receiver

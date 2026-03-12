@@ -5,16 +5,17 @@ mod server;
 
 pub use messages::{PORT_NAME, STATE_SIZE, StateServerError};
 
-use crate::{ipc, kobject};
+use crate::{kobject, service};
 
 use server::Server;
 pub use server::StateServer;
 
 pub use client::{Client, StateServerCallError};
 
-pub fn build_ipc_runner<Impl: StateServer + 'static>(
+pub fn setup_ipc_server<Impl: StateServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Runner, kobject::Error> {
+    runner: &service::Runner,
+) -> Result<(), kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_runner()
+    server.setup_ipc_server(runner)
 }

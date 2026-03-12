@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use libruntime::time::iface::build_ipc_runner;
+use libruntime::{service, time::iface::setup_ipc_server};
 
 use crate::server::Server;
 
@@ -14,7 +14,8 @@ mod server;
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new();
-    let ipc_runner = build_ipc_runner(server).expect("failed to build time-server IPC server");
+    let runner = service::Runner::new();
+    setup_ipc_server(server, &runner).expect("failed to build time-server IPC server");
 
-    ipc_runner.run()
+    runner.run()
 }

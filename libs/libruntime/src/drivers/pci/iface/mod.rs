@@ -12,11 +12,12 @@ pub use server::{PciServer, PciServerError};
 
 pub use messages::{EnableMsiData, PORT_NAME};
 
-use crate::{ipc, kobject};
+use crate::{kobject, service};
 
-pub fn build_ipc_runner<Impl: PciServer + 'static>(
+pub fn setup_ipc_server<Impl: PciServer + 'static>(
     inner: Impl,
-) -> Result<ipc::Runner, kobject::Error> {
+    runner: &service::Runner,
+) -> Result<(), kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_runner()
+    server.setup_ipc_server(runner)
 }

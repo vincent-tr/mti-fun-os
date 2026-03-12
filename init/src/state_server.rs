@@ -5,21 +5,22 @@ use hashbrown::HashMap;
 
 use alloc::string::String;
 use libruntime::{
-    kobject,
-    state::iface::{STATE_SIZE, StateServer, StateServerError, build_ipc_runner},
+    kobject, service,
+    state::iface::{STATE_SIZE, StateServer, StateServerError, setup_ipc_server},
     sync::RwLock,
 };
 use log::info;
 
 pub fn start() {
     let server = Server::new();
-    let ipc_runner = build_ipc_runner(server).expect("failed to build state-server IPC server");
+    let runner = service::Runner::new();
+    setup_ipc_server(server, &runner).expect("failed to build state-server IPC server");
 
     let mut options = kobject::ThreadOptions::default();
     options.name("state-server");
 
     let entry = move || {
-        ipc_runner.run();
+        runner.run();
     };
 
     kobject::Thread::create(entry, options).expect("failed to start state-server thread");

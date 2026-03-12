@@ -1,4 +1,4 @@
-use crate::{ipc, kobject, time::DateTime};
+use crate::{ipc, kobject, service, time::DateTime};
 use alloc::sync::Arc;
 
 use super::{TimeServerError, messages};
@@ -21,7 +21,10 @@ impl<Impl: TimeServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_runner(self: &Arc<Self>) -> Result<ipc::Runner, kobject::Error> {
+    pub fn setup_ipc_server(
+        self: &Arc<Self>,
+        runner: &service::Runner,
+    ) -> Result<(), kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<_, TimeServerError, TimeServerError>::new(
             &self,
             messages::PORT_NAME,
@@ -31,10 +34,9 @@ impl<Impl: TimeServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::GetWallTime, Self::get_wall_time_handler);
 
-        let runner = ipc::Runner::new();
         runner.add_component(Arc::new(builder.build()?));
 
-        Ok(runner)
+        Ok(())
     }
 
     fn get_wall_time_handler(

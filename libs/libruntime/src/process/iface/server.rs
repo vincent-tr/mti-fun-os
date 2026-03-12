@@ -3,6 +3,7 @@ use core::fmt;
 use crate::{
     ipc,
     kobject::{self, KObject},
+    service,
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 use log::error;
@@ -89,7 +90,10 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_runner(self: &Arc<Self>) -> Result<ipc::Runner, kobject::Error> {
+    pub fn setup_ipc_server(
+        self: &Arc<Self>,
+        runner: &service::Runner,
+    ) -> Result<(), kobject::Error> {
         let builder = ipc::ManagedServerBuilder::<_, ProcessServerError, ProcessServerError>::new(
             &self,
             messages::PORT_NAME,
@@ -140,7 +144,6 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
             Self::unregister_process_terminated_notification_handler,
         );
 
-        let runner = ipc::Runner::new();
         runner.add_component(Arc::new(builder.build()?));
         runner.add_component(Arc::new(
             ipc::ProcessTerminationListener::from_handler_method(
@@ -149,7 +152,7 @@ impl<Impl: ProcessServer + 'static> Server<Impl> {
             )?,
         ));
 
-        Ok(runner)
+        Ok(())
     }
 
     fn process_terminated_handler(&self, pid: u64) {

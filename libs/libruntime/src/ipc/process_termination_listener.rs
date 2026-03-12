@@ -1,5 +1,4 @@
-use super::RunnableComponent;
-use crate::kobject;
+use crate::{kobject, service};
 use alloc::{boxed::Box, sync::Arc};
 use core::fmt;
 
@@ -19,7 +18,7 @@ impl kobject::KWaitable for ProcessTerminationListener {
     }
 }
 
-impl RunnableComponent for ProcessTerminationListener {
+impl service::RunnableComponent for ProcessTerminationListener {
     fn process(&self) {
         let event = self
             .listener

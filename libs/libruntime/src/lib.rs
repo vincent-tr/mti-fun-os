@@ -24,6 +24,7 @@ mod logging;
 pub mod memory;
 pub mod net;
 pub mod process;
+pub mod service;
 pub mod state;
 pub mod sync;
 pub mod time;

@@ -1,4 +1,7 @@
-use core::{fmt, panic};
+use core::{
+    fmt, panic,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use crate::registers;
 use alloc::{boxed::Box, string::String};
@@ -74,14 +77,14 @@ impl NetDevice for E1000eDevice {
 }
 
 struct LinkStatus {
-    is_up: bool,
+    is_up: AtomicBool,
     change: Box<dyn Fn(bool) + Send + Sync + 'static>,
 }
 
 impl fmt::Debug for LinkStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LinkStatus")
-            .field("is_up", &self.is_up)
+            .field("is_up", &self.is_up())
             .finish()
     }
 }
@@ -89,20 +92,20 @@ impl fmt::Debug for LinkStatus {
 impl LinkStatus {
     pub fn new(change_callback: impl Fn(bool) + Send + Sync + 'static) -> Self {
         Self {
-            is_up: false,
+            is_up: AtomicBool::new(false),
             change: Box::new(change_callback),
         }
     }
 
     pub fn update(&mut self, new_status: bool) {
-        if self.is_up != new_status {
-            self.is_up = new_status;
+        let old_status = self.is_up.swap(new_status, Ordering::SeqCst);
+        if old_status != new_status {
             (self.change)(new_status);
         }
     }
 
     pub fn is_up(&self) -> bool {
-        self.is_up
+        self.is_up.load(Ordering::SeqCst)
     }
 }
 

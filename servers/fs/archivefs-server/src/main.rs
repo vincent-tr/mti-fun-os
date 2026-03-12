@@ -9,7 +9,7 @@ mod instance;
 mod server;
 mod state;
 
-use libruntime::file::fs::iface::build_ipc_server;
+use libruntime::{r#async, file::fs::iface::build_ipc_server};
 
 use crate::server::Server;
 
@@ -19,5 +19,10 @@ pub fn main() -> i32 {
     let ipc_server = build_ipc_server(server, "file.fs.archive")
         .expect("failed to build archivefs-server IPC server");
 
-    ipc_server.run()
+    ipc_server.start();
+
+    r#async::block_on();
+
+    // Server should never complete
+    unreachable!();
 }

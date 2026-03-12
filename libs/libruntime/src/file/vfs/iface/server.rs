@@ -117,14 +117,14 @@ impl<Impl: VfsServer + 'static> Server<Impl> {
         Arc::new(Self { inner })
     }
 
-    pub fn build_ipc_server(self: &Arc<Self>) -> Result<ipc::AsyncServer, kobject::Error> {
+    pub fn build_ipc_server(
+        self: &Arc<Self>,
+    ) -> Result<(ipc::AsyncServer, ipc::AsyncProcessTerminationListener), kobject::Error> {
         let builder = ipc::ManagedAsyncServerBuilder::<_, VfsServerError, VfsServerError>::new(
             &self,
             messages::PORT_NAME,
             messages::VERSION,
         );
-        let builder = builder.with_process_exit_handler(Self::process_terminated_handler);
-
         let builder = builder.with_handler(messages::Type::Open, Self::open_handler);
         let builder = builder.with_handler(messages::Type::Close, Self::close_handler);
         let builder = builder.with_handler(messages::Type::Stat, Self::stat_handler);
@@ -145,7 +145,13 @@ impl<Impl: VfsServer + 'static> Server<Impl> {
         let builder = builder.with_handler(messages::Type::Unmount, Self::unmount_handler);
         let builder = builder.with_handler(messages::Type::ListMounts, Self::list_mounts_handler);
 
-        builder.build()
+        let listener = ipc::AsyncProcessTerminationListener::from_handler_method(
+            self,
+            Self::process_terminated_handler,
+        )?;
+        let server = builder.build()?;
+
+        Ok((server, listener))
     }
 
     async fn process_terminated_handler(self: Arc<Self>, pid: u64) {

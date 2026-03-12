@@ -15,7 +15,6 @@ pub struct AsyncServerBuilder {
     name: &'static str,
     version: u16,
     handlers: HashMap<u16, Box<dyn MessageHandler>>,
-    process_exit_handler: Option<Box<dyn ProcessTerminationHandler>>,
 }
 
 impl AsyncServerBuilder {
@@ -25,18 +24,7 @@ impl AsyncServerBuilder {
             name,
             version,
             handlers: HashMap::new(),
-            process_exit_handler: None,
         }
-    }
-
-    /// Sets a handler for process exit notifications.
-    pub fn with_process_exit_handler<Fut, F>(mut self, handler: F) -> Self
-    where
-        Fut: Future<Output = ()> + Send + 'static,
-        F: Fn(u64) -> Fut + Sync + Send + 'static,
-    {
-        self.process_exit_handler = Some(Box::new(ProcessTerminationHandlerImpl::new(handler)));
-        self
     }
 
     /// Adds a message handler without reply for the given message type.
@@ -83,12 +71,7 @@ impl AsyncServerBuilder {
 
     /// Builds the server.
     pub fn build(self) -> Result<AsyncServer, kobject::Error> {
-        AsyncServer::new(
-            self.name,
-            self.version,
-            self.handlers,
-            self.process_exit_handler,
-        )
+        AsyncServer::new(self.name, self.version, self.handlers)
     }
 }
 
@@ -98,10 +81,6 @@ impl fmt::Debug for AsyncServerBuilder {
             .field("name", &self.name)
             .field("version", &self.version)
             .field("handlers", &self.handlers.len())
-            .field(
-                "process_exit_handler",
-                &self.process_exit_handler.as_ref().map(|_| "Fn"),
-            )
             .finish()
     }
 }
@@ -132,28 +111,6 @@ where
             manager: manager.clone(),
             _phantom: PhantomData,
         }
-    }
-
-    /// Sets a handler for process exit notifications, as a server method.
-    pub fn with_process_exit_handler<Fut, F>(mut self, method: F) -> Self
-    where
-        Fut: Future<Output = ()> + Send + 'static,
-        F: Fn(Arc<Manager>, u64) -> Fut + Sync + Send + 'static,
-    {
-        let manager = self.manager.clone();
-        let method = Arc::new(method);
-
-        let handler = move |pid| {
-            let instance = manager.clone();
-            let method = method.clone();
-
-            async move {
-                method(instance, pid).await;
-            }
-        };
-
-        self.builder = self.builder.with_process_exit_handler(handler);
-        self
     }
 
     /// Adds a message handler without reply for the given message type, as a server method.
@@ -238,8 +195,9 @@ where
 #[derive(Debug)]
 pub struct AsyncServer {
     sender: Option<kobject::PortSender>, // Keep sender alive for named port lookup
-    server_port_worker: ServerPortWorker,
-    process_listener_worker: Option<ProcessTerminationWorker>,
+    receiver: kobject::PortReceiver,
+    version: u16,
+    handlers: HashMap<u16, Box<dyn MessageHandler>>,
 }
 
 impl AsyncServer {
@@ -247,23 +205,14 @@ impl AsyncServer {
         name: &str,
         version: u16,
         handlers: HashMap<u16, Box<dyn MessageHandler>>,
-        process_exit_handler: Option<Box<dyn ProcessTerminationHandler>>,
     ) -> Result<Self, kobject::Error> {
         let (receiver, sender) = kobject::Port::create(Some(name))?;
 
-        let server_port_worker = ServerPortWorker::new(receiver, version, handlers);
-
-        let process_listener_worker = if let Some(handler) = process_exit_handler {
-            let listener = kobject::ProcessListener::create(kobject::ProcessListenerFilter::All)?;
-            Some(ProcessTerminationWorker::new(listener, handler))
-        } else {
-            None
-        };
-
         Ok(Self {
             sender: Some(sender),
-            server_port_worker,
-            process_listener_worker,
+            receiver,
+            version,
+            handlers,
         })
     }
 
@@ -274,80 +223,7 @@ impl AsyncServer {
         self.sender = None;
     }
 
-    /// Runs the server.
-    pub fn run(self) -> ! {
-        self.server_port_worker.start();
-
-        if let Some(worker) = self.process_listener_worker {
-            worker.start();
-        }
-
-        r#async::block_on();
-
-        // Port receiver should never complete
-        // Process listener (if used) should never complete
-        unreachable!();
-    }
-}
-
-#[derive(Debug)]
-struct ProcessTerminationWorker {
-    process_listener: kobject::ProcessListener,
-    process_exit_handler: Box<dyn ProcessTerminationHandler>,
-}
-
-impl ProcessTerminationWorker {
-    pub fn new(
-        process_listener: kobject::ProcessListener,
-        process_exit_handler: Box<dyn ProcessTerminationHandler>,
-    ) -> Self {
-        Self {
-            process_listener,
-            process_exit_handler,
-        }
-    }
-
-    pub fn start(self) {
-        r#async::spawn(async move {
-            self.run().await;
-        });
-    }
-
-    async fn run(self) {
-        loop {
-            r#async::wait(&self.process_listener).await;
-            let event = self
-                .process_listener
-                .receive()
-                .expect("failed to receive process event");
-
-            if let kobject::ProcessEventType::Terminated = event.r#type {
-                self.process_exit_handler.handle_termination(event.pid);
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ServerPortWorker {
-    receiver: kobject::PortReceiver,
-    version: u16,
-    handlers: HashMap<u16, Box<dyn MessageHandler>>,
-}
-
-impl ServerPortWorker {
-    pub fn new(
-        receiver: kobject::PortReceiver,
-        version: u16,
-        handlers: HashMap<u16, Box<dyn MessageHandler>>,
-    ) -> Self {
-        Self {
-            receiver,
-            version,
-            handlers,
-        }
-    }
-
+    /// Start the server.
     pub fn start(self) {
         r#async::spawn(async move {
             self.run().await;
@@ -376,53 +252,6 @@ impl ServerPortWorker {
 
             handler.handle_message(message);
         }
-    }
-}
-
-trait ProcessTerminationHandler: fmt::Debug + Sync + Send {
-    fn handle_termination(&self, pid: u64);
-}
-
-struct ProcessTerminationHandlerImpl<F, Fut>
-where
-    F: Fn(u64) -> Fut + Sync + Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    handler: Arc<F>,
-}
-
-impl<F, Fut> ProcessTerminationHandlerImpl<F, Fut>
-where
-    F: Fn(u64) -> Fut + Sync + Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    pub fn new(handler: F) -> Self {
-        Self {
-            handler: Arc::new(handler),
-        }
-    }
-}
-
-impl<F, Fut> ProcessTerminationHandler for ProcessTerminationHandlerImpl<F, Fut>
-where
-    F: Fn(u64) -> Fut + Sync + Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    fn handle_termination(&self, pid: u64) {
-        let handler = self.handler.clone();
-        r#async::spawn(async move {
-            handler(pid).await;
-        });
-    }
-}
-
-impl<F, Fut> fmt::Debug for ProcessTerminationHandlerImpl<F, Fut>
-where
-    F: Fn(u64) -> Fut + Sync + Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProcessTerminationHandlerImpl").finish()
     }
 }
 

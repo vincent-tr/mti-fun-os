@@ -12,14 +12,21 @@ mod server;
 mod state;
 mod vnode;
 
-use libruntime::file::vfs::iface::build_ipc_server;
+use libruntime::{r#async, file::vfs::iface::build_ipc_server};
 
 use crate::server::Server;
 
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new();
-    let ipc_server = build_ipc_server(server).expect("failed to build vfs-server IPC server");
+    let (ipc_server, ipc_process_termination_listener) =
+        build_ipc_server(server).expect("failed to build vfs-server IPC server");
 
-    ipc_server.run()
+    ipc_server.start();
+    ipc_process_termination_listener.start();
+
+    r#async::block_on();
+
+    // Server should never complete
+    unreachable!();
 }

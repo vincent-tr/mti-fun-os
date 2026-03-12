@@ -15,7 +15,7 @@ use crate::{ipc, kobject};
 
 pub fn build_ipc_server<Impl: VfsServer + 'static>(
     inner: Impl,
-) -> Result<ipc::AsyncServer, kobject::Error> {
+) -> Result<(ipc::AsyncServer, ipc::AsyncProcessTerminationListener), kobject::Error> {
     let server = Server::new(inner);
     server.build_ipc_server()
 }

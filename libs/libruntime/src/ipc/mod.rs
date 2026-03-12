@@ -1,3 +1,4 @@
+mod async_process_termination_listener;
 mod async_server;
 mod buffer;
 mod client;
@@ -6,6 +7,7 @@ mod messages;
 mod process_termination_listener;
 mod server;
 
+pub use async_process_termination_listener::AsyncProcessTerminationListener;
 pub use async_server::{AsyncServer, AsyncServerBuilder, ManagedAsyncServerBuilder};
 pub use buffer::messages as buffer_messages;
 pub use buffer::{Buffer, BufferView, BufferViewAccess};

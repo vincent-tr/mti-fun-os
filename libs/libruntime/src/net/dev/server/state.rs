@@ -7,7 +7,7 @@ use crate::{ipc, state};
 const UNSET_VERSION: u32 = 0;
 const STATE_VERSION: u32 = 1;
 
-const STATE_NAME: &str = "dev-net-server";
+const STATE_NAME: &str = "server.driver.net";
 
 /// Global common state of any network device server.
 #[derive(Debug)]

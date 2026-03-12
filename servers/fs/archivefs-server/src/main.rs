@@ -16,7 +16,7 @@ use crate::server::Server;
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let server = Server::new();
-    let ipc_server = build_ipc_server(server, "fs.archive")
+    let ipc_server = build_ipc_server(server, "file.fs.archive")
         .expect("failed to build archivefs-server IPC server");
 
     ipc_server.run()

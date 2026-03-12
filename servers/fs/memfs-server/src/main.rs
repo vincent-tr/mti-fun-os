@@ -16,7 +16,7 @@ use crate::server::Server;
 pub fn main() -> i32 {
     let server = Server::new();
     let ipc_server =
-        build_ipc_server(server, "fs.mem").expect("failed to build memfs-server IPC server");
+        build_ipc_server(server, "file.fs.mem").expect("failed to build memfs-server IPC server");
 
     ipc_server.run()
 }

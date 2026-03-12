@@ -564,7 +564,7 @@ fn test_mounts() {
         assert!(root_mount.is_some(), "Root should be mounted");
         assert_eq!(
             root_mount.unwrap().fs_port_name,
-            "fs.mem",
+            "file.fs.mem",
             "Root should be memfs"
         );
 
@@ -577,7 +577,7 @@ fn test_mounts() {
         let perms = file::Permissions::READ | file::Permissions::WRITE | file::Permissions::EXECUTE;
         file::Directory::create("/mountpoint", perms).expect("Failed to create mount point");
 
-        file::mount("/mountpoint", "fs.mem", &[]).expect("Failed to mount filesystem");
+        file::mount("/mountpoint", "file.fs.mem", &[]).expect("Failed to mount filesystem");
 
         // Verify it's in the mount list
         let mounts = file::list_mounts().expect("Failed to list mounts");

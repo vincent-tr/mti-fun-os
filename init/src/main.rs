@@ -81,8 +81,8 @@ fn start_core_servers(info: &InitInfo) {
     info!("Current time: {}", time::get_wall_time());
 
     helper.start_server("servers/core/vfs-server", file::vfs::iface::PORT_NAME);
-    helper.start_server("servers/fs/memfs-server", "fs.mem");
-    helper.start_server("servers/fs/archivefs-server", "fs.archive");
+    helper.start_server("servers/fs/memfs-server", "file.fs.mem");
+    helper.start_server("servers/fs/archivefs-server", "file.fs.archive");
 }
 
 fn setup_initial_filesystem(info: &InitInfo) {
@@ -90,7 +90,7 @@ fn setup_initial_filesystem(info: &InitInfo) {
 
     let args = Box::new([0u8; 0]);
 
-    file::mount("/", "fs.mem", args.as_slice()).expect("Could not mount memfs");
+    file::mount("/", "file.fs.mem", args.as_slice()).expect("Could not mount memfs");
 
     file::Directory::create(
         "/mnt",
@@ -104,7 +104,7 @@ fn setup_initial_filesystem(info: &InitInfo) {
     )
     .expect("Could not create /mnt/archive directory");
 
-    file::mount("/mnt/archive", "fs.archive", info.archive_buffer())
+    file::mount("/mnt/archive", "file.fs.archive", info.archive_buffer())
         .expect("Could not mount archivefs");
 
     debug!("Initial filesystem setup complete");

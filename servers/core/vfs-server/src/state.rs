@@ -7,7 +7,7 @@ use libruntime::{ipc, state};
 const UNSET_VERSION: u32 = 0;
 const STATE_VERSION: u32 = 1;
 
-const STATE_NAME: &str = "vfs-server";
+const STATE_NAME: &str = "servers.file.vfs";
 
 /// Global state of the vfs server, including all processes and related information.
 #[derive(Debug)]

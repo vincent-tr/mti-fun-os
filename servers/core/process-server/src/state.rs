@@ -7,7 +7,7 @@ use libruntime::{ipc, state};
 const UNSET_VERSION: u32 = 0;
 const STATE_VERSION: u32 = 1;
 
-const STATE_NAME: &str = "process-server";
+const STATE_NAME: &str = "server.process";
 
 /// Global state of the process server, including all processes and related information.
 #[derive(Debug)]

@@ -7,7 +7,7 @@ use libruntime::{ipc, state};
 const UNSET_VERSION: u32 = 0;
 const STATE_VERSION: u32 = 1;
 
-const STATE_NAME: &str = "pci-server";
+const STATE_NAME: &str = "server.driver.bus.pci";
 
 /// Global state of the pci server, including all processes and related information.
 #[derive(Debug)]

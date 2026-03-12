@@ -7,7 +7,7 @@ use libruntime::{ipc, state};
 const UNSET_VERSION: u32 = 0;
 const STATE_VERSION: u32 = 1;
 
-const STATE_NAME: &str = "memfs-server";
+const STATE_NAME: &str = "server.fs.mem";
 
 /// Global state of the memfs server, including all processes and related information.
 #[derive(Debug)]

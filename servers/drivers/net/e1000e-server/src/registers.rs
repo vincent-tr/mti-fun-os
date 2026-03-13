@@ -305,6 +305,142 @@ impl From<u8> for PcixSpeed {
 }
 
 #[repr(transparent)]
+pub struct EepromControlData(u32);
+
+impl From<u32> for EepromControlData {
+    fn from(value: u32) -> Self {
+        EepromControlData(value)
+    }
+}
+
+impl From<EepromControlData> for u32 {
+    fn from(control: EepromControlData) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for EepromControlData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EepromControlData")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("clock_input", &self.clock_input())
+            .field("chip_select", &self.chip_select())
+            .field("data_input", &self.data_input())
+            .field("data_output", &self.data_output())
+            .field("flash_write_enabled", &self.flash_write_enabled())
+            .field("access_request", &self.access_request())
+            .field("access_grant", &self.access_grant())
+            .field("present", &self.present())
+            .field("size", &self.size())
+            .field("type", &self.r#type())
+            .finish()
+    }
+}
+
+impl EepromControlData {
+    pub const OFFSET: usize = 0x00010;
+
+    pub fn clock_input(&self) -> bool {
+        self.0.get_bit(0)
+    }
+
+    pub fn set_clock_input(&mut self, value: bool) {
+        self.0.set_bit(0, value);
+    }
+
+    pub fn chip_select(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn set_chip_select(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn data_input(&self) -> bool {
+        self.0.get_bit(2)
+    }
+
+    pub fn set_data_input(&mut self, value: bool) {
+        self.0.set_bit(2, value);
+    }
+
+    pub fn data_output(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    // No setter for data output, as it's read-only
+
+    pub fn flash_write_enabled(&self) -> bool {
+        let value = self.0.get_bits(4..6);
+        match value {
+            1 => false,
+            2 => true,
+            _ => panic!("Invalid flash write control  value: {}", value),
+        }
+    }
+
+    pub fn enable_flash_write(&mut self, value: bool) {
+        let value = if value { 2 } else { 1 };
+        self.0.set_bits(4..6, value);
+    }
+
+    pub fn access_request(&self) -> bool {
+        self.0.get_bit(6)
+    }
+
+    pub fn set_access_request(&mut self, value: bool) {
+        self.0.set_bit(6, value);
+    }
+
+    pub fn access_grant(&self) -> bool {
+        self.0.get_bit(7)
+    }
+
+    // No setter for access grant, as it's read-only
+
+    pub fn present(&self) -> bool {
+        self.0.get_bit(8)
+    }
+
+    // No setter for present, as it's read-only
+
+    pub fn size(&self) -> usize {
+        if self.0.get_bit(9) {
+            // 4096 bits
+            512
+        } else {
+            // 1024 bits
+            128
+        }
+    }
+
+    // No setter for size, as it's read-only
+
+    // TODO size bit 10 ??
+
+    pub fn r#type(&self) -> EEpromType {
+        EEpromType::from(self.0.get_bit(13) as u8)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum EEpromType {
+    Microwire = 0,
+    Spi = 1,
+}
+
+impl From<u8> for EEpromType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => EEpromType::Microwire,
+            1 => EEpromType::Spi,
+            _ => panic!("Invalid eeprom type: {}", value),
+        }
+    }
+}
+
+#[repr(transparent)]
 pub struct RxControl(u32);
 
 impl From<u32> for RxControl {

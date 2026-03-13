@@ -110,6 +110,16 @@ impl PciDevice {
         CLIENT.get_header(self.device.handle)
     }
 
+    /// Enable (or disable) the device
+    pub fn enable(
+        &self,
+        memory: bool,
+        io: bool,
+        bus_master: bool,
+    ) -> Result<(), PciServerCallError> {
+        CLIENT.enable(self.device.handle, memory, io, bus_master)
+    }
+
     /// List the capabilities of this device.
     pub fn capabilities(&self) -> Result<Vec<CapabilityInfo>, PciServerCallError> {
         CLIENT.list_capabilities(self.device.handle)

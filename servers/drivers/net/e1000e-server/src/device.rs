@@ -42,7 +42,6 @@ impl NetDevice for E1000eDevice {
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
     ) -> Result<Box<Self>, Self::Error> {
         let pci_device = pci::PciDevice::open(pci_address).into_netdev_err()?;
-
         let header = pci_device.header().into_netdev_err()?;
 
         let Some(pci::Bar::Memory(bar0)) = header.bars[0] else {
@@ -53,32 +52,14 @@ impl NetDevice for E1000eDevice {
             return Err(NetDeviceError::DeviceError);
         };
 
-        let region = MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?;
-
-        let control = registers::Control::from(region.read(registers::Control::OFFSET));
-        let status = registers::Status::from(region.read(registers::Status::OFFSET));
-        let rx_control = registers::RxControl::from(region.read(registers::RxControl::OFFSET));
-        let tx_control = registers::TxControl::from(region.read(registers::TxControl::OFFSET));
-
-        log::debug!("Control: {:?}", control);
-        log::debug!("Status: {:?}", status);
-        log::debug!("RxControl: {:?}", rx_control);
-        log::debug!("TxControl: {:?}", tx_control);
-
         let device = Self {
             name: String::from(name),
             pci_device,
-            mmio_region: region,
+            mmio_region: MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?,
             link_status: LinkStatus::new(link_status_change_callback),
         };
 
-        // Read and log the MAC address from EEPROM
-        match device.get_mac_address() {
-            Ok(mac) => log::info!("MAC address: {}", mac),
-            Err(e) => log::error!("Failed to read MAC address: {:?}", e),
-        }
-
-        panic!("E1000e device creation not implemented yet");
+        device.init()?;
 
         Ok(Box::new(device))
     }
@@ -104,6 +85,32 @@ impl NetDevice for E1000eDevice {
         let mac = MacAddress::from([b0, b1, b2, b3, b4, b5]);
 
         Ok(mac)
+    }
+}
+
+impl E1000eDevice {
+    fn init(&self) -> Result<(), NetDeviceError> {
+        self.pci_device.enable(true, true, true).into_netdev_err()?;
+
+        let control = registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+        let status = registers::Status::from(self.mmio_region.read(registers::Status::OFFSET));
+        let rx_control =
+            registers::RxControl::from(self.mmio_region.read(registers::RxControl::OFFSET));
+        let tx_control =
+            registers::TxControl::from(self.mmio_region.read(registers::TxControl::OFFSET));
+
+        log::debug!("Control: {:?}", control);
+        log::debug!("Status: {:?}", status);
+        log::debug!("RxControl: {:?}", rx_control);
+        log::debug!("TxControl: {:?}", tx_control);
+
+        // Read and log the MAC address from EEPROM
+        match self.get_mac_address() {
+            Ok(mac) => log::info!("MAC address: {}", mac),
+            Err(e) => log::error!("Failed to read MAC address: {:?}", e),
+        }
+
+        panic!("E1000e device creation not implemented yet");
     }
 }
 
@@ -206,7 +213,7 @@ impl<'a> EepromAccess<'a> {
         const MAX_ATTEMPTS: usize = 1000;
 
         let mut granted = false;
-        let granted = for _ in 0..MAX_ATTEMPTS {
+        for _ in 0..MAX_ATTEMPTS {
             let control = registers::EepromControlData::from(
                 mmio_region.read(registers::EepromControlData::OFFSET),
             );
@@ -216,9 +223,11 @@ impl<'a> EepromAccess<'a> {
             }
 
             core::hint::spin_loop();
-        };
+        }
 
-        info!("Could not acquire EEPROM lock, consider it is not implemented");
+        if !granted {
+            info!("Could not acquire EEPROM lock, consider it is not implemented");
+        }
 
         Ok(Self { mmio_region })
     }

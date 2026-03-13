@@ -146,7 +146,7 @@ fn start_extended_servers(info: &InitInfo) {
 
 fn setup_net() {
     let options = drivers::pci::ListOptions::new();
-    let options = options.with_device_id(0x8086, 0x10d3); // e1000e
+    let options = options.with_device_id(0x8086, 0x10d3); // e1000e - intel 82574L
     let devices = drivers::pci::list(options).expect("Failed to get devices");
     let device = devices.first().expect("No matching PCI devices found");
 

@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, ops::Index};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -17,5 +17,27 @@ impl fmt::Display for MacAddress {
 impl From<[u8; 6]> for MacAddress {
     fn from(bytes: [u8; 6]) -> Self {
         Self(bytes)
+    }
+}
+
+impl MacAddress {
+    pub fn null() -> Self {
+        Self([0; 6])
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0 == [0; 6]
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 6] {
+        &self.0
+    }
+}
+
+impl Index<usize> for MacAddress {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }

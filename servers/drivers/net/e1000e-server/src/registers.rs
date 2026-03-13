@@ -971,3 +971,128 @@ impl InterruptMask {
         self.0.set_bit(16, value);
     }
 }
+
+/// Receive Address Low register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct ReceiveAddressLow(u32);
+
+impl From<u32> for ReceiveAddressLow {
+    fn from(value: u32) -> Self {
+        ReceiveAddressLow(value)
+    }
+}
+
+impl From<ReceiveAddressLow> for u32 {
+    fn from(control: ReceiveAddressLow) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for ReceiveAddressLow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReceiveAddressLow")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("address", &self.address())
+            .finish()
+    }
+}
+
+impl ReceiveAddressLow {
+    // 8 receive address registers, each with a low and high part
+    pub const OFFSET0: usize = 0x00400;
+    pub const OFFSET1: usize = 0x00408;
+    pub const OFFSET2: usize = 0x00410;
+    pub const OFFSET3: usize = 0x00418;
+    pub const OFFSET4: usize = 0x00420;
+    pub const OFFSET5: usize = 0x00428;
+    pub const OFFSET6: usize = 0x00430;
+    pub const OFFSET7: usize = 0x00438;
+
+    pub fn address(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set_address(&mut self, value: u32) {
+        self.0 = value;
+    }
+}
+
+/// Receive Address High register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct ReceiveAddressHigh(u32);
+
+impl From<u32> for ReceiveAddressHigh {
+    fn from(value: u32) -> Self {
+        ReceiveAddressHigh(value)
+    }
+}
+
+impl From<ReceiveAddressHigh> for u32 {
+    fn from(control: ReceiveAddressHigh) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for ReceiveAddressHigh {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReceiveAddressHigh")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("address", &self.address())
+            .finish()
+    }
+}
+
+impl ReceiveAddressHigh {
+    // 8 receive address registers, each with a low and high part
+    pub const OFFSET0: usize = 0x00404;
+    pub const OFFSET1: usize = 0x0040C;
+    pub const OFFSET2: usize = 0x00414;
+    pub const OFFSET3: usize = 0x0041C;
+    pub const OFFSET4: usize = 0x00424;
+    pub const OFFSET5: usize = 0x0042C;
+    pub const OFFSET6: usize = 0x00434;
+    pub const OFFSET7: usize = 0x0043C;
+
+    pub fn address(&self) -> u32 {
+        self.0.get_bits(0..16)
+    }
+
+    pub fn set_address(&mut self, value: u32) {
+        self.0.set_bits(0..16, value);
+    }
+
+    pub fn address_select(&self) -> AddressSelect {
+        AddressSelect::from(self.0.get_bits(16..18) as u8)
+    }
+
+    pub fn set_address_select(&mut self, value: AddressSelect) {
+        self.0.set_bits(16..18, value as u8 as u32);
+    }
+
+    pub fn valid(&self) -> bool {
+        self.0.get_bit(31)
+    }
+
+    pub fn set_valid(&mut self, value: bool) {
+        self.0.set_bit(31, value);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum AddressSelect {
+    Destination = 0,
+    Source = 1,
+}
+
+impl From<u8> for AddressSelect {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => AddressSelect::Destination,
+            1 => AddressSelect::Source,
+            _ => panic!("Invalid address select value: {}", value),
+        }
+    }
+}

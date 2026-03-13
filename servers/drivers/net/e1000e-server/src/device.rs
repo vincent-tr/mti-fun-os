@@ -13,24 +13,15 @@ use libruntime::{
         dev::{NetDevice, iface::NetDeviceError},
     },
 };
-use log::{error, info};
+use log::{debug, error, info};
 
 /// Represents an E1000e network device.
+#[derive(Debug)]
 pub struct E1000eDevice {
     name: String,
     pci_device: pci::PciDevice,
     mmio_region: MmioRegion<u32>,
     link_status: LinkStatus,
-}
-
-impl fmt::Debug for E1000eDevice {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("E1000eDevice")
-            .field("name", &self.name)
-            .field("pci_device", &self.pci_device)
-            .field("link_status", &self.link_status)
-            .finish()
-    }
 }
 
 impl NetDevice for E1000eDevice {
@@ -92,6 +83,48 @@ impl E1000eDevice {
     fn init(&self) -> Result<(), NetDeviceError> {
         self.pci_device.enable(true, true, true).into_netdev_err()?;
 
+        // Reset the device
+        let mut control =
+            registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+        control.set_reset(true);
+        self.mmio_region
+            .write(registers::Control::OFFSET, control.into());
+
+        loop {
+            let control =
+                registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+            if !control.reset() {
+                break;
+            }
+
+            core::hint::spin_loop();
+        }
+
+        // Setup
+        let mut control =
+            registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+        control.set_auto_speed_detection(true);
+        control.set_link_up(true);
+        self.mmio_region
+            .write(registers::Control::OFFSET, control.into());
+
+        // Setup MAC Address
+        let address = self.get_mac_address()?;
+        debug!("Setting MAC address to {}", address);
+        let mut ral0 = registers::ReceiveAddressLow::from(0);
+        ral0.set_address(u32::from_le_bytes([
+            address[0], address[1], address[2], address[3],
+        ]));
+        let mut rah0 = registers::ReceiveAddressHigh::from(0);
+        rah0.set_address(u32::from_le_bytes([address[4], address[5], 0, 0]));
+        rah0.set_valid(true);
+        rah0.set_address_select(registers::AddressSelect::Destination);
+        self.mmio_region
+            .write(registers::ReceiveAddressLow::OFFSET0, ral0.into());
+        self.mmio_region
+            .write(registers::ReceiveAddressHigh::OFFSET0, rah0.into());
+        
+        // ---
         let control = registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
         let status = registers::Status::from(self.mmio_region.read(registers::Status::OFFSET));
         let rx_control =

@@ -379,7 +379,7 @@ impl EepromControlData {
         match value {
             1 => false,
             2 => true,
-            _ => panic!("Invalid flash write control  value: {}", value),
+            _ => panic!("Invalid flash write control value: {}", value),
         }
     }
 

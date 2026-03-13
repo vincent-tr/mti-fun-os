@@ -13,14 +13,24 @@ use libruntime::{
         dev::{NetDevice, iface::NetDeviceError},
     },
 };
-use log::error;
+use log::{error, info};
 
 /// Represents an E1000e network device.
-#[derive(Debug)]
 pub struct E1000eDevice {
     name: String,
     pci_device: pci::PciDevice,
+    mmio_region: MmioRegion<u32>,
     link_status: LinkStatus,
+}
+
+impl fmt::Debug for E1000eDevice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("E1000eDevice")
+            .field("name", &self.name)
+            .field("pci_device", &self.pci_device)
+            .field("link_status", &self.link_status)
+            .finish()
+    }
 }
 
 impl NetDevice for E1000eDevice {
@@ -43,7 +53,6 @@ impl NetDevice for E1000eDevice {
             return Err(NetDeviceError::DeviceError);
         };
 
-        log::debug!("Opening BAR0: {:?}", bar0);
         let region = MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?;
 
         let control = registers::Control::from(region.read(registers::Control::OFFSET));
@@ -56,13 +65,22 @@ impl NetDevice for E1000eDevice {
         log::debug!("RxControl: {:?}", rx_control);
         log::debug!("TxControl: {:?}", tx_control);
 
-        panic!("E1000e device creation not implemented yet");
-
-        Ok(Box::new(Self {
+        let device = Self {
             name: String::from(name),
             pci_device,
+            mmio_region: region,
             link_status: LinkStatus::new(link_status_change_callback),
-        }))
+        };
+
+        // Read and log the MAC address from EEPROM
+        match device.get_mac_address() {
+            Ok(mac) => log::info!("MAC address: {}", mac),
+            Err(e) => log::error!("Failed to read MAC address: {:?}", e),
+        }
+
+        panic!("E1000e device creation not implemented yet");
+
+        Ok(Box::new(device))
     }
 
     fn destroy(self) {}
@@ -72,7 +90,20 @@ impl NetDevice for E1000eDevice {
     }
 
     fn get_mac_address(&self) -> Result<MacAddress, Self::Error> {
-        todo!()
+        // MAC is stored in EEPROM words 0x00, 0x01, 0x02 (3 words = 6 bytes)
+        let access = EepromAccess::acquire(&self.mmio_region)?;
+        let word0 = access.read(0x00)?;
+        let word1 = access.read(0x01)?;
+        let word2 = access.read(0x02)?;
+
+        // Each word is 16 bits (2 bytes), stored in little-endian
+        let [b0, b1] = word0.to_le_bytes();
+        let [b2, b3] = word1.to_le_bytes();
+        let [b4, b5] = word2.to_le_bytes();
+
+        let mac = MacAddress::from([b0, b1, b2, b3, b4, b5]);
+
+        Ok(mac)
     }
 }
 
@@ -138,5 +169,81 @@ impl<T> ResultExt<T> for Result<T, kobject::Error> {
             error!("Kernel operation failed: {:?}", e);
             NetDeviceError::RuntimeError
         })
+    }
+}
+
+/// Access to the EEPROM
+#[derive(Debug)]
+struct EepromAccess<'a> {
+    mmio_region: &'a MmioRegion<u32>,
+}
+
+impl Drop for EepromAccess<'_> {
+    fn drop(&mut self) {
+        let mut control = registers::EepromControlData::from(
+            self.mmio_region.read(registers::EepromControlData::OFFSET),
+        );
+        control.set_access_request(false);
+        self.mmio_region
+            .write(registers::EepromControlData::OFFSET, control.into());
+    }
+}
+
+impl<'a> EepromAccess<'a> {
+    pub fn acquire(mmio_region: &'a MmioRegion<u32>) -> Result<Self, NetDeviceError> {
+        let mut control = registers::EepromControlData::from(
+            mmio_region.read(registers::EepromControlData::OFFSET),
+        );
+
+        if !control.present() {
+            error!("EEPROM not present");
+            return Err(NetDeviceError::DeviceError);
+        }
+
+        control.set_access_request(true);
+        mmio_region.write(registers::EepromControlData::OFFSET, control.into());
+
+        const MAX_ATTEMPTS: usize = 1000;
+
+        let mut granted = false;
+        let granted = for _ in 0..MAX_ATTEMPTS {
+            let control = registers::EepromControlData::from(
+                mmio_region.read(registers::EepromControlData::OFFSET),
+            );
+            if control.access_grant() {
+                granted = true;
+                break;
+            }
+
+            core::hint::spin_loop();
+        };
+
+        info!("Could not acquire EEPROM lock, consider it is not implemented");
+
+        Ok(Self { mmio_region })
+    }
+
+    pub fn read(&self, address: u16) -> Result<u16, NetDeviceError> {
+        let mut eerd = registers::EepromRead::default();
+        eerd.set_address(address);
+        eerd.set_start(true);
+        self.mmio_region
+            .write(registers::EepromRead::OFFSET, eerd.into());
+
+        const MAX_ATTEMPTS: usize = 1000;
+
+        for _ in 0..MAX_ATTEMPTS {
+            let eerd =
+                registers::EepromRead::from(self.mmio_region.read(registers::EepromRead::OFFSET));
+
+            if eerd.done() {
+                return Ok(eerd.data());
+            }
+
+            core::hint::spin_loop();
+        }
+
+        error!("EEPROM read timeout for address {:#x}", address);
+        Err(NetDeviceError::DeviceError)
     }
 }

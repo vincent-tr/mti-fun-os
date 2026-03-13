@@ -440,6 +440,63 @@ impl From<u8> for EEpromType {
     }
 }
 
+/// EEPROM Read register for the e1000e network device.
+/// Provides high-level interface for reading words from EEPROM.
+#[repr(transparent)]
+pub struct EepromRead(u32);
+
+impl From<u32> for EepromRead {
+    fn from(value: u32) -> Self {
+        EepromRead(value)
+    }
+}
+
+impl From<EepromRead> for u32 {
+    fn from(eerd: EepromRead) -> Self {
+        eerd.0
+    }
+}
+
+impl fmt::Debug for EepromRead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EepromRead")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("start", &self.start())
+            .field("done", &self.done())
+            .field("address", &self.address())
+            .field("data", &self.data())
+            .finish()
+    }
+}
+
+impl EepromRead {
+    pub const OFFSET: usize = 0x00014;
+
+    pub fn start(&self) -> bool {
+        self.0.get_bit(0)
+    }
+
+    pub fn set_start(&mut self, value: bool) {
+        self.0.set_bit(0, value);
+    }
+
+    pub fn done(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn address(&self) -> u16 {
+        self.0.get_bits(2..16) as u16
+    }
+
+    pub fn set_address(&mut self, address: u16) {
+        self.0.set_bits(2..16, address as u32);
+    }
+
+    pub fn data(&self) -> u16 {
+        self.0.get_bits(16..32) as u16
+    }
+}
+
 #[repr(transparent)]
 pub struct RxControl(u32);
 

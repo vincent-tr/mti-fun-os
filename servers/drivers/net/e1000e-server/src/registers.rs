@@ -3,6 +3,7 @@ use core::fmt;
 use bit_field::BitField;
 
 /// Control register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct Control(u32);
 
@@ -183,6 +184,7 @@ impl From<u8> for Speed {
 }
 
 /// Status register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct Status(u32);
 
@@ -304,6 +306,8 @@ impl From<u8> for PcixSpeed {
     }
 }
 
+/// EEPROM Control/Data register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct EepromControlData(u32);
 
@@ -441,7 +445,7 @@ impl From<u8> for EEpromType {
 }
 
 /// EEPROM Read register for the e1000e network device.
-/// Provides high-level interface for reading words from EEPROM.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct EepromRead(u32);
 
@@ -497,6 +501,7 @@ impl EepromRead {
     }
 }
 
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct RxControl(u32);
 
@@ -713,6 +718,7 @@ impl From<u8> for LoopbackMode {
 }
 
 /// Transmit Control register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct TxControl(u32);
 
@@ -813,6 +819,7 @@ impl TxControl {
 }
 
 /// Interrupt Mask register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct InterruptMask(u32);
 

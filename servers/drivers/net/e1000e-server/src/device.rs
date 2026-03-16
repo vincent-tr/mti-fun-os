@@ -123,7 +123,23 @@ impl E1000eDevice {
             .write(registers::ReceiveAddressLow::OFFSET0, ral0.into());
         self.mmio_region
             .write(registers::ReceiveAddressHigh::OFFSET0, rah0.into());
-        
+
+        /*
+
+        So I have in mind to have this apis in the driver interface :
+        - tx (with a list of buffers, and the driver returns how many he could handle)
+        - add Rx buffers (with a list of buffers, and the driver returns how many he uses)
+        And this driver notifications
+        - Rx arrived (with a list of buffers)
+        - tx free buffer (with a list of buffers)
+        This way:
+        - net server manage buffers
+        - bulk can happen, saving IPC roundtrips
+        Rephrase it cleanly, and add comments if you have some
+
+         */
+        // TODO: RING SETUP, INTERRUPT SETUP
+
         // ---
         let control = registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
         let status = registers::Status::from(self.mmio_region.read(registers::Status::OFFSET));

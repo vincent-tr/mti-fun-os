@@ -7,7 +7,7 @@ use crate::{
     drivers::pci::PciAddress,
     ipc,
     kobject::{self, KObject},
-    net::types::MacAddress,
+    net::types::{BufferPool, MacAddress},
 };
 
 pub type NetDeviceServerCallError = ipc::CallError<messages::NetDeviceError>;
@@ -44,17 +44,24 @@ impl Client<'_> {
         &self,
         name: &str,
         pci_address: PciAddress,
+        buffer_pool: &BufferPool,
     ) -> Result<ipc::Handle, NetDeviceServerCallError> {
         let (name_memobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
         let query = messages::CreateQueryParameters {
             name: name_buffer,
             pci_address,
+            net_buffer_pool: messages::NetBufferPoolConfig {
+                buffer_count: buffer_pool.buffer_count,
+                buffer_size: buffer_pool.buffer_size,
+            },
         };
 
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::CreateQueryParameters::HANDLE_NAME_MOBJ] =
             name_memobj.into_handle();
+        query_handles[messages::CreateQueryParameters::HANDLE_NET_BUFFER_POOL_MOBJ] =
+            buffer_pool.mobj.clone().into_handle();
 
         let (reply, _reply_handles) = self.ipc_client.call::<
             messages::Type,
@@ -110,14 +117,13 @@ impl Client<'_> {
         };
 
         let mut query_handles = ipc::KHandles::new();
-        if let Some(port) = port {
-            query_handles[messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT] =
-                port.into_handle();
-        } else {
-            // Use invalid handle to unset the port
-            query_handles[messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT] =
-                kobject::Handle::invalid();
-        }
+        query_handles[messages::SetLinkStatusChangePortQueryParameters::HANDLE_PORT] =
+            if let Some(port) = port {
+                port.into_handle()
+            } else {
+                // Use invalid handle to unset the port
+                kobject::Handle::invalid()
+            };
 
         let (_reply, _reply_handles) = self.ipc_client.call::<
             messages::Type,
@@ -149,5 +155,128 @@ impl Client<'_> {
         >(messages::Type::GetMacAddress, query, query_handles)?;
 
         Ok(reply.mac_address)
+    }
+
+    /// Transmit data on a network device.
+    /// Returns the number of descriptors that were accepted for transmission.
+    ///
+    /// Note: the IPC message is designed to take up to 13 descriptors at a time, so if more than 13 descriptors are passed, only the first 13 will be transmitted.
+    pub fn tx(
+        &self,
+        handle: ipc::Handle,
+        descriptors: &[messages::TxBufferDescriptor],
+    ) -> Result<usize, NetDeviceServerCallError> {
+        let mut tx_descriptors = [messages::TxBufferDescriptor::default();
+            messages::TxQueryParameters::DESCRIPTOR_COUNT];
+        let count = descriptors
+            .len()
+            .min(messages::TxQueryParameters::DESCRIPTOR_COUNT);
+        tx_descriptors[..count].copy_from_slice(&descriptors[..count]);
+
+        let query = messages::TxQueryParameters {
+            handle,
+            tx_descriptors,
+        };
+        let query_handles = ipc::KHandles::new();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::TxQueryParameters,
+            messages::TxReply,
+            messages::NetDeviceError,
+        >(messages::Type::Tx, query, query_handles)?;
+
+        Ok(reply.sent_buffers)
+    }
+
+    /// Set the port for Tx free notifications.
+    /// Pass Some(port) to register for notifications, or None to unregister.
+    pub fn set_tx_free_port(
+        &self,
+        handle: ipc::Handle,
+        port: Option<kobject::PortSender>,
+        correlation: u64,
+    ) -> Result<(), NetDeviceServerCallError> {
+        let query = messages::SetTxFreePortQueryParameters {
+            handle,
+            correlation,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::SetTxFreePortQueryParameters::HANDLE_PORT] =
+            if let Some(port) = port {
+                port.into_handle()
+            } else {
+                kobject::Handle::invalid()
+            };
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::SetTxFreePortQueryParameters,
+            messages::SetTxFreePortReply,
+            messages::NetDeviceError,
+        >(messages::Type::SetTxFreePort, query, query_handles)?;
+
+        Ok(())
+    }
+
+    /// Add receive buffers to a network device.
+    /// Returns the number of buffers that were successfully added.
+    ///
+    /// Note: the IPC message is designed to take up to 26 buffers at a time, so if more than 26 buffers are passed, only the first 26 will be added.
+    pub fn add_rx_buffers(
+        &self,
+        handle: ipc::Handle,
+        buffer_indexes: &[u32],
+    ) -> Result<usize, NetDeviceServerCallError> {
+        let mut buffers =
+            [BufferPool::INVALID_INDEX; messages::AddRxBuffersQueryParameters::BUFFER_COUNT];
+        let count = buffer_indexes
+            .len()
+            .min(messages::AddRxBuffersQueryParameters::BUFFER_COUNT);
+        buffers[..count].copy_from_slice(&buffer_indexes[..count]);
+
+        let query = messages::AddRxBuffersQueryParameters { handle, buffers };
+        let query_handles = ipc::KHandles::new();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::AddRxBuffersQueryParameters,
+            messages::AddRxBuffersReply,
+            messages::NetDeviceError,
+        >(messages::Type::AddRxBuffers, query, query_handles)?;
+
+        Ok(reply.added_buffers)
+    }
+
+    /// Set the port for Rx arrived notifications.
+    /// Pass Some(port) to register for notifications, or None to unregister.
+    pub fn set_rx_port(
+        &self,
+        handle: ipc::Handle,
+        port: Option<kobject::PortSender>,
+        correlation: u64,
+    ) -> Result<(), NetDeviceServerCallError> {
+        let query = messages::SetRxPortQueryParameters {
+            handle,
+            correlation,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        if let Some(port) = port {
+            query_handles[messages::SetRxPortQueryParameters::HANDLE_PORT] = port.into_handle();
+        } else {
+            query_handles[messages::SetRxPortQueryParameters::HANDLE_PORT] =
+                kobject::Handle::invalid();
+        }
+
+        let (_reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::SetRxPortQueryParameters,
+            messages::SetRxPortReply,
+            messages::NetDeviceError,
+        >(messages::Type::SetRxPort, query, query_handles)?;
+
+        Ok(())
     }
 }

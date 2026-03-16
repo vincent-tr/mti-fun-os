@@ -1,9 +1,10 @@
+use bit_field::BitField;
 use core::fmt;
 
 use crate::{
     drivers::pci::PciAddress,
     ipc::{self, buffer_messages::Buffer},
-    net::types::MacAddress,
+    net::types::{BufferPool, MacAddress},
 };
 
 /// Version of the net device management messages.
@@ -19,6 +20,11 @@ pub enum Type {
     GetLinkStatus,
     SetLinkStatusChangePort,
     GetMacAddress,
+
+    Tx,
+    SetTxFreePort,
+    AddRxBuffers,
+    SetRxPort,
 }
 
 impl From<Type> for u16 {
@@ -55,10 +61,14 @@ pub struct CreateQueryParameters {
 
     /// The PCI address of the network device to create.
     pub pci_address: PciAddress,
+
+    /// Configuration for the net buffer pool to use for this device.
+    pub net_buffer_pool: NetBufferPoolConfig,
 }
 
 impl CreateQueryParameters {
     pub const HANDLE_NAME_MOBJ: usize = 1;
+    pub const HANDLE_NET_BUFFER_POOL_MOBJ: usize = 2;
 }
 
 /// Reply for the Create message.
@@ -119,10 +129,7 @@ impl SetLinkStatusChangePortQueryParameters {
 /// Reply for the SetLinkStatusChangePort message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct SetLinkStatusChangePortReply {
-    /// Handle to the registration, used for later unregistration.
-    pub registration_handle: ipc::Handle,
-}
+pub struct SetLinkStatusChangePortReply {}
 
 /// Parameters for the GetMacAddress message.
 #[derive(Debug, Clone, Copy)]
@@ -140,6 +147,98 @@ pub struct GetMacAddressReply {
     pub mac_address: MacAddress,
 }
 
+/// Parameters for the Tx message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TxQueryParameters {
+    /// Handle to the network device to transmit on.
+    pub handle: ipc::Handle,
+
+    /// Buffers containing the data to transmit.
+    pub tx_descriptors: [TxBufferDescriptor; Self::DESCRIPTOR_COUNT],
+}
+
+impl TxQueryParameters {
+    pub const DESCRIPTOR_COUNT: usize = 13;
+}
+
+/// Reply for the Tx message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TxReply {
+    /// Number of buffers that were accepted for transmission. This may be less than the number of buffers provided.
+    pub sent_buffers: usize,
+}
+
+/// Parameters for the SetTxFreePort message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetTxFreePortQueryParameters {
+    /// Handle to the network device to register for Tx free notifications.
+    pub handle: ipc::Handle,
+
+    /// Value to correlate the notification with the registration
+    ///
+    /// This value will be sent back in the TxFreeNotification
+    pub correlation: u64,
+}
+
+impl SetTxFreePortQueryParameters {
+    /// Note: setting a invalid handle here unsets the port, effectively unregistering from Tx free notifications.
+    pub const HANDLE_PORT: usize = 1;
+}
+
+/// Reply for the SetTxFreePort message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetTxFreePortReply {}
+
+/// Parameters for the AddRxBuffers message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AddRxBuffersQueryParameters {
+    /// Handle to the network device to add Rx buffers to.
+    pub handle: ipc::Handle,
+
+    /// Buffers to add for receiving data.
+    pub buffers: [u32; Self::BUFFER_COUNT],
+}
+
+impl AddRxBuffersQueryParameters {
+    pub const BUFFER_COUNT: usize = 26;
+}
+
+/// Reply for the AddRxBuffers message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AddRxBuffersReply {
+    /// Number of buffers that were successfully added. This may be less than the number of buffers provided.
+    pub added_buffers: usize,
+}
+
+/// Parameters for the SetRxPort message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetRxPortQueryParameters {
+    /// Handle to the network device to register for Rx notifications.
+    pub handle: ipc::Handle,
+
+    /// Value to correlate the notification with the registration
+    ///
+    /// This value will be sent back in the RxArrivedNotification
+    pub correlation: u64,
+}
+
+impl SetRxPortQueryParameters {
+    /// Note: setting a invalid handle here unsets the port, effectively unregistering from Rx notifications.
+    pub const HANDLE_PORT: usize = 1;
+}
+
+/// Reply for the SetRxPort message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetRxPortReply {}
+
 /// Notification sent by the net device management server when the link status changes.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -149,4 +248,158 @@ pub struct LinkStatusChangedNotification {
 
     /// Whether the link is up (true) or down (false).
     pub link_up: bool,
+}
+
+/// Notification sent by the net device management server when Tx buffers are freed.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct TxFreeNotification {
+    /// Value to correlate the notification with the registration
+    pub correlation: u64,
+
+    /// Buffers that were freed and can be reused.
+    pub buffers: [u32; 32],
+}
+
+/// Notification sent by the net device management server when new Rx data arrives.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RxArrivedNotification {
+    /// Value to correlate the notification with the registration
+    pub correlation: u64,
+
+    /// Buffers containing the received data.
+    pub rx_descriptors: [RxBufferDescriptor; 16],
+}
+
+/// Configuration for the net buffer pool to use for a network device.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct NetBufferPoolConfig {
+    /// Number of buffers in the pool.
+    pub buffer_count: usize,
+
+    /// Size of each buffer in bytes.
+    pub buffer_size: usize,
+}
+
+/// A compact descriptor for a buffer slice, fitting in exactly 8 bytes.
+///
+/// Layout (64 bits):
+/// - bits 0-31: buffer_index (32 bits, can index 4B buffers)
+/// - bits 32-42: offset (11 bits, 0-2047 for 2048-byte buffer)
+/// - bits 43-53: length (11 bits, 0-2047)
+/// - bit 54: end_of_packet flag
+/// - bits 55-63: reserved (9 bits for future use)
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct TxBufferDescriptor(u64);
+
+impl TxBufferDescriptor {
+    /// Create a new buffer descriptor.
+    pub fn new(buffer_index: u32, offset: u16, length: u16, end_of_packet: bool) -> Self {
+        debug_assert!(offset < 2048, "offset must be < 2048");
+        debug_assert!(length < 2048, "length must be < 2048");
+
+        let mut value = 0u64;
+        value.set_bits(0..32, buffer_index as u64);
+        value.set_bits(32..43, offset as u64);
+        value.set_bits(43..54, length as u64);
+        value.set_bit(54, end_of_packet);
+
+        TxBufferDescriptor(value)
+    }
+
+    /// Get the buffer index.
+    pub fn buffer_index(&self) -> u32 {
+        self.0.get_bits(0..32) as u32
+    }
+
+    /// Get the offset within the buffer.
+    pub fn offset(&self) -> u16 {
+        self.0.get_bits(32..43) as u16
+    }
+
+    /// Get the length of data in the buffer.
+    pub fn length(&self) -> u16 {
+        self.0.get_bits(43..54) as u16
+    }
+
+    /// Check if this is the end of packet.
+    pub fn end_of_packet(&self) -> bool {
+        self.0.get_bit(54)
+    }
+}
+
+impl fmt::Debug for TxBufferDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxBufferDescriptor")
+            .field("buffer_index", &self.buffer_index())
+            .field("offset", &self.offset())
+            .field("length", &self.length())
+            .field("end_of_packet", &self.end_of_packet())
+            .finish()
+    }
+}
+
+impl Default for TxBufferDescriptor {
+    fn default() -> Self {
+        Self::new(BufferPool::INVALID_INDEX, 0, 0, false)
+    }
+}
+
+/// A compact descriptor for a receive buffer, fitting in exactly 8 bytes.
+///
+/// Layout (64 bits):
+/// - bits 0-31: buffer_index (32 bits)
+/// - bits 32-42: length (11 bits, 0-2047 for 2048-byte buffer)
+/// - bit 43: end_of_packet flag
+/// - bits 44-63: reserved (20 bits for future use)
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct RxBufferDescriptor(u64);
+
+impl RxBufferDescriptor {
+    /// Create a new RX buffer descriptor.
+    pub fn new(buffer_index: u32, length: u16, end_of_packet: bool) -> Self {
+        debug_assert!(length <= 2048, "length must be <= 2048");
+
+        let mut value = 0u64;
+        value.set_bits(0..32, buffer_index as u64);
+        value.set_bits(32..43, length as u64);
+        value.set_bit(43, end_of_packet);
+
+        RxBufferDescriptor(value)
+    }
+
+    /// Get the buffer index.
+    pub fn buffer_index(&self) -> u32 {
+        self.0.get_bits(0..32) as u32
+    }
+
+    /// Get the length of data in the buffer.
+    pub fn length(&self) -> u16 {
+        self.0.get_bits(32..43) as u16
+    }
+
+    /// Check if this is the end of packet.
+    pub fn end_of_packet(&self) -> bool {
+        self.0.get_bit(43)
+    }
+}
+
+impl fmt::Debug for RxBufferDescriptor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxBufferDescriptor")
+            .field("buffer_index", &self.buffer_index())
+            .field("length", &self.length())
+            .field("end_of_packet", &self.end_of_packet())
+            .finish()
+    }
+}
+
+impl Default for RxBufferDescriptor {
+    fn default() -> Self {
+        Self::new(BufferPool::INVALID_INDEX, 0, false)
+    }
 }

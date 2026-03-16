@@ -143,6 +143,44 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
 
         Ok(entry.device()?.get_mac_address().map_err(Into::into)?)
     }
+
+    fn tx(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        descriptors: &[iface::TxBufferDescriptor],
+    ) -> Result<usize, Self::Error> {
+        todo!()
+    }
+
+    fn set_tx_free_port(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        port: Option<kobject::PortSender>,
+        correlation: u64,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn add_rx_buffers(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        buffer_indexes: &[u32],
+    ) -> Result<usize, Self::Error> {
+        todo!()
+    }
+
+    fn set_rx_port(
+        &self,
+        sender_id: u64,
+        handle: ipc::Handle,
+        port: Option<kobject::PortSender>,
+        correlation: u64,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]

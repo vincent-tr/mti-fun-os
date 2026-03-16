@@ -3,7 +3,10 @@ mod messages;
 mod server;
 
 pub use client::{Client, NetDeviceServerCallError};
-pub use messages::{LinkStatusChangedNotification, NetDeviceError};
+pub use messages::{
+    LinkStatusChangedNotification, NetDeviceError, RxArrivedNotification, RxBufferDescriptor,
+    TxBufferDescriptor, TxFreeNotification,
+};
 pub use server::{NetDeviceServer, Server};
 
 use crate::{kobject, service};

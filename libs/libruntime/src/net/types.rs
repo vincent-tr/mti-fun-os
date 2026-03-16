@@ -1,5 +1,7 @@
 use core::{fmt, ops::Index};
 
+use crate::kobject;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct MacAddress([u8; 6]);
@@ -40,4 +42,21 @@ impl Index<usize> for MacAddress {
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
+}
+
+#[derive(Debug)]
+pub struct BufferPool {
+    /// The number of buffers in the pool.
+    pub buffer_count: usize,
+
+    /// The size of each buffer in bytes.
+    pub buffer_size: usize,
+
+    /// The memory object backing the buffer pool.
+    pub mobj: kobject::MemoryObject,
+}
+
+impl BufferPool {
+    /// A constant representing an invalid buffer index.
+    pub const INVALID_INDEX: u32 = u32::MAX;
 }

@@ -10,7 +10,10 @@ use libruntime::{
     kobject,
     net::{
         MacAddress,
-        dev::{NetDevice, iface::NetDeviceError},
+        dev::{
+            NetDevice,
+            iface::{NetDeviceError, RxBufferDescriptor, TxBufferDescriptor},
+        },
     },
 };
 use log::{debug, error, info};
@@ -31,6 +34,8 @@ impl NetDevice for E1000eDevice {
         name: &str,
         pci_address: pci::PciAddress,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
+        tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
+        rx_arrived_callback: impl Fn(&[RxBufferDescriptor]) + Send + Sync + 'static,
     ) -> Result<Box<Self>, Self::Error> {
         let pci_device = pci::PciDevice::open(pci_address).into_netdev_err()?;
         let header = pci_device.header().into_netdev_err()?;
@@ -76,6 +81,14 @@ impl NetDevice for E1000eDevice {
         let mac = MacAddress::from([b0, b1, b2, b3, b4, b5]);
 
         Ok(mac)
+    }
+
+    fn tx(&self, descriptors: &[TxBufferDescriptor]) -> Result<usize, Self::Error> {
+        todo!()
+    }
+
+    fn add_rx_buffers(&self, buffer_indexes: &[u32]) -> Result<usize, Self::Error> {
+        todo!()
     }
 }
 

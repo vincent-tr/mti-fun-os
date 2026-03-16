@@ -166,11 +166,16 @@ impl Client<'_> {
         handle: ipc::Handle,
         descriptors: &[messages::TxBufferDescriptor],
     ) -> Result<usize, NetDeviceServerCallError> {
+        assert!(
+            descriptors.len() <= messages::TxQueryParameters::DESCRIPTOR_COUNT,
+            "Too many descriptors passed to tx: {} (max {})",
+            descriptors.len(),
+            messages::TxQueryParameters::DESCRIPTOR_COUNT
+        );
+
         let mut tx_descriptors = [messages::TxBufferDescriptor::default();
             messages::TxQueryParameters::DESCRIPTOR_COUNT];
-        let count = descriptors
-            .len()
-            .min(messages::TxQueryParameters::DESCRIPTOR_COUNT);
+        let count = descriptors.len();
         tx_descriptors[..count].copy_from_slice(&descriptors[..count]);
 
         let query = messages::TxQueryParameters {
@@ -229,11 +234,16 @@ impl Client<'_> {
         handle: ipc::Handle,
         buffer_indexes: &[u32],
     ) -> Result<usize, NetDeviceServerCallError> {
+        assert!(
+            buffer_indexes.len() <= messages::AddRxBuffersQueryParameters::BUFFER_COUNT,
+            "Too many buffers passed to add_rx_buffers: {} (max {})",
+            buffer_indexes.len(),
+            messages::AddRxBuffersQueryParameters::BUFFER_COUNT
+        );
+
         let mut buffers =
             [BufferPool::INVALID_INDEX; messages::AddRxBuffersQueryParameters::BUFFER_COUNT];
-        let count = buffer_indexes
-            .len()
-            .min(messages::AddRxBuffersQueryParameters::BUFFER_COUNT);
+        let count = buffer_indexes.len();
         buffers[..count].copy_from_slice(&buffer_indexes[..count]);
 
         let query = messages::AddRxBuffersQueryParameters { handle, buffers };

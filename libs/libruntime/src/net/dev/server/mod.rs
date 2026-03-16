@@ -11,7 +11,7 @@ use crate::{
     drivers::pci::PciAddress,
     ipc::{self, Handle},
     kobject,
-    net::types::MacAddress,
+    net::types::{BufferPool, MacAddress},
     sync::{RwLock, RwLockReadGuard},
 };
 
@@ -28,6 +28,8 @@ pub trait NetDevice: Sync + Send + 'static {
         name: &str,
         pci_address: PciAddress,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
+        tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
+        rx_arrived_callback: impl Fn(&[iface::RxBufferDescriptor]) + Send + Sync + 'static,
     ) -> Result<Box<Self>, Self::Error>;
 
     /// Destroy the network device and free any associated resources.
@@ -39,7 +41,13 @@ pub trait NetDevice: Sync + Send + 'static {
     /// Get the MAC address of the network device
     fn get_mac_address(&self) -> Result<MacAddress, Self::Error>;
 
-    // TODO: buffer recv/send
+    /// Transmit data on the network device.
+    /// Returns the number of descriptors that were accepted for transmission.
+    fn tx(&self, descriptors: &[iface::TxBufferDescriptor]) -> Result<usize, Self::Error>;
+
+    /// Add receive buffers to the network device.
+    /// Returns the number of buffers that were successfully added.
+    fn add_rx_buffers(&self, buffer_indexes: &[u32]) -> Result<usize, Self::Error>;
 }
 
 /// Helper implementation of a net device server for a given NetDevice implementation.
@@ -146,40 +154,87 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
 
     fn tx(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         handle: ipc::Handle,
         descriptors: &[iface::TxBufferDescriptor],
     ) -> Result<usize, Self::Error> {
-        todo!()
+        let entry = self
+            .devices
+            .read()
+            .get(&handle)
+            .ok_or_else(|| {
+                error!("Invalid handle: {:?}", handle);
+                iface::NetDeviceError::InvalidArgument
+            })?
+            .clone();
+
+        Ok(entry.device()?.tx(descriptors).map_err(Into::into)?)
     }
 
     fn set_tx_free_port(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         handle: ipc::Handle,
         port: Option<kobject::PortSender>,
         correlation: u64,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let entry = self
+            .devices
+            .read()
+            .get(&handle)
+            .ok_or_else(|| {
+                error!("Invalid handle: {:?}", handle);
+                iface::NetDeviceError::InvalidArgument
+            })?
+            .clone();
+
+        entry.set_tx_free_port(correlation, port)?;
+
+        Ok(())
     }
 
     fn add_rx_buffers(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         handle: ipc::Handle,
         buffer_indexes: &[u32],
     ) -> Result<usize, Self::Error> {
-        todo!()
+        let entry = self
+            .devices
+            .read()
+            .get(&handle)
+            .ok_or_else(|| {
+                error!("Invalid handle: {:?}", handle);
+                iface::NetDeviceError::InvalidArgument
+            })?
+            .clone();
+
+        Ok(entry
+            .device()?
+            .add_rx_buffers(buffer_indexes)
+            .map_err(Into::into)?)
     }
 
     fn set_rx_port(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         handle: ipc::Handle,
         port: Option<kobject::PortSender>,
         correlation: u64,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let entry = self
+            .devices
+            .read()
+            .get(&handle)
+            .ok_or_else(|| {
+                error!("Invalid handle: {:?}", handle);
+                iface::NetDeviceError::InvalidArgument
+            })?
+            .clone();
+
+        entry.set_rx_port(correlation, port)?;
+
+        Ok(())
     }
 }
 
@@ -188,6 +243,8 @@ struct DeviceEntry<NetDev: NetDevice> {
     name: String,
     device: RwLock<Option<Box<NetDev>>>, // option set to None when device is destroyed, to prevent further access
     link_status_notifier: Notifier,
+    tx_free_notifier: Notifier,
+    rx_arrived_notifier: Notifier,
 }
 
 impl<NetDev: NetDevice> DeviceEntry<NetDev> {
@@ -198,6 +255,8 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
             name: String::from(name),
             device: RwLock::new(None),
             link_status_notifier: Notifier::new(),
+            tx_free_notifier: Notifier::new(),
+            rx_arrived_notifier: Notifier::new(),
         });
 
         let link_status_change_callback = {
@@ -207,8 +266,28 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
             }
         };
 
-        let device =
-            NetDev::create(name, pci_address, link_status_change_callback).map_err(Into::into)?;
+        let tx_free_callback = {
+            let entry = entry.clone();
+            move |buffer_indexes: &[u32]| {
+                entry.tx_free_callback(buffer_indexes);
+            }
+        };
+
+        let rx_arrived_callback = {
+            let entry = entry.clone();
+            move |descriptors: &[iface::RxBufferDescriptor]| {
+                entry.rx_arrived_callback(descriptors);
+            }
+        };
+
+        let device = NetDev::create(
+            name,
+            pci_address,
+            link_status_change_callback,
+            tx_free_callback,
+            rx_arrived_callback,
+        )
+        .map_err(Into::into)?;
 
         *entry.device.write() = Some(device);
 
@@ -250,12 +329,81 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
         Ok(())
     }
 
+    /// Sets the port for Tx free notifications.
+    pub fn set_tx_free_port(
+        &self,
+        correlation: u64,
+        port: Option<kobject::PortSender>,
+    ) -> Result<(), iface::NetDeviceError> {
+        Notifier::set(&self.tx_free_notifier, &self.name, correlation, port)?;
+
+        Ok(())
+    }
+
+    /// Sets the port for Rx arrived notifications.
+    pub fn set_rx_port(
+        &self,
+        correlation: u64,
+        port: Option<kobject::PortSender>,
+    ) -> Result<(), iface::NetDeviceError> {
+        Notifier::set(&self.rx_arrived_notifier, &self.name, correlation, port)?;
+
+        Ok(())
+    }
+
     fn link_status_change_callback(&self, link_up: bool) {
         Notifier::notify(&self.link_status_notifier, &self.name, |correlation| {
             (
                 iface::LinkStatusChangedNotification {
                     correlation,
                     link_up,
+                },
+                ipc::KHandles::new(),
+            )
+        });
+    }
+
+    /// Callback for when Tx buffers are freed.
+    /// This should be called by the device implementation when buffers are freed.
+    pub fn tx_free_callback(&self, buffer_indexes: &[u32]) {
+        assert!(
+            buffer_indexes.len() <= iface::TxFreeNotification::BUFFER_COUNT,
+            "Too many buffer indexes for TxFreeNotification"
+        );
+
+        Notifier::notify(&self.tx_free_notifier, &self.name, |correlation| {
+            let mut buffers = [BufferPool::INVALID_INDEX; iface::TxFreeNotification::BUFFER_COUNT];
+            let count = buffer_indexes.len();
+            buffers[..count].copy_from_slice(&buffer_indexes[..count]);
+
+            (
+                iface::TxFreeNotification {
+                    correlation,
+                    buffers,
+                },
+                ipc::KHandles::new(),
+            )
+        });
+    }
+
+    /// Callback for when Rx data arrives.
+    /// This should be called by the device implementation when data arrives.
+    pub fn rx_arrived_callback(&self, descriptors: &[iface::RxBufferDescriptor]) {
+        assert!(
+            descriptors.len() <= iface::RxArrivedNotification::DESCRIPTOR_COUNT,
+            "Too many descriptors for RxArrivedNotification"
+        );
+
+        Notifier::notify(&self.rx_arrived_notifier, &self.name, |correlation| {
+            let mut rx_descriptors = [iface::RxBufferDescriptor::default();
+                iface::RxArrivedNotification::DESCRIPTOR_COUNT];
+            let count = descriptors.len();
+            rx_descriptors[..count].copy_from_slice(&descriptors[..count]);
+
+            (
+                iface::RxArrivedNotification {
+                    correlation,
+                    rx_descriptors,
                 },
                 ipc::KHandles::new(),
             )

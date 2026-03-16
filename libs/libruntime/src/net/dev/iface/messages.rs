@@ -258,7 +258,11 @@ pub struct TxFreeNotification {
     pub correlation: u64,
 
     /// Buffers that were freed and can be reused.
-    pub buffers: [u32; 32],
+    pub buffers: [u32; Self::BUFFER_COUNT],
+}
+
+impl TxFreeNotification {
+    pub const BUFFER_COUNT: usize = 30;
 }
 
 /// Notification sent by the net device management server when new Rx data arrives.
@@ -269,7 +273,11 @@ pub struct RxArrivedNotification {
     pub correlation: u64,
 
     /// Buffers containing the received data.
-    pub rx_descriptors: [RxBufferDescriptor; 16],
+    pub rx_descriptors: [RxBufferDescriptor; Self::DESCRIPTOR_COUNT],
+}
+
+impl RxArrivedNotification {
+    pub const DESCRIPTOR_COUNT: usize = 15;
 }
 
 /// Configuration for the net buffer pool to use for a network device.

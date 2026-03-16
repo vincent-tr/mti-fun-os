@@ -818,6 +818,109 @@ impl TxControl {
     }
 }
 
+/// Interrupt Cause register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct InterruptCause(u32);
+
+impl From<u32> for InterruptCause {
+    fn from(value: u32) -> Self {
+        InterruptCause(value)
+    }
+}
+
+impl From<InterruptCause> for u32 {
+    fn from(mask: InterruptCause) -> Self {
+        mask.0
+    }
+}
+
+impl fmt::Debug for InterruptCause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InterruptCause")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field(
+                "tx_descriptor_written_back",
+                &self.tx_descriptor_written_back(),
+            )
+            .field("tx_queue_empty", &self.tx_queue_empty())
+            .field("link_status_change", &self.link_status_change())
+            .field("rx_sequence_error", &self.rx_sequence_error())
+            .field(
+                "rx_descriptor_minimum_threshold_reached",
+                &self.rx_descriptor_minimum_threashold_reached(),
+            )
+            .field("rx_overrun", &self.rx_overrun())
+            .field("rx_timer", &self.rx_timer())
+            .field("mdio_access_complete", &self.mdio_access_complete())
+            .field("rx_config_ordered_sets", &self.rx_config_ordered_sets())
+            .field("phy_interrupt", &self.phy())
+            // GPI 13
+            // GPI 14
+            .field(
+                "tx_descriptor_low_threshold",
+                &self.tx_descriptor_low_threshold(),
+            )
+            .field("small_rx_packet", &self.small_rx_packet())
+            .finish()
+    }
+}
+
+impl InterruptCause {
+    pub const OFFSET: usize = 0x000C0;
+
+    pub fn tx_descriptor_written_back(&self) -> bool {
+        self.0.get_bit(0)
+    }
+
+    pub fn tx_queue_empty(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn link_status_change(&self) -> bool {
+        self.0.get_bit(2)
+    }
+
+    pub fn rx_sequence_error(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn rx_descriptor_minimum_threashold_reached(&self) -> bool {
+        self.0.get_bit(4)
+    }
+
+    pub fn rx_overrun(&self) -> bool {
+        self.0.get_bit(6)
+    }
+
+    pub fn rx_timer(&self) -> bool {
+        self.0.get_bit(7)
+    }
+
+    pub fn mdio_access_complete(&self) -> bool {
+        self.0.get_bit(9)
+    }
+
+    pub fn rx_config_ordered_sets(&self) -> bool {
+        self.0.get_bit(10)
+    }
+
+    pub fn phy(&self) -> bool {
+        self.0.get_bit(12)
+    }
+
+    // GPI 13
+    // GPI 14
+
+    pub fn tx_descriptor_low_threshold(&self) -> bool {
+        self.0.get_bit(15)
+    }
+
+    pub fn small_rx_packet(&self) -> bool {
+        self.0.get_bit(16)
+    }
+}
+
 /// Interrupt Mask register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
@@ -871,7 +974,7 @@ impl fmt::Debug for InterruptMask {
 }
 
 impl InterruptMask {
-    pub const OFFSET: usize = 0x00D0;
+    pub const OFFSET: usize = 0x000D0;
 
     pub fn transmit_descriptor_written_back(&self) -> bool {
         self.0.get_bit(0)

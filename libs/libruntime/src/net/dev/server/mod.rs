@@ -27,6 +27,7 @@ pub trait NetDevice: Sync + Send + 'static {
     fn create(
         name: &str,
         pci_address: PciAddress,
+        buffer_pool: BufferPool,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
         tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
         rx_arrived_callback: impl Fn(&[iface::RxBufferDescriptor]) + Send + Sync + 'static,
@@ -76,10 +77,11 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
         _sender_id: u64,
         name: &str,
         pci_address: PciAddress,
+        buffer_pool: BufferPool,
     ) -> Result<Handle, Self::Error> {
         let mut devices = self.devices.write();
 
-        let entry = DeviceEntry::new(name, pci_address)?;
+        let entry = DeviceEntry::new(name, pci_address, buffer_pool)?;
 
         let handle = Self::new_handle();
         devices.insert(handle, entry);
@@ -249,7 +251,11 @@ struct DeviceEntry<NetDev: NetDevice> {
 
 impl<NetDev: NetDevice> DeviceEntry<NetDev> {
     /// Creates a new device entry with the given name and device.
-    pub fn new(name: &str, pci_address: PciAddress) -> Result<Arc<Self>, iface::NetDeviceError> {
+    pub fn new(
+        name: &str,
+        pci_address: PciAddress,
+        buffer_pool: BufferPool,
+    ) -> Result<Arc<Self>, iface::NetDeviceError> {
         // Create the entry first so that we can pass a reference to the link status change callback to the device
         let entry = Arc::new(Self {
             name: String::from(name),
@@ -283,6 +289,7 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
         let device = NetDev::create(
             name,
             pci_address,
+            buffer_pool,
             link_status_change_callback,
             tx_free_callback,
             rx_arrived_callback,

@@ -9,7 +9,7 @@ use libruntime::{
     drivers::{MmioRegion, pci},
     kobject,
     net::{
-        MacAddress,
+        BufferPool, MacAddress,
         dev::{
             NetDevice,
             iface::{NetDeviceError, RxBufferDescriptor, TxBufferDescriptor},
@@ -33,6 +33,7 @@ impl NetDevice for E1000eDevice {
     fn create(
         name: &str,
         pci_address: pci::PciAddress,
+        buffer_pool: BufferPool,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
         tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
         rx_arrived_callback: impl Fn(&[RxBufferDescriptor]) + Send + Sync + 'static,

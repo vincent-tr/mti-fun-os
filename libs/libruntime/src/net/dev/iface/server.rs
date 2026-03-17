@@ -3,7 +3,7 @@ use crate::{
     drivers::pci::PciAddress,
     ipc,
     kobject::{self, KObject},
-    net::types::MacAddress,
+    net::types::{BufferPool, MacAddress},
     service,
 };
 use alloc::sync::Arc;
@@ -18,6 +18,7 @@ pub trait NetDeviceServer {
         sender_id: u64,
         name: &str,
         pci_address: PciAddress,
+        buffer_pool: BufferPool,
     ) -> Result<ipc::Handle, Self::Error>;
 
     /// Destroy a network device.
@@ -140,9 +141,23 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
 
         let name = unsafe { name_view.str() };
 
+        let buffer_pool_mobj = {
+            let handle =
+                query_handles.take(messages::CreateQueryParameters::HANDLE_NET_BUFFER_POOL_MOBJ);
+
+            kobject::MemoryObject::from_handle(handle)
+                .map_err(|_| messages::NetDeviceError::InvalidArgument)?
+        };
+
+        let buffer_pool = BufferPool {
+            buffer_count: query.net_buffer_pool.buffer_count,
+            buffer_size: query.net_buffer_pool.buffer_size,
+            mobj: buffer_pool_mobj,
+        };
+
         let handle = self
             .inner
-            .create(sender_id, name, query.pci_address)
+            .create(sender_id, name, query.pci_address, buffer_pool)
             .map_err(Into::into)?;
 
         Ok((messages::CreateReply { handle }, ipc::KHandles::new()))

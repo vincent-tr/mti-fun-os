@@ -4,6 +4,7 @@
 extern crate alloc;
 extern crate libruntime;
 
+mod descriptors;
 mod device;
 mod registers;
 

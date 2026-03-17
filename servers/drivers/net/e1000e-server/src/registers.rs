@@ -501,323 +501,6 @@ impl EepromRead {
     }
 }
 
-#[derive(Copy, Clone, Default)]
-#[repr(transparent)]
-pub struct RxControl(u32);
-
-impl From<u32> for RxControl {
-    fn from(value: u32) -> Self {
-        RxControl(value)
-    }
-}
-
-impl From<RxControl> for u32 {
-    fn from(control: RxControl) -> Self {
-        control.0
-    }
-}
-
-impl fmt::Debug for RxControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RxControl")
-            .field("raw", &format_args!("{:#010x}", self.0))
-            .field("enabled", &self.enabled())
-            .field("store_bad_packets", &self.store_bad_packets())
-            .field(
-                "unicast_promiscuous_enabled",
-                &self.unicast_promiscuous_enabled(),
-            )
-            .field(
-                "multicast_promiscuous_enabled",
-                &self.multicast_promiscuous_enabled(),
-            )
-            .field(
-                "long_packet_reception_enabled",
-                &self.long_packet_reception_enabled(),
-            )
-            .field("loopback_mode", &self.loopback_mode())
-            .field(
-                "receive_descriptor_minimum_threshold_size",
-                &self.receive_descriptor_minimum_threshold_size(),
-            )
-            .field("multicast_offset", &self.multicast_offset())
-            .field("broadcast_accepted", &self.broadcast_accepted())
-            .field("receive_buffer_size", &self.receive_buffer_size())
-            .field("vlan_filter_enabled", &self.vlan_filter_enabled())
-            .field(
-                "canonical_form_indicator_enabled",
-                &self.canonical_form_indicator_enabled(),
-            )
-            .field(
-                "canonical_form_indicator_bit_value",
-                &self.canonical_form_indicator_bit_value(),
-            )
-            .field("discard_pause_frames", &self.discard_pause_frames())
-            .field("pass_mac_control_frames", &self.pass_mac_control_frames())
-            .field("buffer_size_extension", &self.buffer_size_extension())
-            .field("strip_ethernet_crc", &self.strip_ethernet_crc())
-            .finish()
-    }
-}
-
-impl RxControl {
-    pub const OFFSET: usize = 0x00100;
-
-    pub fn enabled(&self) -> bool {
-        self.0.get_bit(1)
-    }
-
-    pub fn enable(&mut self, value: bool) {
-        self.0.set_bit(1, value);
-    }
-
-    pub fn store_bad_packets(&self) -> bool {
-        self.0.get_bit(2)
-    }
-
-    pub fn set_store_bad_packets(&mut self, value: bool) {
-        self.0.set_bit(2, value);
-    }
-
-    pub fn unicast_promiscuous_enabled(&self) -> bool {
-        self.0.get_bit(3)
-    }
-
-    pub fn enable_unicast_promiscuous(&mut self, value: bool) {
-        self.0.set_bit(3, value);
-    }
-
-    pub fn multicast_promiscuous_enabled(&self) -> bool {
-        self.0.get_bit(4)
-    }
-
-    pub fn enable_multicast_promiscuous(&mut self, value: bool) {
-        self.0.set_bit(4, value);
-    }
-
-    pub fn long_packet_reception_enabled(&self) -> bool {
-        self.0.get_bit(5)
-    }
-
-    pub fn enable_long_packet_reception(&mut self, value: bool) {
-        self.0.set_bit(5, value);
-    }
-
-    pub fn loopback_mode(&self) -> LoopbackMode {
-        LoopbackMode::from(self.0.get_bits(6..8) as u8)
-    }
-
-    pub fn set_loopback_mode(&mut self, value: LoopbackMode) {
-        self.0.set_bits(6..8, value as u8 as u32);
-    }
-
-    pub fn receive_descriptor_minimum_threshold_size(&self) -> u8 {
-        self.0.get_bits(8..10) as u8
-    }
-
-    pub fn set_receive_descriptor_minimum_threshold_size(&mut self, value: u8) {
-        self.0.set_bits(8..10, value as u32);
-    }
-
-    pub fn multicast_offset(&self) -> u8 {
-        self.0.get_bits(12..14) as u8
-    }
-
-    pub fn set_multicast_offset(&mut self, value: u8) {
-        self.0.set_bits(12..14, value as u32);
-    }
-
-    pub fn broadcast_accepted(&self) -> bool {
-        self.0.get_bit(15)
-    }
-
-    pub fn set_broadcast_accepted(&mut self, value: bool) {
-        self.0.set_bit(15, value);
-    }
-
-    pub fn receive_buffer_size(&self) -> u8 {
-        self.0.get_bits(16..18) as u8
-    }
-
-    pub fn set_receive_buffer_size(&mut self, value: u8) {
-        self.0.set_bits(16..18, value as u32);
-    }
-
-    pub fn vlan_filter_enabled(&self) -> bool {
-        self.0.get_bit(18)
-    }
-
-    pub fn enable_vlan_filter(&mut self, value: bool) {
-        self.0.set_bit(18, value);
-    }
-
-    pub fn canonical_form_indicator_enabled(&self) -> bool {
-        self.0.get_bit(19)
-    }
-
-    pub fn enable_canonical_form_indicator(&mut self, value: bool) {
-        self.0.set_bit(19, value);
-    }
-
-    pub fn canonical_form_indicator_bit_value(&self) -> bool {
-        self.0.get_bit(20)
-    }
-
-    pub fn set_canonical_form_indicator_bit_value(&mut self, value: bool) {
-        self.0.set_bit(20, value);
-    }
-
-    pub fn discard_pause_frames(&self) -> bool {
-        self.0.get_bit(22)
-    }
-
-    pub fn set_discard_pause_frames(&mut self, value: bool) {
-        self.0.set_bit(22, value);
-    }
-
-    pub fn pass_mac_control_frames(&self) -> bool {
-        self.0.get_bit(23)
-    }
-
-    pub fn set_pass_mac_control_frames(&mut self, value: bool) {
-        self.0.set_bit(23, value);
-    }
-
-    pub fn buffer_size_extension(&self) -> bool {
-        self.0.get_bit(25)
-    }
-
-    pub fn set_buffer_size_extension(&mut self, value: bool) {
-        self.0.set_bit(25, value);
-    }
-
-    pub fn strip_ethernet_crc(&self) -> bool {
-        self.0.get_bit(26)
-    }
-
-    pub fn set_strip_ethernet_crc(&mut self, value: bool) {
-        self.0.set_bit(26, value);
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum LoopbackMode {
-    NoLoopback = 0,
-    PhyOrExternal = 3,
-}
-
-impl From<u8> for LoopbackMode {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => LoopbackMode::NoLoopback,
-            3 => LoopbackMode::PhyOrExternal,
-            _ => panic!("Invalid loopback mode value: {}", value),
-        }
-    }
-}
-
-/// Transmit Control register for the e1000e network device.
-#[derive(Copy, Clone, Default)]
-#[repr(transparent)]
-pub struct TxControl(u32);
-
-impl From<u32> for TxControl {
-    fn from(value: u32) -> Self {
-        TxControl(value)
-    }
-}
-
-impl From<TxControl> for u32 {
-    fn from(control: TxControl) -> Self {
-        control.0
-    }
-}
-
-impl fmt::Debug for TxControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TxControl")
-            .field("raw", &format_args!("{:#010x}", self.0))
-            .field("enabled", &self.enabled())
-            .field("pad_short_packets", &self.pad_short_packets())
-            .field("collision_threshold", &self.collision_threshold())
-            .field("collision_distance", &self.collision_distance())
-            .field(
-                "software_xoff_transmission",
-                &self.software_xoff_transmission(),
-            )
-            .field(
-                "retransmit_on_late_collision",
-                &self.retransmit_on_late_collision(),
-            )
-            .field(
-                "no_retransmit_on_underrun",
-                &self.no_retransmit_on_underrun(),
-            )
-            .finish()
-    }
-}
-
-impl TxControl {
-    pub const OFFSET: usize = 0x00400;
-
-    pub fn enabled(&self) -> bool {
-        self.0.get_bit(1)
-    }
-
-    pub fn enable(&mut self, value: bool) {
-        self.0.set_bit(1, value);
-    }
-
-    pub fn pad_short_packets(&self) -> bool {
-        self.0.get_bit(3)
-    }
-
-    pub fn set_pad_short_packets(&mut self, value: bool) {
-        self.0.set_bit(3, value);
-    }
-
-    pub fn collision_threshold(&self) -> u8 {
-        self.0.get_bits(4..12) as u8
-    }
-
-    pub fn set_collision_threshold(&mut self, value: u8) {
-        self.0.set_bits(4..12, value as u32);
-    }
-
-    pub fn collision_distance(&self) -> u8 {
-        self.0.get_bits(12..22) as u8
-    }
-
-    pub fn set_collision_distance(&mut self, value: u8) {
-        self.0.set_bits(12..22, value as u32);
-    }
-
-    pub fn software_xoff_transmission(&self) -> bool {
-        self.0.get_bit(22)
-    }
-
-    pub fn set_software_xoff_transmission(&mut self, value: bool) {
-        self.0.set_bit(22, value);
-    }
-
-    pub fn retransmit_on_late_collision(&self) -> bool {
-        self.0.get_bit(24)
-    }
-
-    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
-        self.0.set_bit(24, value);
-    }
-
-    pub fn no_retransmit_on_underrun(&self) -> bool {
-        self.0.get_bit(25)
-    }
-
-    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
-        self.0.set_bit(25, value);
-    }
-}
-
 /// Interrupt Cause register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
@@ -1075,33 +758,376 @@ impl InterruptMask {
     }
 }
 
-/// Receive Address Low register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
-pub struct ReceiveAddressLow(u32);
+pub struct RxControl(u32);
 
-impl From<u32> for ReceiveAddressLow {
+impl From<u32> for RxControl {
     fn from(value: u32) -> Self {
-        ReceiveAddressLow(value)
+        RxControl(value)
     }
 }
 
-impl From<ReceiveAddressLow> for u32 {
-    fn from(control: ReceiveAddressLow) -> Self {
+impl From<RxControl> for u32 {
+    fn from(control: RxControl) -> Self {
         control.0
     }
 }
 
-impl fmt::Debug for ReceiveAddressLow {
+impl fmt::Debug for RxControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReceiveAddressLow")
+        f.debug_struct("RxControl")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("enabled", &self.enabled())
+            .field("store_bad_packets", &self.store_bad_packets())
+            .field(
+                "unicast_promiscuous_enabled",
+                &self.unicast_promiscuous_enabled(),
+            )
+            .field(
+                "multicast_promiscuous_enabled",
+                &self.multicast_promiscuous_enabled(),
+            )
+            .field(
+                "long_packet_reception_enabled",
+                &self.long_packet_reception_enabled(),
+            )
+            .field("loopback_mode", &self.loopback_mode())
+            .field(
+                "receive_descriptor_minimum_threshold_size",
+                &self.receive_descriptor_minimum_threshold_size(),
+            )
+            .field("multicast_offset", &self.multicast_offset())
+            .field("broadcast_accepted", &self.broadcast_accepted())
+            .field("receive_buffer_size", &self.receive_buffer_size())
+            .field("vlan_filter_enabled", &self.vlan_filter_enabled())
+            .field(
+                "canonical_form_indicator_enabled",
+                &self.canonical_form_indicator_enabled(),
+            )
+            .field(
+                "canonical_form_indicator_bit_value",
+                &self.canonical_form_indicator_bit_value(),
+            )
+            .field("discard_pause_frames", &self.discard_pause_frames())
+            .field("pass_mac_control_frames", &self.pass_mac_control_frames())
+            .field("buffer_size_extension", &self.buffer_size_extension())
+            .field("strip_ethernet_crc", &self.strip_ethernet_crc())
+            .finish()
+    }
+}
+
+impl RxControl {
+    pub const OFFSET: usize = 0x00100;
+
+    pub fn enabled(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn enable(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn store_bad_packets(&self) -> bool {
+        self.0.get_bit(2)
+    }
+
+    pub fn set_store_bad_packets(&mut self, value: bool) {
+        self.0.set_bit(2, value);
+    }
+
+    pub fn unicast_promiscuous_enabled(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn enable_unicast_promiscuous(&mut self, value: bool) {
+        self.0.set_bit(3, value);
+    }
+
+    pub fn multicast_promiscuous_enabled(&self) -> bool {
+        self.0.get_bit(4)
+    }
+
+    pub fn enable_multicast_promiscuous(&mut self, value: bool) {
+        self.0.set_bit(4, value);
+    }
+
+    pub fn long_packet_reception_enabled(&self) -> bool {
+        self.0.get_bit(5)
+    }
+
+    pub fn enable_long_packet_reception(&mut self, value: bool) {
+        self.0.set_bit(5, value);
+    }
+
+    pub fn loopback_mode(&self) -> LoopbackMode {
+        LoopbackMode::from(self.0.get_bits(6..8) as u8)
+    }
+
+    pub fn set_loopback_mode(&mut self, value: LoopbackMode) {
+        self.0.set_bits(6..8, value as u8 as u32);
+    }
+
+    pub fn receive_descriptor_minimum_threshold_size(&self) -> u8 {
+        self.0.get_bits(8..10) as u8
+    }
+
+    pub fn set_receive_descriptor_minimum_threshold_size(&mut self, value: u8) {
+        self.0.set_bits(8..10, value as u32);
+    }
+
+    pub fn multicast_offset(&self) -> u8 {
+        self.0.get_bits(12..14) as u8
+    }
+
+    pub fn set_multicast_offset(&mut self, value: u8) {
+        self.0.set_bits(12..14, value as u32);
+    }
+
+    pub fn broadcast_accepted(&self) -> bool {
+        self.0.get_bit(15)
+    }
+
+    pub fn set_broadcast_accepted(&mut self, value: bool) {
+        self.0.set_bit(15, value);
+    }
+
+    pub fn receive_buffer_size(&self) -> u8 {
+        self.0.get_bits(16..18) as u8
+    }
+
+    pub fn set_receive_buffer_size(&mut self, value: u8) {
+        self.0.set_bits(16..18, value as u32);
+    }
+
+    pub fn vlan_filter_enabled(&self) -> bool {
+        self.0.get_bit(18)
+    }
+
+    pub fn enable_vlan_filter(&mut self, value: bool) {
+        self.0.set_bit(18, value);
+    }
+
+    pub fn canonical_form_indicator_enabled(&self) -> bool {
+        self.0.get_bit(19)
+    }
+
+    pub fn enable_canonical_form_indicator(&mut self, value: bool) {
+        self.0.set_bit(19, value);
+    }
+
+    pub fn canonical_form_indicator_bit_value(&self) -> bool {
+        self.0.get_bit(20)
+    }
+
+    pub fn set_canonical_form_indicator_bit_value(&mut self, value: bool) {
+        self.0.set_bit(20, value);
+    }
+
+    pub fn discard_pause_frames(&self) -> bool {
+        self.0.get_bit(22)
+    }
+
+    pub fn set_discard_pause_frames(&mut self, value: bool) {
+        self.0.set_bit(22, value);
+    }
+
+    pub fn pass_mac_control_frames(&self) -> bool {
+        self.0.get_bit(23)
+    }
+
+    pub fn set_pass_mac_control_frames(&mut self, value: bool) {
+        self.0.set_bit(23, value);
+    }
+
+    pub fn buffer_size_extension(&self) -> bool {
+        self.0.get_bit(25)
+    }
+
+    pub fn set_buffer_size_extension(&mut self, value: bool) {
+        self.0.set_bit(25, value);
+    }
+
+    pub fn strip_ethernet_crc(&self) -> bool {
+        self.0.get_bit(26)
+    }
+
+    pub fn set_strip_ethernet_crc(&mut self, value: bool) {
+        self.0.set_bit(26, value);
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LoopbackMode {
+    NoLoopback = 0,
+    PhyOrExternal = 3,
+}
+
+impl From<u8> for LoopbackMode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => LoopbackMode::NoLoopback,
+            3 => LoopbackMode::PhyOrExternal,
+            _ => panic!("Invalid loopback mode value: {}", value),
+        }
+    }
+}
+
+/// Receive Descriptor Base Low register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxDescriptorBaseLow(u32);
+
+/// Receive Descriptor Base High register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxDescriptorBaseHigh(u32);
+
+/// Receive Descriptor Length register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxDescriptorLength(u32);
+
+/// Receive Descriptor Head register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxDescriptorHead(u32);
+
+/// Receive Descriptor Tail register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxDescriptorTail(u32);
+
+
+/// Transmit Control register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxControl(u32);
+
+impl From<u32> for TxControl {
+    fn from(value: u32) -> Self {
+        TxControl(value)
+    }
+}
+
+impl From<TxControl> for u32 {
+    fn from(control: TxControl) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxControl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxControl")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("enabled", &self.enabled())
+            .field("pad_short_packets", &self.pad_short_packets())
+            .field("collision_threshold", &self.collision_threshold())
+            .field("collision_distance", &self.collision_distance())
+            .field(
+                "software_xoff_transmission",
+                &self.software_xoff_transmission(),
+            )
+            .field(
+                "retransmit_on_late_collision",
+                &self.retransmit_on_late_collision(),
+            )
+            .field(
+                "no_retransmit_on_underrun",
+                &self.no_retransmit_on_underrun(),
+            )
+            .finish()
+    }
+}
+
+impl TxControl {
+    pub const OFFSET: usize = 0x00400;
+
+    pub fn enabled(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn enable(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn pad_short_packets(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn set_pad_short_packets(&mut self, value: bool) {
+        self.0.set_bit(3, value);
+    }
+
+    pub fn collision_threshold(&self) -> u8 {
+        self.0.get_bits(4..12) as u8
+    }
+
+    pub fn set_collision_threshold(&mut self, value: u8) {
+        self.0.set_bits(4..12, value as u32);
+    }
+
+    pub fn collision_distance(&self) -> u8 {
+        self.0.get_bits(12..22) as u8
+    }
+
+    pub fn set_collision_distance(&mut self, value: u8) {
+        self.0.set_bits(12..22, value as u32);
+    }
+
+    pub fn software_xoff_transmission(&self) -> bool {
+        self.0.get_bit(22)
+    }
+
+    pub fn set_software_xoff_transmission(&mut self, value: bool) {
+        self.0.set_bit(22, value);
+    }
+
+    pub fn retransmit_on_late_collision(&self) -> bool {
+        self.0.get_bit(24)
+    }
+
+    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
+        self.0.set_bit(24, value);
+    }
+
+    pub fn no_retransmit_on_underrun(&self) -> bool {
+        self.0.get_bit(25)
+    }
+
+    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
+        self.0.set_bit(25, value);
+    }
+}
+
+/// Receive Address Low register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct RxAddressLow(u32);
+
+impl From<u32> for RxAddressLow {
+    fn from(value: u32) -> Self {
+        RxAddressLow(value)
+    }
+}
+
+impl From<RxAddressLow> for u32 {
+    fn from(control: RxAddressLow) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxAddressLow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxAddressLow")
             .field("raw", &format_args!("{:#010x}", self.0))
             .field("address", &self.address())
             .finish()
     }
 }
 
-impl ReceiveAddressLow {
+impl RxAddressLow {
     // 8 receive address registers, each with a low and high part
     pub const OFFSET0: usize = 0x00400;
     pub const OFFSET1: usize = 0x00408;
@@ -1124,30 +1150,30 @@ impl ReceiveAddressLow {
 /// Receive Address High register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
-pub struct ReceiveAddressHigh(u32);
+pub struct RxAddressHigh(u32);
 
-impl From<u32> for ReceiveAddressHigh {
+impl From<u32> for RxAddressHigh {
     fn from(value: u32) -> Self {
-        ReceiveAddressHigh(value)
+        RxAddressHigh(value)
     }
 }
 
-impl From<ReceiveAddressHigh> for u32 {
-    fn from(control: ReceiveAddressHigh) -> Self {
+impl From<RxAddressHigh> for u32 {
+    fn from(control: RxAddressHigh) -> Self {
         control.0
     }
 }
 
-impl fmt::Debug for ReceiveAddressHigh {
+impl fmt::Debug for RxAddressHigh {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReceiveAddressHigh")
+        f.debug_struct("RxAddressHigh")
             .field("raw", &format_args!("{:#010x}", self.0))
             .field("address", &self.address())
             .finish()
     }
 }
 
-impl ReceiveAddressHigh {
+impl RxAddressHigh {
     // 8 receive address registers, each with a low and high part
     pub const OFFSET0: usize = 0x00404;
     pub const OFFSET1: usize = 0x0040C;

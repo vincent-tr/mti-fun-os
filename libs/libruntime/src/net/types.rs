@@ -1,6 +1,9 @@
 use core::{fmt, ops::Index};
 
-use crate::kobject;
+use alloc::vec::Vec;
+use hashbrown::HashMap;
+
+use crate::{kobject, memory::align_down};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -59,4 +62,92 @@ pub struct BufferPool {
 impl BufferPool {
     /// A constant representing an invalid buffer index.
     pub const INVALID_INDEX: u32 = u32::MAX;
+}
+
+#[derive(Debug)]
+pub struct PhysBufferPoolAccess {
+    /// The size of each buffer in bytes.
+    buffer_size: usize,
+
+    /// The physical addresses of the buffers in the pool.
+    addresses: Vec<PhysAddr>,
+
+    /// A mapping from physical addresses to buffer indexes.
+    indexes: HashMap<PhysAddr, usize>,
+}
+
+impl PhysBufferPoolAccess {
+    /// Creates a new `PhysBufferPoolAccess` for the given buffer pool.
+    pub fn new(buffer_pool: &BufferPool) -> Self {
+        let buffer_size = buffer_pool.buffer_size;
+        assert!(
+            buffer_size.is_power_of_two(),
+            "Buffer size must be a power of two"
+        );
+        assert!(
+            buffer_size <= kobject::PAGE_SIZE,
+            "Buffer size must be less than or equal to the page size"
+        );
+
+        let mut addresses = Vec::with_capacity(buffer_pool.buffer_count);
+        let mut indexes = HashMap::with_capacity(buffer_pool.buffer_count);
+
+        for index in 0..buffer_pool.buffer_count {
+            let addr = PhysAddr::from(
+                buffer_pool
+                    .mobj
+                    .phys_addr(index * buffer_size)
+                    .expect("Could not get physical address"),
+            );
+
+            addresses.push(addr);
+            indexes.insert(addr, index);
+        }
+
+        Self {
+            buffer_size,
+            addresses,
+            indexes,
+        }
+    }
+
+    /// Returns the physical address of the buffer at the given index, or `None` if the index is invalid.
+    pub fn address_of(&self, index: usize) -> Option<PhysAddr> {
+        self.addresses.get(index).copied()
+    }
+
+    /// Returns the buffer index and offset for the given physical address, or `None` if the address is not part of any buffer in the pool.
+    pub fn index_of(&self, addr: PhysAddr) -> Option<(usize, usize)> {
+        // Align the address down to the nearest buffer boundary.
+        let buffer_addr = PhysAddr::from(align_down(addr.as_u64() as usize, self.buffer_size));
+        let offset = (addr.as_u64() - buffer_addr.as_u64()) as usize;
+        let index = self.indexes.get(&buffer_addr)?;
+        Some((*index, offset))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct PhysAddr(u64);
+
+impl From<u64> for PhysAddr {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<usize> for PhysAddr {
+    fn from(value: usize) -> Self {
+        Self(value as u64)
+    }
+}
+
+impl PhysAddr {
+    pub const fn null() -> Self {
+        Self(0)
+    }
+
+    pub const fn as_u64(&self) -> u64 {
+        self.0
+    }
 }

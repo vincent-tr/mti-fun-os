@@ -13,7 +13,7 @@ use libruntime::{
         dev::{
             NetDevice,
             iface::{NetDeviceError, RxBufferDescriptor, TxBufferDescriptor},
-        },
+        }, types::PhysBufferPoolAccess,
     },
 };
 use log::{debug, error, info};
@@ -23,7 +23,8 @@ use log::{debug, error, info};
 pub struct E1000eDevice {
     name: String,
     pci_device: pci::PciDevice,
-    mmio_region: MmioRegion<u32>,
+    buffer_pool: Arc<PhysBufferPoolAccess>,
+    mmio_region: Arc<MmioRegion<u32>>,
     link_status: LinkStatus,
 }
 
@@ -52,7 +53,8 @@ impl NetDevice for E1000eDevice {
         let device = Self {
             name: String::from(name),
             pci_device,
-            mmio_region: MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?,
+            buffer_pool: Arc::new(PhysBufferPoolAccess::new(buffer_pool)),
+            mmio_region: Arc::new(MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?),
             link_status: LinkStatus::new(link_status_change_callback),
         };
 

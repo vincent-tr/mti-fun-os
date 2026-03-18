@@ -1,4 +1,7 @@
-use core::{fmt, ops::Index};
+use core::{
+    fmt,
+    ops::{Add, Index},
+};
 
 use alloc::vec::Vec;
 use hashbrown::HashMap;
@@ -126,7 +129,7 @@ impl PhysBufferPoolAccess {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Default, Debug, Copy, Clone, Hash, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PhysAddr(u64);
 
@@ -149,5 +152,21 @@ impl PhysAddr {
 
     pub const fn as_u64(&self) -> u64 {
         self.0
+    }
+}
+
+impl Add<u64> for PhysAddr {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Add<usize> for PhysAddr {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs as u64)
     }
 }

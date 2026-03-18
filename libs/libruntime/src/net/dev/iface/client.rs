@@ -232,7 +232,7 @@ impl Client<'_> {
     pub fn add_rx_buffers(
         &self,
         handle: ipc::Handle,
-        buffer_indexes: &[u32],
+        buffer_indexes: &[usize],
     ) -> Result<usize, NetDeviceServerCallError> {
         assert!(
             buffer_indexes.len() <= messages::AddRxBuffersQueryParameters::BUFFER_COUNT,
@@ -244,7 +244,9 @@ impl Client<'_> {
         let mut buffers =
             [BufferPool::INVALID_INDEX as u32; messages::AddRxBuffersQueryParameters::BUFFER_COUNT];
         let count = buffer_indexes.len();
-        buffers[..count].copy_from_slice(&buffer_indexes[..count]);
+        for i in 0..count {
+            buffers[i] = buffer_indexes[i] as u32;
+        }
 
         let query = messages::AddRxBuffersQueryParameters { handle, buffers };
         let query_handles = ipc::KHandles::new();

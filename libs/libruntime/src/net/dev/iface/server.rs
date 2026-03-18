@@ -6,7 +6,7 @@ use crate::{
     net::types::{BufferPool, MacAddress},
     service,
 };
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 
 /// Net device server interface
 pub trait NetDeviceServer {
@@ -68,7 +68,7 @@ pub trait NetDeviceServer {
         &self,
         sender_id: u64,
         handle: ipc::Handle,
-        buffer_indexes: &[u32],
+        buffer_indexes: &[usize],
     ) -> Result<usize, Self::Error>;
 
     /// Set the port for Rx arrived notifications.
@@ -283,9 +283,19 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         _query_handles: ipc::KHandles,
         sender_id: u64,
     ) -> Result<(messages::AddRxBuffersReply, ipc::KHandles), messages::NetDeviceError> {
+        let mut indexes = Vec::new();
+
+        for i in 0..messages::AddRxBuffersQueryParameters::BUFFER_COUNT {
+            let index = query.buffers[i] as usize;
+            if index == BufferPool::INVALID_INDEX {
+                break;
+            }
+            indexes.push(index);
+        }
+
         let added_buffers = self
             .inner
-            .add_rx_buffers(sender_id, query.handle, &query.buffers)
+            .add_rx_buffers(sender_id, query.handle, &indexes)
             .map_err(Into::into)?;
 
         Ok((

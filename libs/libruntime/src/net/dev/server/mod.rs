@@ -29,7 +29,7 @@ pub trait NetDevice: Sync + Send + 'static {
         pci_address: PciAddress,
         buffer_pool: BufferPool,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
-        tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
+        tx_free_callback: impl Fn(&[usize]) + Send + Sync + 'static,
         rx_arrived_callback: impl Fn(&[iface::RxBufferDescriptor]) + Send + Sync + 'static,
     ) -> Result<Box<Self>, Self::Error>;
 
@@ -48,7 +48,7 @@ pub trait NetDevice: Sync + Send + 'static {
 
     /// Add receive buffers to the network device.
     /// Returns the number of buffers that were successfully added.
-    fn add_rx_buffers(&self, buffer_indexes: &[u32]) -> Result<usize, Self::Error>;
+    fn add_rx_buffers(&self, buffer_indexes: &[usize]) -> Result<usize, Self::Error>;
 }
 
 /// Helper implementation of a net device server for a given NetDevice implementation.
@@ -199,7 +199,7 @@ impl<NetDev: NetDevice> iface::NetDeviceServer for NetDeviceServer<NetDev> {
         &self,
         _sender_id: u64,
         handle: ipc::Handle,
-        buffer_indexes: &[u32],
+        buffer_indexes: &[usize],
     ) -> Result<usize, Self::Error> {
         let entry = self
             .devices
@@ -274,7 +274,7 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
 
         let tx_free_callback = {
             let entry = entry.clone();
-            move |buffer_indexes: &[u32]| {
+            move |buffer_indexes: &[usize]| {
                 entry.tx_free_callback(buffer_indexes);
             }
         };
@@ -372,7 +372,7 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
 
     /// Callback for when Tx buffers are freed.
     /// This should be called by the device implementation when buffers are freed.
-    pub fn tx_free_callback(&self, buffer_indexes: &[u32]) {
+    pub fn tx_free_callback(&self, buffer_indexes: &[usize]) {
         assert!(
             buffer_indexes.len() <= iface::TxFreeNotification::BUFFER_COUNT,
             "Too many buffer indexes for TxFreeNotification"
@@ -382,7 +382,15 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
             let mut buffers =
                 [BufferPool::INVALID_INDEX as u32; iface::TxFreeNotification::BUFFER_COUNT];
             let count = buffer_indexes.len();
-            buffers[..count].copy_from_slice(&buffer_indexes[..count]);
+
+            for i in 0..count {
+                assert!(
+                    buffer_indexes[i] < u32::MAX as usize,
+                    "Buffer index must fit in 32 bits"
+                );
+
+                buffers[i] = buffer_indexes[i] as u32;
+            }
 
             (
                 iface::TxFreeNotification {

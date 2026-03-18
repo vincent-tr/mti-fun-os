@@ -3,6 +3,7 @@ use core::fmt;
 use bit_field::BitField;
 
 #[derive(Copy, Clone, Default)]
+#[repr(C, align(16))]
 pub struct TxDescriptor {
     /// The physical address of the buffer for this descriptor.
     pub address: u64,

@@ -1272,7 +1272,6 @@ impl RxDescriptorTail {
     }
 }
 
-
 /// Transmit Descriptor Base Low register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]

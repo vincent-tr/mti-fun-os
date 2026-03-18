@@ -4,16 +4,17 @@ use core::{
 };
 
 use crate::registers;
-use alloc::{boxed::Box, string::String};
+use alloc::{boxed::Box, string::String, sync::Arc};
 use libruntime::{
     drivers::{MmioRegion, pci},
     kobject,
     net::{
-        BufferPool, MacAddress,
         dev::{
             NetDevice,
             iface::{NetDeviceError, RxBufferDescriptor, TxBufferDescriptor},
-        }, types::PhysBufferPoolAccess,
+        },
+        types::PhysBufferPoolAccess,
+        types::{BufferPool, MacAddress},
     },
 };
 use log::{debug, error, info};
@@ -53,7 +54,7 @@ impl NetDevice for E1000eDevice {
         let device = Self {
             name: String::from(name),
             pci_device,
-            buffer_pool: Arc::new(PhysBufferPoolAccess::new(buffer_pool)),
+            buffer_pool: Arc::new(PhysBufferPoolAccess::new(&buffer_pool)),
             mmio_region: Arc::new(MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?),
             link_status: LinkStatus::new(link_status_change_callback),
         };
@@ -127,18 +128,19 @@ impl E1000eDevice {
         // Setup MAC Address
         let address = self.get_mac_address()?;
         debug!("Setting MAC address to {}", address);
-        let mut ral0 = registers::ReceiveAddressLow::from(0);
+        let mut ral0 = registers::RxAddressLow::default();
         ral0.set_address(u32::from_le_bytes([
             address[0], address[1], address[2], address[3],
         ]));
-        let mut rah0 = registers::ReceiveAddressHigh::from(0);
+        self.mmio_region
+            .write(registers::RxAddressLow::OFFSET0, ral0.into());
+
+        let mut rah0 = registers::RxAddressHigh::default();
         rah0.set_address(u32::from_le_bytes([address[4], address[5], 0, 0]));
         rah0.set_valid(true);
         rah0.set_address_select(registers::AddressSelect::Destination);
         self.mmio_region
-            .write(registers::ReceiveAddressLow::OFFSET0, ral0.into());
-        self.mmio_region
-            .write(registers::ReceiveAddressHigh::OFFSET0, rah0.into());
+            .write(registers::RxAddressHigh::OFFSET0, rah0.into());
 
         /*
 

@@ -979,26 +979,197 @@ impl From<u8> for LoopbackMode {
 #[repr(transparent)]
 pub struct RxDescriptorBaseLow(u32);
 
+impl From<u32> for RxDescriptorBaseLow {
+    fn from(value: u32) -> Self {
+        RxDescriptorBaseLow(value)
+    }
+}
+
+impl From<RxDescriptorBaseLow> for u32 {
+    fn from(control: RxDescriptorBaseLow) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxDescriptorBaseLow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxDescriptorBaseLow")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("address", &self.address())
+            .finish()
+    }
+}
+
+impl RxDescriptorBaseLow {
+    pub const OFFSET: usize = 0x02800;
+
+    pub fn address(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set_address(&mut self, address: u32) {
+        assert!(address % 16 == 0, "Address must be 16-byte aligned");
+
+        self.0 = address;
+    }
+}
+
 /// Receive Descriptor Base High register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct RxDescriptorBaseHigh(u32);
+
+impl From<u32> for RxDescriptorBaseHigh {
+    fn from(value: u32) -> Self {
+        RxDescriptorBaseHigh(value)
+    }
+}
+
+impl From<RxDescriptorBaseHigh> for u32 {
+    fn from(control: RxDescriptorBaseHigh) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxDescriptorBaseHigh {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxDescriptorBaseHigh")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("address", &self.address())
+            .finish()
+    }
+}
+
+impl RxDescriptorBaseHigh {
+    pub const OFFSET: usize = 0x02804;
+
+    pub fn address(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set_address(&mut self, address: u32) {
+        self.0 = address;
+    }
+}
 
 /// Receive Descriptor Length register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct RxDescriptorLength(u32);
 
+impl From<u32> for RxDescriptorLength {
+    fn from(value: u32) -> Self {
+        RxDescriptorLength(value)
+    }
+}
+
+impl From<RxDescriptorLength> for u32 {
+    fn from(control: RxDescriptorLength) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxDescriptorLength {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxDescriptorLength")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("length", &self.length())
+            .finish()
+    }
+}
+
+impl RxDescriptorLength {
+    pub const OFFSET: usize = 0x02808;
+
+    pub fn length(&self) -> usize {
+        self.0.get_bits(0..20) as usize
+    }
+
+    pub fn set_length(&mut self, length: usize) {
+        assert!(length % 128 == 0, "Length must be a multiple of 128 bytes");
+        assert!(length < 2usize.pow(20), "Length must be less than 1 MiB");
+
+        self.0.set_bits(0..20, length as u32);
+    }
+}
+
 /// Receive Descriptor Head register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct RxDescriptorHead(u32);
+
+impl From<u32> for RxDescriptorHead {
+    fn from(value: u32) -> Self {
+        RxDescriptorHead(value)
+    }
+}
+
+impl From<RxDescriptorHead> for u32 {
+    fn from(control: RxDescriptorHead) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxDescriptorHead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxDescriptorHead")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("index", &self.index())
+            .finish()
+    }
+}
+
+impl RxDescriptorHead {
+    pub const OFFSET: usize = 0x02810;
+
+    pub fn index(&self) -> usize {
+        self.0.get_bits(0..16) as usize
+    }
+
+    pub fn set_index(&mut self, index: usize) {
+        assert!(index < 2usize.pow(16), "Index must be less than 65536");
+        self.0.set_bits(0..16, index as u32);
+    }
+}
 
 /// Receive Descriptor Tail register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct RxDescriptorTail(u32);
 
+impl From<u32> for RxDescriptorTail {
+    fn from(value: u32) -> Self {
+        RxDescriptorTail(value)
+    }
+}
+
+impl From<RxDescriptorTail> for u32 {
+    fn from(control: RxDescriptorTail) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for RxDescriptorTail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RxDescriptorTail")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("index", &self.index())
+            .finish()
+    }
+}
+
+impl RxDescriptorTail {
+    pub const OFFSET: usize = 0x02818;
+
+    pub fn index(&self) -> usize {
+        self.0.get_bits(0..16) as usize
+    }
+
+    pub fn set_index(&mut self, index: usize) {
+        assert!(index < 2usize.pow(16), "Index must be less than 65536");
+        self.0.set_bits(0..16, index as u32);
+    }
+}
 
 /// Transmit Control register for the e1000e network device.
 #[derive(Copy, Clone, Default)]

@@ -955,6 +955,56 @@ impl RxControl {
     pub fn set_strip_ethernet_crc(&mut self, value: bool) {
         self.0.set_bit(26, value);
     }
+
+    pub fn buffer_size(&self) -> usize {
+        let base_size = match self.receive_buffer_size() {
+            0 => 2048,
+            1 => 1024,
+            2 => 512,
+            3 => 256,
+            _ => panic!("Invalid receive buffer size value"),
+        };
+
+        if self.buffer_size_extension() {
+            base_size * 8
+        } else {
+            base_size
+        }
+    }
+
+    pub fn set_buffer_size(&mut self, value: usize) {
+        match value {
+            256 => {
+                self.set_receive_buffer_size(3);
+                self.set_buffer_size_extension(false);
+            }
+            512 => {
+                self.set_receive_buffer_size(2);
+                self.set_buffer_size_extension(false);
+            }
+            1024 => {
+                self.set_receive_buffer_size(1);
+                self.set_buffer_size_extension(false);
+            }
+            2048 => {
+                self.set_receive_buffer_size(0);
+                self.set_buffer_size_extension(false);
+            }
+            4096 => {
+                self.set_receive_buffer_size(3);
+                self.set_buffer_size_extension(true);
+            }
+            8192 => {
+                self.set_receive_buffer_size(2);
+                self.set_buffer_size_extension(true);
+            }
+            16384 => {
+                self.set_receive_buffer_size(1);
+                self.set_buffer_size_extension(true);
+            }
+            _ => panic!("Invalid buffer size: {}", value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,8 +1,8 @@
 pub mod iface;
 mod server;
 
-pub use server::NetDevice;
 use server::NetDeviceServer;
+pub use server::{NetDevice, RX_ARRIVED_DESCRIPTOR_COUNT, TX_FREE_BUFFER_COUNT};
 
 use crate::{kobject, service};
 

@@ -1,39 +1,41 @@
 use core::fmt;
 
 use bit_field::BitField;
+use libruntime::net::types::PhysAddr;
 
 #[derive(Copy, Clone, Default)]
 #[repr(C, align(16))]
 pub struct TxDescriptor {
-    /// The physical address of the buffer for this descriptor.
-    pub address: u64,
-
-    pub flags: u64,
+    address: PhysAddr,
+    flags: u64,
 }
 
 impl fmt::Debug for TxDescriptor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TxDescriptor")
-            .field("address", &format_args!("{:#x}", self.address))
+            .field("address", &format_args!("{:#x}", self.address.as_u64()))
             .field("flags", &format_args!("{:#x}", self.flags))
             .finish()
     }
 }
 
+#[allow(dead_code)]
 impl TxDescriptor {
-    pub fn address(&self) -> u64 {
+    pub fn address(&self) -> PhysAddr {
         self.address
     }
 
-    pub fn set_address(&mut self, address: u64) {
+    pub fn set_address(&mut self, address: PhysAddr) {
         self.address = address;
     }
 
-    pub fn length(&self) -> u16 {
-        self.flags.get_bits(0..16) as u16
+    pub fn length(&self) -> usize {
+        self.flags.get_bits(0..16) as usize
     }
 
-    pub fn set_length(&mut self, length: u16) {
+    pub fn set_length(&mut self, length: usize) {
+        assert!(length <= u16::MAX as usize, "Length must fit in 16 bits");
+
         self.flags.set_bits(0..16, length as u64);
     }
 
@@ -41,7 +43,11 @@ impl TxDescriptor {
         self.flags.get_bits(16..24) as u8
     }
 
-    pub fn set_checksum_offset(&mut self, offset: u8) {
+    pub fn set_checksum_offset(&mut self, offset: usize) {
+        assert!(
+            offset <= u8::MAX as usize,
+            "Checksum offset must fit in 8 bits"
+        );
         self.flags.set_bits(16..24, offset as u64);
     }
 
@@ -61,11 +67,15 @@ impl TxDescriptor {
         self.flags.set_bits(32..40, status.0 as u64);
     }
 
-    pub fn checksum_start(&self) -> u8 {
-        self.flags.get_bits(40..48) as u8
+    pub fn checksum_start(&self) -> usize {
+        self.flags.get_bits(40..48) as usize
     }
 
-    pub fn set_checksum_start(&mut self, start: u8) {
+    pub fn set_checksum_start(&mut self, start: usize) {
+        assert!(
+            start <= u8::MAX as usize,
+            "Checksum start must fit in 8 bits"
+        );
         self.flags.set_bits(40..48, start as u64);
     }
 
@@ -94,6 +104,7 @@ impl fmt::Debug for TxDescriptorCommand {
     }
 }
 
+#[allow(dead_code)]
 impl TxDescriptorCommand {
     pub fn end_of_packet(&self) -> bool {
         self.0.get_bit(0)
@@ -155,6 +166,7 @@ impl fmt::Debug for TxDescriptorStatus {
     }
 }
 
+#[allow(dead_code)]
 impl TxDescriptorStatus {
     pub fn descriptor_done(&self) -> bool {
         self.0.get_bit(0)

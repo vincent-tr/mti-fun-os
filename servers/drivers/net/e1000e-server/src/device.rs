@@ -1,9 +1,7 @@
-use core::{
-    fmt, panic,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::{fmt, panic};
+use spin::Mutex;
 
-use crate::registers;
+use crate::{registers, ring};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use libruntime::{
     drivers::{MmioRegion, pci},
@@ -13,8 +11,7 @@ use libruntime::{
             NetDevice,
             iface::{NetDeviceError, RxBufferDescriptor, TxBufferDescriptor},
         },
-        types::PhysBufferPoolAccess,
-        types::{BufferPool, MacAddress},
+        types::{BufferPool, MacAddress, PhysAddr, PhysBufferPoolAccess},
     },
 };
 use log::{debug, error, info};
@@ -22,11 +19,10 @@ use log::{debug, error, info};
 /// Represents an E1000e network device.
 #[derive(Debug)]
 pub struct E1000eDevice {
-    name: String,
+    dev_data: Arc<DeviceData>,
     pci_device: pci::PciDevice,
-    buffer_pool: Arc<PhysBufferPoolAccess>,
-    mmio_region: Arc<MmioRegion<u32>>,
-    link_status: LinkStatus,
+    link_status: Mutex<LinkStatus>,
+    tx_ring: Mutex<ring::TxRing>,
 }
 
 impl NetDevice for E1000eDevice {
@@ -37,7 +33,7 @@ impl NetDevice for E1000eDevice {
         pci_address: pci::PciAddress,
         buffer_pool: BufferPool,
         link_status_change_callback: impl Fn(bool) + Send + Sync + 'static,
-        tx_free_callback: impl Fn(&[u32]) + Send + Sync + 'static,
+        tx_free_callback: impl Fn(&[usize]) + Send + Sync + 'static,
         rx_arrived_callback: impl Fn(&[RxBufferDescriptor]) + Send + Sync + 'static,
     ) -> Result<Box<Self>, Self::Error> {
         let pci_device = pci::PciDevice::open(pci_address).into_netdev_err()?;
@@ -51,12 +47,20 @@ impl NetDevice for E1000eDevice {
             return Err(NetDeviceError::DeviceError);
         };
 
+        let dev_data = DeviceData::new(
+            name,
+            MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?,
+            &buffer_pool,
+        );
+
+        let link_status = Mutex::new(LinkStatus::new(link_status_change_callback));
+        let tx_ring = Mutex::new(ring::TxRing::new(dev_data.clone(), tx_free_callback));
+
         let device = Self {
-            name: String::from(name),
+            dev_data,
             pci_device,
-            buffer_pool: Arc::new(PhysBufferPoolAccess::new(&buffer_pool)),
-            mmio_region: Arc::new(MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?),
-            link_status: LinkStatus::new(link_status_change_callback),
+            link_status,
+            tx_ring,
         };
 
         device.init()?;
@@ -67,12 +71,14 @@ impl NetDevice for E1000eDevice {
     fn destroy(self) {}
 
     fn get_link_status(&self) -> Result<bool, Self::Error> {
-        Ok(self.link_status.is_up())
+        let link_status = self.link_status.lock();
+
+        Ok(link_status.is_up())
     }
 
     fn get_mac_address(&self) -> Result<MacAddress, Self::Error> {
         // MAC is stored in EEPROM words 0x00, 0x01, 0x02 (3 words = 6 bytes)
-        let access = EepromAccess::acquire(&self.mmio_region)?;
+        let access = EepromAccess::acquire(&self.dev_data)?;
         let word0 = access.read(0x00)?;
         let word1 = access.read(0x01)?;
         let word2 = access.read(0x02)?;
@@ -88,10 +94,14 @@ impl NetDevice for E1000eDevice {
     }
 
     fn tx(&self, descriptors: &[TxBufferDescriptor]) -> Result<usize, Self::Error> {
-        todo!()
+        let mut ring = self.tx_ring.lock();
+
+        let added_count = ring.add_buffers(descriptors);
+
+        Ok(added_count)
     }
 
-    fn add_rx_buffers(&self, buffer_indexes: &[u32]) -> Result<usize, Self::Error> {
+    fn add_rx_buffers(&self, buffer_indexes: &[usize]) -> Result<usize, Self::Error> {
         todo!()
     }
 }
@@ -101,15 +111,13 @@ impl E1000eDevice {
         self.pci_device.enable(true, true, true).into_netdev_err()?;
 
         // Reset the device
-        let mut control =
-            registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+        let mut control: registers::Control = self.dev_data.mmio_read(registers::Control::OFFSET);
         control.set_reset(true);
-        self.mmio_region
-            .write(registers::Control::OFFSET, control.into());
+        self.dev_data
+            .mmio_write(registers::Control::OFFSET, control);
 
         loop {
-            let control =
-                registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+            let control: registers::Control = self.dev_data.mmio_read(registers::Control::OFFSET);
             if !control.reset() {
                 break;
             }
@@ -118,12 +126,11 @@ impl E1000eDevice {
         }
 
         // Setup
-        let mut control =
-            registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
+        let mut control: registers::Control = self.dev_data.mmio_read(registers::Control::OFFSET);
         control.set_auto_speed_detection(true);
         control.set_link_up(true);
-        self.mmio_region
-            .write(registers::Control::OFFSET, control.into());
+        self.dev_data
+            .mmio_write(registers::Control::OFFSET, control);
 
         // Setup MAC Address
         let address = self.get_mac_address()?;
@@ -132,57 +139,81 @@ impl E1000eDevice {
         ral0.set_address(u32::from_le_bytes([
             address[0], address[1], address[2], address[3],
         ]));
-        self.mmio_region
-            .write(registers::RxAddressLow::OFFSET0, ral0.into());
+        self.dev_data
+            .mmio_write(registers::RxAddressLow::OFFSET0, ral0);
 
         let mut rah0 = registers::RxAddressHigh::default();
         rah0.set_address(u32::from_le_bytes([address[4], address[5], 0, 0]));
         rah0.set_valid(true);
         rah0.set_address_select(registers::AddressSelect::Destination);
-        self.mmio_region
-            .write(registers::RxAddressHigh::OFFSET0, rah0.into());
+        self.dev_data
+            .mmio_write(registers::RxAddressHigh::OFFSET0, rah0);
 
-        /*
+        // Setup Tx ring
+        self.tx_ring.lock().init();
 
-        So I have in mind to have this apis in the driver interface :
-        - tx (with a list of buffers, and the driver returns how many he could handle)
-        - add Rx buffers (with a list of buffers, and the driver returns how many he uses)
-        And this driver notifications
-        - Rx arrived (with a list of buffers)
-        - tx free buffer (with a list of buffers)
-        This way:
-        - net server manage buffers
-        - bulk can happen, saving IPC roundtrips
-        Rephrase it cleanly, and add comments if you have some
-
-         */
         // TODO: RING SETUP, INTERRUPT SETUP
-
-        // ---
-        let control = registers::Control::from(self.mmio_region.read(registers::Control::OFFSET));
-        let status = registers::Status::from(self.mmio_region.read(registers::Status::OFFSET));
-        let rx_control =
-            registers::RxControl::from(self.mmio_region.read(registers::RxControl::OFFSET));
-        let tx_control =
-            registers::TxControl::from(self.mmio_region.read(registers::TxControl::OFFSET));
-
-        log::debug!("Control: {:?}", control);
-        log::debug!("Status: {:?}", status);
-        log::debug!("RxControl: {:?}", rx_control);
-        log::debug!("TxControl: {:?}", tx_control);
-
-        // Read and log the MAC address from EEPROM
-        match self.get_mac_address() {
-            Ok(mac) => log::info!("MAC address: {}", mac),
-            Err(e) => log::error!("Failed to read MAC address: {:?}", e),
-        }
 
         panic!("E1000e device creation not implemented yet");
     }
 }
 
+/// Common data for the device, shared between different parts of the driver implementation.
+#[derive(Debug)]
+pub struct DeviceData {
+    name: String,
+    mmio_region: MmioRegion<u32>,
+    buffer_pool: PhysBufferPoolAccess,
+}
+
+impl DeviceData {
+    /// Create a new DeviceData instance.
+    pub fn new(name: &str, mmio_region: MmioRegion<u32>, buffer_pool: &BufferPool) -> Arc<Self> {
+        Arc::new(Self {
+            name: String::from(name),
+            mmio_region,
+            buffer_pool: PhysBufferPoolAccess::new(buffer_pool),
+        })
+    }
+
+    /// Get the name of the device, used for logging.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Read a register from the MMIO region.
+    pub fn mmio_read<Register>(&self, offset: usize) -> Register
+    where
+        Register: From<u32>,
+    {
+        Register::from(self.mmio_region.read(offset))
+    }
+
+    /// Write a register to the MMIO region.
+    pub fn mmio_write<Register>(&self, offset: usize, value: Register)
+    where
+        Register: Into<u32>,
+    {
+        self.mmio_region.write(offset, value.into());
+    }
+
+    /// Get the physical address of a buffer in the buffer pool by its index.
+    pub fn buffer_address_of(&self, buffer_index: usize) -> PhysAddr {
+        self.buffer_pool
+            .address_of(buffer_index)
+            .expect("Bad buffer index")
+    }
+
+    /// Get the buffer index and offset for a given physical address.
+    pub fn buffer_index_of(&self, addr: PhysAddr) -> (usize, usize) {
+        self.buffer_pool
+            .index_of(addr)
+            .expect("Address not part of any buffer")
+    }
+}
+
 struct LinkStatus {
-    is_up: AtomicBool,
+    is_up: bool,
     change: Box<dyn Fn(bool) + Send + Sync + 'static>,
 }
 
@@ -197,20 +228,21 @@ impl fmt::Debug for LinkStatus {
 impl LinkStatus {
     pub fn new(change_callback: impl Fn(bool) + Send + Sync + 'static) -> Self {
         Self {
-            is_up: AtomicBool::new(false),
+            is_up: false,
             change: Box::new(change_callback),
         }
     }
 
     pub fn update(&mut self, new_status: bool) {
-        let old_status = self.is_up.swap(new_status, Ordering::SeqCst);
+        let old_status = self.is_up;
+        self.is_up = new_status;
         if old_status != new_status {
             (self.change)(new_status);
         }
     }
 
     pub fn is_up(&self) -> bool {
-        self.is_up.load(Ordering::SeqCst)
+        self.is_up
     }
 }
 
@@ -249,25 +281,24 @@ impl<T> ResultExt<T> for Result<T, kobject::Error> {
 /// Access to the EEPROM
 #[derive(Debug)]
 struct EepromAccess<'a> {
-    mmio_region: &'a MmioRegion<u32>,
+    dev_data: &'a DeviceData,
 }
 
 impl Drop for EepromAccess<'_> {
     fn drop(&mut self) {
-        let mut control = registers::EepromControlData::from(
-            self.mmio_region.read(registers::EepromControlData::OFFSET),
-        );
+        let mut control: registers::EepromControlData = self
+            .dev_data
+            .mmio_read(registers::EepromControlData::OFFSET);
         control.set_access_request(false);
-        self.mmio_region
-            .write(registers::EepromControlData::OFFSET, control.into());
+        self.dev_data
+            .mmio_write(registers::EepromControlData::OFFSET, control);
     }
 }
 
 impl<'a> EepromAccess<'a> {
-    pub fn acquire(mmio_region: &'a MmioRegion<u32>) -> Result<Self, NetDeviceError> {
-        let mut control = registers::EepromControlData::from(
-            mmio_region.read(registers::EepromControlData::OFFSET),
-        );
+    pub fn acquire(dev_data: &'a DeviceData) -> Result<Self, NetDeviceError> {
+        let mut control: registers::EepromControlData =
+            dev_data.mmio_read(registers::EepromControlData::OFFSET);
 
         if !control.present() {
             error!("EEPROM not present");
@@ -275,15 +306,14 @@ impl<'a> EepromAccess<'a> {
         }
 
         control.set_access_request(true);
-        mmio_region.write(registers::EepromControlData::OFFSET, control.into());
+        dev_data.mmio_write(registers::EepromControlData::OFFSET, control);
 
         const MAX_ATTEMPTS: usize = 1000;
 
         let mut granted = false;
         for _ in 0..MAX_ATTEMPTS {
-            let control = registers::EepromControlData::from(
-                mmio_region.read(registers::EepromControlData::OFFSET),
-            );
+            let control: registers::EepromControlData =
+                dev_data.mmio_read(registers::EepromControlData::OFFSET);
             if control.access_grant() {
                 granted = true;
                 break;
@@ -296,21 +326,21 @@ impl<'a> EepromAccess<'a> {
             info!("Could not acquire EEPROM lock, consider it is not implemented");
         }
 
-        Ok(Self { mmio_region })
+        Ok(Self { dev_data })
     }
 
     pub fn read(&self, address: u16) -> Result<u16, NetDeviceError> {
         let mut eerd = registers::EepromRead::default();
         eerd.set_address(address);
         eerd.set_start(true);
-        self.mmio_region
-            .write(registers::EepromRead::OFFSET, eerd.into());
+        self.dev_data
+            .mmio_write(registers::EepromRead::OFFSET, eerd);
 
         const MAX_ATTEMPTS: usize = 1000;
 
         for _ in 0..MAX_ATTEMPTS {
-            let eerd =
-                registers::EepromRead::from(self.mmio_region.read(registers::EepromRead::OFFSET));
+            let eerd: registers::EepromRead =
+                self.dev_data.mmio_read(registers::EepromRead::OFFSET);
 
             if eerd.done() {
                 return Ok(eerd.data());

@@ -19,6 +19,12 @@ use super::iface;
 use notifier::Notifier;
 use state::State;
 
+/// Maximum number of buffer indexes that can be included in a Tx free notification.
+pub const TX_FREE_BUFFER_COUNT: usize = iface::TxFreeNotification::BUFFER_COUNT;
+
+/// Maximum number of descriptors that can be included in an Rx arrived notification.
+pub const RX_ARRIVED_DESCRIPTOR_COUNT: usize = iface::RxArrivedNotification::DESCRIPTOR_COUNT;
+
 /// Trait representing a network device
 pub trait NetDevice: Sync + Send + 'static {
     type Error: Into<iface::NetDeviceError>;

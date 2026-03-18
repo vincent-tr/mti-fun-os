@@ -247,6 +247,7 @@ dependencies = [
  "lazy_static",
  "libruntime",
  "log",
+ "spin 0.10.0",
 ]
 
 [[package]]

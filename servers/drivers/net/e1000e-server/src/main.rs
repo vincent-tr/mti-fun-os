@@ -6,8 +6,10 @@ extern crate libruntime;
 
 mod descriptors;
 mod device;
+mod eeprom;
+mod link_status;
 mod registers;
-mod ring;
+mod tx_ring;
 
 use libruntime::{net::dev::setup_net_device_server, service};
 

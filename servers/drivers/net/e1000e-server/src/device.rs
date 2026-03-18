@@ -1,7 +1,12 @@
-use core::{fmt, panic};
+use core::panic;
 use spin::Mutex;
 
-use crate::{registers, ring};
+use crate::{
+    eeprom::EepromAccess,
+    link_status::LinkStatus,
+    registers,
+    tx_ring::{self, TxRing},
+};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use libruntime::{
     drivers::{MmioRegion, pci},
@@ -14,7 +19,7 @@ use libruntime::{
         types::{BufferPool, MacAddress, PhysAddr, PhysBufferPoolAccess},
     },
 };
-use log::{debug, error, info};
+use log::{debug, error};
 
 /// Represents an E1000e network device.
 #[derive(Debug)]
@@ -22,7 +27,7 @@ pub struct E1000eDevice {
     dev_data: Arc<DeviceData>,
     pci_device: pci::PciDevice,
     link_status: Mutex<LinkStatus>,
-    tx_ring: Mutex<ring::TxRing>,
+    tx_ring: Mutex<TxRing>,
 }
 
 impl NetDevice for E1000eDevice {
@@ -54,7 +59,7 @@ impl NetDevice for E1000eDevice {
         );
 
         let link_status = Mutex::new(LinkStatus::new(link_status_change_callback));
-        let tx_ring = Mutex::new(ring::TxRing::new(dev_data.clone(), tx_free_callback));
+        let tx_ring = Mutex::new(tx_ring::TxRing::new(dev_data.clone(), tx_free_callback));
 
         let device = Self {
             dev_data,
@@ -212,40 +217,6 @@ impl DeviceData {
     }
 }
 
-struct LinkStatus {
-    is_up: bool,
-    change: Box<dyn Fn(bool) + Send + Sync + 'static>,
-}
-
-impl fmt::Debug for LinkStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LinkStatus")
-            .field("is_up", &self.is_up())
-            .finish()
-    }
-}
-
-impl LinkStatus {
-    pub fn new(change_callback: impl Fn(bool) + Send + Sync + 'static) -> Self {
-        Self {
-            is_up: false,
-            change: Box::new(change_callback),
-        }
-    }
-
-    pub fn update(&mut self, new_status: bool) {
-        let old_status = self.is_up;
-        self.is_up = new_status;
-        if old_status != new_status {
-            (self.change)(new_status);
-        }
-    }
-
-    pub fn is_up(&self) -> bool {
-        self.is_up
-    }
-}
-
 trait ResultExt<T> {
     fn into_netdev_err(self) -> Result<T, NetDeviceError>;
 }
@@ -275,81 +246,5 @@ impl<T> ResultExt<T> for Result<T, kobject::Error> {
             error!("Kernel operation failed: {:?}", e);
             NetDeviceError::RuntimeError
         })
-    }
-}
-
-/// Access to the EEPROM
-#[derive(Debug)]
-struct EepromAccess<'a> {
-    dev_data: &'a DeviceData,
-}
-
-impl Drop for EepromAccess<'_> {
-    fn drop(&mut self) {
-        let mut control: registers::EepromControlData = self
-            .dev_data
-            .mmio_read(registers::EepromControlData::OFFSET);
-        control.set_access_request(false);
-        self.dev_data
-            .mmio_write(registers::EepromControlData::OFFSET, control);
-    }
-}
-
-impl<'a> EepromAccess<'a> {
-    pub fn acquire(dev_data: &'a DeviceData) -> Result<Self, NetDeviceError> {
-        let mut control: registers::EepromControlData =
-            dev_data.mmio_read(registers::EepromControlData::OFFSET);
-
-        if !control.present() {
-            error!("EEPROM not present");
-            return Err(NetDeviceError::DeviceError);
-        }
-
-        control.set_access_request(true);
-        dev_data.mmio_write(registers::EepromControlData::OFFSET, control);
-
-        const MAX_ATTEMPTS: usize = 1000;
-
-        let mut granted = false;
-        for _ in 0..MAX_ATTEMPTS {
-            let control: registers::EepromControlData =
-                dev_data.mmio_read(registers::EepromControlData::OFFSET);
-            if control.access_grant() {
-                granted = true;
-                break;
-            }
-
-            core::hint::spin_loop();
-        }
-
-        if !granted {
-            info!("Could not acquire EEPROM lock, consider it is not implemented");
-        }
-
-        Ok(Self { dev_data })
-    }
-
-    pub fn read(&self, address: u16) -> Result<u16, NetDeviceError> {
-        let mut eerd = registers::EepromRead::default();
-        eerd.set_address(address);
-        eerd.set_start(true);
-        self.dev_data
-            .mmio_write(registers::EepromRead::OFFSET, eerd);
-
-        const MAX_ATTEMPTS: usize = 1000;
-
-        for _ in 0..MAX_ATTEMPTS {
-            let eerd: registers::EepromRead =
-                self.dev_data.mmio_read(registers::EepromRead::OFFSET);
-
-            if eerd.done() {
-                return Ok(eerd.data());
-            }
-
-            core::hint::spin_loop();
-        }
-
-        error!("EEPROM read timeout for address {:#x}", address);
-        Err(NetDeviceError::DeviceError)
     }
 }

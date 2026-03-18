@@ -17,7 +17,6 @@ use log::warn;
 use crate::{descriptors, device::DeviceData, registers};
 
 const TX_RING_SIZE: usize = 256;
-const RX_RING_SIZE: usize = 256;
 
 /// Tx ring for the e1000e driver.
 pub struct TxRing {

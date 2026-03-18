@@ -974,6 +974,107 @@ impl From<u8> for LoopbackMode {
     }
 }
 
+/// Transmit Control register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxControl(u32);
+
+impl From<u32> for TxControl {
+    fn from(value: u32) -> Self {
+        TxControl(value)
+    }
+}
+
+impl From<TxControl> for u32 {
+    fn from(control: TxControl) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxControl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxControl")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("enabled", &self.enabled())
+            .field("pad_short_packets", &self.pad_short_packets())
+            .field("collision_threshold", &self.collision_threshold())
+            .field("collision_distance", &self.collision_distance())
+            .field(
+                "software_xoff_transmission",
+                &self.software_xoff_transmission(),
+            )
+            .field(
+                "retransmit_on_late_collision",
+                &self.retransmit_on_late_collision(),
+            )
+            .field(
+                "no_retransmit_on_underrun",
+                &self.no_retransmit_on_underrun(),
+            )
+            .finish()
+    }
+}
+
+impl TxControl {
+    pub const OFFSET: usize = 0x00400;
+
+    pub fn enabled(&self) -> bool {
+        self.0.get_bit(1)
+    }
+
+    pub fn enable(&mut self, value: bool) {
+        self.0.set_bit(1, value);
+    }
+
+    pub fn pad_short_packets(&self) -> bool {
+        self.0.get_bit(3)
+    }
+
+    pub fn set_pad_short_packets(&mut self, value: bool) {
+        self.0.set_bit(3, value);
+    }
+
+    pub fn collision_threshold(&self) -> u8 {
+        self.0.get_bits(4..12) as u8
+    }
+
+    pub fn set_collision_threshold(&mut self, value: u8) {
+        self.0.set_bits(4..12, value as u32);
+    }
+
+    pub fn collision_distance(&self) -> u8 {
+        self.0.get_bits(12..22) as u8
+    }
+
+    pub fn set_collision_distance(&mut self, value: u8) {
+        self.0.set_bits(12..22, value as u32);
+    }
+
+    pub fn software_xoff_transmission(&self) -> bool {
+        self.0.get_bit(22)
+    }
+
+    pub fn set_software_xoff_transmission(&mut self, value: bool) {
+        self.0.set_bit(22, value);
+    }
+
+    pub fn retransmit_on_late_collision(&self) -> bool {
+        self.0.get_bit(24)
+    }
+
+    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
+        self.0.set_bit(24, value);
+    }
+
+    pub fn no_retransmit_on_underrun(&self) -> bool {
+        self.0.get_bit(25)
+    }
+
+    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
+        self.0.set_bit(25, value);
+    }
+}
+
 /// Receive Descriptor Base Low register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
@@ -1171,104 +1272,201 @@ impl RxDescriptorTail {
     }
 }
 
-/// Transmit Control register for the e1000e network device.
+
+/// Transmit Descriptor Base Low register for the e1000e network device.
 #[derive(Copy, Clone, Default)]
 #[repr(transparent)]
-pub struct TxControl(u32);
+pub struct TxDescriptorBaseLow(u32);
 
-impl From<u32> for TxControl {
+impl From<u32> for TxDescriptorBaseLow {
     fn from(value: u32) -> Self {
-        TxControl(value)
+        TxDescriptorBaseLow(value)
     }
 }
 
-impl From<TxControl> for u32 {
-    fn from(control: TxControl) -> Self {
+impl From<TxDescriptorBaseLow> for u32 {
+    fn from(control: TxDescriptorBaseLow) -> Self {
         control.0
     }
 }
 
-impl fmt::Debug for TxControl {
+impl fmt::Debug for TxDescriptorBaseLow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TxControl")
+        f.debug_struct("TxDescriptorBaseLow")
             .field("raw", &format_args!("{:#010x}", self.0))
-            .field("enabled", &self.enabled())
-            .field("pad_short_packets", &self.pad_short_packets())
-            .field("collision_threshold", &self.collision_threshold())
-            .field("collision_distance", &self.collision_distance())
-            .field(
-                "software_xoff_transmission",
-                &self.software_xoff_transmission(),
-            )
-            .field(
-                "retransmit_on_late_collision",
-                &self.retransmit_on_late_collision(),
-            )
-            .field(
-                "no_retransmit_on_underrun",
-                &self.no_retransmit_on_underrun(),
-            )
+            .field("address", &self.address())
             .finish()
     }
 }
 
-impl TxControl {
-    pub const OFFSET: usize = 0x00400;
+impl TxDescriptorBaseLow {
+    pub const OFFSET: usize = 0x03800;
 
-    pub fn enabled(&self) -> bool {
-        self.0.get_bit(1)
+    pub fn address(&self) -> u32 {
+        self.0
     }
 
-    pub fn enable(&mut self, value: bool) {
-        self.0.set_bit(1, value);
+    pub fn set_address(&mut self, address: u32) {
+        assert!(address % 16 == 0, "Address must be 16-byte aligned");
+
+        self.0 = address;
+    }
+}
+
+/// Transmit Descriptor Base High register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxDescriptorBaseHigh(u32);
+
+impl From<u32> for TxDescriptorBaseHigh {
+    fn from(value: u32) -> Self {
+        TxDescriptorBaseHigh(value)
+    }
+}
+
+impl From<TxDescriptorBaseHigh> for u32 {
+    fn from(control: TxDescriptorBaseHigh) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxDescriptorBaseHigh {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxDescriptorBaseHigh")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("address", &self.address())
+            .finish()
+    }
+}
+
+impl TxDescriptorBaseHigh {
+    pub const OFFSET: usize = 0x03804;
+
+    pub fn address(&self) -> u32 {
+        self.0
     }
 
-    pub fn pad_short_packets(&self) -> bool {
-        self.0.get_bit(3)
+    pub fn set_address(&mut self, address: u32) {
+        self.0 = address;
+    }
+}
+
+/// Transmit Descriptor Length register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxDescriptorLength(u32);
+
+impl From<u32> for TxDescriptorLength {
+    fn from(value: u32) -> Self {
+        TxDescriptorLength(value)
+    }
+}
+
+impl From<TxDescriptorLength> for u32 {
+    fn from(control: TxDescriptorLength) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxDescriptorLength {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxDescriptorLength")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("length", &self.length())
+            .finish()
+    }
+}
+
+impl TxDescriptorLength {
+    pub const OFFSET: usize = 0x03808;
+
+    pub fn length(&self) -> usize {
+        self.0.get_bits(0..20) as usize
     }
 
-    pub fn set_pad_short_packets(&mut self, value: bool) {
-        self.0.set_bit(3, value);
+    pub fn set_length(&mut self, length: usize) {
+        assert!(length % 128 == 0, "Length must be a multiple of 128 bytes");
+        assert!(length < 2usize.pow(20), "Length must be less than 1 MiB");
+
+        self.0.set_bits(0..20, length as u32);
+    }
+}
+
+/// Transmit Descriptor Head register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxDescriptorHead(u32);
+
+impl From<u32> for TxDescriptorHead {
+    fn from(value: u32) -> Self {
+        TxDescriptorHead(value)
+    }
+}
+
+impl From<TxDescriptorHead> for u32 {
+    fn from(control: TxDescriptorHead) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxDescriptorHead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxDescriptorHead")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("index", &self.index())
+            .finish()
+    }
+}
+
+impl TxDescriptorHead {
+    pub const OFFSET: usize = 0x03810;
+
+    pub fn index(&self) -> usize {
+        self.0.get_bits(0..16) as usize
     }
 
-    pub fn collision_threshold(&self) -> u8 {
-        self.0.get_bits(4..12) as u8
+    pub fn set_index(&mut self, index: usize) {
+        assert!(index < 2usize.pow(16), "Index must be less than 65536");
+        self.0.set_bits(0..16, index as u32);
+    }
+}
+
+/// Transmit Descriptor Tail register for the e1000e network device.
+#[derive(Copy, Clone, Default)]
+#[repr(transparent)]
+pub struct TxDescriptorTail(u32);
+
+impl From<u32> for TxDescriptorTail {
+    fn from(value: u32) -> Self {
+        TxDescriptorTail(value)
+    }
+}
+
+impl From<TxDescriptorTail> for u32 {
+    fn from(control: TxDescriptorTail) -> Self {
+        control.0
+    }
+}
+
+impl fmt::Debug for TxDescriptorTail {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TxDescriptorTail")
+            .field("raw", &format_args!("{:#010x}", self.0))
+            .field("index", &self.index())
+            .finish()
+    }
+}
+
+impl TxDescriptorTail {
+    pub const OFFSET: usize = 0x03818;
+
+    pub fn index(&self) -> usize {
+        self.0.get_bits(0..16) as usize
     }
 
-    pub fn set_collision_threshold(&mut self, value: u8) {
-        self.0.set_bits(4..12, value as u32);
-    }
-
-    pub fn collision_distance(&self) -> u8 {
-        self.0.get_bits(12..22) as u8
-    }
-
-    pub fn set_collision_distance(&mut self, value: u8) {
-        self.0.set_bits(12..22, value as u32);
-    }
-
-    pub fn software_xoff_transmission(&self) -> bool {
-        self.0.get_bit(22)
-    }
-
-    pub fn set_software_xoff_transmission(&mut self, value: bool) {
-        self.0.set_bit(22, value);
-    }
-
-    pub fn retransmit_on_late_collision(&self) -> bool {
-        self.0.get_bit(24)
-    }
-
-    pub fn set_retransmit_on_late_collision(&mut self, value: bool) {
-        self.0.set_bit(24, value);
-    }
-
-    pub fn no_retransmit_on_underrun(&self) -> bool {
-        self.0.get_bit(25)
-    }
-
-    pub fn set_no_retransmit_on_underrun(&mut self, value: bool) {
-        self.0.set_bit(25, value);
+    pub fn set_index(&mut self, index: usize) {
+        assert!(index < 2usize.pow(16), "Index must be less than 65536");
+        self.0.set_bits(0..16, index as u32);
     }
 }
 
@@ -1300,14 +1498,14 @@ impl fmt::Debug for RxAddressLow {
 
 impl RxAddressLow {
     // 8 receive address registers, each with a low and high part
-    pub const OFFSET0: usize = 0x00400;
-    pub const OFFSET1: usize = 0x00408;
-    pub const OFFSET2: usize = 0x00410;
-    pub const OFFSET3: usize = 0x00418;
-    pub const OFFSET4: usize = 0x00420;
-    pub const OFFSET5: usize = 0x00428;
-    pub const OFFSET6: usize = 0x00430;
-    pub const OFFSET7: usize = 0x00438;
+    pub const OFFSET0: usize = 0x05400;
+    pub const OFFSET1: usize = 0x05408;
+    pub const OFFSET2: usize = 0x05410;
+    pub const OFFSET3: usize = 0x05418;
+    pub const OFFSET4: usize = 0x05420;
+    pub const OFFSET5: usize = 0x05428;
+    pub const OFFSET6: usize = 0x05430;
+    pub const OFFSET7: usize = 0x05438;
 
     pub fn address(&self) -> u32 {
         self.0
@@ -1346,14 +1544,14 @@ impl fmt::Debug for RxAddressHigh {
 
 impl RxAddressHigh {
     // 8 receive address registers, each with a low and high part
-    pub const OFFSET0: usize = 0x00404;
-    pub const OFFSET1: usize = 0x0040C;
-    pub const OFFSET2: usize = 0x00414;
-    pub const OFFSET3: usize = 0x0041C;
-    pub const OFFSET4: usize = 0x00424;
-    pub const OFFSET5: usize = 0x0042C;
-    pub const OFFSET6: usize = 0x00434;
-    pub const OFFSET7: usize = 0x0043C;
+    pub const OFFSET0: usize = 0x05404;
+    pub const OFFSET1: usize = 0x0540C;
+    pub const OFFSET2: usize = 0x05414;
+    pub const OFFSET3: usize = 0x0541C;
+    pub const OFFSET4: usize = 0x05424;
+    pub const OFFSET5: usize = 0x0542C;
+    pub const OFFSET6: usize = 0x05434;
+    pub const OFFSET7: usize = 0x0543C;
 
     pub fn address(&self) -> u32 {
         self.0.get_bits(0..16)

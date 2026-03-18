@@ -379,7 +379,8 @@ impl<NetDev: NetDevice> DeviceEntry<NetDev> {
         );
 
         Notifier::notify(&self.tx_free_notifier, &self.name, |correlation| {
-            let mut buffers = [BufferPool::INVALID_INDEX; iface::TxFreeNotification::BUFFER_COUNT];
+            let mut buffers =
+                [BufferPool::INVALID_INDEX as u32; iface::TxFreeNotification::BUFFER_COUNT];
             let count = buffer_indexes.len();
             buffers[..count].copy_from_slice(&buffer_indexes[..count]);
 

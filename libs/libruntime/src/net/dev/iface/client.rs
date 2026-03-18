@@ -242,7 +242,7 @@ impl Client<'_> {
         );
 
         let mut buffers =
-            [BufferPool::INVALID_INDEX; messages::AddRxBuffersQueryParameters::BUFFER_COUNT];
+            [BufferPool::INVALID_INDEX as u32; messages::AddRxBuffersQueryParameters::BUFFER_COUNT];
         let count = buffer_indexes.len();
         buffers[..count].copy_from_slice(&buffer_indexes[..count]);
 

@@ -61,7 +61,7 @@ pub struct BufferPool {
 
 impl BufferPool {
     /// A constant representing an invalid buffer index.
-    pub const INVALID_INDEX: u32 = u32::MAX;
+    pub const INVALID_INDEX: usize = u32::MAX as usize;
 }
 
 #[derive(Debug)]

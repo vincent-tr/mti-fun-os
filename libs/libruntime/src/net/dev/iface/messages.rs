@@ -305,9 +305,13 @@ pub struct TxBufferDescriptor(u64);
 
 impl TxBufferDescriptor {
     /// Create a new buffer descriptor.
-    pub fn new(buffer_index: u32, offset: u16, length: u16, end_of_packet: bool) -> Self {
-        debug_assert!(offset < 2048, "offset must be < 2048");
-        debug_assert!(length < 2048, "length must be < 2048");
+    pub fn new(buffer_index: usize, offset: usize, length: usize, end_of_packet: bool) -> Self {
+        assert!(
+            buffer_index <= u32::MAX as usize,
+            "buffer_index out of bounds"
+        );
+        assert!(offset < 2048, "offset must be < 2048");
+        assert!(length < 2048, "length must be < 2048");
 
         let mut value = 0u64;
         value.set_bits(0..32, buffer_index as u64);
@@ -319,18 +323,18 @@ impl TxBufferDescriptor {
     }
 
     /// Get the buffer index.
-    pub fn buffer_index(&self) -> u32 {
-        self.0.get_bits(0..32) as u32
+    pub fn buffer_index(&self) -> usize {
+        self.0.get_bits(0..32) as usize
     }
 
     /// Get the offset within the buffer.
-    pub fn offset(&self) -> u16 {
-        self.0.get_bits(32..43) as u16
+    pub fn offset(&self) -> usize {
+        self.0.get_bits(32..43) as usize
     }
 
     /// Get the length of data in the buffer.
-    pub fn length(&self) -> u16 {
-        self.0.get_bits(43..54) as u16
+    pub fn length(&self) -> usize {
+        self.0.get_bits(43..54) as usize
     }
 
     /// Check if this is the end of packet.
@@ -369,8 +373,12 @@ pub struct RxBufferDescriptor(u64);
 
 impl RxBufferDescriptor {
     /// Create a new RX buffer descriptor.
-    pub fn new(buffer_index: u32, length: u16, end_of_packet: bool) -> Self {
-        debug_assert!(length <= 2048, "length must be <= 2048");
+    pub fn new(buffer_index: usize, length: usize, end_of_packet: bool) -> Self {
+        assert!(
+            buffer_index <= u32::MAX as usize,
+            "buffer_index out of bounds"
+        );
+        assert!(length <= 2048, "length must be <= 2048");
 
         let mut value = 0u64;
         value.set_bits(0..32, buffer_index as u64);
@@ -381,13 +389,13 @@ impl RxBufferDescriptor {
     }
 
     /// Get the buffer index.
-    pub fn buffer_index(&self) -> u32 {
-        self.0.get_bits(0..32) as u32
+    pub fn buffer_index(&self) -> usize {
+        self.0.get_bits(0..32) as usize
     }
 
     /// Get the length of data in the buffer.
-    pub fn length(&self) -> u16 {
-        self.0.get_bits(32..43) as u16
+    pub fn length(&self) -> usize {
+        self.0.get_bits(32..43) as usize
     }
 
     /// Check if this is the end of packet.

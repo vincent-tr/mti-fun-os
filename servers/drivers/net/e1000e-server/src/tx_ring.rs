@@ -138,6 +138,8 @@ impl TxRing {
         tail.set_index(self.tail);
         self.dev_data
             .mmio_write(registers::TxDescriptorTail::OFFSET, tail);
+
+        // TODO: control
     }
 
     /// Adds the given buffers to the Tx ring, returning the number of buffers that were added.
@@ -175,6 +177,8 @@ impl TxRing {
 
     fn set_buffer(&mut self, index: usize, buffer: &TxBufferDescriptor) {
         let desc = &mut self.descriptors[index];
+        *desc = descriptors::TxDescriptor::default();
+
         let phys_addr = self.dev_data.buffer_address_of(buffer.buffer_index());
 
         desc.set_address(phys_addr + buffer.offset());

@@ -127,6 +127,11 @@ impl PhysBufferPoolAccess {
         let index = self.indexes.get(&buffer_addr)?;
         Some((*index, offset))
     }
+
+    /// Returns the size of each buffer in bytes.
+    pub fn buffer_size(&self) -> usize {
+        self.buffer_size
+    }
 }
 
 #[derive(Default, Debug, Copy, Clone, Hash, PartialEq, Eq)]

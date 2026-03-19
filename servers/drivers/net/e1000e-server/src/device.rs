@@ -2,10 +2,7 @@ use core::panic;
 use spin::Mutex;
 
 use crate::{
-    eeprom::EepromAccess,
-    link_status::LinkStatus,
-    registers,
-    tx_ring::{self, TxRing},
+    eeprom::EepromAccess, link_status::LinkStatus, registers, rx_ring::RxRing, tx_ring::TxRing,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use libruntime::{
@@ -28,6 +25,7 @@ pub struct E1000eDevice {
     pci_device: pci::PciDevice,
     link_status: Mutex<LinkStatus>,
     tx_ring: Mutex<TxRing>,
+    rx_ring: Mutex<RxRing>,
 }
 
 impl NetDevice for E1000eDevice {
@@ -59,13 +57,15 @@ impl NetDevice for E1000eDevice {
         );
 
         let link_status = Mutex::new(LinkStatus::new(link_status_change_callback));
-        let tx_ring = Mutex::new(tx_ring::TxRing::new(dev_data.clone(), tx_free_callback));
+        let tx_ring = Mutex::new(TxRing::new(dev_data.clone(), tx_free_callback));
+        let rx_ring = Mutex::new(RxRing::new(dev_data.clone(), rx_arrived_callback));
 
         let device = Self {
             dev_data,
             pci_device,
             link_status,
             tx_ring,
+            rx_ring,
         };
 
         device.init()?;
@@ -107,7 +107,11 @@ impl NetDevice for E1000eDevice {
     }
 
     fn add_rx_buffers(&self, buffer_indexes: &[usize]) -> Result<usize, Self::Error> {
-        todo!()
+        let mut ring = self.rx_ring.lock();
+
+        let added_count = ring.add_buffers(buffer_indexes);
+
+        Ok(added_count)
     }
 }
 
@@ -156,8 +160,9 @@ impl E1000eDevice {
 
         // Setup Tx ring
         self.tx_ring.lock().init();
+        self.rx_ring.lock().init();
 
-        // TODO: RING SETUP, INTERRUPT SETUP
+        // TODO: RX INITIAL REFILL, INTERRUPT SETUP, TX CONTROL, RX CONTROL
 
         panic!("E1000e device creation not implemented yet");
     }

@@ -25,7 +25,7 @@ impl fmt::Debug for TxDescriptor {
                 "checksum_start",
                 &format_args!("{:#x}", self.checksum_start()),
             )
-            .field("special", &format_args!("{:#x}", self.special()))
+            .field("special", &self.special())
             .finish()
     }
 }
@@ -225,16 +225,12 @@ impl fmt::Debug for RxDescriptor {
             .field("address", &format_args!("{:#x}", self.address.as_u64()))
             .field("length", &format_args!("{:#x}", self.length()))
             .field(
-                "checksum_offset",
-                &format_args!("{:#x}", self.checksum_offset()),
+                "packet_checksum",
+                &format_args!("{:#x}", self.packet_checksum()),
             )
-            .field("command", &self.command())
             .field("status", &self.status())
-            .field(
-                "checksum_start",
-                &format_args!("{:#x}", self.checksum_start()),
-            )
-            .field("special", &format_args!("{:#x}", self.special()))
+            .field("errors", &self.errors())
+            .field("special", &self.special())
             .finish()
     }
 }
@@ -441,6 +437,10 @@ impl RxDescriptorErrors {
 
     pub fn set_rx_data_error(&mut self, value: bool) {
         self.0.set_bit(7, value);
+    }
+
+    pub fn any(&self) -> bool {
+        self.0 != 0
     }
 }
 #[derive(Copy, Clone, Default)]

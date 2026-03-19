@@ -1,6 +1,7 @@
 use core::fmt;
 
 use alloc::{boxed::Box, sync::Arc};
+use log::debug;
 
 use crate::{device::DeviceData, registers};
 
@@ -51,6 +52,12 @@ impl LinkStatus {
 
     fn read_status(&self) -> bool {
         let status: registers::Status = self.dev_data.mmio_read(registers::Status::OFFSET);
-        status.link_up()
+        let is_up = status.link_up();
+        debug!(
+            "Link is {} on {}",
+            if is_up { "up" } else { "down" },
+            self.dev_data.name()
+        );
+        is_up
     }
 }

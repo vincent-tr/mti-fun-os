@@ -1,4 +1,3 @@
-use core::panic;
 use spin::Mutex;
 
 use crate::{
@@ -187,9 +186,7 @@ impl E1000eDevice {
         self.dev_data
             .mmio_write(registers::InterruptMask::OFFSET, imc);
 
-        // TODO: register interrupt in runner RX INITIAL REFILL,
-
-        panic!("E1000e device creation not implemented yet");
+        Ok(())
     }
 
     fn handle_interrupt(&self) {

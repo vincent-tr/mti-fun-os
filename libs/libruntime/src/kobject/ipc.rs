@@ -260,9 +260,6 @@ impl<'a> Waiter<'a> {
         self.ready.fill(0);
     }
 
-    /// Iterate over waitable, readyness tuples
-    pub fn iter() {}
-
     /// Get the waitable at index
     pub fn waitable(&self, index: usize) -> &'a dyn KWaitable {
         self.waitables[index]

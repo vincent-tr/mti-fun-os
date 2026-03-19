@@ -16,13 +16,14 @@ use libruntime::{
         types::{BufferPool, MacAddress, PhysAddr, PhysBufferPoolAccess},
     },
 };
-use log::{debug, error};
+use log::{debug, error, warn};
 
 /// Represents an E1000e network device.
 #[derive(Debug)]
 pub struct E1000eDevice {
     dev_data: Arc<DeviceData>,
     pci_device: pci::PciDevice,
+    irq: kobject::Irq,
     link_status: Mutex<LinkStatus>,
     tx_ring: Mutex<TxRing>,
     rx_ring: Mutex<RxRing>,
@@ -50,13 +51,18 @@ impl NetDevice for E1000eDevice {
             return Err(NetDeviceError::DeviceError);
         };
 
+        let irq = kobject::Irq::create().into_netdev_err()?;
+
         let dev_data = DeviceData::new(
             name,
             MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?,
             &buffer_pool,
         );
 
-        let link_status = Mutex::new(LinkStatus::new(link_status_change_callback));
+        let link_status = Mutex::new(LinkStatus::new(
+            dev_data.clone(),
+            link_status_change_callback,
+        ));
         let tx_ring = Mutex::new(TxRing::new(dev_data.clone(), tx_free_callback));
         let rx_ring = Mutex::new(RxRing::new(dev_data.clone(), rx_arrived_callback));
 
@@ -66,6 +72,7 @@ impl NetDevice for E1000eDevice {
             link_status,
             tx_ring,
             rx_ring,
+            irq,
         };
 
         device.init()?;
@@ -162,9 +169,45 @@ impl E1000eDevice {
         self.tx_ring.lock().init();
         self.rx_ring.lock().init();
 
-        // TODO: RX INITIAL REFILL, INTERRUPT SETUP, TX CONTROL, RX CONTROL
+        // Setup IRQ
+        let irq_info = self.irq.info().into_netdev_err()?;
+        self.pci_device.enable_msi(&irq_info).into_netdev_err()?;
+
+        let mut imc = registers::InterruptMask::default();
+        imc.set_link_status_change(true);
+        imc.set_receive_timer_interrupt(true);
+        imc.set_receive_fifo_overrun(true);
+        imc.set_transmit_queue_empty(true);
+        self.dev_data
+            .mmio_write(registers::InterruptMask::OFFSET, imc);
+
+        // TODO: register interrupt in runner RX INITIAL REFILL,
 
         panic!("E1000e device creation not implemented yet");
+    }
+
+    fn handle_interrupt(&self) {
+        let cause: registers::InterruptCause =
+            self.dev_data.mmio_read(registers::InterruptCause::OFFSET);
+
+        if cause.rx_overrun() {
+            warn!(
+                "Receive FIFO overrun on NIC {}, some packets may have been dropped",
+                self.dev_data.name()
+            );
+        }
+
+        if cause.link_status_change() {
+            self.link_status.lock().handle_interrupt();
+        }
+
+        if cause.rx_timer() {
+            self.rx_ring.lock().handle_ready_interrupt();
+        }
+
+        if cause.tx_queue_empty() {
+            self.tx_ring.lock().handle_queue_empty_interrupt();
+        }
     }
 }
 
@@ -219,6 +262,11 @@ impl DeviceData {
         self.buffer_pool
             .index_of(addr)
             .expect("Address not part of any buffer")
+    }
+
+    /// Get the size of buffers in the buffer pool.
+    pub fn buffer_size(&self) -> usize {
+        self.buffer_pool.buffer_size()
     }
 }
 

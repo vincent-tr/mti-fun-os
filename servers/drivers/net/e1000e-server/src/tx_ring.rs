@@ -139,7 +139,11 @@ impl TxRing {
         self.dev_data
             .mmio_write(registers::TxDescriptorTail::OFFSET, tail);
 
-        // TODO: control
+        let mut control = registers::TxControl::default();
+        control.enable(true);
+        control.set_pad_short_packets(true);
+        self.dev_data
+            .mmio_write(registers::TxControl::OFFSET, control);
     }
 
     /// Adds the given buffers to the Tx ring, returning the number of buffers that were added.

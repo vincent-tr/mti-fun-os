@@ -139,7 +139,13 @@ impl RxRing {
         self.dev_data
             .mmio_write(registers::RxDescriptorTail::OFFSET, tail);
 
-        // TODO: control
+        let mut control = registers::RxControl::default();
+        control.enable(true);
+        control.enable_long_packet_reception(true);
+        control.set_broadcast_accepted(true);
+        control.set_buffer_size(self.dev_data.buffer_size());
+        self.dev_data
+            .mmio_write(registers::RxControl::OFFSET, control);
     }
 
     /// Adds the given buffers to the Rx ring, returning the number of buffers that were added.

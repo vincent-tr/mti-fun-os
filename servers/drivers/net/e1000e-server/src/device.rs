@@ -193,6 +193,12 @@ impl E1000eDevice {
         let cause: registers::InterruptCause =
             self.dev_data.mmio_read(registers::InterruptCause::OFFSET);
 
+        // debug!(
+        //     "Interrupt received on {}, cause: {:?}",
+        //     self.dev_data.name(),
+        //     cause
+        // );
+
         if cause.rx_overrun() {
             warn!(
                 "Receive FIFO overrun on NIC {}, some packets may have been dropped",

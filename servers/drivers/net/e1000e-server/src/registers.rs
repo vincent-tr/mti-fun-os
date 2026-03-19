@@ -520,32 +520,45 @@ impl From<InterruptCause> for u32 {
 
 impl fmt::Debug for InterruptCause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("InterruptCause")
-            .field("raw", &format_args!("{:#010x}", self.0))
-            .field(
-                "tx_descriptor_written_back",
-                &self.tx_descriptor_written_back(),
-            )
-            .field("tx_queue_empty", &self.tx_queue_empty())
-            .field("link_status_change", &self.link_status_change())
-            .field("rx_sequence_error", &self.rx_sequence_error())
-            .field(
-                "rx_descriptor_minimum_threshold_reached",
-                &self.rx_descriptor_minimum_threashold_reached(),
-            )
-            .field("rx_overrun", &self.rx_overrun())
-            .field("rx_timer", &self.rx_timer())
-            .field("mdio_access_complete", &self.mdio_access_complete())
-            .field("rx_config_ordered_sets", &self.rx_config_ordered_sets())
-            .field("phy_interrupt", &self.phy())
-            // GPI 13
-            // GPI 14
-            .field(
-                "tx_descriptor_low_threshold",
-                &self.tx_descriptor_low_threshold(),
-            )
-            .field("small_rx_packet", &self.small_rx_packet())
-            .finish()
+        let mut list = f.debug_list();
+        list.entry(&format_args!("{:#010x}", self.0));
+        if self.tx_descriptor_written_back() {
+            list.entry(&"tx_descriptor_written_back");
+        }
+        if self.tx_queue_empty() {
+            list.entry(&"tx_queue_empty");
+        }
+        if self.link_status_change() {
+            list.entry(&"link_status_change");
+        }
+        if self.rx_sequence_error() {
+            list.entry(&"rx_sequence_error");
+        }
+        if self.rx_descriptor_minimum_threashold_reached() {
+            list.entry(&"rx_descriptor_minimum_threashold_reached");
+        }
+        if self.rx_overrun() {
+            list.entry(&"rx_overrun");
+        }
+        if self.rx_timer() {
+            list.entry(&"rx_timer");
+        }
+        if self.mdio_access_complete() {
+            list.entry(&"mdio_access_complete");
+        }
+        if self.rx_config_ordered_sets() {
+            list.entry(&"rx_config_ordered_sets");
+        }
+        if self.phy() {
+            list.entry(&"phy");
+        }
+        if self.tx_descriptor_low_threshold() {
+            list.entry(&"tx_descriptor_low_threshold");
+        }
+        if self.small_rx_packet() {
+            list.entry(&"small_rx_packet");
+        }
+        list.finish()
     }
 }
 

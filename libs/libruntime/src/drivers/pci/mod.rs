@@ -125,7 +125,7 @@ impl PciDevice {
         CLIENT.list_capabilities(self.device.handle)
     }
 
-    /// Enable MSI for this device, returning an `Irq` object that can be used to wait for MSI events.
+    /// Enable MSI for this device.
     pub fn enable_msi(&self, irq_info: &kobject::IrqInfo) -> Result<(), PciServerCallError> {
         CLIENT.enable_msi(
             self.device.handle,

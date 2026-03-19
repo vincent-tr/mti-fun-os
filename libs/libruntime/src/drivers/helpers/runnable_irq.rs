@@ -12,7 +12,7 @@ pub struct RunnableIrq {
     runnable: Arc<RunnableObject>,
     component_id: service::ComponentId,
     irq: kobject::Irq,
-    callback: Mutex<Option<Box<dyn Fn() + Sync + Send + 'static>>>,
+    callback: Mutex<Option<Box<dyn Fn(kobject::IrqEvent) + Sync + Send + 'static>>>,
 }
 
 unsafe impl Send for RunnableIrq {}
@@ -50,7 +50,7 @@ impl RunnableIrq {
     }
 
     /// Sets the callback to be called when the IRQ is triggered.
-    pub fn set_callback(&self, callback: impl Fn() + Sync + Send + 'static) {
+    pub fn set_callback(&self, callback: impl Fn(kobject::IrqEvent) + Sync + Send + 'static) {
         *self.callback.lock() = Some(Box::new(callback));
     }
 
@@ -65,8 +65,16 @@ impl RunnableIrq {
     }
 
     fn process(&self) {
+        let event = match self.irq.receive() {
+            Ok(event) => event,
+            Err(e) => {
+                warn!("Failed to receive IRQ event: {:?}", e);
+                return;
+            }
+        };
+
         if let Some(callback) = &*self.callback.lock() {
-            callback();
+            callback(event);
         } else {
             warn!("IRQ {:?} triggered but no callback is set", self.irq);
         }

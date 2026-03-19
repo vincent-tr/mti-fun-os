@@ -77,7 +77,7 @@ impl NetDevice for E1000eDevice {
 
         device.irq.set_callback({
             let callback = InterruptCallback::new(&device);
-            move || callback.call()
+            move |event: kobject::IrqEvent| callback.call(event)
         });
 
         device.init()?;
@@ -189,7 +189,7 @@ impl E1000eDevice {
         Ok(())
     }
 
-    fn handle_interrupt(&self) {
+    fn handle_interrupt(&self, _event: kobject::IrqEvent) {
         let cause: registers::InterruptCause =
             self.dev_data.mmio_read(registers::InterruptCause::OFFSET);
 
@@ -320,7 +320,7 @@ impl InterruptCallback {
         }
     }
 
-    pub fn call(&self) {
-        unsafe { (*self.target).handle_interrupt() }
+    pub fn call(&self, event: kobject::IrqEvent) {
+        unsafe { (*self.target).handle_interrupt(event) }
     }
 }

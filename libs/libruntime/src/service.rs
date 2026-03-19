@@ -16,6 +16,9 @@ pub struct ComponentId(usize);
 #[derive(Debug)]
 pub struct Runner(Mutex<RunnerData>);
 
+unsafe impl Send for Runner {}
+unsafe impl Sync for Runner {}
+
 impl Runner {
     /// Creates a new IPC runner.
     pub fn new() -> Self {

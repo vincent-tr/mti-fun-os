@@ -2,11 +2,12 @@ use core::panic;
 use spin::Mutex;
 
 use crate::{
-    eeprom::EepromAccess, link_status::LinkStatus, registers, rx_ring::RxRing, tx_ring::TxRing,
+    RUNNER, eeprom::EepromAccess, link_status::LinkStatus, registers, rx_ring::RxRing,
+    tx_ring::TxRing,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use libruntime::{
-    drivers::{MmioRegion, pci},
+    drivers::{self, MmioRegion, pci},
     kobject,
     net::{
         dev::{
@@ -23,7 +24,7 @@ use log::{debug, error, warn};
 pub struct E1000eDevice {
     dev_data: Arc<DeviceData>,
     pci_device: pci::PciDevice,
-    irq: kobject::Irq,
+    irq: drivers::RunnableIrq,
     link_status: Mutex<LinkStatus>,
     tx_ring: Mutex<TxRing>,
     rx_ring: Mutex<RxRing>,
@@ -51,8 +52,6 @@ impl NetDevice for E1000eDevice {
             return Err(NetDeviceError::DeviceError);
         };
 
-        let irq = kobject::Irq::create().into_netdev_err()?;
-
         let dev_data = DeviceData::new(
             name,
             MmioRegion::<u32>::from_bar(&bar0).into_netdev_err()?,
@@ -66,18 +65,25 @@ impl NetDevice for E1000eDevice {
         let tx_ring = Mutex::new(TxRing::new(dev_data.clone(), tx_free_callback));
         let rx_ring = Mutex::new(RxRing::new(dev_data.clone(), rx_arrived_callback));
 
-        let device = Self {
+        let irq = drivers::RunnableIrq::create(&RUNNER).into_netdev_err()?;
+
+        let device = Box::new(Self {
             dev_data,
             pci_device,
             link_status,
             tx_ring,
             rx_ring,
             irq,
-        };
+        });
+
+        device.irq.set_callback({
+            let callback = InterruptCallback::new(&device);
+            move || callback.call()
+        });
 
         device.init()?;
 
-        Ok(Box::new(device))
+        Ok(device)
     }
 
     fn destroy(self) {}
@@ -299,5 +305,25 @@ impl<T> ResultExt<T> for Result<T, kobject::Error> {
             error!("Kernel operation failed: {:?}", e);
             NetDeviceError::RuntimeError
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InterruptCallback {
+    target: *const E1000eDevice,
+}
+
+unsafe impl Send for InterruptCallback {}
+unsafe impl Sync for InterruptCallback {}
+
+impl InterruptCallback {
+    pub fn new(target: &E1000eDevice) -> Self {
+        Self {
+            target: target as *const E1000eDevice,
+        }
+    }
+
+    pub fn call(&self) {
+        unsafe { (*self.target).handle_interrupt() }
     }
 }

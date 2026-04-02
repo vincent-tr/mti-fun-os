@@ -40,7 +40,7 @@ impl Client<'_> {
     }
 
     /// Create a new network device.
-    pub fn create(
+    pub async fn create(
         &self,
         name: &str,
         pci_address: PciAddress,
@@ -63,49 +63,61 @@ impl Client<'_> {
         query_handles[messages::CreateQueryParameters::HANDLE_NET_BUFFER_POOL_MOBJ] =
             buffer_pool.mobj.clone().into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::CreateQueryParameters,
-            messages::CreateReply,
-            messages::NetDeviceError,
-        >(messages::Type::Create, query, query_handles)?;
+        let (reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::CreateQueryParameters,
+                messages::CreateReply,
+                messages::NetDeviceError,
+            >(messages::Type::Create, query, query_handles)
+            .await?;
 
         Ok(reply.handle)
     }
 
     /// Destroy a network device.
-    pub fn destroy(&self, handle: ipc::Handle) -> Result<(), NetDeviceServerCallError> {
+    pub async fn destroy(&self, handle: ipc::Handle) -> Result<(), NetDeviceServerCallError> {
         let query = messages::DestroyQueryParameters { handle };
         let query_handles = ipc::KHandles::new();
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::DestroyQueryParameters,
-            messages::DestroyReply,
-            messages::NetDeviceError,
-        >(messages::Type::Destroy, query, query_handles)?;
+        let (_reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::DestroyQueryParameters,
+                messages::DestroyReply,
+                messages::NetDeviceError,
+            >(messages::Type::Destroy, query, query_handles)
+            .await?;
 
         Ok(())
     }
 
     /// Get the link status of a network device.
-    pub fn get_link_status(&self, handle: ipc::Handle) -> Result<bool, NetDeviceServerCallError> {
+    pub async fn get_link_status(
+        &self,
+        handle: ipc::Handle,
+    ) -> Result<bool, NetDeviceServerCallError> {
         let query = messages::GetLinkStatusQueryParameters { handle };
         let query_handles = ipc::KHandles::new();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::GetLinkStatusQueryParameters,
-            messages::GetLinkStatusReply,
-            messages::NetDeviceError,
-        >(messages::Type::GetLinkStatus, query, query_handles)?;
+        let (reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::GetLinkStatusQueryParameters,
+                messages::GetLinkStatusReply,
+                messages::NetDeviceError,
+            >(messages::Type::GetLinkStatus, query, query_handles)
+            .await?;
 
         Ok(reply.link_up)
     }
 
     /// Set the port for link status change notifications.
     /// Pass Some(port) to register for notifications, or None to unregister.
-    pub fn set_link_status_change_port(
+    pub async fn set_link_status_change_port(
         &self,
         handle: ipc::Handle,
         port: Option<kobject::PortSender>,
@@ -125,34 +137,40 @@ impl Client<'_> {
                 kobject::Handle::invalid()
             };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::SetLinkStatusChangePortQueryParameters,
-            messages::SetLinkStatusChangePortReply,
-            messages::NetDeviceError,
-        >(
-            messages::Type::SetLinkStatusChangePort,
-            query,
-            query_handles,
-        )?;
+        let (_reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::SetLinkStatusChangePortQueryParameters,
+                messages::SetLinkStatusChangePortReply,
+                messages::NetDeviceError,
+            >(
+                messages::Type::SetLinkStatusChangePort,
+                query,
+                query_handles,
+            )
+            .await?;
 
         Ok(())
     }
 
     /// Get the MAC address of a network device.
-    pub fn get_mac_address(
+    pub async fn get_mac_address(
         &self,
         handle: ipc::Handle,
     ) -> Result<MacAddress, NetDeviceServerCallError> {
         let query = messages::GetMacAddressQueryParameters { handle };
         let query_handles = ipc::KHandles::new();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::GetMacAddressQueryParameters,
-            messages::GetMacAddressReply,
-            messages::NetDeviceError,
-        >(messages::Type::GetMacAddress, query, query_handles)?;
+        let (reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::GetMacAddressQueryParameters,
+                messages::GetMacAddressReply,
+                messages::NetDeviceError,
+            >(messages::Type::GetMacAddress, query, query_handles)
+            .await?;
 
         Ok(reply.mac_address)
     }
@@ -161,7 +179,7 @@ impl Client<'_> {
     /// Returns the number of descriptors that were accepted for transmission.
     ///
     /// Note: the IPC message is designed to take up to 13 descriptors at a time, so if more than 13 descriptors are passed, only the first 13 will be transmitted.
-    pub fn tx(
+    pub async fn tx(
         &self,
         handle: ipc::Handle,
         descriptors: &[messages::TxBufferDescriptor],
@@ -184,19 +202,22 @@ impl Client<'_> {
         };
         let query_handles = ipc::KHandles::new();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::TxQueryParameters,
-            messages::TxReply,
-            messages::NetDeviceError,
-        >(messages::Type::Tx, query, query_handles)?;
+        let (reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::TxQueryParameters,
+                messages::TxReply,
+                messages::NetDeviceError,
+            >(messages::Type::Tx, query, query_handles)
+            .await?;
 
         Ok(reply.sent_buffers)
     }
 
     /// Set the port for Tx free notifications.
     /// Pass Some(port) to register for notifications, or None to unregister.
-    pub fn set_tx_free_port(
+    pub async fn set_tx_free_port(
         &self,
         handle: ipc::Handle,
         port: Option<kobject::PortSender>,
@@ -215,12 +236,15 @@ impl Client<'_> {
                 kobject::Handle::invalid()
             };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::SetTxFreePortQueryParameters,
-            messages::SetTxFreePortReply,
-            messages::NetDeviceError,
-        >(messages::Type::SetTxFreePort, query, query_handles)?;
+        let (_reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::SetTxFreePortQueryParameters,
+                messages::SetTxFreePortReply,
+                messages::NetDeviceError,
+            >(messages::Type::SetTxFreePort, query, query_handles)
+            .await?;
 
         Ok(())
     }
@@ -229,7 +253,7 @@ impl Client<'_> {
     /// Returns the number of buffers that were successfully added.
     ///
     /// Note: the IPC message is designed to take up to 26 buffers at a time, so if more than 26 buffers are passed, only the first 26 will be added.
-    pub fn add_rx_buffers(
+    pub async fn add_rx_buffers(
         &self,
         handle: ipc::Handle,
         buffer_indexes: &[usize],
@@ -251,19 +275,22 @@ impl Client<'_> {
         let query = messages::AddRxBuffersQueryParameters { handle, buffers };
         let query_handles = ipc::KHandles::new();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::AddRxBuffersQueryParameters,
-            messages::AddRxBuffersReply,
-            messages::NetDeviceError,
-        >(messages::Type::AddRxBuffers, query, query_handles)?;
+        let (reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::AddRxBuffersQueryParameters,
+                messages::AddRxBuffersReply,
+                messages::NetDeviceError,
+            >(messages::Type::AddRxBuffers, query, query_handles)
+            .await?;
 
         Ok(reply.added_buffers)
     }
 
     /// Set the port for Rx arrived notifications.
     /// Pass Some(port) to register for notifications, or None to unregister.
-    pub fn set_rx_port(
+    pub async fn set_rx_port(
         &self,
         handle: ipc::Handle,
         port: Option<kobject::PortSender>,
@@ -282,12 +309,15 @@ impl Client<'_> {
                 kobject::Handle::invalid();
         }
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<
-            messages::Type,
-            messages::SetRxPortQueryParameters,
-            messages::SetRxPortReply,
-            messages::NetDeviceError,
-        >(messages::Type::SetRxPort, query, query_handles)?;
+        let (_reply, _reply_handles) = self
+            .ipc_client
+            .async_call::<
+                messages::Type,
+                messages::SetRxPortQueryParameters,
+                messages::SetRxPortReply,
+                messages::NetDeviceError,
+            >(messages::Type::SetRxPort, query, query_handles)
+            .await?;
 
         Ok(())
     }

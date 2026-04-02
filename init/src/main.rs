@@ -150,6 +150,7 @@ fn setup_net() {
     let devices = drivers::pci::list(options).expect("Failed to get devices");
     let device = devices.first().expect("No matching PCI devices found");
 
+    /*
     // 2048 buffers of 2048 bytes each, 4MB buffer
     let buffer_pool = libruntime::net::types::BufferPool {
         mobj: kobject::MemoryObject::create(2048 * 2048).expect("Could not create buffer pool"),
@@ -162,6 +163,7 @@ fn setup_net() {
     client
         .create("netdev0", device.address, &buffer_pool)
         .expect("Failed to create net device");
+    */
 }
 
 /// Wait for a server port to be available

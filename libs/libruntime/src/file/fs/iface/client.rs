@@ -58,11 +58,11 @@ impl Client<'_> {
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::LookupQueryParameters::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::LookupQueryParameters, messages::LookupReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::LookupQueryParameters, messages::LookupReply, FsServerError>(
             messages::Type::Lookup,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.node_id)
     }
@@ -89,11 +89,11 @@ impl Client<'_> {
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::CreateQueryParameters::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::CreateQueryParameters, messages::CreateReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::CreateQueryParameters, messages::CreateReply, FsServerError>(
             messages::Type::Create,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.node_id)
     }
@@ -116,11 +116,11 @@ impl Client<'_> {
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::RemoveQueryParameters::HANDLE_NAME_MOBJ] = name_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::RemoveQueryParameters, messages::RemoveReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::RemoveQueryParameters, messages::RemoveReply, FsServerError>(
             messages::Type::Remove,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.node_id)
     }
@@ -153,11 +153,11 @@ impl Client<'_> {
         query_handles[messages::MoveQueryParameters::HANDLE_DST_NAME_MOBJ] =
             dst_name_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::MoveQueryParameters, messages::MoveReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::MoveQueryParameters, messages::MoveReply, FsServerError>(
             messages::Type::Move,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.node_id)
     }
@@ -173,11 +173,11 @@ impl Client<'_> {
             node_id,
         };
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::GetMetadataQueryParameters, messages::GetMetadataReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::GetMetadataQueryParameters, messages::GetMetadataReply, FsServerError>(
             messages::Type::GetMetadata,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(reply.metadata)
     }
@@ -201,11 +201,11 @@ impl Client<'_> {
             modified: modified.map(Into::into),
         };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::SetMetadataQueryParameters, messages::SetMetadataReply, FsServerError>(
+        let (_reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::SetMetadataQueryParameters, messages::SetMetadataReply, FsServerError>(
             messages::Type::SetMetadata,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(())
     }
@@ -223,11 +223,11 @@ impl Client<'_> {
             open_permissions,
         };
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::OpenFileQueryParameters, messages::OpenFileReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::OpenFileQueryParameters, messages::OpenFileReply, FsServerError>(
             messages::Type::OpenFile,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(reply.handle)
     }
@@ -243,11 +243,11 @@ impl Client<'_> {
             handle,
         };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::CloseFileQueryParameters, messages::CloseFileReply, FsServerError>(
+        let (_reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::CloseFileQueryParameters, messages::CloseFileReply, FsServerError>(
             messages::Type::CloseFile,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(())
     }
@@ -273,11 +273,11 @@ impl Client<'_> {
         query_handles[messages::ReadFileQueryParameters::HANDLE_BUFFER_MOBJ] =
             buffer_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::ReadFileQueryParameters, messages::ReadFileReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::ReadFileQueryParameters, messages::ReadFileReply, FsServerError>(
             messages::Type::ReadFile,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.bytes_read)
     }
@@ -303,11 +303,11 @@ impl Client<'_> {
         query_handles[messages::WriteFileQueryParameters::HANDLE_BUFFER_MOBJ] =
             buffer_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::WriteFileQueryParameters, messages::WriteFileReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::WriteFileQueryParameters, messages::WriteFileReply, FsServerError>(
             messages::Type::WriteFile,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.bytes_written)
     }
@@ -323,11 +323,11 @@ impl Client<'_> {
             node_id,
         };
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::OpenDirQueryParameters, messages::OpenDirReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::OpenDirQueryParameters, messages::OpenDirReply, FsServerError>(
             messages::Type::OpenDir,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(reply.handle)
     }
@@ -343,11 +343,11 @@ impl Client<'_> {
             handle,
         };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::CloseDirQueryParameters, messages::CloseDirReply, FsServerError>(
+        let (_reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::CloseDirQueryParameters, messages::CloseDirReply, FsServerError>(
             messages::Type::CloseDir,
             query,
             ipc::KHandles::new(),
-        )?;
+        ).await?;
 
         Ok(())
     }
@@ -380,11 +380,19 @@ impl Client<'_> {
             query_handles[messages::ListDirQueryParameters::HANDLE_BUFFER_MOBJ] =
                 buffer_mobj.into_handle();
 
-            let res = self.ipc_client.call::<messages::Type, messages::ListDirQueryParameters, messages::ListDirReply, messages::FsServerError>(
-                messages::Type::ListDir,
-                query,
-                query_handles,
-            );
+            let res = self
+                .ipc_client
+                .async_call::<
+                    messages::Type,
+                    messages::ListDirQueryParameters,
+                    messages::ListDirReply,
+                    messages::FsServerError,
+                >(
+                    messages::Type::ListDir,
+                    query,
+                    query_handles,
+                )
+                .await;
 
             if let Err(ipc::CallError::ReplyError(messages::FsServerError::BufferTooSmall)) = res {
                 size *= 2;
@@ -427,11 +435,11 @@ impl Client<'_> {
         query_handles[messages::CreateSymlinkQueryParameters::HANDLE_TARGET_MOBJ] =
             target_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::CreateSymlinkQueryParameters, messages::CreateSymlinkReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::CreateSymlinkQueryParameters, messages::CreateSymlinkReply, FsServerError>(
             messages::Type::CreateSymlink,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok(reply.node_id)
     }
@@ -464,11 +472,19 @@ impl Client<'_> {
             query_handles[messages::ReadSymlinkQueryParameters::HANDLE_TARGET_MOBJ] =
                 target_mobj.into_handle();
 
-            let res = self.ipc_client.call::<messages::Type, messages::ReadSymlinkQueryParameters, messages::ReadSymlinkReply, messages::FsServerError>(
-                messages::Type::ReadSymlink,
-                query,
-                query_handles,
-            );
+            let res = self
+                .ipc_client
+                .async_call::<
+                    messages::Type,
+                    messages::ReadSymlinkQueryParameters,
+                    messages::ReadSymlinkReply,
+                    messages::FsServerError,
+                >(
+                    messages::Type::ReadSymlink,
+                    query,
+                    query_handles,
+                )
+                .await;
 
             if let Err(ipc::CallError::ReplyError(messages::FsServerError::BufferTooSmall)) = res {
                 size *= 2;
@@ -495,11 +511,11 @@ impl Client<'_> {
         let mut query_handles = ipc::KHandles::new();
         query_handles[messages::MountQueryParameters::HANDLE_ARGS_MOBJ] = args_mobj.into_handle();
 
-        let (reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::MountQueryParameters, messages::MountReply, FsServerError>(
+        let (reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::MountQueryParameters, messages::MountReply, FsServerError>(
             messages::Type::Mount,
             query,
             query_handles,
-        )?;
+        ).await?;
 
         Ok((reply.mount_handle, reply.root_node_id))
     }
@@ -508,11 +524,11 @@ impl Client<'_> {
     pub async fn unmount(&self, mount_handle: Handle) -> Result<(), FsServerCallError> {
         let query = messages::UnmountQueryParameters { mount_handle };
 
-        let (_reply, _reply_handles) = self.ipc_client.call::<messages::Type, messages::UnmountQueryParameters, messages::UnmountReply, FsServerError>(
+        let (_reply, _reply_handles) = self.ipc_client.async_call::<messages::Type, messages::UnmountQueryParameters, messages::UnmountReply, FsServerError>(
                 messages::Type::Unmount,
                 query,
                 ipc::KHandles::new(),
-            )?;
+            ).await?;
 
         Ok(())
     }

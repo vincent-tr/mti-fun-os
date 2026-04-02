@@ -1,19 +1,19 @@
 use core::ops::Range;
 
-use alloc::sync::{Arc, Weak};
+use alloc::sync::Arc;
+use spin::RwLock;
 
 use crate::{
     memory::{
-        MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr, is_page_aligned, is_userspace,
+        AddressSpace, MapError, PAGE_SIZE, Permissions, UnmapError, VirtAddr, is_page_aligned,
+        is_userspace,
     },
     user::{Error, MemoryObject, error::out_of_memory},
 };
 
-use super::Process;
-
 #[derive(Debug)]
 pub struct Mapping {
-    process: Weak<Process>,
+    address_space: Arc<RwLock<AddressSpace>>,
     range: Range<VirtAddr>,
     /// null if perms is NONE
     memory_object: Option<Arc<MemoryObject>>,
@@ -24,14 +24,14 @@ pub struct Mapping {
 impl Mapping {
     /// Create a new mapping
     pub fn new(
-        process: &Arc<Process>,
+        address_space: Arc<RwLock<AddressSpace>>,
         range: Range<VirtAddr>,
         perms: Permissions,
         memory_object: Option<Arc<MemoryObject>>,
         offset: usize,
     ) -> Result<Self, Error> {
         let mut mapping = Mapping {
-            process: Arc::downgrade(process),
+            address_space,
             range,
             memory_object,
             offset,
@@ -48,13 +48,6 @@ impl Mapping {
         Ok(mapping)
     }
 
-    /// Get the process this mapping is rattached
-    pub fn process(&self) -> Arc<Process> {
-        self.process
-            .upgrade()
-            .expect("Could not get Mapping's process")
-    }
-
     /// Get the range of this mapping
     pub fn range(&self) -> &Range<VirtAddr> {
         &self.range
@@ -67,8 +60,7 @@ impl Mapping {
 
     /// Get the permissions of the mapping
     pub fn permissions(&self) -> Permissions {
-        let process = self.process();
-        let address_space = process.address_space().read();
+        let address_space = self.address_space.read();
 
         let (_, perm, _) = unsafe { address_space.get_infos(self.range.start) };
 
@@ -77,8 +69,7 @@ impl Mapping {
 
     /// Set the permissions of the mapping
     pub fn set_permissions(&mut self, perms: Permissions) {
-        let process = self.process();
-        let mut address_space = process.address_space().write();
+        let mut address_space = self.address_space.write();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
             unsafe {
@@ -122,7 +113,7 @@ impl Mapping {
         };
 
         Mapping {
-            process: self.process.clone(),
+            address_space: self.address_space.clone(),
             range: addr..range.end,
             memory_object: self.memory_object.clone(),
             offset: other_offset,
@@ -161,8 +152,7 @@ impl Mapping {
     unsafe fn map(&mut self, perms: Permissions) -> Result<(), Error> {
         let mut phys_offset = self.offset;
 
-        let process = self.process();
-        let mut address_space = process.address_space().write();
+        let mut address_space = self.address_space.write();
         let mobj = self.memory_object.as_ref().unwrap();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {
@@ -202,8 +192,7 @@ impl Mapping {
     }
 
     unsafe fn unmap(&mut self) {
-        let process = self.process();
-        let mut address_space = process.address_space().write();
+        let mut address_space = self.address_space.write();
         let mobj = self.memory_object.as_ref().unwrap();
 
         for virt_addr in self.range.clone().step_by(PAGE_SIZE) {

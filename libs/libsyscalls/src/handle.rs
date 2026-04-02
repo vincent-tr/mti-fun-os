@@ -34,11 +34,21 @@ impl Handle {
         Self(value)
     }
 
+    /// Get the handle type
     pub fn r#type(&self) -> HandleType {
         if !self.valid() {
             HandleType::Invalid
         } else {
             r#type(self).expect("Could not get handle type")
+        }
+    }
+
+    /// Check if two handle are equal
+    pub fn equals(&self, other: &Handle) -> bool {
+        if !self.valid() || !other.valid() {
+            false
+        } else {
+            equals(self, other).expect("Could not compare handles")
         }
     }
 }
@@ -93,4 +103,21 @@ fn r#type(handle: &Handle) -> SyscallResult<HandleType> {
     sysret_to_result(ret)?;
 
     Ok(handle_type)
+}
+
+fn equals(handle1: &Handle, handle2: &Handle) -> SyscallResult<bool> {
+    let mut equals = false;
+
+    let ret = unsafe {
+        syscall3(
+            SyscallNumber::HandleEquals,
+            handle1.as_syscall_value(),
+            handle2.as_syscall_value(),
+            ref_ptr(&mut equals),
+        )
+    };
+
+    sysret_to_result(ret)?;
+
+    Ok(equals)
 }

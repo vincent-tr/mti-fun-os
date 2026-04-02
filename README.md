@@ -41,17 +41,39 @@ make build
 
 ## Run kernel in QEmu
 
-### Shell 1
-
+- Shell 1
 ```shell
 make run
 # or make
 ```
 
-### Shell 2
-
+- Shell 2
 ```shell
-tail -f serial.log
+make logs
+```
+
+## Debug kernel in QEmu
+
+- Shell 1
+```shell
+make debug
+```
+
+- Shell 2
+```shell
+make gdb
+# add symbols for server:
+add-symbol-file target/x86_64-mti_fun_os/relwithdebinfo/display-server
+# add breakpoint
+info functions display_server
+break display_server::main
+# start execution
+continue
+```
+
+- Shell 3
+```shell
+make logs
 ```
 
 ## Readings

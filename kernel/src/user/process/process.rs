@@ -46,7 +46,7 @@ pub fn process_remove_thread(thread: &Thread) {
 pub struct Process {
     id: u64,
     name: RwLock<String>,
-    address_space: RwLock<AddressSpace>,
+    address_space: Arc<RwLock<AddressSpace>>,
     /// Note: ordered by address
     mappings: RwLock<Mappings>,
     threads: WeakMap<u64, Thread>,
@@ -69,7 +69,7 @@ impl Process {
         let process = Arc::new(Self {
             id,
             name: RwLock::new(String::from(name)),
-            address_space: RwLock::new(address_space),
+            address_space: Arc::new(RwLock::new(address_space)),
             mappings: RwLock::new(Mappings::new()),
             threads: WeakMap::new(),
             handles: Handles::new(),
@@ -105,7 +105,6 @@ impl Process {
     pub fn address_space(&self) -> &RwLock<AddressSpace> {
         &self.address_space
     }
-
     /// Map a MemoryObject (or part of it) into the process address space, with the given permissions.
     ///
     /// Notes:
@@ -152,7 +151,13 @@ impl Process {
             range
         };
 
-        let mapping = Mapping::new(self, range.clone(), perms, memory_object, offset)?;
+        let mapping = Mapping::new(
+            self.address_space.clone(),
+            range.clone(),
+            perms,
+            memory_object,
+            offset,
+        )?;
         let addr = mapping.range().start;
 
         mappings.add(mapping);
@@ -242,7 +247,7 @@ impl Process {
         range: Range<VirtAddr>,
         perms: Permissions,
     ) -> Result<MemoryAccess, Error> {
-        let address_space = self.address_space().read();
+        let address_space = self.address_space.read();
         memory_access::create(&address_space, range, perms)
     }
 
@@ -252,7 +257,7 @@ impl Process {
         addr: VirtAddr,
         perms: Permissions,
     ) -> Result<TypedMemoryAccess<T>, Error> {
-        let address_space = self.address_space().read();
+        let address_space = self.address_space.read();
         memory_access::create_typed(&address_space, addr, perms)
     }
 
@@ -263,7 +268,7 @@ impl Process {
         count: usize,
         perms: Permissions,
     ) -> Result<TypedSliceMemoryAccess<T>, Error> {
-        let address_space = self.address_space().read();
+        let address_space = self.address_space.read();
         memory_access::create_typed_slice(&address_space, addr, count, perms)
     }
 

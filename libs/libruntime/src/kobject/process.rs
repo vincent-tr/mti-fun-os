@@ -170,7 +170,7 @@ impl Process {
         }
     }
 
-    /// Reserve an area in the process VM, but no not back it with memory
+    /// Reserve an area in the process VM, but do not back it with memory
     pub fn map_reserve(&self, addr: Option<usize>, size: usize) -> Result<Mapping<'_>, Error> {
         let addr = process::mmap(&self.handle, addr, size, Permissions::NONE, None, 0)?;
 

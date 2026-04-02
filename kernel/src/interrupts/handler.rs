@@ -15,8 +15,16 @@ use crate::memory::{StaticKernelStack, VirtAddr};
 pub struct InterruptStack {
     pub preserved: PreservedRegisters,
     pub scratch: ScratchRegisters,
+    pub trap_origin: TrapOrigin,
     pub error_code: usize,
     pub iret: InterruptStackFrameValue,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(usize)]
+pub enum TrapOrigin {
+    Interrupt = 0,
+    Syscall = 1,
 }
 
 impl InterruptStack {
@@ -80,15 +88,15 @@ macro_rules! push_scratch {
     () => {
         "
         // Push scratch registers
-        push rax
-        push rcx
-        push rdx
-        push rdi
-        push rsi
-        push r8
-        push r9
-        push r10
-        push r11
+        push rax;
+        push rcx;
+        push rdx;
+        push rdi;
+        push rsi;
+        push r8;
+        push r9;
+        push r10;
+        push r11;
     "
     };
 }
@@ -97,15 +105,15 @@ macro_rules! pop_scratch {
     () => {
         "
         // Pop scratch registers
-        pop r11
-        pop r10
-        pop r9
-        pop r8
-        pop rsi
-        pop rdi
-        pop rdx
-        pop rcx
-        pop rax
+        pop r11;
+        pop r10;
+        pop r9;
+        pop r8;
+        pop rsi;
+        pop rdi;
+        pop rdx;
+        pop rcx;
+        pop rax;
     "
     };
 }
@@ -139,26 +147,51 @@ macro_rules! push_preserved {
     () => {
         "
         // Push preserved registers
-        push rbx
-        push rbp
-        push r12
-        push r13
-        push r14
-        push r15
+        push rbx;
+        push rbp;
+        push r12;
+        push r13;
+        push r14;
+        push r15;
     "
     };
 }
+
 #[macro_export]
 macro_rules! pop_preserved {
     () => {
         "
         // Pop preserved registers
-        pop r15
-        pop r14
-        pop r13
-        pop r12
-        pop rbp
-        pop rbx
+        pop r15;
+        pop r14;
+        pop r13;
+        pop r12;
+        pop rbp;
+        pop rbx;
+    "
+    };
+}
+
+#[macro_export]
+macro_rules! interrupt_return {
+    () => {
+        "
+        add rsp, 16;           // Trap origin + Error code
+        iretq;
+    "
+    };
+}
+
+#[macro_export]
+macro_rules! syscall_return {
+    () => {
+        "
+        add rsp, 16;           // Trap origin + Error code
+        pop rcx;               // Pop userland return pointer
+        add rsp, 8;            // Pop fake userspace CS
+        pop r11;               // Pop rflags
+        pop rsp;               // Restore userland stack pointer
+        sysretq;               // Return into userland; RCX=>RIP,R11=>RFLAGS
     "
     };
 }
@@ -168,11 +201,18 @@ macro_rules! pop_preserved {
 macro_rules! native_handler {
     ($handler:expr) => {
         {
+            use crate::{
+                interrupts::handler::TrapOrigin,
+                user::thread::UserlandTimerInterruptScope,
+
+            };
+            use core::mem::offset_of;
+
             #[unsafe(naked)]
             unsafe fn handler() {
                 core::arch::naked_asm!(concat!(
                     "push 0;",                    // Fake error code
-
+                    "push {trap_origin};",        // Push trap origin
                     "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
                     push_scratch!(),
@@ -184,16 +224,23 @@ macro_rules! native_handler {
                     pop_preserved!(),
                     pop_scratch!(),
 
-                    "add rsp,8;",               // Error code
-                    "iretq;",                   // Back to userland
+                    // Is it syscall or interrupt return?
+                    "cmp qword ptr [rsp + {trap_origin_offset}], {trap_origin_syscall};",
+                    "je 2f;",
+                    interrupt_return!(),
+                    "2:",
+                    syscall_return!(),
                 ),
 
-                interrupt_handler = sym wrapper);
+                interrupt_handler = sym wrapper,
+                trap_origin = const(TrapOrigin::Interrupt as usize),
+                trap_origin_syscall = const(TrapOrigin::Syscall as usize),
+                trap_origin_offset = const(offset_of!(InterruptStack, trap_origin)));
             }
 
             unsafe extern "C" fn wrapper() {
                 unsafe {
-                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+                    let _userland_timer = UserlandTimerInterruptScope::new();
 
                     let stack = InterruptStack::current();
 
@@ -209,11 +256,18 @@ macro_rules! native_handler {
 macro_rules! native_device_irq_handler {
     ($handler:expr, $vector:expr) => {
         {
+            use crate::{
+                interrupts::handler::TrapOrigin,
+                user::thread::UserlandTimerInterruptScope,
+
+            };
+            use core::mem::offset_of;
+
             #[unsafe(naked)]
             unsafe fn handler() {
                 core::arch::naked_asm!(concat!(
                     "push 0;",                    // Fake error code
-
+                    "push {trap_origin};",        // Push trap origin
                     "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
                     push_scratch!(),
@@ -225,16 +279,23 @@ macro_rules! native_device_irq_handler {
                     pop_preserved!(),
                     pop_scratch!(),
 
-                    "add rsp,8;",               // Error code
-                    "iretq;",                   // Back to userland
+                    // Is it syscall or interrupt return?
+                    "cmp qword ptr [rsp + {trap_origin_offset}], {trap_origin_syscall};",
+                    "je 2f;",
+                    interrupt_return!(),
+                    "2:",
+                    syscall_return!(),
                 ),
 
-                interrupt_handler = sym wrapper);
+                interrupt_handler = sym wrapper,
+                trap_origin = const(TrapOrigin::Interrupt as usize),
+                trap_origin_syscall = const(TrapOrigin::Syscall as usize),
+                trap_origin_offset = const(offset_of!(InterruptStack, trap_origin)));
             }
 
             unsafe extern "C" fn wrapper() {
                 unsafe {
-                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+                    let _userland_timer = UserlandTimerInterruptScope::new();
 
                     let stack = InterruptStack::current();
 
@@ -252,9 +313,17 @@ macro_rules! native_device_irq_handler {
 macro_rules! native_error_handler {
     ($handler:expr) => {
         {
+            use crate::{
+                interrupts::handler::TrapOrigin,
+                user::thread::UserlandTimerInterruptScope,
+
+            };
+            use core::mem::offset_of;
+
             #[unsafe(naked)]
             unsafe fn handler() {
                 core::arch::naked_asm!(concat!(
+                    "push {trap_origin};",        // Push trap origin
                     "cld;",                       // Clear direction flag, required by ABI when running any Rust code in the kernel.
 
                     push_scratch!(),
@@ -266,16 +335,22 @@ macro_rules! native_error_handler {
                     pop_preserved!(),
                     pop_scratch!(),
 
-                    "add rsp,8;",               // Error code
-                    "iretq;",                   // Back to userland
+                    // Is it syscall or interrupt return?
+                    "cmp qword ptr [rsp + {trap_origin_offset}], {trap_origin_syscall};",
+                    "je 2f;",
+                    interrupt_return!(),
+                    "2:",
+                    syscall_return!(),
                 ),
-
-                interrupt_handler = sym wrapper);
+                interrupt_handler = sym wrapper,
+                trap_origin = const(TrapOrigin::Interrupt as usize),
+                trap_origin_syscall = const(TrapOrigin::Syscall as usize),
+                trap_origin_offset = const(offset_of!(InterruptStack, trap_origin)));
             }
 
             unsafe extern "C" fn wrapper() {
                 unsafe {
-                    let _userland_timer = crate::user::thread::UserlandTimerInterruptScope::new();
+                    let _userland_timer = UserlandTimerInterruptScope::new();
 
                     let stack = InterruptStack::current();
 

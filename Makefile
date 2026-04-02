@@ -8,12 +8,32 @@ export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
 export BUILD_ARGS := -Zjson-target-spec
 
-.PHONY: all run format build image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build boot.cpio clean screenshot
+.PHONY: all run debug logs gdb format build build-relwithdebinfo image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build boot.cpio clean screenshot
 
 all: run
 
 run: build
 	cargo run $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)
+
+build-relwithdebinfo: export MTI_FUN_OS_KERNEL_PROFILE := relwithdebinfo
+build-relwithdebinfo: export MTI_FUN_OS_INIT_PROFILE := relwithdebinfo
+build-relwithdebinfo: export MTI_FUN_OS_SERVERS_PROFILE := relwithdebinfo
+build-relwithdebinfo: build
+
+debug: build-relwithdebinfo
+	MTI_FUN_OS_DEBUG=1 cargo run $(BUILD_ARGS) --profile relwithdebinfo
+
+logs:
+	tail -f serial.log
+
+gdb: build-relwithdebinfo
+	@echo "Connecting GDB to QEMU on localhost:1234..."
+	@echo "Use 'c' to continue execution, 'Ctrl-C' then 'quit' to exit"
+	@KERNEL=$$(ls target/x86_64-unknown-none/relwithdebinfo/deps/artifact/kernel-*/bin/kernel-* 2>/dev/null | grep -v '\.d$$' | head -n1); \
+	gdb \
+		-ex "set confirm off" \
+		-ex "target remote localhost:1234" \
+		-ex "add-symbol-file $$KERNEL -o 0xffff800000000000"
 
 format:
 	cargo fmt -- --emit=files

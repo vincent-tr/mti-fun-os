@@ -15,7 +15,8 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={bios_path}"));
     }
-    cmd.args(&["-display", "none"])
+    cmd.args(&["-m", "512M"])
+        .args(&["-display", "none"])
         .arg("-nographic")
         .args(&["-monitor", "stdio"])
         .args(&["-qmp", "unix:/tmp/qmp-socket,server,nowait"])
@@ -26,6 +27,12 @@ fn main() {
             "user,model=e1000e,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80",
         ])
         .arg("-s");
+
+    if std::env::var("MTI_FUN_OS_DEBUG").is_ok() {
+        // Do not start the CPU immediately, so that we have time to attach gdb
+        cmd.arg("-S");
+    }
+
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }

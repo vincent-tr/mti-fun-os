@@ -36,6 +36,7 @@ pub enum SyscallNumber {
     HandleClose,
     HandleDuplicate,
     HandleType,
+    HandleEquals,
 
     ProcessOpenSelf,
     ProcessOpen,

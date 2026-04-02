@@ -48,3 +48,23 @@ pub async fn r#type(context: Context) -> Result<(), Error> {
     *user_access.get_mut() = handle_type;
     Ok(())
 }
+
+pub async fn equals(context: Context) -> Result<(), Error> {
+    let handle1 = context.arg1();
+    let handle2 = context.arg2();
+    let result_out_ptr = context.arg3();
+
+    let thread = context.owner();
+    let process = thread.process();
+
+    let mut user_access = process.vm_access_typed::<bool>(
+        VirtAddr::new(result_out_ptr as u64),
+        Permissions::READ | Permissions::WRITE,
+    )?;
+
+    *user_access.get_mut() = process
+        .handles()
+        .is_obj_eq(handle1.into(), handle2.into())?;
+
+    Ok(())
+}

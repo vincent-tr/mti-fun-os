@@ -20,6 +20,12 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
+    /// The number of Rx buffers that can be added in a single IPC call.
+    pub const RX_BUFFER_COUNT: usize = messages::AddRxBuffersQueryParameters::BUFFER_COUNT;
+
+    /// The number of Tx descriptors that can be transmitted in a single IPC call.
+    pub const TX_DESCRIPTOR_COUNT: usize = messages::TxQueryParameters::DESCRIPTOR_COUNT;
+
     /// Creates a new net device client.
     pub fn new(port: &str) -> Self {
         let port_name: Box<str> = port.into();
@@ -44,7 +50,7 @@ impl Client<'_> {
         &self,
         name: &str,
         pci_address: PciAddress,
-        buffer_pool: &BufferPool,
+        buffer_pool: BufferPool,
     ) -> Result<ipc::Handle, NetDeviceServerCallError> {
         let (name_memobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
@@ -61,7 +67,7 @@ impl Client<'_> {
         query_handles[messages::CreateQueryParameters::HANDLE_NAME_MOBJ] =
             name_memobj.into_handle();
         query_handles[messages::CreateQueryParameters::HANDLE_NET_BUFFER_POOL_MOBJ] =
-            buffer_pool.mobj.clone().into_handle();
+            buffer_pool.mobj.into_handle();
 
         let (reply, _reply_handles) = self
             .ipc_client

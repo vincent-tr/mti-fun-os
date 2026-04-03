@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 fn main() {
-    // Skip build script when rust-analyzer runs it (not the primary package being built)
-    if std::env::var("RUSTC_WRAPPER")
-        .unwrap_or_default()
-        .contains("rust-analyzer")
+    // Skip build script when rust-analyzer is analyzing
+    if std::env::var("CARGO_RESOLVER_LOCKFILE_PATH")
+        .map(|p| p.contains("rust-analyzer"))
+        .unwrap_or(false)
     {
         return;
     }

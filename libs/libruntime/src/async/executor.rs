@@ -27,7 +27,7 @@ impl fmt::Debug for Task {
 }
 
 impl Task {
-    pub fn new<F: Future<Output = ()> + Send + 'static>(task_id: TaskId, future: F) -> Self {
+    pub fn new(task_id: TaskId, future: impl Future<Output = ()> + Send + 'static) -> Self {
         Self {
             id: task_id,
             future: Mutex::new(Box::pin(future)),
@@ -111,12 +111,14 @@ impl Executor {
     }
 
     /// Spawns a new future onto the executor.
-    pub fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) {
+    pub fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) -> JoinHandle {
         let task_id = self.id_generator.generate();
         let task = Arc::new(Task::new(task_id, future));
-        self.tasks.write().insert(task_id, task);
+        self.tasks.write().insert(task_id, task.clone());
 
         self.ready_list.lock().push_back(task_id);
+
+        JoinHandle { task_id, task }
     }
 
     fn run_ready_once(&self) -> bool {
@@ -160,5 +162,20 @@ impl Executor {
     /// Checks if there are no tasks left in the executor.
     pub fn is_empty(&self) -> bool {
         self.tasks.read().is_empty()
+    }
+}
+
+/// Handle to a spawned task that can be awaited.
+#[derive(Debug)]
+pub struct JoinHandle {
+    task_id: TaskId,
+    task: Arc<Task>,
+}
+
+impl Future for JoinHandle {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+        self.task.poll()
     }
 }

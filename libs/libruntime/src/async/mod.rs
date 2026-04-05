@@ -2,15 +2,14 @@ mod executor;
 mod future;
 mod reactor;
 
+use core::future::Future;
+use executor::Executor;
+use future::KWaitableFuture;
 use reactor::Reactor;
 
-use future::KWaitableFuture;
-
-use executor::Executor;
-
-use core::future::Future;
-
 use crate::kobject;
+
+pub use executor::JoinHandle;
 
 /// Waits for a waitable object to become ready.
 pub async fn wait<Waitable: kobject::KWaitable>(waitable: &Waitable) {
@@ -18,8 +17,8 @@ pub async fn wait<Waitable: kobject::KWaitable>(waitable: &Waitable) {
 }
 
 /// Spawns a new future onto the executor.
-pub fn spawn(future: impl Future<Output = ()> + Send + 'static) {
-    Executor::get().spawn(future);
+pub fn spawn(future: impl Future<Output = ()> + Send + 'static) -> JoinHandle {
+    Executor::get().spawn(future)
 }
 
 /// Runs the executor until all tasks have completed.

@@ -706,6 +706,7 @@ dependencies = [
 name = "net-server"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "hashbrown 0.15.2",
  "lazy_static",
  "libruntime",

@@ -19,7 +19,7 @@ const BUFFER_COUNT: usize = 2048;
 
 /// Buffer pool for network packet data, shared between the net server and network device drivers.
 #[derive(Debug)]
-struct BufferPool {
+pub struct BufferPool {
     /// The memory object backing the buffer pool.
     mobj: kobject::MemoryObject,
 

@@ -5,6 +5,7 @@ extern crate alloc;
 extern crate libruntime;
 
 mod buffer_pool;
+mod iface;
 
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {

@@ -52,7 +52,7 @@ impl BufferPool {
             )
             .expect("Could not map buffer pool memory object");
 
-        let free_list = (0..buffer_count).rev().collect();
+        let free_list = Mutex::new((0..buffer_count).rev().collect());
 
         Self {
             mobj,
@@ -125,7 +125,7 @@ impl Drop for BufferPool {
 }
 
 /// The global buffer pool instance, initialized at startup.
-static BUFFER_POOL: OnceLock<BufferPool> = OnceLock::uninit();
+static BUFFER_POOL: OnceLock<BufferPool> = OnceLock::new();
 
 /// Initializes the global buffer pool instance.
 /// This should be called once at startup before any network interfaces are created.

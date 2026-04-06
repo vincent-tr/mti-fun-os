@@ -17,8 +17,10 @@ pub fn test_spawn_join() {
 
         let join_handle = r#async::spawn(nested_task());
         info!("Awaiting nested task...");
-        join_handle.await;
+        join_handle.clone().await;
         info!("Nested task completed");
+        join_handle.await;
+        info!("Nested task still completed");
     }
 
     // Spawn the test task

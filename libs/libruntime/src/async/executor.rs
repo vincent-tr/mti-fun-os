@@ -2,7 +2,7 @@ use core::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -18,6 +18,7 @@ struct Task {
     id: TaskId,
     future: Mutex<Pin<Box<dyn Future<Output = ()> + Send>>>,
     waker: Waker,
+    completed: AtomicBool,
 }
 
 impl fmt::Debug for Task {
@@ -32,14 +33,27 @@ impl Task {
             id: task_id,
             future: Mutex::new(Box::pin(future)),
             waker: Waker::from(Arc::new(TaskWaker::new(task_id))),
+            completed: AtomicBool::new(false),
         }
     }
 
     pub fn poll(&self) -> Poll<()> {
-        self.future
+        if self.completed.load(Ordering::SeqCst) {
+            return Poll::Ready(());
+        }
+
+        match self
+            .future
             .lock()
             .as_mut()
             .poll(&mut Context::from_waker(&self.waker))
+        {
+            Poll::Ready(()) => {
+                self.completed.store(true, Ordering::SeqCst);
+                Poll::Ready(())
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
@@ -118,7 +132,7 @@ impl Executor {
 
         self.ready_list.lock().push_back(task_id);
 
-        JoinHandle { task_id, task }
+        JoinHandle { task }
     }
 
     fn run_ready_once(&self) -> bool {
@@ -166,9 +180,8 @@ impl Executor {
 }
 
 /// Handle to a spawned task that can be awaited.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JoinHandle {
-    task_id: TaskId,
     task: Arc<Task>,
 }
 
@@ -176,6 +189,10 @@ impl Future for JoinHandle {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+        if self.task.completed.load(Ordering::SeqCst) {
+            return Poll::Ready(());
+        }
+
         self.task.poll()
     }
 }

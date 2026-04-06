@@ -37,6 +37,7 @@ fn main(info: InitInfo) {
     // tests::sync::test_async_mutex();
     // tests::sync::test_async_rwlock();
     // tests::r#async::test_spawn_join();
+    // tests::r#async::test_notify_once();
 
     start_core_servers(&info);
     setup_initial_filesystem(&info);

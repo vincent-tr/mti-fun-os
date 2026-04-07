@@ -196,3 +196,9 @@ impl Future for JoinHandle {
         self.task.poll()
     }
 }
+
+impl futures::future::FusedFuture for JoinHandle {
+    fn is_terminated(&self) -> bool {
+        self.task.completed.load(Ordering::SeqCst)
+    }
+}

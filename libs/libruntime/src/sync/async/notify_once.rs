@@ -96,6 +96,12 @@ impl Future for NotifyOnceFuture {
     }
 }
 
+impl futures::future::FusedFuture for NotifyOnceFuture {
+    fn is_terminated(&self) -> bool {
+        self.notify.inner.signaled.load(Ordering::SeqCst)
+    }
+}
+
 impl fmt::Debug for NotifyOnceFuture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NotifyOnceFuture")

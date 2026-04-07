@@ -5,7 +5,12 @@ use libruntime::{
     r#async::{self, tools::Worker},
     drivers::pci::PciAddress,
     ipc, kobject,
-    net::{dev::iface, types::MacAddress},
+    net::{
+        dev::iface::{
+            self, LinkStatusChangedNotification, RxArrivedNotification, TxFreeNotification,
+        },
+        types::{BufferPool, MacAddress},
+    },
     sync::{Mutex, r#async::NotifyOnce},
 };
 
@@ -193,15 +198,74 @@ impl Interface {
     }
 
     async fn process_rx_notification(&self) {
-        // TODO
+        let mut descriptors = Vec::new();
+
+        loop {
+            let msg = match self.rx_port.receive() {
+                Ok(msg) => msg,
+                Err(kobject::Error::ObjectNotReady) => break,
+                Err(e) => panic!("Error receiving from rx port: {:?}", e),
+            };
+
+            let msg = unsafe { msg.data::<RxArrivedNotification>() };
+
+            for desc in msg.rx_descriptors {
+                if desc.buffer_index() != BufferPool::INVALID_INDEX {
+                    descriptors.push(desc);
+                }
+            }
+
+            self.refill_rx_buffers()
+                .await
+                .expect("Failed to refill rx buffers");
+        }
+
+        // TODO: do something with descriptors
+        todo!();
     }
 
     async fn process_tx_free_notification(&self) {
-        // TODO
+        loop {
+            let msg = match self.tx_free_port.receive() {
+                Ok(msg) => msg,
+                Err(kobject::Error::ObjectNotReady) => break,
+                Err(e) => panic!("Error receiving from tx free port: {:?}", e),
+            };
+
+            let msg = unsafe { msg.data::<TxFreeNotification>() };
+            let mut buffers = self.buffers.lock();
+            for &index in &msg.buffers {
+                let index = index as usize;
+                if index == BufferPool::INVALID_INDEX {
+                    continue;
+                }
+
+                if !buffers.remove(&index) {
+                    panic!(
+                        "Received tx free notification for buffer index {} which is not currently in use",
+                        index
+                    );
+                }
+
+                buffer_pool::pool().deallocate(index);
+            }
+        }
     }
 
     async fn process_link_status_change_notification(&self) {
-        // TODO
+        loop {
+            let msg = match self.link_status_change_port.receive() {
+                Ok(msg) => msg,
+                Err(kobject::Error::ObjectNotReady) => break,
+                Err(e) => panic!("Error receiving from link status change port: {:?}", e),
+            };
+
+            let msg = unsafe { msg.data::<LinkStatusChangedNotification>() };
+
+            // TODO: do something with message
+            todo!();
+            // msg.link_up
+        }
     }
 }
 

@@ -126,39 +126,27 @@ impl Interface {
             for _ in 0..iface::Client::RX_BUFFER_COUNT {
                 let index = buffer_pool::pool().allocate();
                 buffer_indexes.push(index);
-                self.buffers.lock().insert(index);
             }
 
-            // TODO: what if the future is dropped?
-            // We should use RAII for temp buffers
+            let mut guard = BufferGuard::new(buffer_indexes.iter().copied());
 
-            match self
+            let count = self
                 .ipc_client
                 .add_rx_buffers(self.handle, &buffer_indexes)
-                .await
+                .await?;
+
+            guard.keep(count);
+
             {
-                Ok(count) => {
-                    // Release any buffers that were not added.
-                    for &index in &buffer_indexes[count..] {
-                        self.buffers.lock().remove(&index);
-                        buffer_pool::pool().deallocate(index);
-                    }
-
-                    if count == 0 {
-                        // The driver cannot accept any additional buffers.
-                        break;
-                    }
+                let mut buffers = self.buffers.lock();
+                for &index in &buffer_indexes[0..count] {
+                    buffers.insert(index);
                 }
+            }
 
-                Err(e) => {
-                    // On error, deallocate all buffers.
-                    for &index in &buffer_indexes {
-                        self.buffers.lock().remove(&index);
-                        buffer_pool::pool().deallocate(index);
-                    }
-
-                    return Err(e);
-                }
+            if count == 0 {
+                // The driver cannot accept any additional buffers.
+                break;
             }
         }
 
@@ -214,5 +202,38 @@ impl Interface {
 
     async fn process_link_status_change_notification(&self) {
         // TODO
+    }
+}
+
+/// A guard for a set of buffer indexes allocated for an interface.
+///
+/// On drop, the guard will deallocate all of the buffers back to the buffer pool, unless `keep()` is called to keep some of them.
+#[derive(Debug)]
+struct BufferGuard {
+    indexes: Vec<usize>,
+}
+
+impl BufferGuard {
+    /// Create a new BufferGuard for the given buffer indexes.
+    ///
+    /// The guard will deallocate all of the buffers on drop, unless `keep()` is called to keep some of them.
+    pub fn new(indexes: impl IntoIterator<Item = usize>) -> Self {
+        Self {
+            indexes: indexes.into_iter().collect(),
+        }
+    }
+
+    /// Keep the first `count` indexes, and deallocate the rest when dropped.
+    pub fn keep(&mut self, count: usize) {
+        // Remove the indexes that we want to keep from the guard, so they won't be deallocated on drop.
+        self.indexes.drain(0..count);
+    }
+}
+
+impl Drop for BufferGuard {
+    fn drop(&mut self) {
+        for &index in &self.indexes {
+            buffer_pool::pool().deallocate(index);
+        }
     }
 }

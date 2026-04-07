@@ -7,6 +7,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
     task::{Context, Poll, Waker},
 };
+use futures::future::FusedFuture;
 
 use crate::sync::Mutex;
 
@@ -96,7 +97,7 @@ impl Future for NotifyOnceFuture {
     }
 }
 
-impl futures::future::FusedFuture for NotifyOnceFuture {
+impl FusedFuture for NotifyOnceFuture {
     fn is_terminated(&self) -> bool {
         self.notify.inner.signaled.load(Ordering::SeqCst)
     }

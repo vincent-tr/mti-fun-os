@@ -13,8 +13,10 @@ use crate::kobject;
 pub use executor::JoinHandle;
 
 /// Waits for a waitable object to become ready.
-pub async fn wait<Waitable: kobject::KWaitable>(waitable: &Waitable) {
-    KWaitableFuture::new(waitable).await
+pub fn wait<'a, Waitable: kobject::KWaitable + 'a>(
+    waitable: &'a Waitable,
+) -> KWaitableFuture<'a, Waitable> {
+    KWaitableFuture::new(waitable)
 }
 
 /// Spawns a new future onto the executor.

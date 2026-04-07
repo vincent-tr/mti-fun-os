@@ -1,11 +1,12 @@
 use alloc::{string::String, sync::Arc, vec::Vec};
+use futures::select_biased;
 use hashbrown::HashSet;
 use libruntime::{
-    r#async,
+    r#async::{self, tools::Worker},
     drivers::pci::PciAddress,
     ipc, kobject,
     net::{dev::iface, types::MacAddress},
-    sync::Mutex,
+    sync::{Mutex, r#async::NotifyOnce},
 };
 
 use crate::buffer_pool;
@@ -42,6 +43,18 @@ pub struct Interface {
     /// The set of buffer indexes currently in use for this interface.
     /// On destroy, the interface will free any buffers in this set back to the buffer pool.
     buffers: Mutex<HashSet<usize>>,
+
+    /// The worker task that listens for notifications from the driver and handles them.
+    worker: Mutex<Option<Worker>>,
+
+    /// The ports for receiving notifications of link status changes from the driver.
+    link_status_change_port: kobject::PortReceiver,
+
+    /// The port for receiving notifications of received packets from the driver.
+    rx_port: kobject::PortReceiver,
+
+    /// The port for receiving notifications of transmitted packet buffers being freed by the driver.
+    tx_free_port: kobject::PortReceiver,
 }
 
 impl Interface {
@@ -57,19 +70,10 @@ impl Interface {
             .await?;
         let mac_address = ipc_client.get_mac_address(handle).await?;
 
-        let iface = Arc::new(Self {
-            dev_name: String::from(dev_name),
-            mac_address,
-            ipc_client,
-            handle,
-            buffers: Mutex::new(HashSet::new()),
-        });
-
         let link_status_change_port = {
             let (receiver, sender) = kobject::Port::create(None)?;
-            iface
-                .ipc_client
-                .set_link_status_change_port(iface.handle, Some(sender), 0)
+            ipc_client
+                .set_link_status_change_port(handle, Some(sender), 0)
                 .await?;
 
             receiver
@@ -77,32 +81,41 @@ impl Interface {
 
         let rx_port = {
             let (receiver, sender) = kobject::Port::create(None)?;
-            iface
-                .ipc_client
-                .set_rx_port(iface.handle, Some(sender), 0)
-                .await?;
+            ipc_client.set_rx_port(handle, Some(sender), 0).await?;
 
             receiver
         };
 
         let tx_free_port = {
             let (receiver, sender) = kobject::Port::create(None)?;
-            iface
-                .ipc_client
-                .set_tx_free_port(iface.handle, Some(sender), 0)
-                .await?;
+            ipc_client.set_tx_free_port(handle, Some(sender), 0).await?;
 
             receiver
         };
 
+        let iface = Arc::new(Self {
+            dev_name: String::from(dev_name),
+            mac_address,
+            ipc_client,
+            handle,
+            buffers: Mutex::new(HashSet::new()),
+            worker: Mutex::new(None),
+            link_status_change_port,
+            rx_port,
+            tx_free_port,
+        });
+
         // Fill rx buffers initially, so the driver can start receiving packets immediately.
         iface.refill_rx_buffers().await?;
 
-        r#async::spawn(
-            iface
-                .clone()
-                .worker(link_status_change_port, rx_port, tx_free_port),
-        );
+        let worker = Worker::spawn({
+            let iface = iface.clone();
+            async move |exit_signal| {
+                iface.worker(exit_signal).await;
+            }
+        });
+
+        *iface.worker.lock() = Some(worker);
 
         Ok(iface)
     }
@@ -156,7 +169,9 @@ impl Interface {
     pub async fn destroy(self) -> Result<(), TodoError> {
         self.ipc_client.destroy(self.handle).await?;
 
-        // TODO: stop worker task
+        if let Some(worker) = self.worker.lock().take() {
+            worker.terminate().await;
+        }
 
         for index in self.buffers.lock().drain() {
             buffer_pool::pool().deallocate(index);
@@ -166,15 +181,38 @@ impl Interface {
     }
 
     /// Interface worker task, which listens for notifications from the driver and handles them.
-    async fn worker(
-        self: Arc<Self>,
-        link_status_change_port: kobject::PortReceiver,
-        rx_port: kobject::PortReceiver,
-        tx_free_port: kobject::PortReceiver,
-    ) {
-        // TODO: select + exit signal
+    async fn worker(self: Arc<Self>, exit_signal: NotifyOnce) {
+        loop {
+            select_biased! {
+                // Note: important to check the exit signal first.
+                _ = exit_signal.wait() => {
+                    return;
+                }
+
+                _ = r#async::wait(&self.rx_port) => {
+                    self.process_rx_notification().await;
+                }
+
+                _ = r#async::wait(&self.tx_free_port) => {
+                    self.process_tx_free_notification().await;
+                }
+
+                _ = r#async::wait(&self.link_status_change_port) => {
+                    self.process_link_status_change_notification().await;
+                }
+            }
+        }
+    }
+
+    async fn process_rx_notification(&self) {
+        // TODO
+    }
+
+    async fn process_tx_free_notification(&self) {
+        // TODO
+    }
+
+    async fn process_link_status_change_notification(&self) {
+        // TODO
     }
 }
-
-// TODO: wait for async task
-// TODO: oneshot signal (for exit)

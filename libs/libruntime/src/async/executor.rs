@@ -7,6 +7,7 @@ use core::{
 };
 
 use alloc::{boxed::Box, collections::linked_list::LinkedList, sync::Arc};
+use futures::future::FusedFuture;
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
@@ -197,7 +198,7 @@ impl Future for JoinHandle {
     }
 }
 
-impl futures::future::FusedFuture for JoinHandle {
+impl FusedFuture for JoinHandle {
     fn is_terminated(&self) -> bool {
         self.task.completed.load(Ordering::SeqCst)
     }

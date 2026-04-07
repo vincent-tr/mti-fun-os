@@ -5,6 +5,8 @@ use core::{
     task::{Context, Poll, Waker},
 };
 
+use futures::future::FusedFuture;
+
 use crate::kobject;
 
 use super::Reactor;
@@ -65,5 +67,11 @@ impl<'a, Waitable: kobject::KWaitable> Future for KWaitableFuture<'a, Waitable> 
 
             Poll::Pending
         }
+    }
+}
+
+impl<'a, Waitable: kobject::KWaitable> FusedFuture for KWaitableFuture<'a, Waitable> {
+    fn is_terminated(&self) -> bool {
+        self.ready.load(Ordering::SeqCst)
     }
 }

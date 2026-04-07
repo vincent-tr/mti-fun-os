@@ -1,6 +1,7 @@
 mod executor;
 mod future;
 mod reactor;
+pub mod tools;
 
 use core::future::Future;
 use executor::Executor;

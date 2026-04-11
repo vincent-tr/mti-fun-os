@@ -43,7 +43,6 @@ impl fmt::Display for NetError {
     }
 }
 
-
 /// Parameters for the CreateDevice message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]

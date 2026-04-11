@@ -13,7 +13,7 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    Lookup,
+    Lookup = 1,
     Create,
     Remove,
     Move,

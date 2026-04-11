@@ -14,7 +14,7 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    Create,
+    Create = 1,
     Destroy,
 
     GetLinkStatus,

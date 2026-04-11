@@ -24,7 +24,7 @@ fn main() {
         .args(&["-device", "edu"])
         .args(&[
             "-nic",
-            "user,model=e1000e,hostfwd=tcp::10022-:22,hostfwd=tcp::10080-:80",
+            "tap,ifname=tap0,br=br0,model=e1000e,script=no,downscript=no",
         ])
         .arg("-s");
 

@@ -8,9 +8,39 @@ export MTI_FUN_OS_SERVERS_PROFILE := release
 export MTI_FUN_OS_SERVERS_TARGET := x86_64-mti_fun_os
 export BUILD_ARGS := -Zjson-target-spec
 
-.PHONY: all run debug logs gdb format build build-relwithdebinfo image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build boot.cpio clean screenshot
+.PHONY: all run net-install net-uninstall debug logs gdb format build build-relwithdebinfo image-build init-build process-server-build time-server-build vfs-server-build memfs-server-build display-server-build archivefs-server-build pci-server-build edu-server-build e1000e-server-build net-server-build boot.cpio clean screenshot
 
 all: run
+
+net-install:
+	@if [ "$$(id -u)" != "0" ]; then \
+		echo "Error: net-install requires root (sudo)"; \
+		exit 1; \
+	fi
+	@if ! ip link show tap0 &>/dev/null; then \
+		echo "Creating TAP device tap0 for user $(SUDO_USER)..."; \
+		ip tuntap add dev tap0 mode tap user $(SUDO_USER); \
+		echo "✓ TAP device created and owned by $(SUDO_USER)"; \
+	else \
+		echo "✓ TAP device tap0 already exists"; \
+	fi
+	@if ! ip link show br0 &>/dev/null; then \
+		echo "Error: Bridge br0 not found"; \
+		exit 1; \
+	fi
+	@echo "Attaching tap0 to br0..."
+	ip link set tap0 up
+	ip link set tap0 master br0
+	@echo "✓ tap0 attached to br0"
+
+net-uninstall:
+	@if [ "$$(id -u)" != "0" ]; then \
+		echo "Error: net-uninstall requires root (sudo)"; \
+		exit 1; \
+	fi
+	ip link set tap0 down 2>/dev/null || true
+	ip tuntap del dev tap0 mode tap 2>/dev/null || true
+	@echo "✓ TAP device removed"
 
 run: build
 	cargo run $(BUILD_ARGS) --profile $(MTI_FUN_OS_KERNEL_PROFILE)

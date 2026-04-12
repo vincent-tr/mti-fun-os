@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::PciAddress,
-    net::iface::{NetServerError, NetServer},
+    net::iface::{NetServer, NetServerError},
     sync::Mutex,
 };
 use log::error;
@@ -45,12 +45,7 @@ impl NetServer for Server {
             return Err(NetServerError::InvalidArgument);
         }
 
-        let iface = Interface::create(name, driver_port_name, pci_address)
-            .await
-            .map_err(|e| {
-                error!("Failed to create interface '{}': {}", name, e);
-                NetServerError::DeviceError
-            })?;
+        let iface = Interface::create(name, driver_port_name, pci_address).await?;
 
         ifaces.insert(String::from(name), iface);
 
@@ -65,16 +60,8 @@ impl NetServer for Server {
             return Err(NetServerError::InvalidArgument);
         };
 
-        let iface = Arc::try_unwrap(iface).map_err(|iface| {
-            ifaces.insert(String::from(name), iface);
-            error!("Failed to destroy interface '{}': still in use", name);
-            NetServerError::RuntimeError
-        })?;
-
-        iface.destroy().await.map_err(|e| {
-            error!("Failed to destroy interface '{}': {}", name, e);
-            NetServerError::DeviceError
-        })?;
+        // Note: we are inconsistent on failure here: we failed to delete the iface, but we cannot keep it alive.
+        iface.destroy().await?;
 
         Ok(())
     }

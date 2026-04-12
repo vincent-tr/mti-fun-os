@@ -9,8 +9,10 @@ use libruntime::{
     ipc, kobject,
     net::{
         dev::iface::{
-            self, LinkStatusChangedNotification, RxArrivedNotification, TxFreeNotification,
+            self, LinkStatusChangedNotification, NetDeviceError, NetDeviceServerCallError,
+            RxArrivedNotification, TxFreeNotification,
         },
+        iface::NetServerError,
         types::{BufferPool, MacAddress},
     },
     sync::{Mutex, r#async::NotifyOnce},
@@ -19,31 +21,11 @@ use log::error;
 
 use crate::buffer_pool;
 
-pub enum TodoError {}
-
-impl fmt::Display for TodoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TodoError")
-    }
-}
-
-impl From<iface::NetDeviceServerCallError> for TodoError {
-    fn from(_: iface::NetDeviceServerCallError) -> Self {
-        todo!()
-    }
-}
-
-impl From<kobject::Error> for TodoError {
-    fn from(_: kobject::Error) -> Self {
-        todo!()
-    }
-}
-
 /// A network intgerface, such as an Ethernet controller.
 #[derive(Debug)]
 pub struct Interface {
-    /// The name of the network device, e.g. "eth0".
-    dev_name: String,
+    /// The name of the interface, e.g. "eth0".
+    name: String,
 
     /// The MAC address of the network device.
     mac_address: MacAddress,
@@ -74,41 +56,49 @@ pub struct Interface {
 impl Interface {
     /// Create a new network interface.
     pub async fn create(
-        dev_name: &str,
+        name: &str,
         drive_port_name: &str,
         pci_address: PciAddress,
-    ) -> Result<Arc<Self>, TodoError> {
+    ) -> Result<Arc<Self>, NetServerError> {
         let ipc_client = iface::Client::new(drive_port_name);
         let handle = ipc_client
-            .create(dev_name, pci_address, buffer_pool::pool().share())
-            .await?;
-        let mac_address = ipc_client.get_mac_address(handle).await?;
+            .create(name, pci_address, buffer_pool::pool().share())
+            .await
+            .into_net_error()?;
+        let mac_address = ipc_client.get_mac_address(handle).await.into_net_error()?;
 
         let link_status_change_port = {
-            let (receiver, sender) = kobject::Port::create(None)?;
+            let (receiver, sender) = kobject::Port::create(None).into_net_error()?;
             ipc_client
                 .set_link_status_change_port(handle, Some(sender), 0)
-                .await?;
+                .await
+                .into_net_error()?;
 
             receiver
         };
 
         let rx_port = {
-            let (receiver, sender) = kobject::Port::create(None)?;
-            ipc_client.set_rx_port(handle, Some(sender), 0).await?;
+            let (receiver, sender) = kobject::Port::create(None).into_net_error()?;
+            ipc_client
+                .set_rx_port(handle, Some(sender), 0)
+                .await
+                .into_net_error()?;
 
             receiver
         };
 
         let tx_free_port = {
-            let (receiver, sender) = kobject::Port::create(None)?;
-            ipc_client.set_tx_free_port(handle, Some(sender), 0).await?;
+            let (receiver, sender) = kobject::Port::create(None).into_net_error()?;
+            ipc_client
+                .set_tx_free_port(handle, Some(sender), 0)
+                .await
+                .into_net_error()?;
 
             receiver
         };
 
         let iface = Arc::new(Self {
-            dev_name: String::from(dev_name),
+            name: String::from(name),
             mac_address,
             ipc_client,
             handle,
@@ -134,7 +124,7 @@ impl Interface {
         Ok(iface)
     }
 
-    async fn refill_rx_buffers(&self) -> Result<(), iface::NetDeviceServerCallError> {
+    async fn refill_rx_buffers(&self) -> Result<(), NetServerError> {
         loop {
             let mut buffer_indexes = Vec::new();
             for _ in 0..iface::Client::RX_BUFFER_COUNT {
@@ -147,7 +137,8 @@ impl Interface {
             let count = self
                 .ipc_client
                 .add_rx_buffers(self.handle, &buffer_indexes)
-                .await?;
+                .await
+                .into_net_error()?;
 
             guard.keep(count);
 
@@ -168,8 +159,11 @@ impl Interface {
     }
 
     /// Destroy the network device, cleaning up any resources.
-    pub async fn destroy(self) -> Result<(), TodoError> {
-        self.ipc_client.destroy(self.handle).await?;
+    pub async fn destroy(&self) -> Result<(), NetServerError> {
+        self.ipc_client
+            .destroy(self.handle)
+            .await
+            .into_net_error()?;
 
         if let Some(worker) = self.worker.lock().take() {
             worker.terminate().await;
@@ -310,5 +304,34 @@ impl Drop for BufferGuard {
         for &index in &self.indexes {
             buffer_pool::pool().deallocate(index);
         }
+    }
+}
+
+trait NetResultExt<T> {
+    fn into_net_error(self) -> Result<T, NetServerError>;
+}
+
+impl<T> NetResultExt<T> for Result<T, NetDeviceServerCallError> {
+    fn into_net_error(self) -> Result<T, NetServerError> {
+        self.map_err(|e| match e {
+            NetDeviceServerCallError::KernelError(e) => {
+                error!("Runtime error during net device server call: {:?}", e);
+                NetServerError::RuntimeError
+            }
+            NetDeviceServerCallError::ReplyError(e) => match e {
+                NetDeviceError::InvalidArgument => NetServerError::InvalidArgument,
+                NetDeviceError::RuntimeError => NetServerError::RuntimeError,
+                NetDeviceError::DeviceError => NetServerError::DeviceError,
+            },
+        })
+    }
+}
+
+impl<T> NetResultExt<T> for Result<T, kobject::Error> {
+    fn into_net_error(self) -> Result<T, NetServerError> {
+        self.map_err(|e| {
+            error!("Runtime error in interface management: {:?}", e);
+            NetServerError::RuntimeError
+        })
     }
 }

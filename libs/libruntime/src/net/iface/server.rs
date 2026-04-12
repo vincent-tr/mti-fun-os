@@ -9,12 +9,12 @@ use crate::{drivers::pci::PciAddress, ipc, kobject};
 
 use super::messages;
 
-pub use messages::NetError;
+pub use messages::NetServerError;
 
 /// Net server interface that must be implemented by the net server.
 #[async_trait]
 pub trait NetServer: Send + Sync {
-    type Error: Into<NetError>;
+    type Error: Into<NetServerError>;
 
     async fn process_terminated(&self, _pid: u64) {}
 
@@ -45,7 +45,7 @@ impl<Impl: NetServer + 'static> Server<Impl> {
     pub fn build_ipc_server(
         self: &Arc<Self>,
     ) -> Result<(ipc::AsyncServer, ipc::AsyncProcessTerminationListener), kobject::Error> {
-        let builder = ipc::ManagedAsyncServerBuilder::<_, NetError, NetError>::new(
+        let builder = ipc::ManagedAsyncServerBuilder::<_, NetServerError, NetServerError>::new(
             &self,
             messages::PORT_NAME,
             messages::VERSION,
@@ -74,7 +74,7 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         query: messages::CreateInterfaceQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::CreateInterfaceReply, ipc::KHandles), NetError> {
+    ) -> Result<(messages::CreateInterfaceReply, ipc::KHandles), NetServerError> {
         let name_view = {
             let handle =
                 query_handles.take(messages::CreateInterfaceQueryParameters::HANDLE_NAME_MOBJ);
@@ -109,7 +109,7 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         query: messages::DestroyInterfaceQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::DestroyInterfaceReply, ipc::KHandles), NetError> {
+    ) -> Result<(messages::DestroyInterfaceReply, ipc::KHandles), NetServerError> {
         let name_view = {
             let handle =
                 query_handles.take(messages::DestroyInterfaceQueryParameters::HANDLE_NAME_MOBJ);
@@ -134,14 +134,14 @@ impl<Impl: NetServer + 'static> Server<Impl> {
 
 /// Extension trait for Result to add context
 trait ResultExt<T> {
-    fn invalid_arg(self, msg: &'static str) -> Result<T, NetError>;
+    fn invalid_arg(self, msg: &'static str) -> Result<T, NetServerError>;
 }
 
 impl<T, E: fmt::Display + 'static> ResultExt<T> for Result<T, E> {
-    fn invalid_arg(self, msg: &'static str) -> Result<T, NetError> {
+    fn invalid_arg(self, msg: &'static str) -> Result<T, NetServerError> {
         self.map_err(|e| {
             error!("{}: {}", msg, e);
-            NetError::InvalidArgument
+            NetServerError::InvalidArgument
         })
     }
 }

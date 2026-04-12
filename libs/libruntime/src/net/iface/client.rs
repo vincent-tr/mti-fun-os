@@ -2,7 +2,7 @@ use crate::{drivers::pci::PciAddress, ipc, kobject::KObject};
 
 use super::messages;
 
-pub type NetServerCallError = ipc::CallError<messages::NetError>;
+pub type NetServerCallError = ipc::CallError<messages::NetServerError>;
 
 /// Low level net server client implementation.
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl Client {
             messages::Type,
             messages::CreateInterfaceQueryParameters,
             messages::CreateInterfaceReply,
-            messages::NetError,
+            messages::NetServerError,
         >(messages::Type::CreateInterface, query, query_handles)?;
 
         Ok(())
@@ -65,7 +65,7 @@ impl Client {
             messages::Type,
             messages::DestroyInterfaceQueryParameters,
             messages::DestroyInterfaceReply,
-            messages::NetError,
+            messages::NetServerError,
         >(messages::Type::DestroyInterface, query, query_handles)?;
 
         Ok(())

@@ -29,13 +29,13 @@ impl From<Type> for u16 {
 /// Errors used by net management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
-pub enum NetError {
+pub enum NetServerError {
     InvalidArgument = 1,
     RuntimeError,
     DeviceError,
 }
 
-impl fmt::Display for NetError {
+impl fmt::Display for NetServerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidArgument => write!(f, "InvalidArgument"),

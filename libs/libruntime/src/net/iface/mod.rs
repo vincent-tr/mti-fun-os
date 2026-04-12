@@ -5,7 +5,7 @@ mod server;
 use crate::{ipc, kobject};
 
 pub use client::{Client, NetServerCallError};
-pub use messages::{NetError, PORT_NAME};
+pub use messages::{NetServerError, PORT_NAME};
 pub use server::NetServer;
 use server::Server;
 

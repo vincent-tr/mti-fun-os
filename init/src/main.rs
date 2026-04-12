@@ -163,7 +163,6 @@ fn setup_net() {
     net_client
         .create_interface("eth0", "net.dev.e1000e", device.address)
         .expect("Failed to create net interface");
-
 }
 
 /// Wait for a server port to be available

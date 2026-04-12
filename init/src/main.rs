@@ -159,20 +159,11 @@ fn setup_net() {
     let devices = drivers::pci::list(options).expect("Failed to get devices");
     let device = devices.first().expect("No matching PCI devices found");
 
-    /*
-    // 2048 buffers of 2048 bytes each, 4MB buffer
-    let buffer_pool = libruntime::net::types::BufferPool {
-        mobj: kobject::MemoryObject::create(2048 * 2048).expect("Could not create buffer pool"),
-        buffer_count: 2048,
-        buffer_size: 2048,
-    };
+    let net_client = net::iface::Client::new();
+    net_client
+        .create_interface("eth0", "net.dev.e1000e", device.address)
+        .expect("Failed to create net interface");
 
-    // This is a test, to be moved through net server
-    let client = libruntime::net::dev::iface::Client::new("net.dev.e1000e");
-    client
-        .create("netdev0", device.address, &buffer_pool)
-        .expect("Failed to create net device");
-    */
 }
 
 /// Wait for a server port to be available

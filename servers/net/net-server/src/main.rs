@@ -6,6 +6,11 @@ extern crate libruntime;
 
 mod buffer_pool;
 mod iface;
+mod server;
+
+use libruntime::net::iface::build_ipc_server;
+
+use crate::server::Server;
 
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
@@ -13,9 +18,15 @@ pub fn main() -> i32 {
 
     buffer_pool::init();
 
-    // TODO: Implement network stack
+    let server = Server::new();
+    let (ipc_server, ipc_process_termination_listener) =
+        build_ipc_server(server).expect("failed to build net-server IPC server");
 
-    loop {
-        libruntime::time::sleep(libruntime::time::Duration::seconds(1));
-    }
+    ipc_server.start();
+    ipc_process_termination_listener.start();
+
+    r#async::block_on();
+
+    // Server should never complete
+    unreachable!();
 }

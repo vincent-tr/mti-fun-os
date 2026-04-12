@@ -12,9 +12,9 @@ pub struct Client {
 
 impl Client {
     /// Creates a new net server client.
-    pub fn new(port_name: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            ipc_client: ipc::Client::new(port_name, messages::VERSION),
+            ipc_client: ipc::Client::new(messages::PORT_NAME, messages::VERSION),
         }
     }
 

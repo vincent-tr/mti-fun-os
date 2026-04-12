@@ -42,11 +42,10 @@ impl<Impl: NetServer + 'static> Server<Impl> {
 
     pub fn build_ipc_server(
         self: &Arc<Self>,
-        port_name: &'static str,
     ) -> Result<ipc::AsyncServer, kobject::Error> {
         let builder = ipc::ManagedAsyncServerBuilder::<_, NetError, NetError>::new(
             &self,
-            port_name,
+            messages::PORT_NAME,
             messages::VERSION,
         );
 

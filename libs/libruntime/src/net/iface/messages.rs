@@ -6,6 +6,9 @@ use crate::{
     net::types::MacAddress,
 };
 
+/// Name of the IPC port for the net server.
+pub const PORT_NAME: &str = "net";
+
 /// Version of the net messages.
 pub const VERSION: u16 = 1;
 

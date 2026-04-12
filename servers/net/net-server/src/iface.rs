@@ -17,7 +17,7 @@ use libruntime::{
     },
     sync::{Mutex, r#async::NotifyOnce},
 };
-use log::error;
+use log::{debug, error};
 
 use crate::buffer_pool;
 
@@ -125,6 +125,8 @@ impl Interface {
     }
 
     async fn refill_rx_buffers(&self) -> Result<(), NetServerError> {
+        let mut total = 0;
+
         loop {
             let mut buffer_indexes = Vec::new();
             for _ in 0..iface::Client::RX_BUFFER_COUNT {
@@ -149,11 +151,15 @@ impl Interface {
                 }
             }
 
-            if count == 0 {
+            total += count;
+
+            if count < iface::Client::RX_BUFFER_COUNT {
                 // The driver cannot accept any additional buffers.
                 break;
             }
         }
+
+        debug!("Added {} rx buffers to driver", total);
 
         Ok(())
     }

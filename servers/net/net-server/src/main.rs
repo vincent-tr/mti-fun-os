@@ -6,6 +6,7 @@ extern crate libruntime;
 
 mod buffer_pool;
 mod iface;
+mod packet;
 mod server;
 
 use libruntime::{r#async, net::iface::build_ipc_server};

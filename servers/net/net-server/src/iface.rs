@@ -1,6 +1,6 @@
-use core::fmt;
+use core::{fmt, mem};
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{collections::vec_deque::VecDeque, string::String, sync::Arc, vec::Vec};
 use futures::select_biased;
 use hashbrown::HashSet;
 use libruntime::{
@@ -19,7 +19,10 @@ use libruntime::{
 };
 use log::{debug, error};
 
-use crate::buffer_pool;
+use crate::{
+    buffer_pool::{self, Buffer},
+    packet::{BufferData, Packet},
+};
 
 /// A network intgerface, such as an Ethernet controller.
 #[derive(Debug)]
@@ -51,6 +54,9 @@ pub struct Interface {
 
     /// The port for receiving notifications of transmitted packet buffers being freed by the driver.
     tx_free_port: kobject::PortReceiver,
+
+    /// The queue of received packets that have not yet been processed by the server.
+    rx_pending_buffers: Mutex<Vec<BufferData>>,
 }
 
 impl Interface {
@@ -107,6 +113,7 @@ impl Interface {
             link_status_change_port,
             rx_port,
             tx_free_port,
+            rx_pending_buffers: Mutex::new(Vec::new()),
         });
 
         // Fill rx buffers initially, so the driver can start receiving packets immediately.
@@ -207,7 +214,7 @@ impl Interface {
     }
 
     async fn process_rx_notification(&self) {
-        let mut descriptors = Vec::new();
+        let mut packets = Vec::new();
 
         loop {
             let msg = match self.rx_port.receive() {
@@ -221,9 +228,23 @@ impl Interface {
 
             let msg = unsafe { msg.data::<RxArrivedNotification>() };
 
-            for desc in msg.rx_descriptors {
-                if desc.buffer_index() != BufferPool::INVALID_INDEX {
-                    descriptors.push(desc);
+            {
+                let mut buffers = self.buffers.lock();
+                let mut rx_pending_buffers = self.rx_pending_buffers.lock();
+                for desc in msg.rx_descriptors {
+                    if desc.buffer_index() != BufferPool::INVALID_INDEX {
+                        let buffer = unsafe { Buffer::from_id(desc.buffer_index()) };
+                        buffers.remove(&buffer.id());
+
+                        rx_pending_buffers
+                            .push(BufferData::new(Arc::new(buffer), 0..desc.length()));
+
+                        if desc.end_of_packet() {
+                            let mut buffers = Vec::new();
+                            mem::swap(&mut buffers, &mut rx_pending_buffers);
+                            packets.push(Packet::new(buffers));
+                        }
+                    }
                 }
             }
 
@@ -232,8 +253,9 @@ impl Interface {
                 .expect("Failed to refill rx buffers");
         }
 
-        // TODO: do something with descriptors
-        log::info!("Received {} packets", descriptors.len());
+        for packet in packets {
+            self.rx_packet(packet).await;
+        }
     }
 
     async fn process_tx_free_notification(&self) {
@@ -277,6 +299,11 @@ impl Interface {
             // TODO: do something with message
             log::info!("Link status changed: {}", msg.link_up);
         }
+    }
+
+    async fn rx_packet(&self, packet: Packet) {
+        // TODO: do something with packet
+        debug!("Received packet of length {}", packet.len());
     }
 }
 

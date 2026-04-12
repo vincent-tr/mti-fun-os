@@ -1,4 +1,10 @@
-use libruntime::net::iface::{NetError, NetServer};
+use alloc::boxed::Box;
+use async_trait::async_trait;
+
+use libruntime::{
+    drivers::pci::PciAddress,
+    net::iface::{NetError, NetServer},
+};
 
 /// The main server structure
 #[derive(Debug)]
@@ -23,7 +29,10 @@ impl NetServer for Server {
         driver_port_name: &str,
         pci_address: PciAddress,
     ) -> Result<(), Self::Error> {
+        Err(NetError::InvalidArgument)
     }
 
-    async fn destroy_device(&self, sender_id: u64, name: &str) -> Result<(), Self::Error> {}
+    async fn destroy_device(&self, sender_id: u64, name: &str) -> Result<(), Self::Error> {
+        Err(NetError::InvalidArgument)
+    }
 }

@@ -8,7 +8,7 @@ mod buffer_pool;
 mod iface;
 mod server;
 
-use libruntime::net::iface::build_ipc_server;
+use libruntime::{r#async, net::iface::build_ipc_server};
 
 use crate::server::Server;
 

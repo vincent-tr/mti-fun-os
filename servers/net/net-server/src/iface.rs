@@ -1,3 +1,5 @@
+use core::fmt;
+
 use alloc::{string::String, sync::Arc, vec::Vec};
 use futures::select_biased;
 use hashbrown::HashSet;
@@ -17,7 +19,13 @@ use log::error;
 
 use crate::buffer_pool;
 
-enum TodoError {}
+pub enum TodoError {}
+
+impl fmt::Display for TodoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TodoError")
+    }
+}
 
 impl From<iface::NetDeviceServerCallError> for TodoError {
     fn from(_: iface::NetDeviceServerCallError) -> Self {

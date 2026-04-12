@@ -13,6 +13,7 @@ use libruntime::{
     },
     sync::{Mutex, r#async::NotifyOnce},
 };
+use log::error;
 
 use crate::buffer_pool;
 
@@ -204,7 +205,10 @@ impl Interface {
             let msg = match self.rx_port.receive() {
                 Ok(msg) => msg,
                 Err(kobject::Error::ObjectNotReady) => break,
-                Err(e) => panic!("Error receiving from rx port: {:?}", e),
+                Err(e) => {
+                    error!("Error receiving from rx port: {:?}", e);
+                    break;
+                }
             };
 
             let msg = unsafe { msg.data::<RxArrivedNotification>() };
@@ -221,7 +225,7 @@ impl Interface {
         }
 
         // TODO: do something with descriptors
-        todo!();
+        log::info!("Received {} packets", descriptors.len());
     }
 
     async fn process_tx_free_notification(&self) {
@@ -263,8 +267,7 @@ impl Interface {
             let msg = unsafe { msg.data::<LinkStatusChangedNotification>() };
 
             // TODO: do something with message
-            todo!();
-            // msg.link_up
+            log::info!("Link status changed: {}", msg.link_up);
         }
     }
 }

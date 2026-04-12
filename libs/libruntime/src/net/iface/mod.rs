@@ -12,8 +12,7 @@ use server::Server;
 /// Build an IPC server from a NetServer implementation.
 pub fn build_ipc_server<Impl: NetServer + 'static>(
     inner: Impl,
-    port_name: &'static str,
-) -> Result<ipc::AsyncServer, kobject::Error> {
+) -> Result<(ipc::AsyncServer, ipc::AsyncProcessTerminationListener), kobject::Error> {
     let server = Server::new(inner);
-    server.build_ipc_server(port_name)
+    server.build_ipc_server()
 }

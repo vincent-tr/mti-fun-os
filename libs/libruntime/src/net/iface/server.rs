@@ -16,6 +16,8 @@ pub use messages::NetError;
 pub trait NetServer: Send + Sync {
     type Error: Into<NetError>;
 
+    async fn process_terminated(&self, _pid: u64) {}
+
     /// Create a new network device.
     async fn create_device(
         &self,
@@ -42,7 +44,7 @@ impl<Impl: NetServer + 'static> Server<Impl> {
 
     pub fn build_ipc_server(
         self: &Arc<Self>,
-    ) -> Result<ipc::AsyncServer, kobject::Error> {
+    ) -> Result<(ipc::AsyncServer, ipc::AsyncProcessTerminationListener), kobject::Error> {
         let builder = ipc::ManagedAsyncServerBuilder::<_, NetError, NetError>::new(
             &self,
             messages::PORT_NAME,
@@ -54,7 +56,13 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         let builder =
             builder.with_handler(messages::Type::DestroyDevice, Self::destroy_device_handler);
 
-        builder.build()
+        let listener = ipc::AsyncProcessTerminationListener::from_handler_method(
+            self,
+            Self::process_terminated_handler,
+        )?;
+        let server = builder.build()?;
+
+        Ok((server, listener))
     }
 
     async fn create_device_handler(
@@ -113,6 +121,10 @@ impl<Impl: NetServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::DestroyDeviceReply {}, ipc::KHandles::new()))
+    }
+
+    async fn process_terminated_handler(self: Arc<Self>, pid: u64) {
+        self.inner.process_terminated(pid).await;
     }
 }
 

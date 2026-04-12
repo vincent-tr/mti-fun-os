@@ -17,6 +17,7 @@ pub struct KWaitableFuture<'a, Waitable: kobject::KWaitable> {
     waitable: &'a Waitable,
     registered: AtomicBool,
     ready: AtomicBool,
+    terminated: AtomicBool,
 }
 
 impl<'a, Waitable: kobject::KWaitable> KWaitableFuture<'a, Waitable> {
@@ -26,6 +27,7 @@ impl<'a, Waitable: kobject::KWaitable> KWaitableFuture<'a, Waitable> {
             waitable,
             registered: AtomicBool::new(false),
             ready: AtomicBool::new(false),
+            terminated: AtomicBool::new(false),
         }
     }
 
@@ -60,6 +62,7 @@ impl<'a, Waitable: kobject::KWaitable> Future for KWaitableFuture<'a, Waitable> 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.ready.load(Ordering::SeqCst) {
             self.unregister();
+            self.terminated.store(true, Ordering::SeqCst);
 
             Poll::Ready(())
         } else {
@@ -72,6 +75,6 @@ impl<'a, Waitable: kobject::KWaitable> Future for KWaitableFuture<'a, Waitable> 
 
 impl<'a, Waitable: kobject::KWaitable> FusedFuture for KWaitableFuture<'a, Waitable> {
     fn is_terminated(&self) -> bool {
-        self.ready.load(Ordering::SeqCst)
+        self.terminated.load(Ordering::SeqCst)
     }
 }

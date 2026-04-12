@@ -51,10 +51,14 @@ impl<Impl: NetServer + 'static> Server<Impl> {
             messages::VERSION,
         );
 
-        let builder =
-            builder.with_handler(messages::Type::CreateInterface, Self::create_interface_handler);
-        let builder =
-            builder.with_handler(messages::Type::DestroyInterface, Self::destroy_interface_handler);
+        let builder = builder.with_handler(
+            messages::Type::CreateInterface,
+            Self::create_interface_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::DestroyInterface,
+            Self::destroy_interface_handler,
+        );
 
         let listener = ipc::AsyncProcessTerminationListener::from_handler_method(
             self,

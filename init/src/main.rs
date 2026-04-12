@@ -16,7 +16,7 @@ use core::mem;
 
 use alloc::{boxed::Box, format};
 use info::InitInfo;
-use libruntime::{drivers, file, kobject, process, state, time};
+use libruntime::{drivers, file, kobject, net, process, state, time};
 use log::{debug, info};
 
 fn main(info: InitInfo) {
@@ -147,6 +147,13 @@ fn start_extended_servers(info: &InitInfo) {
 }
 
 fn setup_net() {
+    let options = process::ProcessOptions::from_path("/mnt/archive/servers/net/net-server")
+        .expect("Failed to load net-server");
+    let process = process::Process::spawn(options).expect("Could not spawn net server");
+
+    let _ = process;
+    wait_port(net::iface::PORT_NAME);
+
     let options = drivers::pci::ListOptions::new();
     let options = options.with_device_id(0x8086, 0x10d3); // e1000e - intel 82574L
     let devices = drivers::pci::list(options).expect("Failed to get devices");

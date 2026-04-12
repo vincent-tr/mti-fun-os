@@ -22,7 +22,7 @@ impl NetServer for Server {
 
     async fn process_terminated(&self, _pid: u64) {}
 
-    async fn create_device(
+    async fn create_interface(
         &self,
         sender_id: u64,
         name: &str,
@@ -32,7 +32,7 @@ impl NetServer for Server {
         Err(NetError::InvalidArgument)
     }
 
-    async fn destroy_device(&self, sender_id: u64, name: &str) -> Result<(), Self::Error> {
+    async fn destroy_interface(&self, sender_id: u64, name: &str) -> Result<(), Self::Error> {
         Err(NetError::InvalidArgument)
     }
 }

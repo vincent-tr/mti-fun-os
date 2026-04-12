@@ -18,8 +18,8 @@ pub trait NetServer: Send + Sync {
 
     async fn process_terminated(&self, _pid: u64) {}
 
-    /// Create a new network device.
-    async fn create_device(
+    /// Create a new network interface.
+    async fn create_interface(
         &self,
         sender_id: u64,
         name: &str,
@@ -27,8 +27,8 @@ pub trait NetServer: Send + Sync {
         pci_address: PciAddress,
     ) -> Result<(), Self::Error>;
 
-    /// Destroy a network device.
-    async fn destroy_device(&self, sender_id: u64, name: &str) -> Result<(), Self::Error>;
+    /// Destroy a network interface.
+    async fn destroy_interface(&self, sender_id: u64, name: &str) -> Result<(), Self::Error>;
 }
 
 /// The main server structure.
@@ -52,9 +52,9 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         );
 
         let builder =
-            builder.with_handler(messages::Type::CreateDevice, Self::create_device_handler);
+            builder.with_handler(messages::Type::CreateInterface, Self::create_interface_handler);
         let builder =
-            builder.with_handler(messages::Type::DestroyDevice, Self::destroy_device_handler);
+            builder.with_handler(messages::Type::DestroyInterface, Self::destroy_interface_handler);
 
         let listener = ipc::AsyncProcessTerminationListener::from_handler_method(
             self,
@@ -65,22 +65,22 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         Ok((server, listener))
     }
 
-    async fn create_device_handler(
+    async fn create_interface_handler(
         self: Arc<Self>,
-        query: messages::CreateDeviceQueryParameters,
+        query: messages::CreateInterfaceQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::CreateDeviceReply, ipc::KHandles), NetError> {
+    ) -> Result<(messages::CreateInterfaceReply, ipc::KHandles), NetError> {
         let name_view = {
             let handle =
-                query_handles.take(messages::CreateDeviceQueryParameters::HANDLE_NAME_MOBJ);
+                query_handles.take(messages::CreateInterfaceQueryParameters::HANDLE_NAME_MOBJ);
             ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create name buffer view")?
         };
 
         let driver_port_name_view = {
             let handle = query_handles
-                .take(messages::CreateDeviceQueryParameters::HANDLE_DRIVER_PORT_NAME_MOBJ);
+                .take(messages::CreateInterfaceQueryParameters::HANDLE_DRIVER_PORT_NAME_MOBJ);
             ipc::BufferView::new(
                 handle,
                 &query.driver_port_name,
@@ -93,22 +93,22 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         let driver_port_name = unsafe { driver_port_name_view.str() };
 
         self.inner
-            .create_device(sender_id, name, driver_port_name, query.pci_address)
+            .create_interface(sender_id, name, driver_port_name, query.pci_address)
             .await
             .map_err(Into::into)?;
 
-        Ok((messages::CreateDeviceReply {}, ipc::KHandles::new()))
+        Ok((messages::CreateInterfaceReply {}, ipc::KHandles::new()))
     }
 
-    async fn destroy_device_handler(
+    async fn destroy_interface_handler(
         self: Arc<Self>,
-        query: messages::DestroyDeviceQueryParameters,
+        query: messages::DestroyInterfaceQueryParameters,
         mut query_handles: ipc::KHandles,
         sender_id: u64,
-    ) -> Result<(messages::DestroyDeviceReply, ipc::KHandles), NetError> {
+    ) -> Result<(messages::DestroyInterfaceReply, ipc::KHandles), NetError> {
         let name_view = {
             let handle =
-                query_handles.take(messages::DestroyDeviceQueryParameters::HANDLE_NAME_MOBJ);
+                query_handles.take(messages::DestroyInterfaceQueryParameters::HANDLE_NAME_MOBJ);
             ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
                 .invalid_arg("Failed to create name buffer view")?
         };
@@ -116,11 +116,11 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         let name = unsafe { name_view.str() };
 
         self.inner
-            .destroy_device(sender_id, name)
+            .destroy_interface(sender_id, name)
             .await
             .map_err(Into::into)?;
 
-        Ok((messages::DestroyDeviceReply {}, ipc::KHandles::new()))
+        Ok((messages::DestroyInterfaceReply {}, ipc::KHandles::new()))
     }
 
     async fn process_terminated_handler(self: Arc<Self>, pid: u64) {

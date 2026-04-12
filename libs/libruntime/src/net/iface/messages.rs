@@ -16,8 +16,8 @@ pub const VERSION: u16 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum Type {
-    CreateDevice = 1,
-    DestroyDevice,
+    CreateInterface = 1,
+    DestroyInterface,
 }
 
 impl From<Type> for u16 {
@@ -45,10 +45,10 @@ impl fmt::Display for NetError {
     }
 }
 
-/// Parameters for the CreateDevice message.
+/// Parameters for the CreateInterface message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateDeviceQueryParameters {
+pub struct CreateInterfaceQueryParameters {
     /// Name of the NIC to create.
     pub name: Buffer,
 
@@ -59,29 +59,29 @@ pub struct CreateDeviceQueryParameters {
     pub pci_address: PciAddress,
 }
 
-impl CreateDeviceQueryParameters {
+impl CreateInterfaceQueryParameters {
     pub const HANDLE_NAME_MOBJ: usize = 1;
     pub const HANDLE_DRIVER_PORT_NAME_MOBJ: usize = 2;
 }
 
-/// Reply for the CreateDevice message.
+/// Reply for the CreateInterface message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateDeviceReply {}
+pub struct CreateInterfaceReply {}
 
-/// Parameters for the DestroyDevice message.
+/// Parameters for the DestroyInterface message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DestroyDeviceQueryParameters {
+pub struct DestroyInterfaceQueryParameters {
     /// Name of the NIC to destroy.
     pub name: Buffer,
 }
 
-impl DestroyDeviceQueryParameters {
+impl DestroyInterfaceQueryParameters {
     pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
-/// Reply for the DestroyDevice message.
+/// Reply for the DestroyInterface message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DestroyDeviceReply {}
+pub struct DestroyInterfaceReply {}

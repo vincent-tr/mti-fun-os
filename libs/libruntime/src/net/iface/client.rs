@@ -18,8 +18,8 @@ impl Client {
         }
     }
 
-    /// Create a new network device.
-    pub fn create_device(
+    /// Create a new network interface.
+    pub fn create_interface(
         &self,
         name: &str,
         driver_port_name: &str,
@@ -29,44 +29,44 @@ impl Client {
         let (driver_port_name_mobj, driver_port_name_buffer) =
             ipc::Buffer::new_local(driver_port_name.as_bytes()).into_shared();
 
-        let query = messages::CreateDeviceQueryParameters {
+        let query = messages::CreateInterfaceQueryParameters {
             name: name_buffer,
             driver_port_name: driver_port_name_buffer,
             pci_address,
         };
 
         let mut query_handles = ipc::KHandles::new();
-        query_handles[messages::CreateDeviceQueryParameters::HANDLE_NAME_MOBJ] =
+        query_handles[messages::CreateInterfaceQueryParameters::HANDLE_NAME_MOBJ] =
             name_mobj.into_handle();
-        query_handles[messages::CreateDeviceQueryParameters::HANDLE_DRIVER_PORT_NAME_MOBJ] =
+        query_handles[messages::CreateInterfaceQueryParameters::HANDLE_DRIVER_PORT_NAME_MOBJ] =
             driver_port_name_mobj.into_handle();
 
         self.ipc_client.call::<
             messages::Type,
-            messages::CreateDeviceQueryParameters,
-            messages::CreateDeviceReply,
+            messages::CreateInterfaceQueryParameters,
+            messages::CreateInterfaceReply,
             messages::NetError,
-        >(messages::Type::CreateDevice, query, query_handles)?;
+        >(messages::Type::CreateInterface, query, query_handles)?;
 
         Ok(())
     }
 
-    /// Destroy a network device.
-    pub fn destroy_device(&self, name: &str) -> Result<(), NetServerCallError> {
+    /// Destroy a network interface.
+    pub fn destroy_interface(&self, name: &str) -> Result<(), NetServerCallError> {
         let (name_mobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
 
-        let query = messages::DestroyDeviceQueryParameters { name: name_buffer };
+        let query = messages::DestroyInterfaceQueryParameters { name: name_buffer };
 
         let mut query_handles = ipc::KHandles::new();
-        query_handles[messages::DestroyDeviceQueryParameters::HANDLE_NAME_MOBJ] =
+        query_handles[messages::DestroyInterfaceQueryParameters::HANDLE_NAME_MOBJ] =
             name_mobj.into_handle();
 
         self.ipc_client.call::<
             messages::Type,
-            messages::DestroyDeviceQueryParameters,
-            messages::DestroyDeviceReply,
+            messages::DestroyInterfaceQueryParameters,
+            messages::DestroyInterfaceReply,
             messages::NetError,
-        >(messages::Type::DestroyDevice, query, query_handles)?;
+        >(messages::Type::DestroyInterface, query, query_handles)?;
 
         Ok(())
     }

@@ -1,10 +1,9 @@
-use bit_field::BitField;
 use core::fmt;
 
 use crate::{
     drivers::pci::PciAddress,
     ipc::{self, buffer_messages::Buffer},
-    net::types::{BufferPool, MacAddress},
+    net::types::MacAddress,
 };
 
 /// Version of the net messages.
@@ -47,7 +46,7 @@ impl fmt::Display for NetError {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CreateDeviceQueryParameters {
-    /// Name of the NIC to create. This is used for logging and debugging purposes.
+    /// Name of the NIC to create.
     pub name: Buffer,
 
     /// Port name of the device driver.
@@ -65,17 +64,18 @@ impl CreateDeviceQueryParameters {
 /// Reply for the CreateDevice message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CreateDeviceReply {
-    /// Handle to the created network device.
-    pub handle: ipc::Handle,
-}
+pub struct CreateDeviceReply {}
 
 /// Parameters for the DestroyDevice message.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DestroyDeviceQueryParameters {
-    /// Handle to the network device to destroy.
-    pub handle: ipc::Handle,
+    /// Name of the NIC to destroy.
+    pub name: Buffer,
+}
+
+impl DestroyDeviceQueryParameters {
+    pub const HANDLE_NAME_MOBJ: usize = 1;
 }
 
 /// Reply for the DestroyDevice message.

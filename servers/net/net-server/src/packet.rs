@@ -1,7 +1,6 @@
 use core::{mem, ops::Range, slice};
 
-use alloc::{sync::Arc, vec::Vec};
-use libruntime::net::dev::iface::RxBufferDescriptor;
+use alloc::sync::Arc;
 use smallvec::SmallVec;
 
 use crate::buffer_pool::Buffer;

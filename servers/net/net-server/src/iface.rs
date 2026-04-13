@@ -1,6 +1,6 @@
-use core::{fmt, mem};
+use core::mem;
 
-use alloc::{collections::vec_deque::VecDeque, string::String, sync::Arc, vec::Vec};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use futures::select_biased;
 use hashbrown::HashSet;
 use libruntime::{
@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 use crate::{
     buffer_pool::{self, Buffer},
     packet::{BufferData, Packet},
-    proto::ethernet,
+    proto::InterfaceProtocols,
 };
 
 /// A network intgerface, such as an Ethernet controller.
@@ -59,9 +59,27 @@ pub struct Interface {
 
     /// The queue of received packets that have not yet been processed by the server.
     rx_pending_buffers: Mutex<RxPendingBuffers>,
+
+    /// The protocol stack for this interface.
+    protocols: InterfaceProtocols,
 }
 
 impl Interface {
+    /// Get the name of the interface, e.g. "eth0".
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the MAC address of the network device.
+    pub fn mac_address(&self) -> MacAddress {
+        self.mac_address
+    }
+
+    /// Get a reference to the protocol stack for this interface.
+    pub fn protocols(&self) -> &InterfaceProtocols {
+        &self.protocols
+    }
+
     /// Create a new network interface.
     pub async fn create(
         name: &str,
@@ -116,6 +134,7 @@ impl Interface {
             rx_port,
             tx_free_port,
             rx_pending_buffers: Mutex::new(RxPendingBuffers::new()),
+            protocols: InterfaceProtocols::new(),
         });
 
         // Fill rx buffers initially, so the driver can start receiving packets immediately.
@@ -168,7 +187,7 @@ impl Interface {
             }
         }
 
-        debug!("Added {} rx buffers to driver", total);
+        debug!("[{}] Added {} rx buffers to driver", self.name(), total);
 
         Ok(())
     }
@@ -223,7 +242,7 @@ impl Interface {
                 Ok(msg) => msg,
                 Err(kobject::Error::ObjectNotReady) => break,
                 Err(e) => {
-                    error!("Error receiving from rx port: {:?}", e);
+                    error!("[{}] Error receiving from rx port: {:?}", self.name(), e);
                     break;
                 }
             };
@@ -256,7 +275,7 @@ impl Interface {
         }
 
         for packet in packets {
-            self.rx_packet(packet).await;
+            self.protocols.receive(self, packet).await;
         }
     }
 
@@ -265,7 +284,11 @@ impl Interface {
             let msg = match self.tx_free_port.receive() {
                 Ok(msg) => msg,
                 Err(kobject::Error::ObjectNotReady) => break,
-                Err(e) => panic!("Error receiving from tx free port: {:?}", e),
+                Err(e) => panic!(
+                    "[{}] Error receiving from tx free port: {:?}",
+                    self.name(),
+                    e
+                ),
             };
 
             let msg = unsafe { msg.data::<TxFreeNotification>() };
@@ -278,7 +301,8 @@ impl Interface {
 
                 if !buffers.remove(&index) {
                     panic!(
-                        "Received tx free notification for buffer index {} which is not currently in use",
+                        "[{}] Received tx free notification for buffer index {} which is not currently in use",
+                        self.name(),
                         index
                     );
                 }
@@ -293,18 +317,18 @@ impl Interface {
             let msg = match self.link_status_change_port.receive() {
                 Ok(msg) => msg,
                 Err(kobject::Error::ObjectNotReady) => break,
-                Err(e) => panic!("Error receiving from link status change port: {:?}", e),
+                Err(e) => panic!(
+                    "[{}] Error receiving from link status change port: {:?}",
+                    self.name(),
+                    e
+                ),
             };
 
             let msg = unsafe { msg.data::<LinkStatusChangedNotification>() };
 
             // TODO: do something with message
-            log::info!("Link status changed: {}", msg.link_up);
+            log::info!("[{}] Link status changed: {}", self.name(), msg.link_up);
         }
-    }
-
-    async fn rx_packet(&self, packet: Packet) {
-        ethernet::rx_packet(self, packet).await;
     }
 }
 

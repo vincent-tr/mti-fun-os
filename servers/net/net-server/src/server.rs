@@ -33,7 +33,7 @@ impl NetServer for Server {
 
     async fn create_interface(
         &self,
-        sender_id: u64,
+        _sender_id: u64,
         name: &str,
         driver_port_name: &str,
         pci_address: PciAddress,
@@ -52,7 +52,7 @@ impl NetServer for Server {
         Ok(())
     }
 
-    async fn destroy_interface(&self, sender_id: u64, name: &str) -> Result<(), Self::Error> {
+    async fn destroy_interface(&self, _sender_id: u64, name: &str) -> Result<(), Self::Error> {
         let mut ifaces = self.ifaces.lock();
 
         let Some(iface) = ifaces.remove(name) else {

@@ -21,7 +21,7 @@ impl InterfaceProtocols {
     pub fn new() -> Self {
         Self {
             ethernet: Ethernet::new(),
-            arp: Arp {},
+            arp: Arp::new(),
         }
     }
 

@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 
 use crate::{kobject, memory::align_down};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct MacAddress([u8; 6]);
 
@@ -59,7 +59,7 @@ impl Index<usize> for MacAddress {
 }
 
 /// IP address struct, representing an IPv4 address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct IpAddress([u8; 4]);
 

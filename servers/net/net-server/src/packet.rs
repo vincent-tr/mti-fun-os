@@ -2,6 +2,7 @@ use core::ops::Range;
 
 use alloc::{sync::Arc, vec::Vec};
 use libruntime::net::dev::iface::RxBufferDescriptor;
+use smallvec::SmallVec;
 
 use crate::buffer_pool::Buffer;
 
@@ -10,7 +11,7 @@ use crate::buffer_pool::Buffer;
 /// The `Packet` struct provides methods to access the underlying buffers and their data.
 #[derive(Debug)]
 pub struct Packet {
-    buffers: Vec<BufferData>,
+    buffers: SmallVec<[BufferData; 4]>,
 }
 
 /// A `BufferData` represents a single buffer and the range of data within that buffer that is part of the packet.
@@ -29,8 +30,10 @@ impl BufferData {
 
 impl Packet {
     /// Creates a new `Packet` from a vector of `BufferData`.
-    pub fn new(buffers: Vec<BufferData>) -> Self {
-        Self { buffers }
+    pub fn new(buffers: impl IntoIterator<Item = BufferData>) -> Self {
+        Self {
+            buffers: buffers.into_iter().collect(),
+        }
     }
 
     /// Returns the length of the packet.

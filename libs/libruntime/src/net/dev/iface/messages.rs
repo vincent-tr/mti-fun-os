@@ -366,14 +366,15 @@ impl Default for TxBufferDescriptor {
 /// - bits 0-31: buffer_index (32 bits)
 /// - bits 32-42: length (11 bits, 0-2047 for 2048-byte buffer)
 /// - bit 43: end_of_packet flag
-/// - bits 44-63: reserved (20 bits for future use)
+/// - bit 44: error flag (indicates if there was an error receiving into this buffer)
+/// - bits 45-63: reserved (19 bits for future use)
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct RxBufferDescriptor(u64);
 
 impl RxBufferDescriptor {
     /// Create a new RX buffer descriptor.
-    pub fn new(buffer_index: usize, length: usize, end_of_packet: bool) -> Self {
+    pub fn new(buffer_index: usize, length: usize, end_of_packet: bool, error: bool) -> Self {
         assert!(
             buffer_index <= u32::MAX as usize,
             "buffer_index out of bounds"
@@ -384,6 +385,7 @@ impl RxBufferDescriptor {
         value.set_bits(0..32, buffer_index as u64);
         value.set_bits(32..43, length as u64);
         value.set_bit(43, end_of_packet);
+        value.set_bit(44, error);
 
         RxBufferDescriptor(value)
     }
@@ -402,6 +404,11 @@ impl RxBufferDescriptor {
     pub fn end_of_packet(&self) -> bool {
         self.0.get_bit(43)
     }
+
+    /// Check if there was an error receiving into this buffer.
+    pub fn error(&self) -> bool {
+        self.0.get_bit(44)
+    }
 }
 
 impl fmt::Debug for RxBufferDescriptor {
@@ -416,6 +423,6 @@ impl fmt::Debug for RxBufferDescriptor {
 
 impl Default for RxBufferDescriptor {
     fn default() -> Self {
-        Self::new(BufferPool::INVALID_INDEX, 0, false)
+        Self::new(BufferPool::INVALID_INDEX, 0, false, false)
     }
 }

@@ -83,22 +83,26 @@ impl BufferPool {
 
     /// Returns a view of the buffer with the given index.
     pub fn view(&self, buffer_id: usize) -> &[u8] {
-        let offset = buffer_id * self.buffer_size;
-        unsafe {
+        let mapping_buffer = unsafe {
             self.mapping
                 .as_buffer()
                 .expect("could not get mapping buffer")
-        }
+        };
+
+        let offset = buffer_id * self.buffer_size;
+        &mapping_buffer[offset..offset + self.buffer_size]
     }
 
     /// Returns a mutable view of the buffer with the given index.
     pub fn view_mut(&self, buffer_id: usize) -> &mut [u8] {
-        let offset = buffer_id * self.buffer_size;
-        unsafe {
+        let mapping_buffer = unsafe {
             self.mapping
                 .as_buffer_mut()
                 .expect("could not get mapping buffer")
-        }
+        };
+
+        let offset = buffer_id * self.buffer_size;
+        &mut mapping_buffer[offset..offset + self.buffer_size]
     }
 
     /// Shares the buffer pool with a network device driver, returning a `types::BufferPool` that can be sent to the driver.

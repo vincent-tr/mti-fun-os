@@ -57,7 +57,7 @@ pub struct Interface {
     tx_free_port: kobject::PortReceiver,
 
     /// The queue of received packets that have not yet been processed by the server.
-    rx_pending_buffers: Mutex<SmallVec<[BufferData; 4]>>,
+    rx_pending_buffers: Mutex<RxPendingBuffers>,
 }
 
 impl Interface {
@@ -114,7 +114,7 @@ impl Interface {
             link_status_change_port,
             rx_port,
             tx_free_port,
-            rx_pending_buffers: Mutex::new(SmallVec::new()),
+            rx_pending_buffers: Mutex::new(RxPendingBuffers::new()),
         });
 
         // Fill rx buffers initially, so the driver can start receiving packets immediately.
@@ -237,13 +237,13 @@ impl Interface {
                         let buffer = unsafe { Buffer::from_id(desc.buffer_index()) };
                         buffers.remove(&buffer.id());
 
-                        rx_pending_buffers
-                            .push(BufferData::new(Arc::new(buffer), 0..desc.length()));
+                        let buffer_data = BufferData::new(Arc::new(buffer), 0..desc.length());
+                        rx_pending_buffers.add(buffer_data, desc.error());
 
                         if desc.end_of_packet() {
-                            let mut buffers = SmallVec::new();
-                            mem::swap(&mut buffers, &mut rx_pending_buffers);
-                            packets.push(Packet::new(buffers));
+                            if let Some(packet) = rx_pending_buffers.build_packet() {
+                                packets.push(packet);
+                            }
                         }
                     }
                 }
@@ -347,6 +347,47 @@ impl Drop for BufferGuard {
     fn drop(&mut self) {
         for &index in &self.indexes {
             buffer_pool::pool().deallocate(index);
+        }
+    }
+}
+
+/// Pending buffers for a received packet. Once the end of the packet is reached, these buffers will be combined into a `Packet` and processed by the server.
+#[derive(Debug)]
+struct RxPendingBuffers {
+    buffers: SmallVec<[BufferData; 4]>,
+    error: bool,
+}
+
+impl RxPendingBuffers {
+    pub fn new() -> Self {
+        Self {
+            buffers: SmallVec::new(),
+            error: false,
+        }
+    }
+
+    /// Add a buffer to the pending buffers, marking if there was an error receiving into this buffer.
+    pub fn add(&mut self, buffer: BufferData, error: bool) {
+        self.buffers.push(buffer);
+        if error {
+            self.error = true;
+        }
+    }
+
+    /// Build the packet, or drop it if there was an error receiving into any of the buffers.
+    ///
+    /// Also resets the pending buffers for the next packet.
+    pub fn build_packet(&mut self) -> Option<Packet> {
+        let mut buffers = SmallVec::new();
+        mem::swap(&mut buffers, &mut self.buffers);
+        let error = self.error;
+        self.error = false;
+
+        if error {
+            error!("Dropping received packet due to error in one of its buffers");
+            None
+        } else {
+            Some(Packet::new(buffers))
         }
     }
 }

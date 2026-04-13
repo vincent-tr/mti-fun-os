@@ -207,18 +207,14 @@ impl RxRing {
         list: &mut Vec<RxBufferDescriptor>,
     ) {
         let eop = descriptor.status().end_of_packet();
-
-        if eop && descriptor.errors().any() {
-            warn!(
-                "Received packet with error, dropping {:?}",
-                descriptor.errors()
-            );
-            return;
-        }
-
+        let error = descriptor.errors().any();
         let (buffer_index, _) = self.dev_data.buffer_index_of(descriptor.address());
         let length = descriptor.length();
 
-        list.push(RxBufferDescriptor::new(buffer_index, length, eop));
+        list.push(RxBufferDescriptor::new(buffer_index, length, eop, error));
+
+        if error {
+            warn!("Received packet with error {:?}", descriptor.errors());
+        }
     }
 }

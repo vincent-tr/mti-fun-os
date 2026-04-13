@@ -56,7 +56,11 @@ impl Server {
 impl iface::PciServer for Server {
     type Error = iface::PciServerError;
 
-    fn process_terminated(&self, _pid: u64) {}
+    fn process_terminated(&self, pid: u64) {
+        for device in self.handles.process_terminated(pid) {
+            device.closed();
+        }
+    }
 
     fn list(
         &self,

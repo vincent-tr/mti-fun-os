@@ -6,10 +6,9 @@ use log::{debug, warn};
 use crate::{
     iface::Interface,
     packet::{Packet, PacketCursor},
-    proto::arp,
 };
 
-use super::NetU16;
+use super::{arp, NetU16};
 
 /// Ethernet header struct, representing the header of an Ethernet frame.
 #[derive(Debug)]
@@ -18,6 +17,13 @@ struct EthernetHeader {
     destination: MacAddress,
     source: MacAddress,
     ethertype: NetU16,
+}
+
+/// Parsed Ethernet frame data, containing the source and destination MAC addresses.
+#[derive(Debug)]
+pub struct Metadata {
+    pub destination: MacAddress,
+    pub source: MacAddress,
 }
 
 pub const ETHERTYPE_IPV4: u16 = 0x0800;
@@ -47,18 +53,23 @@ pub async fn rx_packet(iface: &Interface, packet: Packet) {
         "Cursor should be at the end of the packet after reading header and payload"
     );
 
+    let metadata = Metadata {
+        destination: header.destination,
+        source: header.source,
+    };
+
     match header.ethertype.to_u16() {
         ETHERTYPE_IPV4 => {
             // TODO
             debug!(
                 "Received IPv4 packet from {} to {}",
-                header.source, header.destination
+                metadata.source, metadata.destination
             );
         }
-        ETHERTYPE_ARP => arp::rx_packet(iface, payload).await,
+        ETHERTYPE_ARP => arp::rx_packet(iface, metadata, payload).await,
         ethertype => warn!(
             "Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",
-            ethertype, header.source, header.destination
+            ethertype, metadata.source, metadata.destination
         ),
     }
 }

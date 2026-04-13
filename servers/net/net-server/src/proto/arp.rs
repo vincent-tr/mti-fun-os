@@ -8,7 +8,7 @@ use crate::{
     packet::{Packet, PacketCursor},
 };
 
-use super::NetU16;
+use super::{ethernet, NetU16};
 
 #[derive(Debug)]
 #[repr(packed)]
@@ -26,11 +26,12 @@ struct ArpPacket {
 }
 
 /// Process an incoming ARP packet, given the raw bytes of the packet.
-pub async fn rx_packet(iface: &Interface, packet: Packet) {
+pub async fn rx_packet(iface: &Interface, metadata: ethernet::Metadata, packet: Packet) {
     if packet.len() < mem::size_of::<ArpPacket>() {
         warn!(
-            "Received packet too short to contain ARP header: length={} (dropped)",
-            packet.len()
+            "Received packet too short to contain ARP header: length={}, from {} (dropped)",
+            packet.len(),
+            metadata.source
         );
         return;
     }
@@ -41,7 +42,9 @@ pub async fn rx_packet(iface: &Interface, packet: Packet) {
         .expect("Could not read ARP packet");
 
     debug!(
-        "Received ARP packet: htype={}, ptype={}, hlen={}, plen={}, oper={}, sha={}, spa={}, tha={}, tpa={}",
+        "Received ARP packet: metadata.source={}, metadata.destination={}, htype={}, ptype={}, hlen={}, plen={}, oper={}, sha={}, spa={}, tha={}, tpa={}",
+        metadata.source,
+        metadata.destination,
         arp_packet.htype.to_u16(),
         arp_packet.ptype.to_u16(),
         arp_packet.hlen,

@@ -6,6 +6,7 @@ use log::{debug, warn};
 use crate::{
     iface::Interface,
     packet::{Packet, PacketCursor},
+    proto::arp,
 };
 
 use super::NetU16;
@@ -19,8 +20,8 @@ struct EthernetHeader {
     ethertype: NetU16,
 }
 
-const ETHERTYPE_IPV4: u16 = 0x0800;
-const ETHERTYPE_ARP: u16 = 0x0806;
+pub const ETHERTYPE_IPV4: u16 = 0x0800;
+pub const ETHERTYPE_ARP: u16 = 0x0806;
 
 /// Process an incoming Ethernet frame, given the raw bytes of the frame.
 pub async fn rx_packet(iface: &Interface, packet: Packet) {
@@ -54,18 +55,10 @@ pub async fn rx_packet(iface: &Interface, packet: Packet) {
                 header.source, header.destination
             );
         }
-        ETHERTYPE_ARP => {
-            // TODO
-            debug!(
-                "Received ARP packet from {} to {}",
-                header.source, header.destination
-            );
-        }
-        ethertype => {
-            warn!(
-                "Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",
-                ethertype, header.source, header.destination
-            );
-        }
+        ETHERTYPE_ARP => arp::rx_packet(iface, payload).await,
+        ethertype => warn!(
+            "Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",
+            ethertype, header.source, header.destination
+        ),
     }
 }

@@ -1,10 +1,6 @@
 use core::fmt;
 
-use crate::{
-    drivers::pci::PciAddress,
-    ipc::{self, buffer_messages::Buffer},
-    net::types::MacAddress,
-};
+use crate::{drivers::pci::PciAddress, ipc::buffer_messages::Buffer};
 
 /// Name of the IPC port for the net server.
 pub const PORT_NAME: &str = "net";

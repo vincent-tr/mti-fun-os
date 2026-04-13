@@ -37,12 +37,67 @@ impl MacAddress {
         self.0 == [0; 6]
     }
 
+    pub fn broadcast() -> Self {
+        Self([255; 6])
+    }
+
+    pub fn is_broadcast(&self) -> bool {
+        self.0 == [255; 6]
+    }
+
     pub fn as_bytes(&self) -> &[u8; 6] {
         &self.0
     }
 }
 
 impl Index<usize> for MacAddress {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+/// IP address struct, representing an IPv4 address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct IpAddress([u8; 4]);
+
+impl fmt::Display for IpAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
+    }
+}
+
+impl From<[u8; 4]> for IpAddress {
+    fn from(bytes: [u8; 4]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl IpAddress {
+    pub fn any() -> Self {
+        Self([0; 4])
+    }
+
+    pub fn is_any(&self) -> bool {
+        self.0 == [0; 4]
+    }
+
+    pub fn broadcast() -> Self {
+        Self([255; 4])
+    }
+
+    pub fn is_broadcast(&self) -> bool {
+        self.0 == [255; 4]
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 4] {
+        &self.0
+    }
+}
+
+impl Index<usize> for IpAddress {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {

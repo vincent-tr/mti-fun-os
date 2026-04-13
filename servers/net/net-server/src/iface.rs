@@ -304,7 +304,7 @@ impl Interface {
     }
 
     async fn rx_packet(&self, packet: Packet) {
-        ethernet::rx_packet(packet).await;
+        ethernet::rx_packet(self, packet).await;
     }
 }
 

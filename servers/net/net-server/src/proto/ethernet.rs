@@ -4,7 +4,10 @@ use crc::{CRC_32_ISO_HDLC, Crc};
 use libruntime::{debug, net::types::MacAddress};
 use log::{debug, warn};
 
-use crate::packet::{Packet, PacketCursor};
+use crate::{
+    iface::Interface,
+    packet::{Packet, PacketCursor},
+};
 
 use super::{NetU16, NetU32};
 
@@ -28,7 +31,7 @@ const ETHERTYPE_IPV4: u16 = 0x0800;
 const ETHERTYPE_ARP: u16 = 0x0806;
 
 /// Process an incoming Ethernet frame, given the raw bytes of the frame.
-pub async fn rx_packet(packet: Packet) {
+pub async fn rx_packet(iface: &Interface, packet: Packet) {
     if packet.len() < mem::size_of::<EthernetHeader>() + mem::size_of::<EthernetFooter>() {
         warn!(
             "Received packet too short to contain Ethernet header and footer: length={} (dropped)",

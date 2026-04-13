@@ -144,6 +144,7 @@ impl RxRing {
         control.enable_long_packet_reception(true);
         control.set_broadcast_accepted(true);
         control.set_buffer_size(self.dev_data.buffer_size());
+        control.set_strip_ethernet_crc(true); // Strip Ethernet FCS
         self.dev_data
             .mmio_write(registers::RxControl::OFFSET, control);
     }

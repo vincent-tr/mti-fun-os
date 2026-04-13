@@ -23,6 +23,7 @@ use smallvec::SmallVec;
 use crate::{
     buffer_pool::{self, Buffer},
     packet::{BufferData, Packet},
+    proto::ethernet,
 };
 
 /// A network intgerface, such as an Ethernet controller.
@@ -303,18 +304,7 @@ impl Interface {
     }
 
     async fn rx_packet(&self, packet: Packet) {
-        // TODO: do something with packet
-        debug!("Received packet of length {}", packet.len());
-        let mut cursor = crate::packet::PacketCursor::new(&packet);
-        let header = cursor.read::<EthernetHeader>();
-        if let Some(header) = header {
-            debug!(
-                "Ethernet header: src={}, dst={}, ethertype={:#06x}",
-                header.source, header.destination, header.ethertype
-            );
-        } else {
-            debug!("Packet too short to contain Ethernet header");
-        }
+        ethernet::rx_packet(packet).await;
     }
 }
 
@@ -418,53 +408,5 @@ impl<T> NetResultExt<T> for Result<T, kobject::Error> {
             error!("Runtime error in interface management: {:?}", e);
             NetServerError::RuntimeError
         })
-    }
-}
-
-/// Ethernet header struct, representing the header of an Ethernet frame.
-#[derive(Debug)]
-#[repr(packed)]
-struct EthernetHeader {
-    destination: MacAddress,
-    source: MacAddress,
-    ethertype: NetU16,
-}
-
-/// A network-ordered u16
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-struct NetU16([u8; 2]);
-
-impl NetU16 {
-    fn from_u16(value: u16) -> Self {
-        Self(value.to_be_bytes())
-    }
-
-    fn to_u16(&self) -> u16 {
-        u16::from_be_bytes(self.0)
-    }
-}
-
-impl fmt::Debug for NetU16 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_u16().fmt(f)
-    }
-}
-
-impl fmt::Display for NetU16 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_u16().fmt(f)
-    }
-}
-
-impl fmt::LowerHex for NetU16 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_u16().fmt(f)
-    }
-}
-
-impl fmt::UpperHex for NetU16 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_u16().fmt(f)
     }
 }

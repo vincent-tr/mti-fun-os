@@ -134,4 +134,72 @@ impl<'a> PacketCursor<'a> {
         // SAFETY: All `size` bytes have been initialised above.
         Some(unsafe { result.assume_init() })
     }
+
+    /// Reads `len` bytes of data from the packet, returning `None` if there is not enough data left.
+    pub fn read_data(&mut self, len: usize) -> Option<Packet> {
+        let mut remaining = len;
+        let mut buffers = SmallVec::new();
+
+        while remaining > 0 {
+            // Advance past exhausted buffers.
+            loop {
+                if self.buffer_index >= self.packet.buffers.len() {
+                    return None;
+                }
+                if self.buffer_offset < self.packet.buffers[self.buffer_index].range.len() {
+                    break;
+                }
+                self.buffer_index += 1;
+                self.buffer_offset = 0;
+            }
+
+            let buffer = &self.packet.buffers[self.buffer_index];
+            let available = buffer.range.len() - self.buffer_offset;
+            let to_take = available.min(remaining);
+
+            buffers.push(buffer.slice(self.buffer_offset..self.buffer_offset + to_take));
+
+            remaining -= to_take;
+            self.buffer_offset += to_take;
+        }
+
+        Some(Packet::new(buffers))
+    }
+
+    /// Reads the next chunk of data from the packet, where a chunk is defined as the remaining data in the current buffer.
+    pub fn read_chunk(&mut self) -> &[u8] {
+        // Advance past exhausted buffers.
+        loop {
+            if self.buffer_index >= self.packet.buffers.len() {
+                return &[];
+            }
+            if self.buffer_offset < self.packet.buffers[self.buffer_index].range.len() {
+                break;
+            }
+            self.buffer_index += 1;
+            self.buffer_offset = 0;
+        }
+
+        let buffer = &self.packet.buffers[self.buffer_index];
+        let chunk = &buffer.view()[self.buffer_offset..];
+
+        self.buffer_index += 1;
+        self.buffer_offset = 0;
+
+        chunk
+    }
+
+    pub fn is_end(&mut self) -> bool {
+        // Advance past exhausted buffers.
+        loop {
+            if self.buffer_index >= self.packet.buffers.len() {
+                return true;
+            }
+            if self.buffer_offset < self.packet.buffers[self.buffer_index].range.len() {
+                return false;
+            }
+            self.buffer_index += 1;
+            self.buffer_offset = 0;
+        }
+    }
 }

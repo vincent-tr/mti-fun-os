@@ -97,7 +97,7 @@ impl Arp {
                 if *expires_at > now {
                     true
                 } else {
-                    debug!("ARP cache entry expired and removed");
+                    debug!("[{}] ARP cache entry expired and removed", self.name());
                     false
                 }
             }
@@ -106,7 +106,7 @@ impl Arp {
 
     /// Update the ARP cache with a resolved IP-to-MAC mapping.
     fn update(&self, ip: IpAddress, mac: MacAddress) {
-        debug!("Updating ARP cache: {} is at {}", ip, mac);
+        debug!("[{}] Updating ARP cache: {} is at {}", self.name(), ip, mac);
         let mut cache = self.cache.lock();
 
         // TODO: If there is a pending entry for this IP, we should send all pending packets to the resolved MAC address.

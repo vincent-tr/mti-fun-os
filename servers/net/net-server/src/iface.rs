@@ -1,7 +1,11 @@
-use core::mem;
+use core::{
+    cell::UnsafeCell,
+    mem::{self, MaybeUninit},
+    sync::atomic::{AtomicPtr, Ordering},
+};
 
 use alloc::{string::String, sync::Arc, vec::Vec};
-use futures::select_biased;
+use futures::{FutureExt, select_biased};
 use hashbrown::HashSet;
 use libruntime::{
     r#async::{self, tools::Worker},
@@ -16,6 +20,7 @@ use libruntime::{
         types::{BufferPool, MacAddress},
     },
     sync::{Mutex, r#async::NotifyOnce},
+    time,
 };
 use log::{debug, error};
 use smallvec::SmallVec;
@@ -48,6 +53,9 @@ pub struct Interface {
     /// The worker task that listens for notifications from the driver and handles them.
     worker: Mutex<Option<Worker>>,
 
+    /// The worker task that performs periodic maintenance.
+    tick_worker: Mutex<Option<Worker>>,
+
     /// The ports for receiving notifications of link status changes from the driver.
     link_status_change_port: kobject::PortReceiver,
 
@@ -61,7 +69,7 @@ pub struct Interface {
     rx_pending_buffers: Mutex<RxPendingBuffers>,
 
     /// The protocol stack for this interface.
-    protocols: InterfaceProtocols,
+    protocols: DelayedInitCell<InterfaceProtocols>,
 }
 
 impl Interface {
@@ -77,7 +85,8 @@ impl Interface {
 
     /// Get a reference to the protocol stack for this interface.
     pub fn protocols(&self) -> &InterfaceProtocols {
-        &self.protocols
+        // SAFETY: This is InterfaceProtocols late initialization management.
+        unsafe { self.protocols.get() }
     }
 
     /// Create a new network interface.
@@ -130,12 +139,18 @@ impl Interface {
             handle,
             buffers: Mutex::new(HashSet::new()),
             worker: Mutex::new(None),
+            tick_worker: Mutex::new(None),
             link_status_change_port,
             rx_port,
             tx_free_port,
             rx_pending_buffers: Mutex::new(RxPendingBuffers::new()),
-            protocols: InterfaceProtocols::new(),
+            protocols: DelayedInitCell::uninit(),
         });
+
+        // SAFETY: This is InterfaceProtocols late initialization management.
+        unsafe {
+            iface.protocols.init(InterfaceProtocols::new(&iface));
+        }
 
         // Fill rx buffers initially, so the driver can start receiving packets immediately.
         iface.refill_rx_buffers().await?;
@@ -147,9 +162,83 @@ impl Interface {
             }
         });
 
+        let tick_worker = Worker::spawn({
+            let iface = iface.clone();
+            async move |exit_signal| {
+                iface.tick_worker(exit_signal).await;
+            }
+        });
+
         *iface.worker.lock() = Some(worker);
+        *iface.tick_worker.lock() = Some(tick_worker);
 
         Ok(iface)
+    }
+
+    /// Destroy the network device, cleaning up any resources.
+    pub async fn destroy(&self) -> Result<(), NetServerError> {
+        self.ipc_client
+            .destroy(self.handle)
+            .await
+            .into_net_error()?;
+
+        if let Some(tick_worker) = self.tick_worker.lock().take() {
+            tick_worker.terminate().await;
+        }
+
+        if let Some(worker) = self.worker.lock().take() {
+            worker.terminate().await;
+        }
+
+        // SAFETY: This is InterfaceProtocols late initialization management.
+        unsafe {
+            self.protocols.assume_init_drop();
+        }
+
+        for index in self.buffers.lock().drain() {
+            buffer_pool::pool().deallocate(index);
+        }
+
+        Ok(())
+    }
+
+    /// Interface worker task, which listens for notifications from the driver and handles them.
+    async fn worker(self: Arc<Self>, exit_signal: NotifyOnce) {
+        loop {
+            select_biased! {
+                // Note: important to check the exit signal first.
+                _ = exit_signal.wait() => {
+                    return;
+                }
+
+                _ = r#async::wait(&self.rx_port) => {
+                    self.process_rx_notification().await;
+                }
+
+                _ = r#async::wait(&self.tx_free_port) => {
+                    self.process_tx_free_notification().await;
+                }
+
+                _ = r#async::wait(&self.link_status_change_port) => {
+                    self.process_link_status_change_notification().await;
+                }
+            }
+        }
+    }
+
+    /// Interface worker task, that performs periodic maintenance.
+    async fn tick_worker(self: Arc<Self>, exit_signal: NotifyOnce) {
+        loop {
+            select_biased! {
+                _ = exit_signal.wait() => {
+                    return;
+                }
+
+                _ = time::async_sleep(time::Duration::milliseconds(100)).fuse() => {
+                    self.protocols().tick();
+                }
+            }
+        }
     }
 
     async fn refill_rx_buffers(&self) -> Result<(), NetServerError> {
@@ -190,48 +279,6 @@ impl Interface {
         debug!("[{}] Added {} rx buffers to driver", self.name(), total);
 
         Ok(())
-    }
-
-    /// Destroy the network device, cleaning up any resources.
-    pub async fn destroy(&self) -> Result<(), NetServerError> {
-        self.ipc_client
-            .destroy(self.handle)
-            .await
-            .into_net_error()?;
-
-        if let Some(worker) = self.worker.lock().take() {
-            worker.terminate().await;
-        }
-
-        for index in self.buffers.lock().drain() {
-            buffer_pool::pool().deallocate(index);
-        }
-
-        Ok(())
-    }
-
-    /// Interface worker task, which listens for notifications from the driver and handles them.
-    async fn worker(self: Arc<Self>, exit_signal: NotifyOnce) {
-        loop {
-            select_biased! {
-                // Note: important to check the exit signal first.
-                _ = exit_signal.wait() => {
-                    return;
-                }
-
-                _ = r#async::wait(&self.rx_port) => {
-                    self.process_rx_notification().await;
-                }
-
-                _ = r#async::wait(&self.tx_free_port) => {
-                    self.process_tx_free_notification().await;
-                }
-
-                _ = r#async::wait(&self.link_status_change_port) => {
-                    self.process_link_status_change_notification().await;
-                }
-            }
-        }
     }
 
     async fn process_rx_notification(&self) {
@@ -275,7 +322,7 @@ impl Interface {
         }
 
         for packet in packets {
-            self.protocols.receive(self, packet).await;
+            self.protocols().receive(packet).await;
         }
     }
 
@@ -403,6 +450,44 @@ impl RxPendingBuffers {
         } else {
             Some(Packet::new(buffers))
         }
+    }
+}
+
+/// Helper structure for managing delayed initialization of the `InterfaceProtocols` for an `Interface`.
+#[derive(Debug)]
+struct DelayedInitCell<T> {
+    value: UnsafeCell<MaybeUninit<T>>,
+}
+
+unsafe impl<T> Sync for DelayedInitCell<T> {}
+unsafe impl<T> Send for DelayedInitCell<T> {}
+
+impl<T> DelayedInitCell<T> {
+    pub const fn uninit() -> Self {
+        Self {
+            value: UnsafeCell::new(MaybeUninit::uninit()),
+        }
+    }
+
+    /// Initialize the value.
+    ///
+    /// Safety: The caller must ensure that the value is only initialized once.
+    pub unsafe fn init(&self, value: T) {
+        unsafe { (*self.value.get()).write(value) };
+    }
+
+    /// Get a reference to the value.
+    ///
+    /// Safety: The caller must ensure that the value has been initialized before calling this method.
+    pub unsafe fn get(&self) -> &T {
+        unsafe { (*self.value.get()).assume_init_ref() }
+    }
+
+    /// Drop the value, without dropping the `DelayedInitCell` itself.
+    ///
+    /// Safety: The caller must ensure that the value has been initialized before calling this method, and that it will not be used after this method is called.
+    pub unsafe fn assume_init_drop(&self) {
+        unsafe { (*self.value.get()).assume_init_drop() };
     }
 }
 

@@ -1,5 +1,6 @@
 use core::mem;
 
+use alloc::sync::Arc;
 use libruntime::net::types::MacAddress;
 use log::{debug, warn};
 
@@ -28,7 +29,9 @@ pub struct EthernetMetadata {
 
 /// Ethernet protocol implementation.
 #[derive(Debug)]
-pub struct Ethernet;
+pub struct Ethernet {
+    iface: Arc<Interface>,
+}
 
 impl Ethernet {
     /// IPV4 ethernet type value.
@@ -38,16 +41,24 @@ impl Ethernet {
     pub const ARP: u16 = 0x0806;
 
     /// Create a new Ethernet protocol instance.
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(iface: Arc<Interface>) -> Self {
+        Self { iface }
+    }
+
+    fn iface(&self) -> &Interface {
+        &self.iface
+    }
+
+    fn name(&self) -> &str {
+        self.iface().name()
     }
 
     /// Process an incoming Ethernet frame.
-    pub async fn receive(&self, iface: &Interface, packet: Packet) {
+    pub async fn receive(&self, packet: Packet) {
         if packet.len() < mem::size_of::<EthernetHeader>() {
             warn!(
                 "[{}] Received packet too short to contain Ethernet header: length={} (dropped)",
-                iface.name(),
+                self.name(),
                 packet.len()
             );
             return;
@@ -58,10 +69,10 @@ impl Ethernet {
             .read::<EthernetHeader>()
             .expect("Could not read ethernet header");
 
-        if !header.destination.is_broadcast() && header.destination != iface.mac_address() {
+        if !header.destination.is_broadcast() && header.destination != self.iface().mac_address() {
             debug!(
                 "[{}] Received packet not destined for this interface: destination={}, source={} (dropped)",
-                iface.name(),
+                self.name(),
                 header.destination,
                 header.source
             );
@@ -87,21 +98,21 @@ impl Ethernet {
                 // TODO
                 debug!(
                     "[{}] Received IPv4 packet from {} to {}",
-                    iface.name(),
+                    self.name(),
                     metadata.source,
                     metadata.destination
                 );
             }
             Self::ARP => {
-                iface
+                self.iface()
                     .protocols()
                     .arp()
-                    .receive(iface, metadata, payload)
+                    .receive(metadata, payload)
                     .await
             }
             ethertype => warn!(
                 "[{}] Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",
-                iface.name(),
+                self.name(),
                 ethertype,
                 metadata.source,
                 metadata.destination

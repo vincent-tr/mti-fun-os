@@ -2,6 +2,7 @@ mod arp;
 mod ethernet;
 mod int;
 
+use alloc::sync::Arc;
 use int::*;
 
 use arp::Arp;
@@ -18,10 +19,10 @@ pub struct InterfaceProtocols {
 
 impl InterfaceProtocols {
     /// Create a new protocol stack for an interface.
-    pub fn new() -> Self {
+    pub fn new(iface: &Arc<Interface>) -> Self {
         Self {
-            ethernet: Ethernet::new(),
-            arp: Arp::new(),
+            ethernet: Ethernet::new(iface.clone()),
+            arp: Arp::new(iface.clone()),
         }
     }
 
@@ -35,8 +36,13 @@ impl InterfaceProtocols {
         &self.arp
     }
 
+    /// Perform periodic maintenance tasks for all protocols in the stack.
+    pub fn tick(&self) {
+        self.arp.tick();
+    }
+
     /// Process an incoming packet on the interface, given the raw bytes of the packet.
-    pub async fn receive(&self, iface: &Interface, packet: Packet) {
-        self.ethernet.receive(iface, packet).await;
+    pub async fn receive(&self, packet: Packet) {
+        self.ethernet.receive(packet).await;
     }
 }

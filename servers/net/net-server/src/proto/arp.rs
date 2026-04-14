@@ -1,6 +1,6 @@
 use core::mem;
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
     net::types::{IpAddress, MacAddress},
@@ -47,6 +47,7 @@ enum CacheEntry {
 /// ARP protocol implementation.
 #[derive(Debug)]
 pub struct Arp {
+    iface: Arc<Interface>,
     cache: Mutex<HashMap<IpAddress, CacheEntry>>,
 }
 
@@ -64,14 +65,47 @@ impl Arp {
     const OPER_REPLY: u16 = 2;
 
     /// Create a new ARP protocol instance.
-    pub fn new() -> Self {
+    pub fn new(iface: Arc<Interface>) -> Self {
         Self {
+            iface,
             cache: Mutex::new(HashMap::new()),
         }
     }
 
+    fn iface(&self) -> &Interface {
+        &self.iface
+    }
+
+    fn name(&self) -> &str {
+        self.iface().name()
+    }
+
+    /// Perform periodic maintenance tasks.
+    pub fn tick(&self) {
+        let now = time::get_monotonic_time();
+        let mut cache = self.cache.lock();
+
+        cache.retain(|_, entry| match entry {
+            CacheEntry::Pending {
+                sent_at, retries, ..
+            } => {
+                // For pending entries, we can implement retry logic here if desired. For now, we will just keep them indefinitely.
+                true
+            }
+            CacheEntry::Resolved { expires_at, .. } => {
+                // Remove resolved entries that have expired.
+                if *expires_at > now {
+                    true
+                } else {
+                    debug!("ARP cache entry expired and removed");
+                    false
+                }
+            }
+        });
+    }
+
     /// Update the ARP cache with a resolved IP-to-MAC mapping.
-    pub fn update(&self, ip: IpAddress, mac: MacAddress) {
+    fn update(&self, ip: IpAddress, mac: MacAddress) {
         debug!("Updating ARP cache: {} is at {}", ip, mac);
         let mut cache = self.cache.lock();
 
@@ -87,11 +121,11 @@ impl Arp {
     }
 
     /// Process an incoming ARP packet.
-    pub async fn receive(&self, iface: &Interface, metadata: EthernetMetadata, packet: Packet) {
+    pub async fn receive(&self, metadata: EthernetMetadata, packet: Packet) {
         if packet.len() < mem::size_of::<ArpPacket>() {
             warn!(
                 "[{}] Received packet too short to contain ARP header: length={}, from {} (dropped)",
-                iface.name(),
+                self.name(),
                 packet.len(),
                 metadata.source
             );
@@ -110,7 +144,7 @@ impl Arp {
         {
             debug!(
                 "[{}] Received ARP packet with unsupported type or lengths: htype={}, ptype={}, hlen={}, plen={} (dropped)",
-                iface.name(),
+                self.name(),
                 arp_packet.htype.to_u16(),
                 arp_packet.ptype.to_u16(),
                 arp_packet.hlen,
@@ -130,7 +164,7 @@ impl Arp {
             _ => {
                 debug!(
                     "[{}] Received ARP packet with unknown operation: oper={} from {} (dropped)",
-                    iface.name(),
+                    self.name(),
                     arp_packet.oper.to_u16(),
                     metadata.source,
                 );

@@ -17,7 +17,7 @@ use libruntime::{
             RxArrivedNotification, TxFreeNotification,
         },
         iface::NetServerError,
-        types::{BufferPool, MacAddress},
+        types::{BufferPool, IpAddress, MacAddress},
     },
     sync::{Mutex, r#async::NotifyOnce},
     time,
@@ -39,6 +39,9 @@ pub struct Interface {
 
     /// The MAC address of the network device.
     mac_address: MacAddress,
+
+    /// The IP configuration for this interface, if it has been configured with an IP address.
+    ip_config: Mutex<Option<Arc<IpConfiguration>>>,
 
     /// The IPC client for communicating with the network device driver.
     ipc_client: iface::Client<'static>,
@@ -81,6 +84,16 @@ impl Interface {
     /// Get the MAC address of the network device.
     pub fn mac_address(&self) -> MacAddress {
         self.mac_address
+    }
+
+    /// Get the IP configuration for this interface, if it has been configured with an IP address.
+    pub fn ip_config(&self) -> Option<Arc<IpConfiguration>> {
+        self.ip_config.lock().clone()
+    }
+
+    /// Set the IP configuration for this interface.
+    pub fn set_ip_config(&self, ip_config: Option<Arc<IpConfiguration>>) {
+        *self.ip_config.lock() = ip_config;
     }
 
     /// Get a reference to the protocol stack for this interface.
@@ -145,6 +158,7 @@ impl Interface {
             tx_free_port,
             rx_pending_buffers: Mutex::new(RxPendingBuffers::new()),
             protocols: DelayedInitCell::uninit(),
+            ip_config: Mutex::new(None),
         });
 
         // SAFETY: This is InterfaceProtocols late initialization management.
@@ -376,6 +390,39 @@ impl Interface {
             // TODO: do something with message
             log::info!("[{}] Link status changed: {}", self.name(), msg.link_up);
         }
+    }
+}
+
+/// IP configuration for an interface, including IP address and subnet mask.
+#[derive(Debug)]
+pub struct IpConfiguration {
+    ip_address: IpAddress,
+    subnet_mask: IpAddress,
+}
+
+impl IpConfiguration {
+    /// Create a new IP configuration with the given IP address and subnet mask.
+    pub fn new(ip_address: IpAddress, subnet_mask: IpAddress) -> Self {
+        Self {
+            ip_address,
+            subnet_mask,
+        }
+    }
+
+    /// Get the IP address in this configuration.
+    pub fn ip_address(&self) -> IpAddress {
+        self.ip_address
+    }
+
+    /// Get the subnet mask in this configuration.
+    pub fn subnet_mask(&self) -> IpAddress {
+        self.subnet_mask
+    }
+
+    /// Check if this IP configuration is in the same subnet as the given IP address.
+    fn is_same_subnet(&self, ip_address: IpAddress) -> bool {
+        self.ip_address.as_u32() & self.subnet_mask.as_u32()
+            == ip_address.as_u32() & self.subnet_mask.as_u32()
     }
 }
 

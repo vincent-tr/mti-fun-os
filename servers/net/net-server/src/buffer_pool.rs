@@ -152,6 +152,9 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    /// The size of each buffer in bytes.
+    pub const SIZE: usize = BUFFER_SIZE;
+
     /// Allocates a buffer from the pool, returning a `Buffer` that will automatically deallocate when dropped.
     pub fn allocate() -> Self {
         let buffer_id = pool().allocate();

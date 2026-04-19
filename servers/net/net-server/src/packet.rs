@@ -1,6 +1,6 @@
 use core::{mem, ops::Range, slice};
 
-use alloc::sync::Arc;
+use alloc::{collections::vec_deque::VecDeque, sync::Arc};
 use smallvec::SmallVec;
 
 use crate::buffer_pool::Buffer;
@@ -210,5 +210,122 @@ impl<'a> PacketCursor<'a> {
             self.buffer_index += 1;
             self.buffer_offset = 0;
         }
+    }
+}
+
+/// A `PacketBuilder` allows constructing a `Packet` from multiple buffers.
+#[derive(Debug)]
+pub struct PacketBuilder {
+    buffers: VecDeque<Buffer>,
+    range: Range<usize>,
+}
+
+impl PacketBuilder {
+    /// The initial offset for the first buffer in the packet, to allow for prepending headers without needing to allocate other buffers.
+    const INITIAL_OFFSET: usize = 128;
+
+    /// Creates a new empty `PacketBuilder`.
+    pub fn new() -> Self {
+        let buffer = Buffer::allocate();
+        let mut buffers = VecDeque::new();
+        buffers.push_back(buffer);
+
+        Self {
+            buffers,
+            range: Self::INITIAL_OFFSET..Self::INITIAL_OFFSET,
+        }
+    }
+
+    /// Appends raw data to the packet.
+    pub fn append_data(&mut self, mut data: &[u8]) {
+        loop {
+            if data.is_empty() {
+                return;
+            }
+
+            // Compute the range of the current buffer that is available for writing.
+            let mut available = self.buffers.len() * Buffer::SIZE - self.range.end;
+            if available == 0 {
+                // No space left in the current buffers, allocate a new one.
+                let buffer = Buffer::allocate();
+                self.buffers.push_back(buffer);
+                available = Buffer::SIZE;
+            }
+
+            let to_write = available.min(data.len());
+            let current_buffer = self
+                .buffers
+                .back_mut()
+                .expect("Could not get current buffer");
+            current_buffer.view_mut()[self.range.end..self.range.end + to_write]
+                .copy_from_slice(&data[..to_write]);
+            self.range.end += to_write;
+            data = &data[to_write..];
+        }
+    }
+
+    /// Prepends raw data to the packet, i.e. adds it to the beginning of the packet.
+    pub fn prepend_data(&mut self, mut data: &[u8]) {
+        loop {
+            if data.is_empty() {
+                return;
+            }
+
+            // Compute the range of the current buffer that is available for writing.
+            let mut available = self.range.start;
+            if available == 0 {
+                // No space left in the current buffers, allocate a new one at the front.
+                let buffer = Buffer::allocate();
+                self.buffers.push_front(buffer);
+                self.range.start += Buffer::SIZE;
+                self.range.end += Buffer::SIZE;
+                available = Buffer::SIZE;
+            }
+
+            let to_write = available.min(data.len());
+            let current_buffer = self
+                .buffers
+                .front_mut()
+                .expect("Could not get current buffer");
+            current_buffer.view_mut()[self.range.start - to_write..self.range.start]
+                .copy_from_slice(&data[data.len() - to_write..]);
+            self.range.start -= to_write;
+            data = &data[..data.len() - to_write];
+        }
+    }
+
+    /// Appends a value of type `T` to the packet.
+    pub fn append<T: Sized>(&mut self, data: T) {
+        let bytes =
+            unsafe { slice::from_raw_parts(&data as *const T as *const u8, mem::size_of::<T>()) };
+
+        self.append_data(bytes);
+    }
+
+    /// Prepends a value of type `T` to the packet, i.e. adds it to the beginning of the packet.
+    pub fn prepend<T: Sized>(&mut self, data: T) {
+        let bytes =
+            unsafe { slice::from_raw_parts(&data as *const T as *const u8, mem::size_of::<T>()) };
+
+        self.prepend_data(bytes);
+    }
+
+    /// Consumes the `PacketBuilder`, returning a `Packet` with the accumulated buffers.
+    pub fn build(self) -> Packet {
+        let mut buffers = SmallVec::new();
+        let len = self.buffers.len();
+
+        for (index, buffer) in self.buffers.into_iter().enumerate() {
+            let start = if index == 0 { self.range.start } else { 0 };
+            let end = if index == len - 1 {
+                self.range.end % Buffer::SIZE
+            } else {
+                Buffer::SIZE
+            };
+
+            buffers.push(BufferData::new(Arc::new(buffer), start..end));
+        }
+
+        Packet::new(buffers)
     }
 }

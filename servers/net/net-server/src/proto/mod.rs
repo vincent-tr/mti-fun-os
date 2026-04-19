@@ -42,7 +42,7 @@ impl InterfaceProtocols {
     }
 
     /// Process an incoming packet on the interface, given the raw bytes of the packet.
-    pub async fn receive(&self, packet: Packet) {
-        self.ethernet.receive(packet).await;
+    pub fn receive(&self, packet: Packet) {
+        self.ethernet.receive(packet);
     }
 }

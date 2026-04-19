@@ -336,7 +336,7 @@ impl Interface {
         }
 
         for packet in packets {
-            self.protocols().receive(packet).await;
+            self.protocols().receive(packet);
         }
     }
 

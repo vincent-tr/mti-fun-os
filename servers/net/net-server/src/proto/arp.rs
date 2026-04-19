@@ -121,7 +121,7 @@ impl Arp {
     }
 
     /// Process an incoming ARP packet.
-    pub async fn receive(&self, metadata: EthernetMetadata, packet: Packet) {
+    pub fn receive(&self, metadata: EthernetMetadata, packet: Packet) {
         if packet.len() < mem::size_of::<ArpPacket>() {
             warn!(
                 "[{}] Received packet too short to contain ARP header: length={}, from {} (dropped)",

@@ -54,7 +54,7 @@ impl Ethernet {
     }
 
     /// Process an incoming Ethernet frame.
-    pub async fn receive(&self, packet: Packet) {
+    pub fn receive(&self, packet: Packet) {
         if packet.len() < mem::size_of::<EthernetHeader>() {
             warn!(
                 "[{}] Received packet too short to contain Ethernet header: length={} (dropped)",
@@ -108,7 +108,6 @@ impl Ethernet {
                     .protocols()
                     .arp()
                     .receive(metadata, payload)
-                    .await
             }
             ethertype => warn!(
                 "[{}] Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",

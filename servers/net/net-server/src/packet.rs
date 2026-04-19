@@ -38,6 +38,11 @@ impl BufferData {
     pub fn view(&self) -> &[u8] {
         &self.buffer.view()[self.range.clone()]
     }
+
+    /// Consumes the `BufferData`, returning the underlying buffer and range.
+    pub fn into_inner(self) -> (Arc<Buffer>, Range<usize>) {
+        (self.buffer, self.range)
+    }
 }
 
 impl Packet {
@@ -50,6 +55,11 @@ impl Packet {
     /// Returns the length of the packet.
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Consumes the `Packet`, returning the underlying buffers.
+    pub fn into_buffers(self) -> SmallVec<[BufferData; 4]> {
+        self.buffers
     }
 
     /// Returns a slice of the packet data for the specified range.

@@ -256,12 +256,12 @@ impl Interface {
         let mut total = 0;
 
         loop {
-            let mut local_buffers = Vec::new();
+            let mut buffers = Vec::new();
             let mut buffer_indexes = Vec::new();
             for _ in 0..iface::Client::RX_BUFFER_COUNT {
                 let buffer = Arc::new(buffer_pool::Buffer::allocate());
                 buffer_indexes.push(buffer.id());
-                local_buffers.push(buffer);
+                buffers.push(buffer);
             }
 
             let count = self
@@ -270,12 +270,7 @@ impl Interface {
                 .await
                 .into_net_error()?;
 
-            {
-                let mut buffers = self.buffers.lock();
-                for buffer in local_buffers.into_iter().take(count) {
-                    buffers.insert(buffer.id(), buffer);
-                }
-            }
+            self.keep_buffers(buffers.into_iter().take(count));
 
             total += count;
 
@@ -387,6 +382,60 @@ impl Interface {
 
             // TODO: do something with message
             log::info!("[{}] Link status changed: {}", self.name(), msg.link_up);
+        }
+    }
+
+    /// Transmit a packet on this interface.
+    pub async fn transmit(&self, packet: Packet) -> Result<(), NetServerError> {
+        // TODO: properly handle TX full, wait for tx_free notifications, retry, manage a send queue, etc.
+        // For now we will just try to send the packet, and drop it if the driver cannot accept it
+
+        let mut desc = Vec::new();
+        let mut buffers = Vec::new();
+
+        let packet_data = packet.into_buffers();
+        let len = packet_data.len();
+
+        for (index, buffer_data) in packet_data.into_iter().enumerate() {
+            let eop = index + 1 == len;
+            let (buffer, range) = buffer_data.into_inner();
+
+            desc.push(iface::TxBufferDescriptor::new(
+                buffer.id(),
+                range.start,
+                range.len(),
+                eop,
+            ));
+
+            buffers.push(buffer);
+        }
+
+        let count = self
+            .ipc_client
+            .tx(self.handle, &desc)
+            .await
+            .into_net_error()?;
+
+        if count < desc.len() {
+            // Note: as we did not include last packet, this will also probably mess next packet
+            error!(
+                "[{}] Driver could not accept all buffers for transmission (accepted {}, total {})",
+                self.name(),
+                count,
+                desc.len(),
+            );
+        }
+
+        self.keep_buffers(buffers.into_iter().take(count));
+
+        Ok(())
+    }
+
+    fn keep_buffers(&self, iter: impl Iterator<Item = Arc<Buffer>>) {
+        let mut buffers = self.buffers.lock();
+
+        for buffer in iter {
+            buffers.insert(buffer.id(), buffer);
         }
     }
 }

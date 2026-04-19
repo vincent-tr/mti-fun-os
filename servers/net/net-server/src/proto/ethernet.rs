@@ -103,12 +103,7 @@ impl Ethernet {
                     metadata.destination
                 );
             }
-            Self::ARP => {
-                self.iface()
-                    .protocols()
-                    .arp()
-                    .receive(metadata, payload)
-            }
+            Self::ARP => self.iface().protocols().arp().receive(metadata, payload),
             ethertype => warn!(
                 "[{}] Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",
                 self.name(),

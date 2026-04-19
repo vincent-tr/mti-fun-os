@@ -1,12 +1,11 @@
 use core::{
     cell::UnsafeCell,
     mem::{self, MaybeUninit},
-    sync::atomic::{AtomicPtr, Ordering},
 };
 
 use alloc::{string::String, sync::Arc, vec::Vec};
 use futures::{FutureExt, select_biased};
-use hashbrown::HashSet;
+use hashbrown::HashMap;
 use libruntime::{
     r#async::{self, tools::Worker},
     drivers::pci::PciAddress,
@@ -49,9 +48,9 @@ pub struct Interface {
     /// The IPC handle for this interface.
     handle: ipc::Handle,
 
-    /// The set of buffer indexes currently in use for this interface.
+    /// The set of buffer currently in use by the NIC side of this interface.
     /// On destroy, the interface will free any buffers in this set back to the buffer pool.
-    buffers: Mutex<HashSet<usize>>,
+    buffers: Mutex<HashMap<usize, Arc<Buffer>>>,
 
     /// The worker task that listens for notifications from the driver and handles them.
     worker: Mutex<Option<Worker>>,
@@ -110,7 +109,7 @@ impl Interface {
     ) -> Result<Arc<Self>, NetServerError> {
         let ipc_client = iface::Client::new(drive_port_name);
         let handle = ipc_client
-            .create(name, pci_address, buffer_pool::pool().share())
+            .create(name, pci_address, buffer_pool::shared_pool())
             .await
             .into_net_error()?;
         let mac_address = ipc_client.get_mac_address(handle).await.into_net_error()?;
@@ -150,7 +149,7 @@ impl Interface {
             mac_address,
             ipc_client,
             handle,
-            buffers: Mutex::new(HashSet::new()),
+            buffers: Mutex::new(HashMap::new()),
             worker: Mutex::new(None),
             tick_worker: Mutex::new(None),
             link_status_change_port,
@@ -209,9 +208,7 @@ impl Interface {
             self.protocols.assume_init_drop();
         }
 
-        for index in self.buffers.lock().drain() {
-            buffer_pool::pool().deallocate(index);
-        }
+        self.buffers.lock().clear();
 
         Ok(())
     }
@@ -259,13 +256,13 @@ impl Interface {
         let mut total = 0;
 
         loop {
+            let mut local_buffers = Vec::new();
             let mut buffer_indexes = Vec::new();
             for _ in 0..iface::Client::RX_BUFFER_COUNT {
-                let index = buffer_pool::pool().allocate();
-                buffer_indexes.push(index);
+                let buffer = Arc::new(buffer_pool::Buffer::allocate());
+                buffer_indexes.push(buffer.id());
+                local_buffers.push(buffer);
             }
-
-            let mut guard = BufferGuard::new(buffer_indexes.iter().copied());
 
             let count = self
                 .ipc_client
@@ -273,12 +270,10 @@ impl Interface {
                 .await
                 .into_net_error()?;
 
-            guard.keep(count);
-
             {
                 let mut buffers = self.buffers.lock();
-                for &index in &buffer_indexes[0..count] {
-                    buffers.insert(index);
+                for buffer in local_buffers.into_iter().take(count) {
+                    buffers.insert(buffer.id(), buffer);
                 }
             }
 
@@ -315,10 +310,15 @@ impl Interface {
                 let mut rx_pending_buffers = self.rx_pending_buffers.lock();
                 for desc in msg.rx_descriptors {
                     if desc.buffer_index() != BufferPool::INVALID_INDEX {
-                        let buffer = unsafe { Buffer::from_id(desc.buffer_index()) };
-                        buffers.remove(&buffer.id());
+                        let Some(buffer) = buffers.remove(&desc.buffer_index()) else {
+                            panic!(
+                                "[{}] Received rx notification for buffer index {} which is not currently in use",
+                                self.name(),
+                                desc.buffer_index(),
+                            );
+                        };
 
-                        let buffer_data = BufferData::new(Arc::new(buffer), 0..desc.length());
+                        let buffer_data = BufferData::new(buffer, 0..desc.length());
                         rx_pending_buffers.add(buffer_data, desc.error());
 
                         if desc.end_of_packet() {
@@ -360,15 +360,13 @@ impl Interface {
                     continue;
                 }
 
-                if !buffers.remove(&index) {
+                if buffers.remove(&index).is_none() {
                     panic!(
                         "[{}] Received tx free notification for buffer index {} which is not currently in use",
                         self.name(),
                         index
                     );
                 }
-
-                buffer_pool::pool().deallocate(index);
             }
         }
     }
@@ -423,39 +421,6 @@ impl IpConfiguration {
     fn is_same_subnet(&self, ip_address: IpAddress) -> bool {
         self.ip_address.as_u32() & self.subnet_mask.as_u32()
             == ip_address.as_u32() & self.subnet_mask.as_u32()
-    }
-}
-
-/// A guard for a set of buffer indexes allocated for an interface.
-///
-/// On drop, the guard will deallocate all of the buffers back to the buffer pool, unless `keep()` is called to keep some of them.
-#[derive(Debug)]
-struct BufferGuard {
-    indexes: Vec<usize>,
-}
-
-impl BufferGuard {
-    /// Create a new BufferGuard for the given buffer indexes.
-    ///
-    /// The guard will deallocate all of the buffers on drop, unless `keep()` is called to keep some of them.
-    pub fn new(indexes: impl IntoIterator<Item = usize>) -> Self {
-        Self {
-            indexes: indexes.into_iter().collect(),
-        }
-    }
-
-    /// Keep the first `count` indexes, and deallocate the rest when dropped.
-    pub fn keep(&mut self, count: usize) {
-        // Remove the indexes that we want to keep from the guard, so they won't be deallocated on drop.
-        self.indexes.drain(0..count);
-    }
-}
-
-impl Drop for BufferGuard {
-    fn drop(&mut self) {
-        for &index in &self.indexes {
-            buffer_pool::pool().deallocate(index);
-        }
     }
 }
 

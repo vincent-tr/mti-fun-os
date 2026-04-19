@@ -245,9 +245,20 @@ impl<Impl: NetDeviceServer + 'static> Server<Impl> {
         _query_handles: ipc::KHandles,
         sender_id: u64,
     ) -> Result<(messages::TxReply, ipc::KHandles), messages::NetDeviceError> {
+        let mut descriptors = Vec::new();
+
+        for i in 0..messages::TxQueryParameters::DESCRIPTOR_COUNT {
+            let desc = query.tx_descriptors[i];
+            if !desc.is_valid() {
+                break;
+            }
+
+            descriptors.push(desc);
+        }
+
         let sent_buffers = self
             .inner
-            .tx(sender_id, query.handle, &query.tx_descriptors)
+            .tx(sender_id, query.handle, &descriptors)
             .map_err(Into::into)?;
 
         Ok((messages::TxReply { sent_buffers }, ipc::KHandles::new()))

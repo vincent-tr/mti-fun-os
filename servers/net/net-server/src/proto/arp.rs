@@ -3,6 +3,7 @@ use core::mem;
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use libruntime::{
+    r#async,
     net::types::{IpAddress, MacAddress},
     sync::Mutex,
     time,
@@ -11,7 +12,7 @@ use log::{debug, warn};
 
 use crate::{
     iface::Interface,
-    packet::{Packet, PacketCursor},
+    packet::{Packet, PacketBuilder, PacketCursor},
 };
 
 use super::*;
@@ -72,7 +73,7 @@ impl Arp {
         }
     }
 
-    fn iface(&self) -> &Interface {
+    fn iface(&self) -> &Arc<Interface> {
         &self.iface
     }
 
@@ -156,6 +157,19 @@ impl Arp {
         match arp_packet.oper.to_u16() {
             Self::OPER_REQUEST => {
                 self.update(arp_packet.spa, arp_packet.sha);
+
+                if let Some(ip_config) = self.iface().ip_config()
+                    && arp_packet.tpa == ip_config.ip_address()
+                {
+                    let iface = self.iface().clone();
+                    r#async::spawn(async move {
+                        iface
+                            .protocols()
+                            .arp
+                            .send_reply(arp_packet.spa, arp_packet.sha)
+                            .await
+                    });
+                }
             }
             Self::OPER_REPLY => {
                 self.update(arp_packet.spa, arp_packet.sha);
@@ -171,5 +185,28 @@ impl Arp {
                 return;
             }
         }
+    }
+
+    async fn send_reply(&self, target_ip: IpAddress, target_mac: MacAddress) {
+        let mut builder = PacketBuilder::new();
+
+        let arp_reply = ArpPacket {
+            htype: NetU16::from_u16(Self::HTYPE_ETHERNET),
+            ptype: NetU16::from_u16(Ethernet::IPV4),
+            hlen: 6,
+            plen: 4,
+            oper: NetU16::from_u16(Self::OPER_REPLY),
+            sha: self.iface().mac_address(),
+            spa: self.iface().ip_config().expect("no ip config").ip_address(),
+            tha: target_mac,
+            tpa: target_ip,
+        };
+        builder.prepend(&arp_reply);
+
+        self.iface()
+            .protocols()
+            .ethernet()
+            .send(target_mac, Ethernet::ARP, builder)
+            .await;
     }
 }

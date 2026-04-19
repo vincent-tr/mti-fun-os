@@ -322,6 +322,11 @@ impl TxBufferDescriptor {
         TxBufferDescriptor(value)
     }
 
+    /// Check if this descriptor is valid.
+    pub fn is_valid(&self) -> bool {
+        self.buffer_index() != BufferPool::INVALID_INDEX
+    }
+
     /// Get the buffer index.
     pub fn buffer_index(&self) -> usize {
         self.0.get_bits(0..32) as usize
@@ -388,6 +393,11 @@ impl RxBufferDescriptor {
         value.set_bit(44, error);
 
         RxBufferDescriptor(value)
+    }
+
+    /// Check if this descriptor is valid.
+    pub fn is_valid(&self) -> bool {
+        self.buffer_index() != BufferPool::INVALID_INDEX
     }
 
     /// Get the buffer index.

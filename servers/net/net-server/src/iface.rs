@@ -304,22 +304,24 @@ impl Interface {
                 let mut buffers = self.buffers.lock();
                 let mut rx_pending_buffers = self.rx_pending_buffers.lock();
                 for desc in msg.rx_descriptors {
-                    if desc.buffer_index() != BufferPool::INVALID_INDEX {
-                        let Some(buffer) = buffers.remove(&desc.buffer_index()) else {
-                            panic!(
-                                "[{}] Received rx notification for buffer index {} which is not currently in use",
-                                self.name(),
-                                desc.buffer_index(),
-                            );
-                        };
+                    if !desc.is_valid() {
+                        break;
+                    }
 
-                        let buffer_data = BufferData::new(buffer, 0..desc.length());
-                        rx_pending_buffers.add(buffer_data, desc.error());
+                    let Some(buffer) = buffers.remove(&desc.buffer_index()) else {
+                        panic!(
+                            "[{}] Received rx notification for buffer index {} which is not currently in use",
+                            self.name(),
+                            desc.buffer_index(),
+                        );
+                    };
 
-                        if desc.end_of_packet() {
-                            if let Some(packet) = rx_pending_buffers.build_packet() {
-                                packets.push(packet);
-                            }
+                    let buffer_data = BufferData::new(buffer, 0..desc.length());
+                    rx_pending_buffers.add(buffer_data, desc.error());
+
+                    if desc.end_of_packet() {
+                        if let Some(packet) = rx_pending_buffers.build_packet() {
+                            packets.push(packet);
                         }
                     }
                 }

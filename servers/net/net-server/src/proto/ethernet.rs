@@ -6,7 +6,7 @@ use log::{debug, warn};
 
 use crate::{
     iface::Interface,
-    packet::{Packet, PacketCursor},
+    packet::{Packet, PacketBuilder, PacketCursor},
 };
 
 use super::*;
@@ -112,5 +112,18 @@ impl Ethernet {
                 metadata.destination
             ),
         }
+    }
+
+    /// Send an Ethernet frame with the given destination MAC address, ethertype, and payload.
+    pub async fn send(&self, destination: MacAddress, ethertype: u16, mut packet: PacketBuilder) {
+        let header = EthernetHeader {
+            destination,
+            source: self.iface().mac_address(),
+            ethertype: NetU16::from_u16(ethertype),
+        };
+
+        packet.prepend(header);
+
+        self.iface().transmit(packet).await;
     }
 }

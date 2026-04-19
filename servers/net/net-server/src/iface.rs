@@ -26,7 +26,7 @@ use smallvec::SmallVec;
 
 use crate::{
     buffer_pool::{self, Buffer},
-    packet::{BufferData, Packet},
+    packet::{BufferData, Packet, PacketBuilder},
     proto::InterfaceProtocols,
 };
 
@@ -386,14 +386,14 @@ impl Interface {
     }
 
     /// Transmit a packet on this interface.
-    pub async fn transmit(&self, packet: Packet) -> Result<(), NetServerError> {
+    pub async fn transmit(&self, packet: PacketBuilder) {
         // TODO: properly handle TX full, wait for tx_free notifications, retry, manage a send queue, etc.
         // For now we will just try to send the packet, and drop it if the driver cannot accept it
 
         let mut desc = Vec::new();
         let mut buffers = Vec::new();
 
-        let packet_data = packet.into_buffers();
+        let packet_data = packet.build().into_buffers();
         let len = packet_data.len();
 
         for (index, buffer_data) in packet_data.into_iter().enumerate() {
@@ -410,11 +410,17 @@ impl Interface {
             buffers.push(buffer);
         }
 
-        let count = self
-            .ipc_client
-            .tx(self.handle, &desc)
-            .await
-            .into_net_error()?;
+        let count = match self.ipc_client.tx(self.handle, &desc).await {
+            Ok(count) => count,
+            Err(e) => {
+                error!(
+                    "[{}] Driver rejected packet for transmission (dropped): {:?}",
+                    self.name(),
+                    e
+                );
+                return;
+            }
+        };
 
         if count < desc.len() {
             // Note: as we did not include last packet, this will also probably mess next packet
@@ -427,8 +433,6 @@ impl Interface {
         }
 
         self.keep_buffers(buffers.into_iter().take(count));
-
-        Ok(())
     }
 
     fn keep_buffers(&self, iter: impl Iterator<Item = Arc<Buffer>>) {

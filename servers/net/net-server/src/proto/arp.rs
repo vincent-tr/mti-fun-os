@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use libruntime::{
     r#async,
     net::types::{IpAddress, MacAddress},
-    sync::Mutex,
+    sync::{Mutex, r#async::NotifyOnce},
     time,
 };
 use log::{debug, warn};
@@ -32,17 +32,69 @@ struct ArpPacket {
     pub tpa: IpAddress,
 }
 
+/// Errors that can occur during ARP resolution.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ArpError {
+    Timeout,
+    Canceled,
+}
+
+/// A helper struct to manage the completion of an ARP resolution, allowing multiple waiters to await the result of a single resolution attempt.
+#[derive(Debug, Clone)]
+struct ResolutionCompletion {
+    result: Arc<Mutex<Option<Result<MacAddress, ArpError>>>>,
+    completion: NotifyOnce,
+}
+
+impl ResolutionCompletion {
+    /// Create a new resolution completion that can be awaited for an ARP resolution result.
+    pub fn new() -> Self {
+        Self {
+            result: Arc::new(Mutex::new(None)),
+            completion: NotifyOnce::new(),
+        }
+    }
+
+    /// Wait for this resolution to complete and return the result.
+    pub async fn wait(&self) -> Result<MacAddress, ArpError> {
+        self.completion.wait().await;
+
+        self.result
+            .lock()
+            .clone()
+            .expect("completion should have a result")
+    }
+
+    /// Complete this resolution with the given result, waking any waiters.
+    pub fn complete(&self, result: Result<MacAddress, ArpError>) {
+        let mut locked_result = self.result.lock();
+        assert!(
+            locked_result.is_none(),
+            "completion should only be completed once"
+        );
+        *locked_result = Some(result);
+
+        self.completion.notify();
+    }
+}
+
 #[derive(Debug)]
 enum CacheEntry {
-    Pending {
-        pending: Vec<Packet>,
-        sent_at: time::Duration,
-        retries: usize,
-    },
-    Resolved {
-        mac: MacAddress,
-        expires_at: time::Duration,
-    },
+    Pending(PendingEntry),
+    Resolved(ResolvedEntry),
+}
+
+#[derive(Debug)]
+struct PendingEntry {
+    completion: ResolutionCompletion,
+    timeout_at: time::Duration,
+    retries: usize,
+}
+
+#[derive(Debug)]
+struct ResolvedEntry {
+    mac: MacAddress,
+    expires_at: time::Duration,
 }
 
 /// ARP protocol implementation.
@@ -54,7 +106,13 @@ pub struct Arp {
 
 impl Arp {
     /// Timeout duration for ARP cache entries before they expire and need to be refreshed.
-    pub const EXPIRE_TIMEOUT: time::Duration = time::Duration::seconds(60);
+    const EXPIRE_TIMEOUT: time::Duration = time::Duration::seconds(60);
+
+    /// Timeout duration for ARP queries.
+    const QUERY_TIMEOUT: time::Duration = time::Duration::seconds(5);
+
+    /// Number of retries to attempt for ARP queries before giving up and returning a timeout error.
+    const QUERY_RETRIES: usize = 3;
 
     /// Hardware type value for Ethernet in ARP packets.
     const HTYPE_ETHERNET: u16 = 1;
@@ -81,28 +139,86 @@ impl Arp {
         self.iface().name()
     }
 
+    /// Resolve the given IP address to a MAC address, performing an ARP request if necessary.
+    pub async fn resolve(&self, ip: IpAddress) -> Result<MacAddress, ArpError> {
+        let completion = {
+            let mut cache = self.cache.lock();
+
+            let entry = cache.entry(ip).or_insert_with(|| {
+                debug!("[{}] Starting ARP resolution for {}", self.name(), ip);
+
+                let pending = PendingEntry {
+                    completion: ResolutionCompletion::new(),
+                    timeout_at: time::get_monotonic_time() + Self::QUERY_TIMEOUT,
+                    retries: 0,
+                };
+
+                self.start_resolution(ip);
+
+                CacheEntry::Pending(pending)
+            });
+
+            match entry {
+                CacheEntry::Resolved(resolved) => {
+                    return Ok(resolved.mac);
+                }
+                CacheEntry::Pending(pending) => pending.completion.clone(),
+            }
+        };
+
+        completion.wait().await
+    }
+
     /// Perform periodic maintenance tasks.
     pub fn tick(&self) {
         let now = time::get_monotonic_time();
         let mut cache = self.cache.lock();
 
-        cache.retain(|_, entry| match entry {
-            CacheEntry::Pending {
-                sent_at, retries, ..
-            } => {
-                // For pending entries, we can implement retry logic here if desired. For now, we will just keep them indefinitely.
-                true
-            }
-            CacheEntry::Resolved { expires_at, .. } => {
-                // Remove resolved entries that have expired.
-                if *expires_at > now {
-                    true
-                } else {
-                    debug!("[{}] ARP cache entry expired and removed", self.name());
-                    false
+        // Process retry timeouts
+        let mut remove_list = Vec::new();
+
+        for (&ip, entry) in cache.iter_mut() {
+            match entry {
+                CacheEntry::Pending(pending) => {
+                    if pending.timeout_at <= now {
+                        if pending.retries >= Self::QUERY_RETRIES {
+                            debug!(
+                                "[{}] ARP resolution for {} timed out after {} retries",
+                                self.name(),
+                                ip,
+                                pending.retries
+                            );
+
+                            pending.completion.complete(Err(ArpError::Timeout));
+                            remove_list.push(ip);
+                        } else {
+                            debug!(
+                                "[{}] Retrying ARP resolution for {} (retry {}/{})",
+                                self.name(),
+                                ip,
+                                pending.retries + 1,
+                                Self::QUERY_RETRIES
+                            );
+
+                            self.start_resolution(ip);
+                            pending.timeout_at = now + Self::QUERY_TIMEOUT;
+                            pending.retries += 1;
+                        }
+                    }
+                }
+                CacheEntry::Resolved(resolved) => {
+                    if resolved.expires_at <= now {
+                        debug!("[{}] ARP cache entry for {} expired", self.name(), ip);
+
+                        remove_list.push(ip);
+                    }
                 }
             }
-        });
+        }
+
+        for ip in remove_list {
+            cache.remove(&ip);
+        }
     }
 
     /// Update the ARP cache with a resolved IP-to-MAC mapping.
@@ -110,15 +226,15 @@ impl Arp {
         debug!("[{}] Updating ARP cache: {} is at {}", self.name(), ip, mac);
         let mut cache = self.cache.lock();
 
-        // TODO: If there is a pending entry for this IP, we should send all pending packets to the resolved MAC address.
+        let resolved = ResolvedEntry {
+            mac,
+            expires_at: time::get_monotonic_time() + Self::EXPIRE_TIMEOUT,
+        };
 
-        cache.insert(
-            ip,
-            CacheEntry::Resolved {
-                mac,
-                expires_at: time::get_monotonic_time() + Self::EXPIRE_TIMEOUT,
-            },
-        );
+        if let Some(CacheEntry::Pending(pending)) = cache.insert(ip, CacheEntry::Resolved(resolved))
+        {
+            pending.completion.complete(Ok(mac));
+        }
     }
 
     /// Process an incoming ARP packet.
@@ -161,6 +277,8 @@ impl Arp {
                 if let Some(ip_config) = self.iface().ip_config()
                     && arp_packet.tpa == ip_config.ip_address()
                 {
+                    debug!("Got ARP request: {:?}", arp_packet);
+
                     let iface = self.iface().clone();
                     r#async::spawn(async move {
                         iface
@@ -187,6 +305,11 @@ impl Arp {
         }
     }
 
+    fn start_resolution(&self, ip: IpAddress) {
+        let iface = self.iface().clone();
+        r#async::spawn(async move { iface.protocols().arp.send_request(ip).await });
+    }
+
     async fn send_reply(&self, target_ip: IpAddress, target_mac: MacAddress) {
         let mut builder = PacketBuilder::new();
 
@@ -201,12 +324,35 @@ impl Arp {
             tha: target_mac,
             tpa: target_ip,
         };
-        builder.prepend(&arp_reply);
+        builder.prepend(arp_reply);
 
         self.iface()
             .protocols()
             .ethernet()
             .send(target_mac, Ethernet::ARP, builder)
+            .await;
+    }
+
+    async fn send_request(&self, target_ip: IpAddress) {
+        let mut builder = PacketBuilder::new();
+
+        let arp_request = ArpPacket {
+            htype: NetU16::from_u16(Self::HTYPE_ETHERNET),
+            ptype: NetU16::from_u16(Ethernet::IPV4),
+            hlen: 6,
+            plen: 4,
+            oper: NetU16::from_u16(Self::OPER_REQUEST),
+            sha: self.iface().mac_address(),
+            spa: self.iface().ip_config().expect("no ip config").ip_address(),
+            tha: MacAddress::broadcast(),
+            tpa: target_ip,
+        };
+        builder.prepend(arp_request);
+
+        self.iface()
+            .protocols()
+            .ethernet()
+            .send(MacAddress::broadcast(), Ethernet::ARP, builder)
             .await;
     }
 }

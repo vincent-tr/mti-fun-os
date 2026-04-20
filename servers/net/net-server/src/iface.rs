@@ -203,6 +203,7 @@ impl Interface {
             worker.terminate().await;
         }
 
+        self.protocols().destroy();
         // SAFETY: This is InterfaceProtocols late initialization management.
         unsafe {
             self.protocols.assume_init_drop();
@@ -333,7 +334,7 @@ impl Interface {
         }
 
         for packet in packets {
-            self.protocols().receive(packet);
+            self.protocols().receive_ethernet_frame(packet);
         }
     }
 
@@ -443,6 +444,11 @@ impl Interface {
         for buffer in iter {
             buffers.insert(buffer.id(), buffer);
         }
+    }
+
+    /// Send an IP packet to the specified next hop IP address.
+    pub async fn send_ip_packet(&self, next_hop: IpAddress, packet: PacketBuilder) {
+        self.protocols().send_ip_packet(next_hop, packet).await;
     }
 }
 

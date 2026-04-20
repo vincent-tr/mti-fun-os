@@ -1,4 +1,4 @@
-use core::mem;
+use core::{fmt, mem};
 
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
@@ -37,6 +37,15 @@ struct ArpPacket {
 pub enum ArpError {
     Timeout,
     Canceled,
+}
+
+impl fmt::Display for ArpError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArpError::Timeout => write!(f, "ARP resolution timed out"),
+            ArpError::Canceled => write!(f, "ARP resolution was canceled"),
+        }
+    }
 }
 
 /// A helper struct to manage the completion of an ARP resolution, allowing multiple waiters to await the result of a single resolution attempt.
@@ -219,6 +228,19 @@ impl Arp {
         for ip in remove_list {
             cache.remove(&ip);
         }
+    }
+
+    /// Clean up any resources used by this ARP instance. After calling this method, the instance should not be used anymore.
+    pub fn destroy(&self) {
+        let mut cache = self.cache.lock();
+
+        for entry in cache.values_mut() {
+            if let CacheEntry::Pending(pending) = entry {
+                pending.completion.complete(Err(ArpError::Canceled));
+            }
+        }
+
+        cache.clear();
     }
 
     /// Update the ARP cache with a resolved IP-to-MAC mapping.

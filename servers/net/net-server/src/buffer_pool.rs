@@ -57,16 +57,6 @@ impl BufferPool {
         }
     }
 
-    /// Returns the number of buffers in the pool.
-    pub fn buffer_count(&self) -> usize {
-        self.buffer_count
-    }
-
-    /// Returns the size of each buffer in bytes.
-    pub fn buffer_size(&self) -> usize {
-        self.buffer_size
-    }
-
     /// Allocates a buffer from the pool, returning its index if successful.
     pub fn allocate(&self) -> usize {
         let mut free_list = self.free_list.lock();

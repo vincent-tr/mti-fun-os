@@ -45,7 +45,7 @@ impl Ethernet {
         Self { iface }
     }
 
-    fn iface(&self) -> &Interface {
+    fn iface(&self) -> &Arc<Interface> {
         &self.iface
     }
 
@@ -94,15 +94,9 @@ impl Ethernet {
         };
 
         match header.ethertype.to_u16() {
-            Self::IPV4 => {
-                // TODO
-                debug!(
-                    "[{}] Received IPv4 packet from {} to {}",
-                    self.name(),
-                    metadata.source,
-                    metadata.destination
-                );
-            }
+            Self::IPV4 => GlobalProtocols::instance()
+                .ip()
+                .receive(self.iface(), metadata, payload),
             Self::ARP => self.iface().protocols().arp().receive(metadata, payload),
             ethertype => warn!(
                 "[{}] Received packet with unknown ethertype {:#06x} from {} to {} (dropped)",

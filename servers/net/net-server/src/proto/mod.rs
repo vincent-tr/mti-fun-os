@@ -1,12 +1,15 @@
 mod arp;
 mod ethernet;
 mod int;
+mod ip;
 
 use alloc::sync::Arc;
 use int::*;
 
 use arp::Arp;
 use ethernet::{Ethernet, EthernetMetadata};
+use ip::Ip;
+use lazy_static::lazy_static;
 use libruntime::net::types::{IpAddress, MacAddress};
 use log::error;
 
@@ -86,5 +89,32 @@ impl InterfaceProtocols {
         };
 
         self.ethernet().send(mac, Ethernet::IPV4, packet).await;
+    }
+}
+
+/// Global protocol instances that are shared across all interfaces.
+#[derive(Debug)]
+pub struct GlobalProtocols {
+    ip: Ip,
+}
+
+impl GlobalProtocols {
+    /// Create new global protocol instances.
+    fn new() -> Self {
+        Self { ip: Ip::new() }
+    }
+
+    /// Get a reference to the global protocol instance.
+    pub fn instance() -> &'static Self {
+        lazy_static! {
+            static ref INSTANCE: GlobalProtocols = GlobalProtocols::new();
+        }
+
+        &INSTANCE
+    }
+
+    /// Get a reference to the IP protocol instance.
+    pub fn ip(&self) -> &Ip {
+        &self.ip
     }
 }

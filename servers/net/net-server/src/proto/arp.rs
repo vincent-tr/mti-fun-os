@@ -299,8 +299,6 @@ impl Arp {
                 if let Some(ip_config) = self.iface().ip_config()
                     && arp_packet.tpa == ip_config.ip_address()
                 {
-                    debug!("Got ARP request: {:?}", arp_packet);
-
                     let iface = self.iface().clone();
                     r#async::spawn(async move {
                         iface

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-trait = { workspace = true }
+bit_field = { workspace = true }
 crc = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }

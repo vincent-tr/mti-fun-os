@@ -708,6 +708,7 @@ name = "net-server"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bit_field",
  "crc",
  "futures",
  "hashbrown 0.15.2",

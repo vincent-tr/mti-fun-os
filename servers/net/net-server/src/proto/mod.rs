@@ -1,14 +1,21 @@
 mod arp;
 mod ethernet;
+mod icmp;
 mod int;
 mod ip;
+mod tcp;
+mod udp;
 
 use alloc::sync::Arc;
 use int::*;
 
 use arp::Arp;
 use ethernet::{Ethernet, EthernetMetadata};
-use ip::Ip;
+use icmp::Icmp;
+use ip::{Ip, IpMetadata};
+use tcp::Tcp;
+use udp::Udp;
+
 use lazy_static::lazy_static;
 use libruntime::net::types::{IpAddress, MacAddress};
 use log::error;
@@ -96,12 +103,20 @@ impl InterfaceProtocols {
 #[derive(Debug)]
 pub struct GlobalProtocols {
     ip: Ip,
+    icmp: Icmp,
+    tcp: Tcp,
+    udp: Udp,
 }
 
 impl GlobalProtocols {
     /// Create new global protocol instances.
     fn new() -> Self {
-        Self { ip: Ip::new() }
+        Self {
+            ip: Ip::new(),
+            icmp: Icmp::new(),
+            tcp: Tcp::new(),
+            udp: Udp::new(),
+        }
     }
 
     /// Get a reference to the global protocol instance.
@@ -116,5 +131,20 @@ impl GlobalProtocols {
     /// Get a reference to the IP protocol instance.
     pub fn ip(&self) -> &Ip {
         &self.ip
+    }
+
+    /// Get a reference to the ICMP protocol instance.
+    pub fn icmp(&self) -> &Icmp {
+        &self.icmp
+    }
+
+    /// Get a reference to the TCP protocol instance.
+    pub fn tcp(&self) -> &Tcp {
+        &self.tcp
+    }
+
+    /// Get a reference to the UDP protocol instance.
+    pub fn udp(&self) -> &Udp {
+        &self.udp
     }
 }

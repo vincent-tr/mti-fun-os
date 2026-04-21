@@ -128,6 +128,17 @@ impl Ip {
         let mut cursor = PacketCursor::new(&packet);
         let mut header = cursor.read::<IpHeader>().expect("Could not read ip header");
 
+        let expected_checksum = self.compute_checksum(&mut header);
+        if header.header_checksum.to_u16() != expected_checksum {
+            warn!(
+                "[{}] Received packet with invalid header checksum: header_checksum={:#04x}, expected={:#04x} (dropped)",
+                iface.name(),
+                header.header_checksum.to_u16(),
+                expected_checksum
+            );
+            return;
+        }
+
         if header.version_ihl.version() != 4 {
             warn!(
                 "[{}] Received packet with unsupported IP version: version={} (dropped)",
@@ -146,22 +157,21 @@ impl Ip {
             return;
         }
 
+        if !Self::check_dest(&iface, header.destination) {
+            debug!(
+                "[{}] Received packet not destined for this interface: destination={}, source={} (dropped)",
+                iface.name(),
+                header.destination,
+                header.source,
+            );
+            return;
+        }
+
         if packet.len() < header.total_length.to_u16() as usize {
             warn!(
                 "[{}] Received packet with total length larger than actual length: total_length={} (dropped)",
                 iface.name(),
                 header.total_length.to_u16()
-            );
-            return;
-        }
-
-        let expected_checksum = self.compute_checksum(&mut header);
-        if header.header_checksum.to_u16() != expected_checksum {
-            warn!(
-                "[{}] Received packet with invalid header checksum: header_checksum={:#04x}, expected={:#04x} (dropped)",
-                iface.name(),
-                header.header_checksum.to_u16(),
-                expected_checksum
             );
             return;
         }
@@ -188,6 +198,19 @@ impl Ip {
                 metadata.source
             ),
         }
+    }
+
+    fn check_dest(iface: &Interface, dest: IpAddress) -> bool {
+        // Can receive broadcast even without ip config (this is how DHCP works)
+        if dest.is_broadcast() {
+            return true;
+        }
+
+        let Some(ip_config) = iface.ip_config() else {
+            return false;
+        };
+
+        return ip_config.ip_address() == dest;
     }
 
     /// Send an IP packet to the specified destination.

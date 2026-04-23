@@ -1,6 +1,10 @@
 use core::fmt;
 
-use crate::{drivers::pci::PciAddress, ipc::buffer_messages::Buffer};
+use crate::{
+    drivers::pci::PciAddress,
+    ipc::buffer_messages::Buffer,
+    net::types::{IpAddress, IpPrefix},
+};
 
 /// Name of the IPC port for the net server.
 pub const PORT_NAME: &str = "net";
@@ -14,6 +18,10 @@ pub const VERSION: u16 = 1;
 pub enum Type {
     CreateInterface = 1,
     DestroyInterface,
+
+    SetRoute,
+    RemoveRoute,
+    ListRoutes,
 }
 
 impl From<Type> for u16 {
@@ -29,6 +37,7 @@ pub enum NetServerError {
     InvalidArgument = 1,
     RuntimeError,
     DeviceError,
+    BufferTooSmall,
 }
 
 impl fmt::Display for NetServerError {
@@ -37,6 +46,7 @@ impl fmt::Display for NetServerError {
             Self::InvalidArgument => write!(f, "InvalidArgument"),
             Self::RuntimeError => write!(f, "RuntimeError"),
             Self::DeviceError => write!(f, "DeviceError"),
+            Self::BufferTooSmall => write!(f, "BufferTooSmall"),
         }
     }
 }
@@ -81,3 +91,69 @@ impl DestroyInterfaceQueryParameters {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DestroyInterfaceReply {}
+
+/// Parameters for the SetRoute message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetRouteQueryParameters {
+    /// Network
+    pub prefix: IpPrefix,
+
+    /// Optional gateway
+    pub gateway: Option<IpAddress>,
+
+    /// Interface used
+    pub iface: Buffer,
+
+    /// Metric for this route
+    pub metric: usize,
+}
+
+impl SetRouteQueryParameters {
+    pub const HANDLE_IFACE_MOBJ: usize = 1;
+}
+
+/// Reply for the SetRoute message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SetRouteReply {}
+
+/// Parameters for the RemoveRoute message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RemoveRouteQueryParameters {
+    /// Network
+    pub prefix: IpPrefix,
+
+    /// Interface used
+    pub iface: Buffer,
+}
+
+impl RemoveRouteQueryParameters {
+    pub const HANDLE_IFACE_MOBJ: usize = 1;
+}
+
+/// Reply for the RemoveRoute message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RemoveRouteReply {}
+
+/// Parameters for the ListRoutes message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListRoutesQueryParameters {
+    /// Buffer to write the list of mounts into.
+    pub buffer: Buffer,
+}
+
+impl ListRoutesQueryParameters {
+    pub const HANDLE_BUFFER_MOBJ: usize = 1;
+}
+
+/// Reply for the ListRoutes message.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ListRoutesReply {
+    /// Number of bytes used in the buffer to write the list of mounts (if the call succeeds)
+    pub buffer_used_len: usize,
+}

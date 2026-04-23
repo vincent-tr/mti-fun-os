@@ -1,15 +1,21 @@
-use alloc::{boxed::Box, string::String, sync::Arc};
+use alloc::{boxed::Box, string::String, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 
 use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::PciAddress,
-    net::iface::{NetServer, NetServerError},
+    net::{
+        iface::{NetServer, NetServerError, Route},
+        types::{IpAddress, IpPrefix},
+    },
     sync::Mutex,
 };
 use log::error;
 
-use crate::iface::Interface;
+use crate::{
+    iface::{Interface, IpConfiguration},
+    proto::GlobalProtocols,
+};
 
 /// The main server structure
 #[derive(Debug)]
@@ -60,9 +66,55 @@ impl NetServer for Server {
             return Err(NetServerError::InvalidArgument);
         };
 
+        GlobalProtocols::instance().ip().routes_remove_iface(&iface);
+
         // Note: we are inconsistent on failure here: we failed to delete the iface, but we cannot keep it alive.
         iface.destroy().await?;
 
         Ok(())
+    }
+
+    async fn set_route(
+        &self,
+        _sender_id: u64,
+        prefix: IpPrefix,
+        gateway: Option<IpAddress>,
+        iface: &str,
+        metric: usize,
+    ) -> Result<(), Self::Error> {
+        let Some(iface) = self.ifaces.lock().get(iface).cloned() else {
+            error!("Interface '{}' does not exist", iface);
+            return Err(NetServerError::InvalidArgument);
+        };
+
+        GlobalProtocols::instance()
+            .ip()
+            .route_set(prefix, iface, gateway, metric);
+
+        Ok(())
+    }
+
+    async fn remove_route(
+        &self,
+        _sender_id: u64,
+        prefix: IpPrefix,
+        iface: &str,
+    ) -> Result<(), Self::Error> {
+        let Some(iface) = self.ifaces.lock().get(iface).cloned() else {
+            error!("Interface '{}' does not exist", iface);
+            return Err(NetServerError::InvalidArgument);
+        };
+
+        GlobalProtocols::instance()
+            .ip()
+            .route_remove(prefix, &iface);
+
+        Ok(())
+    }
+
+    async fn list_routes(&self, _sender_id: u64) -> Result<Vec<Route>, Self::Error> {
+        let routes = GlobalProtocols::instance().ip().routes_list();
+
+        Ok(routes)
     }
 }

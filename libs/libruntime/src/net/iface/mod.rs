@@ -1,11 +1,13 @@
 mod client;
 mod messages;
+mod routes_block;
 mod server;
 
 use crate::{ipc, kobject};
 
 pub use client::{Client, NetServerCallError};
 pub use messages::{NetServerError, PORT_NAME};
+pub use routes_block::{Route, RoutesBlock};
 pub use server::NetServer;
 use server::Server;
 

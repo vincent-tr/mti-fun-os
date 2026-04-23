@@ -112,6 +112,49 @@ impl Index<usize> for IpAddress {
     }
 }
 
+/// IP Prefix (network)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IpPrefix {
+    network: IpAddress,
+    prefix_len: usize, // 0..=32
+}
+
+impl IpPrefix {
+    /// Create a new prefix
+    pub fn new(network: IpAddress, prefix_len: usize) -> Self {
+        assert!(prefix_len <= 32);
+        Self {
+            network,
+            prefix_len,
+        }
+    }
+
+    /// Test if the given IP address is part of the network
+    pub fn matches(&self, ip: IpAddress) -> bool {
+        let mask = if self.prefix_len == 0 {
+            0
+        } else {
+            u32::MAX << (32 - self.prefix_len)
+        };
+
+        let net = self.network.as_u32();
+        let dest = ip.as_u32();
+
+        (net & mask) == (dest & mask)
+    }
+
+    /// Get the prefix length
+    pub fn len(&self) -> usize {
+        self.prefix_len
+    }
+}
+
+impl fmt::Display for IpPrefix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.network, self.prefix_len)
+    }
+}
+
 #[derive(Debug)]
 pub struct BufferPool {
     /// The number of buffers in the pool.

@@ -1,11 +1,18 @@
 use core::fmt;
 
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
 use async_trait::async_trait;
 use log::error;
 
-use crate::{drivers::pci::PciAddress, ipc, kobject};
+use crate::{
+    drivers::pci::PciAddress,
+    ipc, kobject,
+    net::{
+        iface::{Route, RoutesBlock},
+        types::{IpAddress, IpPrefix},
+    },
+};
 
 use super::messages;
 
@@ -29,6 +36,27 @@ pub trait NetServer: Send + Sync {
 
     /// Destroy a network interface.
     async fn destroy_interface(&self, sender_id: u64, name: &str) -> Result<(), Self::Error>;
+
+    /// Create or overwrite (on prefix+iface) a route
+    async fn set_route(
+        &self,
+        sender_id: u64,
+        prefix: IpPrefix,
+        gateway: Option<IpAddress>,
+        iface: &str,
+        metric: usize,
+    ) -> Result<(), Self::Error>;
+
+    /// Remove a route
+    async fn remove_route(
+        &self,
+        sender_id: u64,
+        prefix: IpPrefix,
+        iface: &str,
+    ) -> Result<(), Self::Error>;
+
+    /// List routes
+    async fn list_routes(&self, sender_id: u64) -> Result<Vec<Route>, Self::Error>;
 }
 
 /// The main server structure.
@@ -59,6 +87,9 @@ impl<Impl: NetServer + 'static> Server<Impl> {
             messages::Type::DestroyInterface,
             Self::destroy_interface_handler,
         );
+        let builder = builder.with_handler(messages::Type::SetRoute, Self::set_route_handler);
+        let builder = builder.with_handler(messages::Type::RemoveRoute, Self::remove_route_handler);
+        let builder = builder.with_handler(messages::Type::ListRoutes, Self::list_routes_handler);
 
         let listener = ipc::AsyncProcessTerminationListener::from_handler_method(
             self,
@@ -125,6 +156,85 @@ impl<Impl: NetServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::DestroyInterfaceReply {}, ipc::KHandles::new()))
+    }
+
+    async fn set_route_handler(
+        self: Arc<Self>,
+        query: messages::SetRouteQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::SetRouteReply, ipc::KHandles), NetServerError> {
+        let iface_view = {
+            let handle = query_handles.take(messages::SetRouteQueryParameters::HANDLE_IFACE_MOBJ);
+            ipc::BufferView::new(handle, &query.iface, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create iface buffer view")?
+        };
+
+        let iface = unsafe { iface_view.str() };
+
+        self.inner
+            .set_route(sender_id, query.prefix, query.gateway, iface, query.metric)
+            .await
+            .map_err(Into::into)?;
+
+        Ok((messages::SetRouteReply {}, ipc::KHandles::new()))
+    }
+
+    async fn remove_route_handler(
+        self: Arc<Self>,
+        query: messages::RemoveRouteQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::RemoveRouteReply, ipc::KHandles), NetServerError> {
+        let iface_view = {
+            let handle =
+                query_handles.take(messages::RemoveRouteQueryParameters::HANDLE_IFACE_MOBJ);
+            ipc::BufferView::new(handle, &query.iface, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create iface buffer view")?
+        };
+
+        let iface = unsafe { iface_view.str() };
+
+        self.inner
+            .remove_route(sender_id, query.prefix, iface)
+            .await
+            .map_err(Into::into)?;
+
+        Ok((messages::RemoveRouteReply {}, ipc::KHandles::new()))
+    }
+
+    async fn list_routes_handler(
+        self: Arc<Self>,
+        query: messages::ListRoutesQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::ListRoutesReply, ipc::KHandles), NetServerError> {
+        let mut buffer_view = {
+            let handle =
+                query_handles.take(messages::ListRoutesQueryParameters::HANDLE_BUFFER_MOBJ);
+            ipc::BufferView::new(handle, &query.buffer, ipc::BufferViewAccess::ReadWrite)
+                .invalid_arg("Failed to create routes list buffer view")?
+        };
+
+        let routes = self
+            .inner
+            .list_routes(sender_id)
+            .await
+            .map_err(Into::into)?;
+
+        let buffer_used_len =
+            RoutesBlock::build(&routes, buffer_view.buffer_mut()).map_err(|required_size| {
+                error!("Provided buffer too small for routes list ({} bytes needed, {} bytes provided)",
+                    required_size,
+                    buffer_view.buffer().len()
+                );
+                NetServerError::BufferTooSmall
+            })?;
+
+        Ok((
+            messages::ListRoutesReply { buffer_used_len },
+            ipc::KHandles::new(),
+        ))
     }
 
     async fn process_terminated_handler(self: Arc<Self>, pid: u64) {

@@ -1,11 +1,17 @@
 use core::{
-    fmt, mem, slice,
+    mem, slice,
     sync::atomic::{AtomicU16, Ordering},
 };
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use bit_field::BitField;
-use libruntime::{net::types::IpAddress, sync::RwLock};
+use libruntime::{
+    net::{
+        iface,
+        types::{IpAddress, IpPrefix},
+    },
+    sync::RwLock,
+};
 use log::{debug, warn};
 
 use crate::{
@@ -115,82 +121,41 @@ pub struct IpMetadata {
 }
 
 #[derive(Debug)]
-pub struct IpPrefix {
-    network: IpAddress,
-    prefix_len: usize, // 0..=32
-}
-
-impl IpPrefix {
-    /// Create a new prefix
-    pub fn new(network: IpAddress, prefix_len: usize) -> Self {
-        assert!(prefix_len <= 32);
-        Self {
-            network,
-            prefix_len,
-        }
-    }
-
-    /// Test if the given IP address is part of the network
-    pub fn matches(&self, ip: IpAddress) -> bool {
-        let mask = if self.prefix_len == 0 {
-            0
-        } else {
-            u32::MAX << (32 - self.prefix_len)
-        };
-
-        let net = self.network.as_u32();
-        let dest = ip.as_u32();
-
-        (net & mask) == (dest & mask)
-    }
-}
-
-impl fmt::Display for IpPrefix {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{}", self.network, self.prefix_len)
-    }
-}
-
-#[derive(Debug)]
-pub enum NextHop {
+enum NextHop {
     Direct,             // on-link → ARP(dst)
     Gateway(IpAddress), // via gw → ARP(gw)
 }
 
+impl NextHop {
+    pub fn from_gateway(gateway: Option<IpAddress>) -> Self {
+        if let Some(gateway) = gateway {
+            NextHop::Gateway(gateway)
+        } else {
+            NextHop::Direct
+        }
+    }
+
+    pub fn as_gateway(&self) -> Option<IpAddress> {
+        match self {
+            NextHop::Direct => None,
+            NextHop::Gateway(gateway) => Some(*gateway),
+        }
+    }
+
+    pub fn get(&self, destination: IpAddress) -> IpAddress {
+        match self {
+            NextHop::Direct => destination,
+            NextHop::Gateway(gateway) => *gateway,
+        }
+    }
+}
+
 #[derive(Debug)]
-pub struct Route {
+struct Route {
     prefix: IpPrefix,
     next_hop: NextHop,
     iface: Arc<Interface>,
     metric: usize, // lower = preferred
-}
-
-impl fmt::Display for Route {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Destination
-        if self.prefix.prefix_len == 0 {
-            write!(f, "default")?;
-        } else {
-            write!(f, "{}", self.prefix)?;
-        }
-
-        // Next hop
-        match self.next_hop {
-            NextHop::Direct => {
-                write!(f, " dev {}", self.iface.name())?;
-            }
-            NextHop::Gateway(gw) => {
-                write!(f, " via {} dev {}", gw, self.iface.name())?;
-            }
-        }
-
-        // Metric
-        if self.metric != 0 {
-            write!(f, " metric {}", self.metric)?;
-        }
-
-        Ok(())
-    }
 }
 
 /// IP protocol implementation.
@@ -225,8 +190,68 @@ impl Ip {
         }
     }
 
+    /// Set the given route. If a route already exists for this prefix+iface, it is overwritten.
+    pub fn route_set(
+        &self,
+        prefix: IpPrefix,
+        iface: Arc<Interface>,
+        gateway: Option<IpAddress>,
+        metric: usize,
+    ) {
+        let new_route = Arc::new(Route {
+            prefix,
+            next_hop: NextHop::from_gateway(gateway),
+            iface,
+            metric,
+        });
+
+        let mut routes = self.routes.write();
+
+        // Remove the route if existing
+        routes.retain(|route| {
+            !(route.prefix == new_route.prefix && Arc::ptr_eq(&route.iface, &new_route.iface))
+        });
+
+        routes.push(new_route);
+    }
+
+    /// Remove a route, given its prefix and interface
+    pub fn route_remove(&self, prefix: IpPrefix, iface: &Arc<Interface>) {
+        let mut routes = self.routes.write();
+        routes.retain(|route| !(route.prefix == prefix && Arc::ptr_eq(&route.iface, iface)));
+    }
+
+    /// Test if the given interface is used in the routing table
+    pub fn routes_iface_used(&self, iface: &Arc<Interface>) -> bool {
+        let routes = self.routes.read();
+        routes
+            .iter()
+            .find(|route| Arc::ptr_eq(&route.iface, iface))
+            .is_some()
+    }
+
+    /// Remove all routes used by an interface
+    pub fn routes_remove_iface(&self, iface: &Arc<Interface>) {
+        let mut routes = self.routes.write();
+        routes.retain(|route| !Arc::ptr_eq(&route.iface, iface));
+    }
+
+    /// List routes
+    pub fn routes_list(&self) -> Vec<iface::Route> {
+        self.routes
+            .read()
+            .iter()
+            .map(|route| iface::Route {
+                prefix: route.prefix,
+                gateway: route.next_hop.as_gateway(),
+                iface: String::from(route.iface.name()),
+                metric: route.metric,
+            })
+            .collect()
+    }
+
     /// Process an incoming IP packet.
-    pub fn receive(&self, iface: &Arc<Interface>, metadata: EthernetMetadata, packet: Packet) {
+    pub fn receive(&self, iface: &Arc<Interface>, _metadata: EthernetMetadata, packet: Packet) {
         if packet.len() < mem::size_of::<IpHeader>() {
             warn!(
                 "[{}] Received packet too short to contain Ip header: length={} (dropped)",
@@ -370,7 +395,7 @@ impl Ip {
     pub async fn send(&self, destination: IpAddress, protocol: u8, mut packet: PacketBuilder) {
         if packet.len() > Ethernet::MTU {
             error!(
-                "Packet to big ({}) to fit Ethernet MTU ({}) (dropped)",
+                "Packet too big ({}) to fit Ethernet MTU ({}) (dropped)",
                 packet.len(),
                 Ethernet::MTU
             );
@@ -383,7 +408,7 @@ impl Ip {
             let route = routes
                 .iter()
                 .filter(|route| route.prefix.matches(destination))
-                .max_by_key(|route| (route.prefix.prefix_len, usize::MAX - route.metric))
+                .max_by_key(|route| (route.prefix.len(), usize::MAX - route.metric))
                 .cloned();
 
             let Some(route) = route else {
@@ -394,10 +419,7 @@ impl Ip {
             route
         };
 
-        let next_hop = match route.next_hop {
-            NextHop::Direct => destination,
-            NextHop::Gateway(gateway) => gateway,
-        };
+        let next_hop = route.next_hop.get(destination);
 
         let source = route
             .iface

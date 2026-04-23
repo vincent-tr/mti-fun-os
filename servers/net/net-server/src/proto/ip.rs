@@ -186,7 +186,7 @@ impl fmt::Display for Route {
 
         // Metric
         if self.metric != 0 {
-            write!(f, " metric {}", self.metric);
+            write!(f, " metric {}", self.metric)?;
         }
 
         Ok(())

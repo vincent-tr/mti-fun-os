@@ -40,6 +40,9 @@ impl Ethernet {
     /// ARP ethernet type value.
     pub const ARP: u16 = 0x0806;
 
+    /// Ethernet default MTU
+    pub const MTU: usize = 1500;
+
     /// Create a new Ethernet protocol instance.
     pub fn new(iface: Arc<Interface>) -> Self {
         Self { iface }

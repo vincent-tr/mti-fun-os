@@ -1,7 +1,11 @@
-use core::{mem, slice};
+use core::{
+    fmt, mem, slice,
+    sync::atomic::{AtomicU16, Ordering},
+};
 
+use alloc::vec::Vec;
 use bit_field::BitField;
-use libruntime::net::types::IpAddress;
+use libruntime::{net::types::IpAddress, sync::RwLock};
 use log::{debug, warn};
 
 use crate::{
@@ -19,7 +23,7 @@ struct IpHeader {
     dscp_ecn: u8,
     total_length: NetU16,
     identification: NetU16,
-    flags_fragment_offset: NetU16,
+    flags_fragment_offset: FlagsFragmentOffset,
     ttl: u8,
     protocol: u8,
     header_checksum: NetU16,
@@ -32,6 +36,13 @@ struct IpHeader {
 struct VersionIhl(u8);
 
 impl VersionIhl {
+    pub fn new(version: usize, ihl: usize) -> Self {
+        let mut value = VersionIhl(0);
+        value.set_version(version);
+        value.set_ihl(ihl);
+        value
+    }
+
     pub fn version(&self) -> usize {
         self.0.get_bits(4..8) as usize
     }
@@ -56,6 +67,14 @@ impl VersionIhl {
 struct FlagsFragmentOffset(NetU16);
 
 impl FlagsFragmentOffset {
+    pub fn new(df: bool, mf: bool, fragment_offset: usize) -> Self {
+        let mut value = FlagsFragmentOffset(NetU16::ZERO);
+        value.set_df(df);
+        value.set_mf(mf);
+        value.set_fragment_offset(fragment_offset);
+        value
+    }
+
     pub fn df(&self) -> bool {
         self.0.to_u16().get_bit(1)
     }
@@ -95,9 +114,92 @@ pub struct IpMetadata {
     pub source: IpAddress,
 }
 
+#[derive(Debug)]
+pub struct IpPrefix {
+    network: IpAddress,
+    prefix_len: usize, // 0..=32
+}
+
+impl IpPrefix {
+    /// Create a new prefix
+    pub fn new(network: IpAddress, prefix_len: usize) -> Self {
+        assert!(prefix_len <= 32);
+        Self {
+            network,
+            prefix_len,
+        }
+    }
+
+    /// Test if the given IP address is part of the network
+    pub fn matches(&self, ip: IpAddress) -> bool {
+        let mask = if self.prefix_len == 0 {
+            0
+        } else {
+            u32::MAX << (32 - self.prefix_len)
+        };
+
+        let net = self.network.as_u32();
+        let dest = ip.as_u32();
+
+        (net & mask) == (dest & mask)
+    }
+}
+
+impl fmt::Display for IpPrefix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.network, self.prefix_len)
+    }
+}
+
+#[derive(Debug)]
+pub enum NextHop {
+    Direct,             // on-link → ARP(dst)
+    Gateway(IpAddress), // via gw → ARP(gw)
+}
+
+#[derive(Debug)]
+pub struct Route {
+    prefix: IpPrefix,
+    next_hop: NextHop,
+    iface: Arc<Interface>,
+    metric: usize, // lower = preferred
+}
+
+impl fmt::Display for Route {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Destination
+        if self.prefix.prefix_len == 0 {
+            write!(f, "default")?;
+        } else {
+            write!(f, "{}", self.prefix)?;
+        }
+
+        // Next hop
+        match self.next_hop {
+            NextHop::Direct => {
+                write!(f, " dev {}", self.iface.name())?;
+            }
+            NextHop::Gateway(gw) => {
+                write!(f, " via {} dev {}", gw, self.iface.name())?;
+            }
+        }
+
+        // Metric
+        if self.metric != 0 {
+            write!(f, " metric {}", self.metric);
+        }
+
+        Ok(())
+    }
+}
+
 /// IP protocol implementation.
 #[derive(Debug)]
-pub struct Ip {}
+
+pub struct Ip {
+    routes: RwLock<Vec<Arc<Route>>>,
+    next_id: AtomicU16,
+}
 
 impl Ip {
     /// ICMP protocol number.
@@ -109,9 +211,18 @@ impl Ip {
     /// UDP protocol number.
     pub const UDP: u8 = 17;
 
+    /// Version of IP protocol
+    const IP_VERSION: usize = 4;
+
+    /// TTL used in tx packets
+    const TTL: u8 = 64;
+
     /// Create a new IP protocol instance.
     pub fn new() -> Self {
-        Self {}
+        Self {
+            routes: RwLock::new(Vec::new()),
+            next_id: AtomicU16::new(0),
+        }
     }
 
     /// Process an incoming IP packet.
@@ -139,7 +250,7 @@ impl Ip {
             return;
         }
 
-        if header.version_ihl.version() != 4 {
+        if header.version_ihl.version() != Self::IP_VERSION {
             warn!(
                 "[{}] Received packet with unsupported IP version: version={} (dropped)",
                 iface.name(),
@@ -148,7 +259,7 @@ impl Ip {
             return;
         }
 
-        if header.version_ihl.ihl() < 5 {
+        if header.version_ihl.ihl() < mem::size_of::<IpHeader>() / mem::size_of::<u32>() {
             warn!(
                 "[{}] Received packet with invalid IHL: ihl={} (dropped)",
                 iface.name(),
@@ -172,6 +283,14 @@ impl Ip {
                 "[{}] Received packet with total length larger than actual length: total_length={} (dropped)",
                 iface.name(),
                 header.total_length.to_u16()
+            );
+            return;
+        }
+
+        if header.flags_fragment_offset.mf() || header.flags_fragment_offset.fragment_offset() > 0 {
+            warn!(
+                "[{}] Received packet with fragmentation (dropped)",
+                iface.name(),
             );
             return;
         }
@@ -213,15 +332,10 @@ impl Ip {
         return ip_config.ip_address() == dest;
     }
 
-    /// Send an IP packet to the specified destination.
-    pub async fn send(&self, destination: IpAddress, protocol: u8, mut packet: PacketBuilder) {
-        todo!()
-    }
-
     fn compute_checksum(&self, header: &mut IpHeader) -> u16 {
         // Backup the original checksum value before setting it to zero for calculation
         let checksum_backup = header.header_checksum;
-        header.header_checksum = NetU16::from_u16(0);
+        header.header_checksum = NetU16::ZERO;
 
         let buffer = unsafe {
             slice::from_raw_parts(
@@ -250,5 +364,65 @@ impl Ip {
         }
 
         !(sum as u16)
+    }
+
+    /// Send an IP packet to the specified destination.
+    pub async fn send(&self, destination: IpAddress, protocol: u8, mut packet: PacketBuilder) {
+        if packet.len() > Ethernet::MTU {
+            error!(
+                "Packet to big ({}) to fit Ethernet MTU ({}) (dropped)",
+                packet.len(),
+                Ethernet::MTU
+            );
+            return;
+        }
+
+        let route = {
+            let routes = self.routes.read();
+
+            let route = routes
+                .iter()
+                .filter(|route| route.prefix.matches(destination))
+                .max_by_key(|route| (route.prefix.prefix_len, usize::MAX - route.metric))
+                .cloned();
+
+            let Some(route) = route else {
+                error!("No route to send packet to {} (dropped)", destination,);
+                return;
+            };
+
+            route
+        };
+
+        let next_hop = match route.next_hop {
+            NextHop::Direct => destination,
+            NextHop::Gateway(gateway) => gateway,
+        };
+
+        let source = route
+            .iface
+            .ip_config()
+            .expect("Got interface without IP config")
+            .ip_address();
+
+        let header = IpHeader {
+            version_ihl: VersionIhl::new(
+                Self::IP_VERSION,
+                mem::size_of::<IpHeader>() / mem::size_of::<u32>(),
+            ),
+            dscp_ecn: 0,
+            total_length: NetU16::from_u16((mem::size_of::<IpHeader>() + packet.len()) as u16),
+            identification: NetU16::from_u16(self.next_id.fetch_add(1, Ordering::Relaxed)),
+            flags_fragment_offset: FlagsFragmentOffset::new(true, false, 0),
+            ttl: Self::TTL,
+            protocol,
+            header_checksum: NetU16::ZERO,
+            source,
+            destination,
+        };
+
+        packet.prepend(header);
+
+        route.iface.send_ip_packet(next_hop, packet).await;
     }
 }

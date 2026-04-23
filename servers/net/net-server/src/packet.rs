@@ -236,6 +236,11 @@ impl PacketBuilder {
         }
     }
 
+    // Length of the data in this packet
+    pub fn len(&self) -> usize {
+        self.range.len()
+    }
+
     /// Appends raw data to the packet.
     pub fn append_data(&mut self, mut data: &[u8]) {
         loop {

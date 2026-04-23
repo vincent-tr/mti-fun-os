@@ -6,11 +6,13 @@ use core::fmt;
 pub struct NetU16([u8; 2]);
 
 impl NetU16 {
-    pub fn from_u16(value: u16) -> Self {
+    pub const ZERO: Self = Self::from_u16(0);
+
+    pub const fn from_u16(value: u16) -> Self {
         Self(value.to_be_bytes())
     }
 
-    pub fn to_u16(&self) -> u16 {
+    pub const fn to_u16(&self) -> u16 {
         u16::from_be_bytes(self.0)
     }
 }
@@ -57,11 +59,13 @@ impl fmt::UpperHex for NetU16 {
 pub struct NetU32([u8; 4]);
 
 impl NetU32 {
-    pub fn from_u32(value: u32) -> Self {
+    pub const ZERO: Self = Self::from_u32(0);
+
+    pub const fn from_u32(value: u32) -> Self {
         Self(value.to_be_bytes())
     }
 
-    pub fn to_u32(&self) -> u32 {
+    pub const fn to_u32(&self) -> u32 {
         u32::from_be_bytes(self.0)
     }
 }

@@ -1,6 +1,6 @@
 use core::{mem, ops::Range, slice};
 
-use alloc::{collections::vec_deque::VecDeque, sync::Arc, vec::Vec};
+use alloc::{collections::vec_deque::VecDeque, sync::Arc};
 use smallvec::SmallVec;
 
 use crate::buffer_pool::Buffer;
@@ -12,37 +12,6 @@ use crate::buffer_pool::Buffer;
 pub struct Packet {
     buffers: SmallVec<[BufferData; 4]>,
     len: usize,
-}
-
-/// A `BufferData` represents a single buffer and the range of data within that buffer that is part of the packet.
-#[derive(Debug)]
-pub struct BufferData {
-    buffer: Arc<Buffer>,
-    range: Range<usize>,
-}
-
-impl BufferData {
-    /// Creates a new `BufferData` with the given buffer and range.
-    pub fn new(buffer: Arc<Buffer>, range: Range<usize>) -> Self {
-        Self { buffer, range }
-    }
-
-    /// Returns a slice of the buffer data for the specified range.
-    pub fn slice(&self, range: Range<usize>) -> BufferData {
-        let start = self.range.start + range.start;
-        let end = self.range.start + range.end;
-        BufferData::new(self.buffer.clone(), start..end)
-    }
-
-    /// Returns a slice of the buffer data for the entire range.
-    pub fn view(&self) -> &[u8] {
-        &self.buffer.view()[self.range.clone()]
-    }
-
-    /// Consumes the `BufferData`, returning the underlying buffer and range.
-    pub fn into_inner(self) -> (Arc<Buffer>, Range<usize>) {
-        (self.buffer, self.range)
-    }
 }
 
 impl Packet {
@@ -90,8 +59,39 @@ impl Packet {
     }
 
     /// Return the data contained in the packet
-    pub fn view(&self) -> Vec<&[u8]> {
-        self.buffers.iter().map(|buffer| buffer.view()).collect()
+    pub fn view(&self) -> impl Iterator<Item = &[u8]> {
+        self.buffers.iter().map(|buffer| buffer.view())
+    }
+}
+
+/// A `BufferData` represents a single buffer and the range of data within that buffer that is part of the packet.
+#[derive(Debug)]
+pub struct BufferData {
+    buffer: Arc<Buffer>,
+    range: Range<usize>,
+}
+
+impl BufferData {
+    /// Creates a new `BufferData` with the given buffer and range.
+    pub fn new(buffer: Arc<Buffer>, range: Range<usize>) -> Self {
+        Self { buffer, range }
+    }
+
+    /// Returns a slice of the buffer data for the specified range.
+    pub fn slice(&self, range: Range<usize>) -> BufferData {
+        let start = self.range.start + range.start;
+        let end = self.range.start + range.end;
+        BufferData::new(self.buffer.clone(), start..end)
+    }
+
+    /// Returns a slice of the buffer data for the entire range.
+    pub fn view(&self) -> &[u8] {
+        &self.buffer.view()[self.range.clone()]
+    }
+
+    /// Consumes the `BufferData`, returning the underlying buffer and range.
+    pub fn into_inner(self) -> (Arc<Buffer>, Range<usize>) {
+        (self.buffer, self.range)
     }
 }
 
@@ -337,5 +337,21 @@ impl PacketBuilder {
         }
 
         Packet::new(buffers)
+    }
+
+    /// Return the data contained in the packet builder
+    pub fn view(&self) -> impl Iterator<Item = &[u8]> {
+        let len = self.buffers.len();
+
+        self.buffers.iter().enumerate().map(move |(index, buffer)| {
+            let start = if index == 0 { self.range.start } else { 0 };
+            let end = if index == len - 1 {
+                self.range.end % Buffer::SIZE
+            } else {
+                Buffer::SIZE
+            };
+
+            &buffer.view()[start..end]
+        })
     }
 }

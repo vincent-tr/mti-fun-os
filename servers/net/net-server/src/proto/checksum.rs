@@ -1,7 +1,5 @@
 use core::{mem, slice};
 
-use crate::packet::Packet;
-
 /// IP checksum computer
 #[derive(Debug)]
 pub struct Checksum {
@@ -25,8 +23,8 @@ impl Checksum {
     }
 
     /// Add the data of the packet
-    pub fn update_packet(&mut self, packet: &Packet) {
-        for buffer in packet.view() {
+    pub fn update_packet_view<'a>(&mut self, packet: impl Iterator<Item = &'a [u8]>) {
+        for buffer in packet {
             self.update_data(buffer);
         }
     }

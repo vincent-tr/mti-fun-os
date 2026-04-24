@@ -1,6 +1,6 @@
 use core::{mem, ops::Range, slice};
 
-use alloc::{collections::vec_deque::VecDeque, sync::Arc};
+use alloc::{collections::vec_deque::VecDeque, sync::Arc, vec::Vec};
 use smallvec::SmallVec;
 
 use crate::buffer_pool::Buffer;
@@ -87,6 +87,11 @@ impl Packet {
         }
 
         Packet::new(new_buffers)
+    }
+
+    /// Return the data contained in the packet
+    pub fn view(&self) -> Vec<&[u8]> {
+        self.buffers.iter().map(|buffer| buffer.view()).collect()
     }
 }
 

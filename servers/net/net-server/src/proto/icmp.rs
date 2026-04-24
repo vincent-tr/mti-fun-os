@@ -98,6 +98,8 @@ impl Icmp {
 
         match kind {
             IcmpKind::EchoRequest => {
+                debug!("Got ping from {}, sending pong", metadata.source);
+
                 let mut packet = PacketBuilder::new();
                 for buffer in payload.view() {
                     packet.append_data(buffer);
@@ -106,12 +108,7 @@ impl Icmp {
                 r#async::spawn(async move {
                     GlobalProtocols::instance()
                         .icmp()
-                        .send(
-                            metadata.destination,
-                            IcmpKind::EchoReply,
-                            header.rest,
-                            packet,
-                        )
+                        .send(metadata.source, IcmpKind::EchoReply, header.rest, packet)
                         .await
                 });
             }

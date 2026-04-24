@@ -1,5 +1,5 @@
 use core::{
-    mem, slice,
+    mem,
     sync::atomic::{AtomicU16, Ordering},
 };
 
@@ -362,33 +362,13 @@ impl Ip {
         let checksum_backup = header.header_checksum;
         header.header_checksum = NetU16::ZERO;
 
-        let buffer = unsafe {
-            slice::from_raw_parts(
-                (header as *const IpHeader) as *const u8,
-                mem::size_of::<IpHeader>(),
-            )
-        };
-
-        let mut sum: u32 = 0;
-        let mut chunks = buffer.chunks_exact(2);
-
-        for chunk in &mut chunks {
-            let word = u16::from_be_bytes([chunk[0], chunk[1]]);
-            sum += word as u32;
-        }
-
-        if let Some(&last) = chunks.remainder().first() {
-            sum += (last as u32) << 8;
-        }
+        let mut computer = Checksum::new();
+        computer.update(header);
 
         // Restore the original checksum value
         header.header_checksum = checksum_backup;
 
-        while (sum >> 16) != 0 {
-            sum = (sum & 0xffff) + (sum >> 16);
-        }
-
-        !(sum as u16)
+        computer.finalize()
     }
 
     /// Send an IP packet to the specified destination.
@@ -427,7 +407,7 @@ impl Ip {
             .expect("Got interface without IP config")
             .ip_address();
 
-        let header = IpHeader {
+        let mut header = IpHeader {
             version_ihl: VersionIhl::new(
                 Self::IP_VERSION,
                 mem::size_of::<IpHeader>() / mem::size_of::<u32>(),
@@ -442,6 +422,8 @@ impl Ip {
             source,
             destination,
         };
+
+        header.header_checksum = NetU16::from_u16(self.compute_checksum(&mut header));
 
         packet.prepend(header);
 

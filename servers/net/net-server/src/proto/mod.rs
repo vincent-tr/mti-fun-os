@@ -1,4 +1,5 @@
 mod arp;
+mod checksum;
 mod ethernet;
 mod icmp;
 mod int;
@@ -7,6 +8,7 @@ mod tcp;
 mod udp;
 
 use alloc::sync::Arc;
+use checksum::*;
 use int::*;
 
 use arp::Arp;

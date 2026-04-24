@@ -20,6 +20,8 @@ impl Checksum {
     pub fn update<T>(&mut self, data: &T) {
         let buffer =
             unsafe { slice::from_raw_parts((data as *const T) as *const u8, mem::size_of::<T>()) };
+
+        self.update_data(buffer);
     }
 
     /// Add the data of the packet

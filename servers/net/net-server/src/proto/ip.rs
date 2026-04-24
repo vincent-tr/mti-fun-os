@@ -84,33 +84,33 @@ impl FlagsFragmentOffset {
     }
 
     pub fn df(&self) -> bool {
-        self.0.to_u16().get_bit(1)
+        self.0.to_u16().get_bit(14)
     }
 
     pub fn set_df(&mut self, value: bool) {
         let mut field_value = self.0.to_u16();
-        field_value.set_bit(1, value);
+        field_value.set_bit(14, value);
         self.0 = NetU16::from_u16(field_value);
     }
 
     pub fn mf(&self) -> bool {
-        self.0.to_u16().get_bit(2)
+        self.0.to_u16().get_bit(13)
     }
 
     pub fn set_mf(&mut self, value: bool) {
         let mut field_value = self.0.to_u16();
-        field_value.set_bit(2, value);
+        field_value.set_bit(13, value);
         self.0 = NetU16::from_u16(field_value);
     }
 
     pub fn fragment_offset(&self) -> usize {
-        self.0.to_u16().get_bits(4..16) as usize
+        self.0.to_u16().get_bits(0..13) as usize
     }
 
     pub fn set_fragment_offset(&mut self, value: usize) {
         assert!(value <= 0x1FFF, "Fragment offset value must fit in 13 bits");
         let mut field_value = self.0.to_u16();
-        field_value.set_bits(3..16, value as u16);
+        field_value.set_bits(0..13, value as u16);
         self.0 = NetU16::from_u16(field_value);
     }
 }

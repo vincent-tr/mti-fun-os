@@ -24,6 +24,7 @@ use super::*;
 /// Ip header struct, representing the header of an Ip packet.
 #[derive(Debug)]
 #[repr(packed)]
+#[allow(dead_code)]
 struct IpHeader {
     version_ihl: VersionIhl,
     dscp_ecn: u8,
@@ -72,6 +73,7 @@ impl VersionIhl {
 #[repr(transparent)]
 struct FlagsFragmentOffset(NetU16);
 
+#[allow(dead_code)]
 impl FlagsFragmentOffset {
     pub fn new(df: bool, mf: bool, fragment_offset: usize) -> Self {
         let mut value = FlagsFragmentOffset(NetU16::ZERO);

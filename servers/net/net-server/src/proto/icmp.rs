@@ -1,5 +1,6 @@
 use core::{fmt, mem};
 
+use libruntime::r#async;
 use log::{debug, warn};
 
 use crate::packet::{Packet, PacketCursor};
@@ -57,10 +58,6 @@ pub struct RestEcho {
 pub struct Icmp {}
 
 impl Icmp {
-    const ECHO_REPLY: u8 = 0;
-    const DESTINATION_UNREACHABLE: u8 = 3;
-    const ECHO_REQUEST: u8 = 8;
-
     /// Create a new ICMP protocol instance.
     pub fn new() -> Self {
         Self {}
@@ -100,7 +97,24 @@ impl Icmp {
         let kind = IcmpKind::from_type_code(header.r#type, header.code);
 
         match kind {
-            IcmpKind::EchoRequest => {}
+            IcmpKind::EchoRequest => {
+                let mut packet = PacketBuilder::new();
+                for buffer in payload.view() {
+                    packet.append_data(buffer);
+                }
+
+                r#async::spawn(async move {
+                    GlobalProtocols::instance()
+                        .icmp()
+                        .send(
+                            metadata.destination,
+                            IcmpKind::EchoReply,
+                            header.rest,
+                            packet,
+                        )
+                        .await
+                });
+            }
 
             other => debug!(
                 "Received unhandled ICMP packet from {}: {}",

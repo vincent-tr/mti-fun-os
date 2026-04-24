@@ -356,7 +356,15 @@ impl Ip {
             return false;
         };
 
-        return ip_config.ip_address() == dest;
+        if ip_config.ip_address() == dest {
+            return true;
+        }
+
+        if ip_config.get_prefix().subnet_broadcast() == dest {
+            return true;
+        }
+
+        false
     }
 
     fn compute_checksum(&self, header: &mut IpHeader) -> u16 {

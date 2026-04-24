@@ -16,7 +16,7 @@ use libruntime::{
             RxArrivedNotification, TxFreeNotification,
         },
         iface::NetServerError,
-        types::{BufferPool, IpAddress, MacAddress},
+        types::{BufferPool, IpAddress, IpPrefix, MacAddress},
     },
     sync::{Mutex, r#async::NotifyOnce},
     time,
@@ -482,6 +482,16 @@ impl IpConfiguration {
     fn is_same_subnet(&self, ip_address: IpAddress) -> bool {
         self.ip_address.as_u32() & self.subnet_mask.as_u32()
             == ip_address.as_u32() & self.subnet_mask.as_u32()
+    }
+
+    pub fn get_prefix(&self) -> IpPrefix {
+        let ip = self.ip_address.as_u32();
+        let mask = self.subnet_mask.as_u32();
+
+        let network = IpAddress::from(ip & mask);
+        let prefix_len = mask.count_ones() as usize;
+
+        IpPrefix::new(network, prefix_len)
     }
 }
 

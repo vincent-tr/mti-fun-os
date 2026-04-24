@@ -75,32 +75,31 @@ impl From<[u8; 4]> for IpAddress {
     }
 }
 
-impl IpAddress {
-    pub fn any() -> Self {
-        Self([0; 4])
+impl From<u32> for IpAddress {
+    fn from(value: u32) -> Self {
+        Self(value.to_be_bytes())
     }
+}
+
+impl IpAddress {
+    pub const ANY: IpAddress = Self([0; 4]);
 
     pub fn is_any(&self) -> bool {
         self.0 == [0; 4]
     }
 
-    pub fn broadcast() -> Self {
-        Self([255; 4])
-    }
+    pub const BROADCAST: IpAddress = Self([255; 4]);
 
     pub fn is_broadcast(&self) -> bool {
         self.0 == [255; 4]
     }
 
-    pub fn as_bytes(&self) -> &[u8; 4] {
+    pub const fn as_bytes(&self) -> &[u8; 4] {
         &self.0
     }
 
-    pub fn as_u32(&self) -> u32 {
-        ((self.0[0] as u32) << 24)
-            | ((self.0[1] as u32) << 16)
-            | ((self.0[2] as u32) << 8)
-            | (self.0[3] as u32)
+    pub const fn as_u32(&self) -> u32 {
+        u32::from_be_bytes(self.0)
     }
 }
 
@@ -141,6 +140,17 @@ impl IpPrefix {
         let dest = ip.as_u32();
 
         (net & mask) == (dest & mask)
+    }
+
+    /// Returns the subnet broadcast address for this prefix.
+    pub fn subnet_broadcast(&self) -> IpAddress {
+        let host_mask = if self.prefix_len == 0 {
+            u32::MAX
+        } else {
+            (1u32 << (32 - self.prefix_len as u32)) - 1
+        };
+
+        IpAddress::from(self.network.as_u32() | host_mask)
     }
 
     /// Get the prefix length

@@ -450,6 +450,11 @@ impl Interface {
     pub async fn send_ip_packet(&self, next_hop: IpAddress, packet: PacketBuilder) {
         self.protocols().send_ip_packet(next_hop, packet).await;
     }
+
+    /// Update ARP cache using the given association
+    pub fn learn_arp(&self, ip: IpAddress, mac: MacAddress) {
+        self.protocols().arp().update(ip, mac);
+    }
 }
 
 /// IP configuration for an interface, including IP address and subnet mask.

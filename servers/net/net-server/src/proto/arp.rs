@@ -244,7 +244,7 @@ impl Arp {
     }
 
     /// Update the ARP cache with a resolved IP-to-MAC mapping.
-    fn update(&self, ip: IpAddress, mac: MacAddress) {
+    pub fn update(&self, ip: IpAddress, mac: MacAddress) {
         debug!("[{}] Updating ARP cache: {} is at {}", self.name(), ip, mac);
         let mut cache = self.cache.lock();
 

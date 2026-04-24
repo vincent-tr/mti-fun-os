@@ -253,7 +253,12 @@ impl Ip {
     }
 
     /// Process an incoming IP packet.
-    pub fn receive(&self, iface: &Arc<Interface>, _metadata: EthernetMetadata, packet: Packet) {
+    pub fn receive(
+        &self,
+        iface: &Arc<Interface>,
+        ethernet_metadata: EthernetMetadata,
+        packet: Packet,
+    ) {
         if packet.len() < mem::size_of::<IpHeader>() {
             warn!(
                 "[{}] Received packet too short to contain Ip header: length={} (dropped)",
@@ -330,6 +335,18 @@ impl Ip {
             destination: header.destination,
             source: header.source,
         };
+
+        let subnet_broadcast = iface
+            .ip_config()
+            .expect("Got packet from interface without ip config")
+            .get_prefix()
+            .subnet_broadcast();
+        if !ethernet_metadata.source.is_broadcast()
+            && !metadata.source.is_broadcast()
+            && metadata.source != subnet_broadcast
+        {
+            iface.learn_arp(metadata.source, ethernet_metadata.source);
+        }
 
         match header.protocol {
             Self::ICMP => GlobalProtocols::instance()

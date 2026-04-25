@@ -45,7 +45,9 @@ impl fmt::Debug for RxRing {
     }
 }
 
+// Force it to be page-aligned, to ensure that the whole buffer physical layout is contigous
 #[derive(Debug)]
+#[repr(align(4096))]
 struct RxDescriptors([descriptors::RxDescriptor; RX_RING_SIZE]);
 
 impl Default for RxDescriptors {
@@ -81,13 +83,13 @@ impl RxRing {
             );
 
             assert!(
-                RX_RING_SIZE % 128 == 0,
-                "Rx ring size must be a multiple of 128"
+                mem::align_of::<RxDescriptors>() == kobject::PAGE_SIZE,
+                "Rx ring must be aligned to page size"
             );
 
             assert!(
-                mem::align_of::<RxDescriptors>() <= 16,
-                "Rx ring must be aligned to at least 16 bytes"
+                RX_RING_SIZE % 128 == 0,
+                "Rx ring size must be a multiple of 128"
             );
         }
 

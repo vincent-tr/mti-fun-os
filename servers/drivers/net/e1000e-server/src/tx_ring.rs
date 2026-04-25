@@ -45,7 +45,9 @@ impl fmt::Debug for TxRing {
     }
 }
 
+// Force it to be page-aligned, to ensure that the whole buffer physical layout is contigous
 #[derive(Debug)]
+#[repr(align(4096))]
 struct TxDescriptors([descriptors::TxDescriptor; TX_RING_SIZE]);
 
 impl Default for TxDescriptors {
@@ -81,13 +83,13 @@ impl TxRing {
             );
 
             assert!(
-                TX_RING_SIZE % 128 == 0,
-                "Tx ring size must be a multiple of 128"
+                mem::align_of::<TxDescriptors>() == kobject::PAGE_SIZE,
+                "Rx ring must be aligned to page size"
             );
 
             assert!(
-                mem::align_of::<TxDescriptors>() <= 16,
-                "Tx ring must be aligned to at least 16 bytes"
+                TX_RING_SIZE % 128 == 0,
+                "Tx ring size must be a multiple of 128"
             );
         }
 

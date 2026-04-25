@@ -161,7 +161,7 @@ impl TxRing {
                 break;
             }
 
-            self.set_buffer(next_index, buffer);
+            self.set_buffer(self.tail, buffer);
 
             self.tail = next_index;
             added += 1;

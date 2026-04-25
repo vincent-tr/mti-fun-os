@@ -243,7 +243,7 @@ impl EduDevice {
 
 #[unsafe(no_mangle)]
 pub fn main() -> i32 {
-    log::info!("edu-server starting...");
+    info!("edu-server starting...");
 
     // Find the EDU device on the PCI bus
     let pci_address = match find_edu_device() {
@@ -256,10 +256,10 @@ pub fn main() -> i32 {
 
     let edu = EduDevice::new(pci_address);
 
-    log::info!("EDU device initialized successfully");
+    info!("EDU device initialized successfully");
 
-    log::info!("Edu device ID: 0x{:08x}", edu.id());
-    log::info!(
+    info!("Edu device ID: 0x{:08x}", edu.id());
+    info!(
         "Edu liveness check: {}",
         if edu.check_liveness() {
             "passed"
@@ -269,30 +269,30 @@ pub fn main() -> i32 {
     );
 
     let n = 5;
-    log::info!("Computing factorial of {} using EDU device...", n);
+    info!("Computing factorial of {} using EDU device...", n);
     let result = edu.compute_factorial(n);
-    log::info!("Factorial of {} is {}", n, result);
+    info!("Factorial of {} is {}", n, result);
 
-    log::info!("Triggering an interrupt from the EDU device...");
+    info!("Triggering an interrupt from the EDU device...");
     edu.trigger_irq();
-    log::info!("Waiting for interrupt...");
+    info!("Waiting for interrupt...");
     edu.wait_for_irq();
-    log::info!("Interrupt received, acknowledging...");
+    info!("Interrupt received, acknowledging...");
     edu.acknowledge_irq();
-    log::info!("Interrupt acknowledged");
+    info!("Interrupt acknowledged");
 
     let source_buffer = "Hello, EDU DMA!".as_bytes();
-    log::info!(
+    info!(
         "Testing host-to-device DMA with buffer: {:?}",
         source_buffer
     );
     edu.dma_host_to_device(source_buffer, 0);
-    log::info!("Host-to-device DMA completed");
+    info!("Host-to-device DMA completed");
     let mut dest_buffer = Vec::with_capacity(source_buffer.len());
     dest_buffer.resize(source_buffer.len(), 0);
-    log::info!("Testing device-to-host DMA to read back the buffer...");
+    info!("Testing device-to-host DMA to read back the buffer...");
     edu.dma_device_to_host(0, &mut dest_buffer);
-    log::info!(
+    info!(
         "Device-to-host DMA completed, buffer read back: {:?}",
         dest_buffer
     );

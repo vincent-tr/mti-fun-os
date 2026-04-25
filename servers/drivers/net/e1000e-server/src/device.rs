@@ -16,7 +16,7 @@ use libruntime::{
         types::{BufferPool, MacAddress, PhysAddr, PhysBufferPoolAccess},
     },
 };
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 
 /// Represents an E1000e network device.
 #[derive(Debug)]
@@ -193,7 +193,7 @@ impl E1000eDevice {
         let cause: registers::InterruptCause =
             self.dev_data.mmio_read(registers::InterruptCause::OFFSET);
 
-        debug!("[{}] Interrupt received: {:?}", self.dev_data.name(), cause);
+        trace!("[{}] Interrupt received: {:?}", self.dev_data.name(), cause);
 
         if cause.rx_overrun() {
             warn!(

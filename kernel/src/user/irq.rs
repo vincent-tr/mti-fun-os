@@ -1,7 +1,7 @@
 use core::ptr;
 
 use alloc::sync::Arc;
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use spin::RwLock;
 use syscalls::IrqEvent;
 
@@ -161,7 +161,7 @@ lazy_static::lazy_static! {
 
 /// Called by the ISR management code when a device IRQ is triggered.
 pub fn handle_irq(vector: u8) {
-    debug!("Handling IRQ {}", vector);
+    trace!("Handling IRQ {}", vector);
 
     let table = IRQ_TABLE.read();
 

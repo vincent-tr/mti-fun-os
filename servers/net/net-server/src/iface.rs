@@ -21,7 +21,7 @@ use libruntime::{
     sync::{Mutex, r#async::NotifyOnce},
     time,
 };
-use log::{debug, error};
+use log::{debug, error, trace};
 use smallvec::SmallVec;
 
 use crate::{
@@ -281,7 +281,7 @@ impl Interface {
             }
         }
 
-        debug!("[{}] Added {} rx buffers to driver", self.name(), total);
+        trace!("[{}] Added {} rx buffers to driver", self.name(), total);
 
         Ok(())
     }

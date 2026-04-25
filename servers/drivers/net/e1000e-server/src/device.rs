@@ -193,17 +193,27 @@ impl E1000eDevice {
         let cause: registers::InterruptCause =
             self.dev_data.mmio_read(registers::InterruptCause::OFFSET);
 
-        debug!(
-            "Interrupt received on {}, cause: {:?}",
-            self.dev_data.name(),
-            cause
-        );
+        debug!("[{}] Interrupt received: {:?}", self.dev_data.name(), cause);
 
         if cause.rx_overrun() {
             warn!(
-                "Receive FIFO overrun on NIC {}, some packets may have been dropped",
+                "[{}] Receive FIFO overrun, some packets may have been dropped",
                 self.dev_data.name()
             );
+        }
+
+        if cause.rx_descriptor_minimum_threashold_reached() {
+            warn!(
+                "[{}] Receive RX descriptor low threshold",
+                self.dev_data.name()
+            )
+        }
+
+        if cause.tx_descriptor_low_threshold() {
+            warn!(
+                "[{}] Receive TX descriptor low threshold",
+                self.dev_data.name()
+            )
         }
 
         if cause.link_status_change() {

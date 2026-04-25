@@ -8,7 +8,7 @@ use libruntime::{
     sync::{Mutex, r#async::NotifyOnce},
     time,
 };
-use log::{debug, warn};
+use log::{debug, trace, warn};
 
 use crate::{
     iface::Interface,
@@ -245,7 +245,7 @@ impl Arp {
 
     /// Update the ARP cache with a resolved IP-to-MAC mapping.
     pub fn update(&self, ip: IpAddress, mac: MacAddress) {
-        debug!("[{}] Updating ARP cache: {} is at {}", self.name(), ip, mac);
+        trace!("[{}] Updating ARP cache: {} is at {}", self.name(), ip, mac);
         let mut cache = self.cache.lock();
 
         let resolved = ResolvedEntry {

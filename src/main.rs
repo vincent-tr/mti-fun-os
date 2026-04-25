@@ -28,6 +28,9 @@ fn main() {
         ])
         .arg("-s");
 
+        // Add debug to some component
+        // .args(&["-trace", "e1000*"]);
+
     if std::env::var("MTI_FUN_OS_DEBUG").is_ok() {
         // Do not start the CPU immediately, so that we have time to attach gdb
         cmd.arg("-S");

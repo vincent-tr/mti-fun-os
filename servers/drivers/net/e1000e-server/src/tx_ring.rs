@@ -192,6 +192,8 @@ impl TxRing {
 
         let mut cmd = descriptors::TxDescriptorCommand::default();
         cmd.set_end_of_packet(buffer.end_of_packet());
+        cmd.set_insert_fcs(true);
+        cmd.set_report_status(true);
         desc.set_command(cmd);
     }
 

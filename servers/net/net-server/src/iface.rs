@@ -3,7 +3,7 @@ use core::{
     mem::{self, MaybeUninit},
 };
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{collections::vec_deque::VecDeque, string::String, sync::Arc, vec::Vec};
 use futures::{FutureExt, select_biased};
 use hashbrown::HashMap;
 use libruntime::{
@@ -21,7 +21,7 @@ use libruntime::{
     sync::{Mutex, r#async::NotifyOnce},
     time,
 };
-use log::{debug, error, trace};
+use log::{error, trace};
 use smallvec::SmallVec;
 
 use crate::{
@@ -50,7 +50,7 @@ pub struct Interface {
 
     /// The set of buffer currently in use by the NIC side of this interface.
     /// On destroy, the interface will free any buffers in this set back to the buffer pool.
-    buffers: Mutex<HashMap<usize, Arc<Buffer>>>,
+    borrowed_buffers: BorrowedBuffers,
 
     /// The worker task that listens for notifications from the driver and handles them.
     worker: Mutex<Option<Worker>>,
@@ -149,7 +149,7 @@ impl Interface {
             mac_address,
             ipc_client,
             handle,
-            buffers: Mutex::new(HashMap::new()),
+            borrowed_buffers: BorrowedBuffers::new(),
             worker: Mutex::new(None),
             tick_worker: Mutex::new(None),
             link_status_change_port,
@@ -209,7 +209,7 @@ impl Interface {
             self.protocols.assume_init_drop();
         }
 
-        self.buffers.lock().clear();
+        self.borrowed_buffers.clear();
 
         Ok(())
     }
@@ -265,13 +265,15 @@ impl Interface {
                 buffers.push(buffer);
             }
 
+            let call = self.borrowed_buffers.call(buffers.iter().cloned());
+
             let count = self
                 .ipc_client
                 .add_rx_buffers(self.handle, &buffer_indexes)
                 .await
                 .into_net_error()?;
 
-            self.keep_buffers(buffers.into_iter().take(count));
+            call.validate(count);
 
             total += count;
 
@@ -302,20 +304,13 @@ impl Interface {
             let msg = unsafe { msg.data::<RxArrivedNotification>() };
 
             {
-                let mut buffers = self.buffers.lock();
                 let mut rx_pending_buffers = self.rx_pending_buffers.lock();
                 for desc in msg.rx_descriptors {
                     if !desc.is_valid() {
                         break;
                     }
 
-                    let Some(buffer) = buffers.remove(&desc.buffer_index()) else {
-                        panic!(
-                            "[{}] Received rx notification for buffer index {} which is not currently in use",
-                            self.name(),
-                            desc.buffer_index(),
-                        );
-                    };
+                    let buffer = self.borrowed_buffers.release(desc.buffer_index());
 
                     let buffer_data = BufferData::new(buffer, 0..desc.length());
                     rx_pending_buffers.add(buffer_data, desc.error());
@@ -351,20 +346,13 @@ impl Interface {
             };
 
             let msg = unsafe { msg.data::<TxFreeNotification>() };
-            let mut buffers = self.buffers.lock();
-            for &index in &msg.buffers {
-                let index = index as usize;
-                if index == BufferPool::INVALID_INDEX {
+            for &buffer_id in &msg.buffers {
+                let buffer_id = buffer_id as usize;
+                if buffer_id == BufferPool::INVALID_INDEX {
                     continue;
                 }
 
-                if buffers.remove(&index).is_none() {
-                    panic!(
-                        "[{}] Received tx free notification for buffer index {} which is not currently in use",
-                        self.name(),
-                        index
-                    );
-                }
+                self.borrowed_buffers.release(buffer_id);
             }
         }
     }
@@ -413,6 +401,8 @@ impl Interface {
             buffers.push(buffer);
         }
 
+        let call = self.borrowed_buffers.call(buffers.iter().cloned());
+
         let count = match self.ipc_client.tx(self.handle, &desc).await {
             Ok(count) => count,
             Err(e) => {
@@ -425,6 +415,8 @@ impl Interface {
             }
         };
 
+        call.validate(count);
+
         if count < desc.len() {
             // Note: as we did not include last packet, this will also probably mess next packet
             error!(
@@ -433,16 +425,6 @@ impl Interface {
                 count,
                 desc.len(),
             );
-        }
-
-        self.keep_buffers(buffers.into_iter().take(count));
-    }
-
-    fn keep_buffers(&self, iter: impl Iterator<Item = Arc<Buffer>>) {
-        let mut buffers = self.buffers.lock();
-
-        for buffer in iter {
-            buffers.insert(buffer.id(), buffer);
         }
     }
 
@@ -454,6 +436,90 @@ impl Interface {
     /// Update ARP cache using the given association
     pub fn learn_arp(&self, ip: IpAddress, mac: MacAddress) {
         self.protocols().arp().update(ip, mac);
+    }
+}
+
+#[derive(Debug)]
+struct PrepareInterfaceBuffers {}
+
+#[derive(Debug)]
+struct BorrowedBuffers(Mutex<HashMap<usize, Arc<Buffer>>>);
+
+impl BorrowedBuffers {
+    pub fn new() -> Self {
+        Self(Mutex::new(HashMap::new()))
+    }
+
+    pub fn call(&self, buffers: impl Iterator<Item = Arc<Buffer>>) -> BorrowedBufferCall<'_> {
+        let mut borrowed_buffers = self.0.lock();
+        let mut buffer_ids = VecDeque::new();
+
+        for buffer in buffers {
+            buffer_ids.push_back(buffer.id());
+            borrowed_buffers.insert(buffer.id(), buffer);
+        }
+
+        BorrowedBufferCall {
+            owner: self,
+            buffer_ids,
+        }
+    }
+
+    pub fn release_many(&self, buffer_ids: impl Iterator<Item = usize>) {
+        let mut borrowed_buffers = self.0.lock();
+
+        for buffer_id in buffer_ids {
+            if borrowed_buffers.remove(&buffer_id).is_none() {
+                panic!(
+                    "Tried to release buffer #{} which is not currently in use",
+                    buffer_id,
+                );
+            }
+        }
+    }
+
+    pub fn release(&self, buffer_id: usize) -> Arc<Buffer> {
+        let mut borrowed_buffers = self.0.lock();
+
+        let Some(buffer) = borrowed_buffers.remove(&buffer_id) else {
+            panic!(
+                "Tried to release buffer #{} which is not currently in use",
+                buffer_id,
+            );
+        };
+
+        buffer
+    }
+
+    pub fn clear(&self) {
+        let mut borrowed_buffers = self.0.lock();
+
+        borrowed_buffers.clear();
+    }
+}
+
+/// Prepare buffers to be passed to the interface.
+///
+/// We must mark the buffers as interface-owned directly, because the interface may release them using notification
+/// BEFORE the call return.
+///
+/// If at the call return some buffer could not be transmitted, then we release them immediately.
+#[derive(Debug)]
+struct BorrowedBufferCall<'a> {
+    owner: &'a BorrowedBuffers,
+    buffer_ids: VecDeque<usize>,
+}
+
+impl BorrowedBufferCall<'_> {
+    pub fn validate(mut self, count: usize) {
+        self.buffer_ids.drain(0..count);
+    }
+}
+
+impl Drop for BorrowedBufferCall<'_> {
+    fn drop(&mut self) {
+        // Remove all buffers that have not been validated
+        self.owner.release_many(self.buffer_ids.iter().copied());
     }
 }
 

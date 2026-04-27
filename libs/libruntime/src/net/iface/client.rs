@@ -5,7 +5,7 @@ use crate::{
     ipc,
     kobject::KObject,
     net::{
-        iface::{Route, RoutesBlock},
+        iface::{InterfaceConfig, InterfaceInfo, Route, RoutesBlock},
         types::{IpAddress, IpPrefix},
     },
 };
@@ -79,6 +79,73 @@ impl Client {
         >(messages::Type::DestroyInterface, query, query_handles)?;
 
         Ok(())
+    }
+
+    /// Set inteface configuration
+    pub fn set_interface_config(
+        &self,
+        name: &str,
+        config: InterfaceConfig,
+    ) -> Result<(), NetServerCallError> {
+        let (name_mobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
+
+        let query = messages::SetInterfaceConfigQueryParameters {
+            name: name_buffer,
+            config,
+        };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::SetInterfaceConfigQueryParameters::HANDLE_NAME_MOBJ] =
+            name_mobj.into_handle();
+
+        self.ipc_client.call::<
+            messages::Type,
+            messages::SetInterfaceConfigQueryParameters,
+            messages::SetInterfaceConfigReply,
+            messages::NetServerError,
+        >(messages::Type::SetInterfaceConfig, query, query_handles)?;
+
+        Ok(())
+    }
+
+    /// Get interface configuration
+    pub fn get_interface_config(&self, name: &str) -> Result<InterfaceConfig, NetServerCallError> {
+        let (name_mobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
+
+        let query = messages::GetInterfaceConfigQueryParameters { name: name_buffer };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::GetInterfaceConfigQueryParameters::HANDLE_NAME_MOBJ] =
+            name_mobj.into_handle();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::GetInterfaceConfigQueryParameters,
+            messages::GetInterfaceConfigReply,
+            messages::NetServerError,
+        >(messages::Type::GetInterfaceConfig, query, query_handles)?;
+
+        Ok(reply.config)
+    }
+
+    /// Get information on the interface
+    pub fn get_interface_info(&self, name: &str) -> Result<InterfaceInfo, NetServerCallError> {
+        let (name_mobj, name_buffer) = ipc::Buffer::new_local(name.as_bytes()).into_shared();
+
+        let query = messages::GetInterfaceInfoQueryParameters { name: name_buffer };
+
+        let mut query_handles = ipc::KHandles::new();
+        query_handles[messages::GetInterfaceInfoQueryParameters::HANDLE_NAME_MOBJ] =
+            name_mobj.into_handle();
+
+        let (reply, _reply_handles) = self.ipc_client.call::<
+            messages::Type,
+            messages::GetInterfaceInfoQueryParameters,
+            messages::GetInterfaceInfoReply,
+            messages::NetServerError,
+        >(messages::Type::GetInterfaceInfo, query, query_handles)?;
+
+        Ok(reply.info)
     }
 
     /// Create or overwrite (on prefix+iface) a route

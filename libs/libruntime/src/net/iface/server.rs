@@ -9,7 +9,7 @@ use crate::{
     drivers::pci::PciAddress,
     ipc, kobject,
     net::{
-        iface::{Route, RoutesBlock},
+        iface::{InterfaceConfig, InterfaceInfo, Route, RoutesBlock},
         types::{IpAddress, IpPrefix},
     },
 };
@@ -36,6 +36,28 @@ pub trait NetServer: Send + Sync {
 
     /// Destroy a network interface.
     async fn destroy_interface(&self, sender_id: u64, name: &str) -> Result<(), Self::Error>;
+
+    /// Set inteface configuration
+    async fn set_interface_config(
+        &self,
+        sender_id: u64,
+        name: &str,
+        config: InterfaceConfig,
+    ) -> Result<(), Self::Error>;
+
+    /// Get interface configuration
+    async fn get_interface_config(
+        &self,
+        sender_id: u64,
+        name: &str,
+    ) -> Result<InterfaceConfig, Self::Error>;
+
+    /// Get information on the interface
+    async fn get_interface_info(
+        &self,
+        sender_id: u64,
+        name: &str,
+    ) -> Result<InterfaceInfo, Self::Error>;
 
     /// Create or overwrite (on prefix+iface) a route
     async fn set_route(
@@ -86,6 +108,18 @@ impl<Impl: NetServer + 'static> Server<Impl> {
         let builder = builder.with_handler(
             messages::Type::DestroyInterface,
             Self::destroy_interface_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::SetInterfaceConfig,
+            Self::set_interface_config_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::GetInterfaceConfig,
+            Self::get_interface_config_handler,
+        );
+        let builder = builder.with_handler(
+            messages::Type::GetInterfaceInfo,
+            Self::get_interface_info_handler,
         );
         let builder = builder.with_handler(messages::Type::SetRoute, Self::set_route_handler);
         let builder = builder.with_handler(messages::Type::RemoveRoute, Self::remove_route_handler);
@@ -156,6 +190,83 @@ impl<Impl: NetServer + 'static> Server<Impl> {
             .map_err(Into::into)?;
 
         Ok((messages::DestroyInterfaceReply {}, ipc::KHandles::new()))
+    }
+
+    async fn set_interface_config_handler(
+        self: Arc<Self>,
+        query: messages::SetInterfaceConfigQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::SetInterfaceConfigReply, ipc::KHandles), NetServerError> {
+        let name_view = {
+            let handle =
+                query_handles.take(messages::SetInterfaceConfigQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create name buffer view")?
+        };
+
+        let name = unsafe { name_view.str() };
+
+        self.inner
+            .set_interface_config(sender_id, name, query.config)
+            .await
+            .map_err(Into::into)?;
+
+        Ok((messages::SetInterfaceConfigReply {}, ipc::KHandles::new()))
+    }
+
+    async fn get_interface_config_handler(
+        self: Arc<Self>,
+        query: messages::GetInterfaceConfigQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::GetInterfaceConfigReply, ipc::KHandles), NetServerError> {
+        let name_view = {
+            let handle =
+                query_handles.take(messages::GetInterfaceConfigQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create name buffer view")?
+        };
+
+        let name = unsafe { name_view.str() };
+
+        let config = self
+            .inner
+            .get_interface_config(sender_id, name)
+            .await
+            .map_err(Into::into)?;
+
+        Ok((
+            messages::GetInterfaceConfigReply { config },
+            ipc::KHandles::new(),
+        ))
+    }
+
+    async fn get_interface_info_handler(
+        self: Arc<Self>,
+        query: messages::GetInterfaceInfoQueryParameters,
+        mut query_handles: ipc::KHandles,
+        sender_id: u64,
+    ) -> Result<(messages::GetInterfaceInfoReply, ipc::KHandles), NetServerError> {
+        let name_view = {
+            let handle =
+                query_handles.take(messages::GetInterfaceInfoQueryParameters::HANDLE_NAME_MOBJ);
+            ipc::BufferView::new(handle, &query.name, ipc::BufferViewAccess::ReadOnly)
+                .invalid_arg("Failed to create name buffer view")?
+        };
+
+        let name = unsafe { name_view.str() };
+
+        let info = self
+            .inner
+            .get_interface_info(sender_id, name)
+            .await
+            .map_err(Into::into)?;
+
+        Ok((
+            messages::GetInterfaceInfoReply { info },
+            ipc::KHandles::new(),
+        ))
     }
 
     async fn set_route_handler(

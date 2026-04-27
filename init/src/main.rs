@@ -16,7 +16,15 @@ use core::mem;
 
 use alloc::{boxed::Box, format};
 use info::InitInfo;
-use libruntime::{drivers, file, kobject, net, process, state, time};
+use libruntime::{
+    drivers, file, kobject,
+    net::{
+        self,
+        iface::{InterfaceConfig, StaticInterfaceConfig},
+        types::{IpAddress, IpPrefix},
+    },
+    process, state, time,
+};
 use log::{debug, info};
 
 fn main(info: InitInfo) {
@@ -163,6 +171,33 @@ fn setup_net() {
     net_client
         .create_interface("eth0", "net.dev.e1000e", device.address)
         .expect("Failed to create net interface");
+
+    net_client
+        .set_interface_config(
+            "eth0",
+            InterfaceConfig::Static(StaticInterfaceConfig {
+                ip_address: IpAddress::from([192, 168, 1, 222]),
+                subnet_mask: IpAddress::from([255, 255, 255, 0]),
+            }),
+        )
+        .expect("failed to configure interface");
+
+    net_client
+        .set_route(
+            IpPrefix::new(IpAddress::from([192, 168, 1, 0]), 24),
+            None,
+            "eth0",
+            0,
+        )
+        .expect("Failed to create route");
+    net_client
+        .set_route(
+            IpPrefix::new(IpAddress::from([0, 0, 0, 0]), 0),
+            Some(IpAddress::from([192, 168, 1, 5])),
+            "eth0",
+            0,
+        )
+        .expect("Failed to create route");
 }
 
 /// Wait for a server port to be available

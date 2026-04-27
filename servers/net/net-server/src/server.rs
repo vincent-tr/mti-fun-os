@@ -80,9 +80,7 @@ impl NetServer for Server {
         name: &str,
         config: InterfaceConfig,
     ) -> Result<(), Self::Error> {
-        let mut ifaces = self.ifaces.lock();
-
-        let Some(iface) = ifaces.remove(name) else {
+        let Some(iface) = self.ifaces.lock().get(name).cloned() else {
             error!("Interface '{}' does not exist", name);
             return Err(NetServerError::InvalidArgument);
         };
@@ -109,9 +107,7 @@ impl NetServer for Server {
         _sender_id: u64,
         name: &str,
     ) -> Result<InterfaceConfig, Self::Error> {
-        let mut ifaces = self.ifaces.lock();
-
-        let Some(iface) = ifaces.remove(name) else {
+        let Some(iface) = self.ifaces.lock().get(name).cloned() else {
             error!("Interface '{}' does not exist", name);
             return Err(NetServerError::InvalidArgument);
         };
@@ -126,9 +122,7 @@ impl NetServer for Server {
         _sender_id: u64,
         name: &str,
     ) -> Result<InterfaceInfo, Self::Error> {
-        let mut ifaces = self.ifaces.lock();
-
-        let Some(iface) = ifaces.remove(name) else {
+        let Some(iface) = self.ifaces.lock().get(name).cloned() else {
             error!("Interface '{}' does not exist", name);
             return Err(NetServerError::InvalidArgument);
         };

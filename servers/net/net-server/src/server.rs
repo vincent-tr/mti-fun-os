@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use libruntime::{
     drivers::pci::PciAddress,
     net::{
-        iface::{NetServer, NetServerError, Route},
+        iface::{InterfaceConfig, InterfaceInfo, NetServer, NetServerError, Route},
         types::{IpAddress, IpPrefix},
     },
     sync::Mutex,
@@ -72,6 +72,75 @@ impl NetServer for Server {
         iface.destroy().await?;
 
         Ok(())
+    }
+
+    async fn set_interface_config(
+        &self,
+        _sender_id: u64,
+        name: &str,
+        config: InterfaceConfig,
+    ) -> Result<(), Self::Error> {
+        let mut ifaces = self.ifaces.lock();
+
+        let Some(iface) = ifaces.remove(name) else {
+            error!("Interface '{}' does not exist", name);
+            return Err(NetServerError::InvalidArgument);
+        };
+
+        match config {
+            InterfaceConfig::Dynamic => {
+                // TODO
+                return Err(NetServerError::NotSupported);
+            }
+
+            InterfaceConfig::Static(config) => {
+                iface.set_ip_config(Some(Arc::new(IpConfiguration::new(
+                    config.ip_address,
+                    config.subnet_mask,
+                ))));
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn get_interface_config(
+        &self,
+        _sender_id: u64,
+        name: &str,
+    ) -> Result<InterfaceConfig, Self::Error> {
+        let mut ifaces = self.ifaces.lock();
+
+        let Some(iface) = ifaces.remove(name) else {
+            error!("Interface '{}' does not exist", name);
+            return Err(NetServerError::InvalidArgument);
+        };
+
+        // TODO
+        let _ = iface;
+        return Err(NetServerError::NotSupported);
+    }
+
+    async fn get_interface_info(
+        &self,
+        _sender_id: u64,
+        name: &str,
+    ) -> Result<InterfaceInfo, Self::Error> {
+        let mut ifaces = self.ifaces.lock();
+
+        let Some(iface) = ifaces.remove(name) else {
+            error!("Interface '{}' does not exist", name);
+            return Err(NetServerError::InvalidArgument);
+        };
+
+        let info = InterfaceInfo {
+            mac_address: iface.mac_address(),
+            ip_address: iface
+                .ip_config()
+                .map(|config| (config.ip_address(), config.subnet_mask())),
+        };
+
+        Ok(info)
     }
 
     async fn set_route(

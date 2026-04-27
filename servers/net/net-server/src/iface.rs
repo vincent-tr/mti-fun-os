@@ -440,9 +440,6 @@ impl Interface {
 }
 
 #[derive(Debug)]
-struct PrepareInterfaceBuffers {}
-
-#[derive(Debug)]
 struct BorrowedBuffers(Mutex<HashMap<usize, Arc<Buffer>>>);
 
 impl BorrowedBuffers {
@@ -549,12 +546,7 @@ impl IpConfiguration {
         self.subnet_mask
     }
 
-    /// Check if this IP configuration is in the same subnet as the given IP address.
-    fn is_same_subnet(&self, ip_address: IpAddress) -> bool {
-        self.ip_address.as_u32() & self.subnet_mask.as_u32()
-            == ip_address.as_u32() & self.subnet_mask.as_u32()
-    }
-
+    /// Build the prefix from ip address and subnet mask
     pub fn get_prefix(&self) -> IpPrefix {
         let ip = self.ip_address.as_u32();
         let mask = self.subnet_mask.as_u32();

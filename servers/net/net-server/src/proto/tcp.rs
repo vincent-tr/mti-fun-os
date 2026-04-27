@@ -15,7 +15,7 @@ impl Tcp {
     }
 
     /// Process an incoming TCP packet.
-    pub fn receive(&self, metadata: IpMetadata, payload: Packet) {
+    pub fn receive(&self, metadata: IpMetadata, _payload: Packet) {
         debug!(
             "Received TCP packet from {} to {}",
             metadata.source, metadata.destination

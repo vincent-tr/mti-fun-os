@@ -179,4 +179,10 @@ make logs
   - MSI-X
 - screen/graphics
 - net
+  - UDP
+  - Sockets
+  - DHCP
+  - DNS
+  - ICMP client
+  - TCP
 
